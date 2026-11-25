@@ -499,6 +499,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawUpdateBanner() {
     if (typeof NET === "undefined" || !NET.shouldShowBanner || !NET.shouldShowBanner()) return;
     if (phase !== "menu" && phase !== "lobby" && phase !== "results" && phase !== "net") return;
+    if (phase === "net" && NET.sub === "code" && NET.errCode === "PROTOCOL_MISMATCH") return;
     var x = colX(), w = 152, h = 22, dw = 18, lw = w - dw;
     var y = phase === "menu" ? (LH - 26) : phase === "results" ? 258 : phase === "net" ? (NET.sub === "room" && NET.room ? 254 : 284) : 254;
     var onR = pressId === "update:reload", onD = pressId === "update:dismiss";

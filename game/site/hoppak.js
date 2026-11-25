@@ -383,6 +383,7 @@
     ":": [0, 12, 12, 0, 12, 12, 0],
     ",": [0, 0, 0, 0, 12, 4, 8],
     "-": [0, 0, 0, 14, 0, 0, 0],
+    "\u2014": [0, 0, 0, 31, 0, 0, 0],
     "+": [0, 4, 4, 31, 4, 4, 0],
     "?": [14, 17, 1, 2, 4, 0, 4],
     "!": [4, 4, 4, 4, 4, 0, 4],
@@ -3176,6 +3177,7 @@
       you: -1,
       token: "",
       err: "",
+      errCode: "",
       sub: "home",
       code: "",
       startInfo: null,
@@ -3703,6 +3705,8 @@
         N.redirecting = false;
         var rf = parseField(d.field, d.lw);
         if (rf) d.field = rf;
+        N.err = "";
+        N.errCode = "";
         N.room = d;
         N.you = d.you;
         N.token = d.token;
@@ -3755,7 +3759,13 @@
           rejectVersion();
           return;
         }
+        N.errCode = d.code || "";
         N.err = d.msg || d.code;
+        if (d.code === "PROTOCOL_MISMATCH") {
+          N.err = d.msg || "\u0423 \u0434\u0440\u0443\u0433\u0430 \u0434\u0440\u0443\u0433\u0430\u044F \u0432\u0435\u0440\u0441\u0438\u044F \u0438\u0433\u0440\u044B \u2014 \u043E\u0431\u043D\u043E\u0432\u0438\u0442\u0435 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0443";
+          if (N.api && N.sub !== "code") N.api.say(cleanText(N.err, 24) || "\u0414\u0420\u0423\u0413\u0410\u042F \u0412\u0415\u0420\u0421\u0418\u042F");
+          return;
+        }
         if (d.code === "NO_SESSION") giveUp("\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410");
         else if (d.code === "ROOM_CLOSED" || d.code === "SERVER_SHUTDOWN") {
           N.room = null;
@@ -4097,6 +4107,7 @@
     N.open = function(api) {
       N.api = api;
       N.err = "";
+      N.errCode = "";
       if (N.room) {
         N.sub = "room";
         return;
@@ -4159,7 +4170,15 @@
         var id = keys[k] === "<" ? "net:del" : keys[k] === "OK" ? "net:ok" : "net:k" + keys[k];
         api.btn(id, cx, cy, 48, 30, keys[k] === "OK" ? N.code.length === 4 ? C.mint : "#3a3450" : "#1a1430", keys[k] === "OK" ? "\u0412\u041E\u0419\u0422\u0418" : keys[k], keys[k] === "OK" ? INK : C.cream, keys[k] === "OK" ? 1 : 2);
       }
-      if (N.err) drawText(ctx, cleanText(N.err, 24), LW / 2, ky + 140, C.red, 1, "center");
+      if (N.errCode === "PROTOCOL_MISMATCH") {
+        box(ctx, x, 214, 152, 68, C.navy, C.mint);
+        drawText(ctx, "\u0423 \u0414\u0420\u0423\u0413\u0410 \u0414\u0420\u0423\u0413\u0410\u042F", LW / 2, 220, C.cream, 1, "center");
+        drawText(ctx, "\u0412\u0415\u0420\u0421\u0418\u042F \u0418\u0413\u0420\u042B \u2014", LW / 2, 230, C.cream, 1, "center");
+        drawText(ctx, "\u041E\u0411\u041D\u041E\u0412\u0418\u0422\u0415 \u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423", LW / 2, 240, C.cream, 1, "center");
+        api.btn("net:reload", x + 26, 255, 100, 21, "#1e3a4a", "\u041E\u0411\u041D\u041E\u0412\u0418\u0422\u042C", C.mint, 1, C.mint);
+      } else if (N.err) {
+        drawText(ctx, cleanText(N.err, 24), LW / 2, ky + 140, C.red, 1, "center");
+      }
       api.btn("net:home", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
     }
     function drawRoom(api, x) {
@@ -4225,8 +4244,13 @@
         api.goMenu();
         return;
       }
+      if (id === "net:reload") {
+        N.reloadApp();
+        return;
+      }
       if (id === "net:retry") {
         N.err = "";
+        N.errCode = "";
         N.targetNode = "";
         N.pendingAction = null;
         N.redirCount = 0;
@@ -4265,21 +4289,26 @@
         }
         N.code = "";
         N.err = "";
+        N.errCode = "";
         N.sub = "code";
         return;
       }
       if (id === "net:home") {
         N.sub = "home";
         N.err = "";
+        N.errCode = "";
         return;
       }
       if (id.indexOf("net:k") === 0) {
         if (N.code.length < 4) N.code += id.slice(5);
         N.err = "";
+        N.errCode = "";
         return;
       }
       if (id === "net:del") {
         N.code = N.code.slice(0, -1);
+        N.err = "";
+        N.errCode = "";
         return;
       }
       if (id === "net:ok") {
@@ -5113,6 +5142,7 @@
     function drawUpdateBanner() {
       if (typeof NET === "undefined" || !NET.shouldShowBanner || !NET.shouldShowBanner()) return;
       if (phase !== "menu" && phase !== "lobby" && phase !== "results" && phase !== "net") return;
+      if (phase === "net" && NET.sub === "code" && NET.errCode === "PROTOCOL_MISMATCH") return;
       var x = colX(), w = 152, h = 22, dw = 18, lw = w - dw;
       var y = phase === "menu" ? LH - 26 : phase === "results" ? 258 : phase === "net" ? NET.sub === "room" && NET.room ? 254 : 284 : 254;
       var onR = pressId === "update:reload", onD = pressId === "update:dismiss";

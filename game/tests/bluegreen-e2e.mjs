@@ -6,7 +6,7 @@
    Usage (from repo root): node game/tests/bluegreen-e2e.mjs
 */
 import http from 'node:http';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -104,7 +104,15 @@ async function waitSlotReady(slot) {
   throw new Error(`Slot ${slot.name} failed to start:\n${slot.logs.join('')}`);
 }
 
-function createCaddyProxy({ bluePort, greenPort, gameDir }) {
+function buildLegacyClient(commit, outDir) {
+  execFileSync('rm', ['-rf', outDir]);
+  mkdirSync(outDir, { recursive: true });
+  execFileSync('bash', ['-lc', `git -C /workspace/jumper archive ${commit} game | tar -x -C "${outDir}" --strip-components=1`]);
+  execFileSync('bash', [join(outDir, 'build.sh')], { cwd: outDir, stdio: 'ignore' });
+  return outDir;
+}
+
+function createCaddyProxy({ bluePort, greenPort, gameDir, oldDirs = {} }) {
   let active = 'blue';
   const httpLog = [];
   const wsLog = [];
@@ -139,6 +147,20 @@ function createCaddyProxy({ bluePort, greenPort, gameDir }) {
       res.writeHead(308, { location: u.pathname + '/' });
       res.end();
       return;
+    }
+
+    const oldMatch = u.pathname.match(/^\/old\/(0\.56|0\.57)\/(.*)$/);
+    if (oldMatch && oldDirs[oldMatch[1]]) {
+      const oRel = oldMatch[2] || 'index.html';
+      const oFile = join(oldDirs[oldMatch[1]], oRel === '' ? 'index.html' : oRel);
+      if (existsSync(oFile)) {
+        res.writeHead(200, {
+          'content-type': oFile.endsWith('.js') ? 'application/javascript; charset=utf-8' : 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+        });
+        res.end(readFileSync(oFile));
+        return;
+      }
     }
 
     const vMatch = u.pathname.match(/^\/v\/[^/]+\/(.*)$/);
@@ -334,7 +356,14 @@ async function run() {
 
   const blue = startSlot({ name: 'blue', pubPort: BLUE_PUB, intPort: BLUE_INT, version: '0.57.0', peerIntPort: GREEN_INT });
   const green = startSlot({ name: 'green', pubPort: GREEN_PUB, intPort: GREEN_INT, version: '0.58.0', peerIntPort: BLUE_INT });
-  const proxy = createCaddyProxy({ bluePort: BLUE_PUB, greenPort: GREEN_PUB, gameDir: GAME_DIR });
+  const old056Dir = buildLegacyClient('2e6bfc0', '/tmp/hoppak-old-v056');
+  const old057Dir = buildLegacyClient('a898d1f', '/tmp/hoppak-old-v057');
+  const proxy = createCaddyProxy({
+    bluePort: BLUE_PUB,
+    greenPort: GREEN_PUB,
+    gameDir: GAME_DIR,
+    oldDirs: { '0.56': old056Dir, '0.57': old057Dir },
+  });
   const v1srv = createV1OnlyServer(V1_PORT);
   const faultSrv = createFaultServer(FAULT_PORT);
 
@@ -655,6 +684,76 @@ async function run() {
     } finally {
       customSrv.kill('SIGTERM');
     }
+
+    // 10. PROTOCOL_MISMATCH UX (both directions with real built v0.56, v0.57, and v2 clients)
+    proxy.setActive('green');
+    // p1 currently holds a live v2 room on green; capture its code for v0.56 & v0.57 to attempt joining
+    const p1GreenCode = await p1.evaluate(async () => {
+      if (__hoppak.net.room && __hoppak.net.node === 'green') return __hoppak.net.room.code;
+      return '';
+    });
+    // Ensure we have a live v2 room code on green
+    const ctxV2Host = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    const pV2Host = await ctxV2Host.newPage();
+    await pV2Host.goto(`http://127.0.0.1:${PROXY_PORT}/v/0.57.0/`);
+    await pV2Host.evaluate(() => __hoppak.tap('net:menu'));
+    await waitFor(pV2Host, () => __hoppak.net.st === 'online');
+    await pV2Host.evaluate(() => __hoppak.tap('net:create'));
+    await waitFor(pV2Host, () => !!__hoppak.net.room);
+    const v2RoomCode = await pV2Host.evaluate(() => __hoppak.net.room.code);
+
+    // 10a. Actual v0.56 (2e6bfc0) client tries to join v2RoomCode -> readable Russian error <=24 chars
+    const ctx56 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    const p56 = await ctx56.newPage();
+    await p56.goto(`http://127.0.0.1:${PROXY_PORT}/old/0.56/`);
+    await p56.evaluate(() => __hoppak.tap('net:menu'));
+    await waitFor(p56, () => __hoppak.net.st === 'online');
+    await p56.evaluate((code) => { __hoppak.tap('net:enter'); for (const d of code) __hoppak.tap('net:k' + d); __hoppak.tap('net:ok'); }, v2RoomCode);
+    await waitFor(p56, () => __hoppak.net.err && __hoppak.net.err.length > 0, null, 6000);
+    await sleep(250);
+    await p56.screenshot({ path: join(SHOTS_DIR, '06_v056_mismatch.png') });
+    const err56 = await p56.evaluate(() => __hoppak.net.err);
+    check(err56 === 'Другая версия. Обновите!', `v0.56 (2e6bfc0) joining v2 room sees readable Russian text ("${err56}")`);
+
+    // 10b. Actual v0.57 (a898d1f) client creates a v1 room AND tries to join v2RoomCode
+    const ctx57 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    const p57 = await ctx57.newPage();
+    await p57.goto(`http://127.0.0.1:${PROXY_PORT}/old/0.57/`);
+    await p57.evaluate(() => __hoppak.tap('net:menu'));
+    await waitFor(p57, () => __hoppak.net.st === 'online');
+    await p57.evaluate((code) => { __hoppak.tap('net:enter'); for (const d of code) __hoppak.tap('net:k' + d); __hoppak.tap('net:ok'); }, v2RoomCode);
+    await waitFor(p57, () => __hoppak.net.err && __hoppak.net.err.length > 0, null, 6000);
+    await sleep(250);
+    await p57.screenshot({ path: join(SHOTS_DIR, '07_v057_mismatch.png') });
+    const err57 = await p57.evaluate(() => __hoppak.net.err);
+    check(err57 === 'Другая версия. Обновите!', `v0.57 (a898d1f) joining v2 room sees readable Russian text ("${err57}")`);
+
+    // Now v0.57 creates a v1 room on green, and v2 client tries to join it -> calm card + ОБНОВИТЬ button
+    await p57.evaluate(() => __hoppak.tap('net:home'));
+    await p57.evaluate(() => __hoppak.tap('net:create'));
+    await waitFor(p57, () => !!__hoppak.net.room);
+    const v1RoomCode = await p57.evaluate(() => __hoppak.net.room.code);
+
+    const ctxV2Join = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    const pV2Join = await ctxV2Join.newPage();
+    await pV2Join.goto(`http://127.0.0.1:${PROXY_PORT}/v/0.57.0/`);
+    await pV2Join.evaluate(() => __hoppak.tap('net:menu'));
+    await waitFor(pV2Join, () => __hoppak.net.st === 'online');
+    await pV2Join.evaluate((code) => { __hoppak.tap('net:enter'); for (const d of code) __hoppak.tap('net:k' + d); __hoppak.tap('net:ok'); }, v1RoomCode);
+    await waitFor(pV2Join, () => __hoppak.net.errCode === 'PROTOCOL_MISMATCH', null, 6000);
+    await sleep(250);
+    await pV2Join.screenshot({ path: join(SHOTS_DIR, '08_v2_mismatch_card.png') });
+    const v2Mismatch = await pV2Join.evaluate(() => ({ code: __hoppak.net.errCode, msg: __hoppak.net.err }));
+    check(
+      v2Mismatch.code === 'PROTOCOL_MISMATCH' && v2Mismatch.msg === 'У друга другая версия игры — обновите страницу',
+      `v2 client joining v1 room sees full mismatch card ("${v2Mismatch.msg}")`,
+    );
+    await Promise.all([
+      pV2Join.waitForNavigation({ url: `http://127.0.0.1:${PROXY_PORT}/` }),
+      pV2Join.evaluate(() => __hoppak.tap('net:reload')),
+    ]);
+    check(new URL(pV2Join.url()).pathname === '/', `v2 mismatch ОБНОВИТЬ button reloads / (url=${pV2Join.url()})`);
+    void p1GreenCode;
 
     // Check web-root and relative assets in source via grep check summary
     check(p1Errors.length === 0 && p2Errors.length === 0,

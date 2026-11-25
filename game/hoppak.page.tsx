@@ -303,7 +303,7 @@ var FONT: any = {
   "3": [14, 17, 1, 6, 1, 17, 14], "4": [2, 6, 10, 18, 31, 2, 2], "5": [31, 16, 30, 1, 1, 17, 14],
   "6": [14, 16, 16, 30, 17, 17, 14], "7": [31, 1, 2, 4, 8, 8, 8], "8": [14, 17, 17, 14, 17, 17, 14],
   "9": [14, 17, 17, 15, 1, 1, 14], " ": [0, 0, 0, 0, 0, 0, 0], ".": [0, 0, 0, 0, 0, 12, 12],
-  ":": [0, 12, 12, 0, 12, 12, 0], ",": [0, 0, 0, 0, 12, 4, 8], "-": [0, 0, 0, 14, 0, 0, 0],
+  ":": [0, 12, 12, 0, 12, 12, 0], ",": [0, 0, 0, 0, 12, 4, 8], "-": [0, 0, 0, 14, 0, 0, 0], "—": [0, 0, 0, 31, 0, 0, 0],
   "+": [0, 4, 4, 31, 4, 4, 0], "?": [14, 17, 1, 2, 4, 0, 4], "!": [4, 4, 4, 4, 4, 0, 4],
   "<": [1, 2, 4, 8, 4, 2, 1], ">": [16, 8, 4, 2, 4, 8, 16], "/": [1, 1, 2, 4, 8, 16, 16], "(": [2, 4, 8, 8, 8, 4, 2], ")": [8, 4, 2, 2, 2, 4, 8],
   "А": [14, 17, 17, 31, 17, 17, 17], "Б": [30, 16, 16, 30, 17, 17, 30], "В": [30, 17, 17, 30, 17, 17, 30],
@@ -2314,7 +2314,7 @@ var NET: any = (function () {
     updateAvail: false, updateVersion: "", updateDismissed: "",
     pendingAction: null as any, redirCount: 0, redirecting: false,
     pollTimer: 0, healthMs: NET_HEALTH_MS, probeSeq: 0,
-    room: null, you: -1, token: "", err: "", sub: "home", code: "", startInfo: null, results: null,
+    room: null, you: -1, token: "", err: "", errCode: "", sub: "home", code: "", startInfo: null, results: null,
     off: 0, rtt: 0, pingT: 0, lastSend: 0, reconUntil: 0, reconTimer: 0, onOpen: null as any, probing: false,
     stats: { sent: 0, recv: 0, snaps: 0, startedAt: 0 },
     buf: {} as any, /* pid -> samples [{t,x,y,vx,vy,f,a,m,ps}] */
@@ -2647,7 +2647,7 @@ var NET: any = (function () {
       var wasRecon = N.st === "reconnecting";
       N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
       var rf = parseField(d.field, d.lw); if (rf) d.field = rf;
-      N.room = d; N.you = d.you; N.token = d.token;
+      N.err = ""; N.errCode = ""; N.room = d; N.you = d.you; N.token = d.token;
       store("hoppak.net.token", d.token);
       if (N.node) store("hoppak.net.node", N.node);
       N.st = "online";
@@ -2681,7 +2681,13 @@ var NET: any = (function () {
     } else if (ev === "err") {
       N.pendingAction = null; N.redirCount = 0;
       if (d.code === "UNSUPPORTED_PROTOCOL") { rejectVersion(); return; }
+      N.errCode = d.code || "";
       N.err = d.msg || d.code;
+      if (d.code === "PROTOCOL_MISMATCH") {
+        N.err = d.msg || "У друга другая версия игры — обновите страницу";
+        if (N.api && N.sub !== "code") N.api.say(cleanText(N.err, 24) || "ДРУГАЯ ВЕРСИЯ");
+        return;
+      }
       if (d.code === "NO_SESSION") giveUp("КОМНАТА ЗАКРЫТА");
       else if (d.code === "ROOM_CLOSED" || d.code === "SERVER_SHUTDOWN") {
         N.room = null; N.token = "";
@@ -2909,7 +2915,7 @@ var NET: any = (function () {
 
   /* ---------- online screens (shell phase "net") ---------- */
   N.open = function (api: any) {
-    N.api = api; N.err = "";
+    N.api = api; N.err = ""; N.errCode = "";
     if (N.room) { N.sub = "room"; return; }
     if (!N.ws) N.targetNode = "";
     N.pendingAction = null; N.redirCount = 0;
@@ -2963,7 +2969,15 @@ var NET: any = (function () {
       var id = keys[k] === "<" ? "net:del" : keys[k] === "OK" ? "net:ok" : "net:k" + keys[k];
       api.btn(id, cx, cy, 48, 30, keys[k] === "OK" ? (N.code.length === 4 ? C.mint : "#3a3450") : "#1a1430", keys[k] === "OK" ? "ВОЙТИ" : keys[k], keys[k] === "OK" ? INK : C.cream, keys[k] === "OK" ? 1 : 2);
     }
-    if (N.err) drawText(ctx, cleanText(N.err, 24), LW / 2, ky + 140, C.red, 1, "center");
+    if (N.errCode === "PROTOCOL_MISMATCH") {
+      box(ctx, x, 214, 152, 68, C.navy, C.mint);
+      drawText(ctx, "У ДРУГА ДРУГАЯ", LW / 2, 220, C.cream, 1, "center");
+      drawText(ctx, "ВЕРСИЯ ИГРЫ —", LW / 2, 230, C.cream, 1, "center");
+      drawText(ctx, "ОБНОВИТЕ СТРАНИЦУ", LW / 2, 240, C.cream, 1, "center");
+      api.btn("net:reload", x + 26, 255, 100, 21, "#1e3a4a", "ОБНОВИТЬ", C.mint, 1, C.mint);
+    } else if (N.err) {
+      drawText(ctx, cleanText(N.err, 24), LW / 2, ky + 140, C.red, 1, "center");
+    }
     api.btn("net:home", x + 26, LH - 34, 100, 22, C.navy, "НАЗАД");
   }
   function drawRoom(api: any, x: number) {
@@ -3016,7 +3030,8 @@ var NET: any = (function () {
     N.api = api;
     if (id === "net:menu") { api.setPhase("net"); N.open(api); return; }
     if (id === "net:back") { api.goMenu(); return; }
-    if (id === "net:retry") { N.err = ""; N.targetNode = ""; N.pendingAction = null; N.redirCount = 0; N.connect(); return; }
+    if (id === "net:reload") { N.reloadApp(); return; }
+    if (id === "net:retry") { N.err = ""; N.errCode = ""; N.targetNode = ""; N.pendingAction = null; N.redirCount = 0; N.connect(); return; }
     if (id === "net:bots") { api.bots(); return; }
     if (id === "net:name") {
       var cur = cleanNick(nick());
@@ -3025,10 +3040,10 @@ var NET: any = (function () {
       return;
     }
     if (id === "net:create") { if (N.st !== "online") { N.connect(); return; } N.create(); return; }
-    if (id === "net:enter") { if (N.st !== "online") { N.connect(); return; } N.code = ""; N.err = ""; N.sub = "code"; return; }
-    if (id === "net:home") { N.sub = "home"; N.err = ""; return; }
-    if (id.indexOf("net:k") === 0) { if (N.code.length < 4) N.code += id.slice(5); N.err = ""; return; }
-    if (id === "net:del") { N.code = N.code.slice(0, -1); return; }
+    if (id === "net:enter") { if (N.st !== "online") { N.connect(); return; } N.code = ""; N.err = ""; N.errCode = ""; N.sub = "code"; return; }
+    if (id === "net:home") { N.sub = "home"; N.err = ""; N.errCode = ""; return; }
+    if (id.indexOf("net:k") === 0) { if (N.code.length < 4) N.code += id.slice(5); N.err = ""; N.errCode = ""; return; }
+    if (id === "net:del") { N.code = N.code.slice(0, -1); N.err = ""; N.errCode = ""; return; }
     if (id === "net:ok") { if (N.code.length === 4) N.join(N.code); return; }
     if (id === "net:ready") { var m = N.mePlayer(); send("ready", { ready: !(m && m.ready) }); return; }
     if (id === "net:start") { send("start", {}); return; }
@@ -3557,6 +3572,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawUpdateBanner() {
     if (typeof NET === "undefined" || !NET.shouldShowBanner || !NET.shouldShowBanner()) return;
     if (phase !== "menu" && phase !== "lobby" && phase !== "results" && phase !== "net") return;
+    if (phase === "net" && NET.sub === "code" && NET.errCode === "PROTOCOL_MISMATCH") return;
     var x = colX(), w = 152, h = 22, dw = 18, lw = w - dw;
     var y = phase === "menu" ? (LH - 26) : phase === "results" ? 258 : phase === "net" ? (NET.sub === "room" && NET.room ? 254 : 284) : 254;
     var onR = pressId === "update:reload", onD = pressId === "update:dismiss";
