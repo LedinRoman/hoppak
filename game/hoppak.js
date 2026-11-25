@@ -1,4 +1,4 @@
-/* Хоппак v0.53 — generated from hoppak.page.tsx by build.sh, do not edit */
+/* Хоппак v0.55 — generated from hoppak.page.tsx by build.sh, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;
@@ -206,13 +206,14 @@
       var bin = atob(raw), u = new Uint8Array(bin.length), i;
       for (i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
       if (u[0] !== 137 || u[1] !== 80) return null;
-      var p = 8, w = 0, h = 0, pal = null, tr = null, idat = new Uint8Array(0);
+      var p = 8, w = 0, h = 0, pal = null, tr = null, idat = new Uint8Array(0), ctype = 0;
       while (p < u.length) {
         var len = u32be(u, p), typ = String.fromCharCode(u[p + 4], u[p + 5], u[p + 6], u[p + 7]), d = u.subarray(p + 8, p + 8 + len);
         if (typ === "IHDR") {
           w = u32be(d, 0);
           h = u32be(d, 4);
-          if (d[8] !== 8 || d[9] !== 3) return null;
+          ctype = d[9];
+          if (d[8] !== 8 || ctype !== 3 && ctype !== 2 && ctype !== 6) return null;
         } else if (typ === "PLTE") pal = d;
         else if (typ === "tRNS") tr = d;
         else if (typ === "IDAT") {
@@ -223,24 +224,44 @@
         } else if (typ === "IEND") break;
         p += 12 + len;
       }
-      if (!w || !h || !pal) return null;
-      var data = pngInflate(idat), stride = w + 1, pix = new Uint8ClampedArray(w * h * 4);
-      var prev = new Uint8Array(w), cur = new Uint8Array(w);
+      if (!w || !h) return null;
+      if (ctype === 3 && !pal) return null;
+      var data = pngInflate(idat);
+      var bpp = ctype === 6 ? 4 : ctype === 2 ? 3 : 1;
+      var stride = 1 + w * bpp, pix = new Uint8ClampedArray(w * h * 4);
+      var prev = new Uint8Array(w * bpp), cur = new Uint8Array(w * bpp);
       var y, x;
       for (y = 0; y < h; y++) {
         var f = data[y * stride], off = y * stride + 1;
-        for (x = 0; x < w; x++) {
-          var v = data[off + x], a = x ? cur[x - 1] : 0, b = prev[x], c = x ? prev[x - 1] : 0;
+        for (x = 0; x < w * bpp; x++) {
+          var v = data[off + x], a = x >= bpp ? cur[x - bpp] : 0, b = prev[x], c = x >= bpp ? prev[x - bpp] : 0;
           if (f === 1) v = v + a & 255;
           else if (f === 2) v = v + b & 255;
           else if (f === 3) v = v + (a + b >> 1) & 255;
           else if (f === 4) v = v + paeth2(a, b, c) & 255;
           cur[x] = v;
-          var o = (y * w + x) * 4, ci = v * 3;
-          pix[o] = pal[ci];
-          pix[o + 1] = pal[ci + 1];
-          pix[o + 2] = pal[ci + 2];
-          pix[o + 3] = tr && v < tr.length ? tr[v] : 255;
+        }
+        for (x = 0; x < w; x++) {
+          var o = (y * w + x) * 4;
+          if (ctype === 3) {
+            var idx = cur[x], ci = idx * 3;
+            pix[o] = pal[ci];
+            pix[o + 1] = pal[ci + 1];
+            pix[o + 2] = pal[ci + 2];
+            pix[o + 3] = tr && idx < tr.length ? tr[idx] : 255;
+          } else if (ctype === 6) {
+            var s6 = x * 4;
+            pix[o] = cur[s6];
+            pix[o + 1] = cur[s6 + 1];
+            pix[o + 2] = cur[s6 + 2];
+            pix[o + 3] = cur[s6 + 3];
+          } else {
+            var s2 = x * 3;
+            pix[o] = cur[s2];
+            pix[o + 1] = cur[s2 + 1];
+            pix[o + 2] = cur[s2 + 2];
+            pix[o + 3] = 255;
+          }
         }
         prev.set(cur);
       }
@@ -266,11 +287,37 @@
   function warmHeroSprites() {
     for (var k in HERO_SPRITES) heroSprite(k);
   }
+  var BONUS_SPRITES = {
+    bigcoin: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABqElEQVR4nJ1UO0jDUBQ9kdChlAwSHSQ4iRQnIZAhk0MnF9fQwVEci0MHhw4dikiRjh06dZDQqRQpDplK6SBmKVVCKKWU0CmIlOAgYhxinvk1TTzTfcm555773n2PggeCWLTpxRBpoL9/w7QMyl2TQBCLdrV2jQO9lkrw7lVAp1UnonSQMHnWUgkiK/iWW2lyOWYJjlnGckIOh5MViSXRAl9pQK2WAAB8pQHoTUDWII9yDslvMOywP89AEi305xkiwEt556fe9BWTRGuzw3bxDbyURxsa1GoJvJSHKms4v99GG3/7S4rIN+h4ZEKCLpEk/MYvEgDsQpXjD40GnJGZjQdQSg9gC9mwiwi4wrLyAYABm+Ns0zIoyp2/XlfB1dFTbPV1mB46+Z1W3d9y1Aye1cuA3iSOjNUeAP80FDx3YfMcek42CXwOb/tm2OEFg52TKQAaj5dfkZzCOsHyKRsiO606Yl6Ot+W1DqNIkggiFifkItVdTgKfw9HiM0QYLTKBL2GObw9n4wF6XeeGi/vB5GTodZXkDpPg2PPiUADA5jj7X0oBmJZB/QA/ZZzVyENwRwAAAABJRU5ErkJggg==", w: 20, h: 20, k: 0.8 },
+    shield: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABdElEQVR4nJ3UIWjDQBgF4JdRWddQFTUqBoPJiDLGxEQZZXKiVE5MljE1qiamKqZGxeQoVSGMioiJEVFCWE2gUMYoExUVWYmImLuJ9NK75O4S9kxz4c/Hu5SLBgBms0MgiT8daeyanV0GLjcbxiutYjY75P7hTuah23bJ/tFJumZnX20zvf7wfSBwSUUqbfMycYpGEmwbDjw2DwAALStK7/WNNffwzfM3s2og8iwY9d2dXEMWuz6rIUQNw7cfAMDG8Qrb7qkwACkmSuRZalCFlWknBf+LSUERNn+KuRnRdpUNOaw3AD6Hya8CAwT/MotRgM28N8BsvMCFfV7csG+ssXG8tNnh4y03PBsvcphR/+VBfzrSuu2WdAsUyuLZLAMXYbzS0oOvVw1Cjxl/GpKI3httRzGA2TL7ATjVv0pj2XCfJr1qkMur3dbew0YhxrbLgSIUAOxJIGyVxYQgRQH+NWQhADlMCrJwFhW1Kg2ybWlUGAD8AUwxtRHyLrL4AAAAAElFTkSuQmCC", w: 20, h: 20, k: 0.8 },
+    magnet: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAYAAACpF6WWAAABR0lEQVR4nOWVMUvDQBTHfw0ZJHSSghlCEQcHJwcJ0imjQ76AxQ/g0Nmho4OTo9/BVcShY8lYOoVODhkkQwQRKVI65RzSC9frXVDqIv6n3Mu93/vnHXnXAgh7fcFKWZrIR94+8xYWNeW4Ya8vrm+GdfDxIWQ6mVSLNBEmsCkHqPLSRDg2J9von0Pdw+eM46vLOvBRlMwXJQCZJcmUAzBflGS6073zk19x+nd6aoTG3s9rPa3OwQrdVq66eL2fEvkO46Ik9hxir8sABFT/9EXnVADcHrgmVq0WQKcdiNnRfh0cF+XGxsH7C+oeda/89NEyrwaKDop8h8jf7MrMNwOtTqXbu93u2ksTXAfqLkHrqS1Rhavu1BM3OpVuAXTHulTYaJkD6wPdONk77UCc7QSNYAk0DXHrdSFdA6gFpDPd3begtgJN95bUF+MSk1paqG+DAAAAAElFTkSuQmCC", w: 21, h: 21, k: 0.8 },
+    rocket: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAAWCAYAAAAb+hYkAAABUklEQVR4nK1TPUjDQBh9EQeRTOGQDkcGR+nSItIpZOzQQVzNGKGDg0MQ6aJTJgcHkYJrXUSkg0JnJ4ei4hCKlQ41QwnSSYqD8DnEi7n02uLPm3Lf3bv37nv5NCjgsBIBQOs9xOtbqGX351WEw+W4XBmY2AYoS5xTKc2CREqrCJQXOJjO6c9K0rX9fB7DUz9Zn2zV4o92qGZbtktBN6KgGxHTOTUGREznZNkuWbZLaYtj9qxCEUfPLwCApfU6gnZruj0B37ue+qYxpZv7O0TNKgAgalaxslpWkxxWovNRRyJe7K9h168ntWPDTFr/u3BVgU6CUJNOG5sb0qHH3gdMsVj8NiWRhmeXEqkvwgWAXqAmWYUiAKBxFWdTO9iBU/nqnpFoQgOQdEWMQDr9bE01X2A6J/JyRKNbIi9H2T8c+I95kvC097ObmM6JHmyltZnESXufOrN6Mf6iw4AAAAAASUVORK5CYII=", w: 13, h: 22, k: 0.8 }
+  };
+  var bonusCache = {};
+  function bonusSprite(kind) {
+    if (bonusCache[kind]) return bonusCache[kind];
+    var m = BONUS_SPRITES[kind];
+    if (!m) return null;
+    var cv = pngToCanvas(m.src);
+    if (cv) bonusCache[kind] = cv;
+    return cv;
+  }
+  function warmBonusSprites() {
+    for (var k in BONUS_SPRITES) bonusSprite(k);
+  }
+  function drawBonusSprite(ctx, kind, cx, cy, k) {
+    var m = BONUS_SPRITES[kind], cv = bonusSprite(kind);
+    if (!m || !cv) return false;
+    var kk = k != null ? k : m.k;
+    var dw = Math.round(m.w * kk), dh = Math.round(m.h * kk);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(cv, 0, 0, m.w, m.h, Math.round(cx - dw / 2), Math.round(cy - dh / 2), dw, dh);
+    return true;
+  }
   var BONUSES = [
     { id: "bigcoin", name: "\u041A\u041B\u0410\u0414", wt: 25 },
     { id: "shield", name: "\u0429\u0418\u0422", wt: 22, t: 500 },
     { id: "magnet", name: "\u041C\u0410\u0413\u041D\u0418\u0422", wt: 20, t: 450 },
-    { id: "x2", name: "\u04252", wt: 18, t: 500 },
     { id: "rocket", name: "\u0420\u0410\u041A\u0415\u0422\u0410", wt: 15, t: 85 }
   ];
   var BIGCOIN = 25;
@@ -894,7 +941,7 @@
           break;
         }
       }
-      w.items.push({ kind: bk, x: randInt(r, 8, LW - 18), y: Math.round(y - gap / 2 - 5), taken: false });
+      w.items.push({ kind: bk, x: randInt(r, 10, LW - 20), y: Math.round(y - gap / 2 - 5), taken: false });
       w.nextBonusM = m + randInt(r, 200, 300);
       bonus = true;
     }
@@ -962,7 +1009,6 @@
       kills: 0,
       shieldT: 0,
       magnetT: 0,
-      x2T: 0,
       rocketT: 0,
       invT: 0,
       freezeT: 0,
@@ -1372,7 +1418,6 @@
     if (B.id === "bigcoin") w.bonusCoins += BIGCOIN;
     else if (B.id === "shield") p.shieldT = B.t;
     else if (B.id === "magnet") p.magnetT = Math.max(p.magnetT, B.t);
-    else if (B.id === "x2") p.x2T = B.t;
     else if (B.id === "rocket") {
       p.rocketT = B.t;
       p.grabT = 0;
@@ -1577,7 +1622,6 @@
       if (p.abFx > 0) p.abFx--;
       if (p.shieldT > 0) p.shieldT--;
       if (p.magnetT > 0) p.magnetT--;
-      if (p.x2T > 0) p.x2T--;
       if (p.invT > 0) p.invT--;
       if (p.freezeT > 0) p.freezeT--;
       if (p.dashT > 0) p.dashT--;
@@ -1632,7 +1676,7 @@
           var hc = w.coins[k];
           if (!hc.taken && overlapsX(p.x - 2, PW + 4, hc.x, 6) && hc.y + 6 > p.y - 2 && hc.y < p.y + PH + 2) {
             hc.taken = true;
-            w.runCoins += p.x2T > 0 ? 2 : 1;
+            w.runCoins += 1;
             addCharge(p, "coins", 1);
             spawnParts(w, hc.x + 3, hc.y + 3, 6, "#ffe07a", 1.8, 0, 1);
           }
@@ -1806,14 +1850,14 @@
           }
           if (overlapsX(p.x, PW, cn.x, 6) && cn.y + 6 > p.y && cn.y < p.y + PH) {
             cn.taken = true;
-            w.runCoins += p.x2T > 0 ? 2 : 1;
+            w.runCoins += 1;
             addCharge(p, "coins", 1);
             spawnParts(w, cn.x + 3, cn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
           }
         }
         for (k = 0; k < w.items.length; k++) {
           var it = w.items[k];
-          if (!it.taken && overlapsX(p.x, PW, it.x, 10) && it.y + 10 > p.y && it.y < p.y + PH) pickItem(w, p, it);
+          if (!it.taken && overlapsX(p.x, PW, it.x - 2, 14) && it.y + 12 > p.y && it.y - 2 < p.y + PH) pickItem(w, p, it);
         }
       }
       var mh = Math.max(0, -(p.y + PH));
@@ -2681,8 +2725,9 @@
       rect(ctx, x, y + 1, 1, 3, "#fff0a0");
     }
   }
-  var ITEM_COL = { bigcoin: "#ffd046", shield: "#5ec8ff", magnet: "#ff5a62", x2: "#62e6be", rocket: "#ff9a3a" };
+  var ITEM_COL = { bigcoin: "#f0b428", shield: "#3d8ad8", magnet: "#e03848", rocket: "#ff6a3a" };
   function drawItemIcon(ctx, kind, x, y) {
+    if (drawBonusSprite(ctx, kind, x + 5, y + 5, 0.5)) return;
     if (kind === "bigcoin") {
       rect(ctx, x + 2, y + 1, 6, 8, C.gold);
       rect(ctx, x + 1, y + 2, 8, 6, C.gold);
@@ -2700,13 +2745,6 @@
       rect(ctx, x + 1, y + 1, 3, 2, "#e8ecf4");
       rect(ctx, x + 6, y + 1, 3, 2, "#e8ecf4");
       rect(ctx, x + 4, y + 6, 2, 1, "#a82a38");
-    } else if (kind === "x2") {
-      rect(ctx, x, y + 3, 1, 1, "#ffffff");
-      rect(ctx, x + 2, y + 3, 1, 1, "#ffffff");
-      rect(ctx, x + 1, y + 4, 1, 1, "#ffffff");
-      rect(ctx, x, y + 5, 1, 1, "#ffffff");
-      rect(ctx, x + 2, y + 5, 1, 1, "#ffffff");
-      drawText(ctx, "2", x + 4, y + 1, C.gold, 1, "left");
     } else if (kind === "rocket") {
       rect(ctx, x + 4, y, 2, 1, "#ff5a62");
       rect(ctx, x + 3, y + 1, 4, 6, "#e8ecf4");
@@ -2718,8 +2756,10 @@
   }
   function drawItem(ctx, it, cam, tick) {
     if (it.taken) return;
-    var y = Math.round(it.y - cam + Math.sin((tick + it.x) * 0.08) * 1.5), x = it.x;
-    if (y < -14 || y > LH + 4) return;
+    var by = tick + it.x >> 4 & 1 ? -1 : 0;
+    var y = Math.round(it.y - cam) + by, x = it.x;
+    if (y < -24 || y > LH + 8) return;
+    if (drawBonusSprite(ctx, it.kind, x + 5, y + 5)) return;
     var col = ITEM_COL[it.kind] || C.gold;
     ctx.globalAlpha = 0.3 + 0.15 * Math.sin(tick * 0.15);
     rect(ctx, x - 2, y - 2, 14, 14, col);
@@ -2759,6 +2799,7 @@
       reconUntil: 0,
       reconTimer: 0,
       onOpen: null,
+      probing: false,
       stats: { sent: 0, recv: 0, snaps: 0, startedAt: 0 },
       buf: {},
       /* pid -> samples [{t,x,y,vx,vy,f,a,m,ps}] */
@@ -2771,17 +2812,53 @@
     function serverNow() {
       return now() + N.off;
     }
+    function builtinOrigin() {
+      try {
+        if (typeof HOP_SERVER !== "undefined" && HOP_SERVER) return String(HOP_SERVER).replace(/\/$/, "");
+      } catch (_e) {
+      }
+      return "";
+    }
+    function toWs(origin) {
+      var o = String(origin || "").trim();
+      if (!o) return "";
+      if (o.indexOf("ws://") === 0 || o.indexOf("wss://") === 0) {
+        return /\/ws\/?$/.test(o) ? o.replace(/\/$/, "") : o.replace(/\/$/, "") + "/ws";
+      }
+      if (o.indexOf("https://") === 0) return "wss://" + o.slice(8).replace(/\/$/, "") + "/ws";
+      if (o.indexOf("http://") === 0) return "ws://" + o.slice(7).replace(/\/$/, "") + "/ws";
+      return "";
+    }
+    function toHealth(wsUrl) {
+      try {
+        var s = String(wsUrl || "");
+        if (s.indexOf("wss://") === 0) s = "https://" + s.slice(6);
+        else if (s.indexOf("ws://") === 0) s = "http://" + s.slice(5);
+        var u = new URL(s);
+        var path = u.pathname || "";
+        if (path.lastIndexOf("/ws") === path.length - 3) path = path.slice(0, -3);
+        if (path.charAt(path.length - 1) === "/") path = path.slice(0, -1);
+        u.pathname = path + "/api/health";
+        u.search = "";
+        u.hash = "";
+        return u.toString();
+      } catch (_e) {
+        return "";
+      }
+    }
     function url() {
       var w = typeof window !== "undefined" ? window : null;
       if (!w) return "";
       try {
         var q = new URLSearchParams(w.location.search).get("server");
-        if (q) return q;
-        if (w.HOPPAK_SERVER) return w.HOPPAK_SERVER;
+        if (q) return toWs(q);
+        if (w.HOPPAK_SERVER) return toWs(w.HOPPAK_SERVER);
         var ls = w.localStorage && w.localStorage.getItem("hoppak.server");
-        if (ls) return ls;
+        if (ls) return toWs(ls);
       } catch (_e) {
       }
+      var built = builtinOrigin();
+      if (built) return toWs(built);
       var pr = w.location && w.location.protocol;
       if (pr !== "http:" && pr !== "https:") return "";
       return (pr === "https:" ? "wss://" : "ws://") + w.location.host + "/ws";
@@ -2825,31 +2902,46 @@
     }
     N.send = send;
     N.serverNow = serverNow;
-    N.connect = function(cb) {
-      if (N.ws && N.ws.readyState === 1) {
-        if (cb) cb(true);
+    function failLink(cb) {
+      N.st = "error";
+      N.err = "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418";
+      var f = cb || N.onOpen;
+      N.onOpen = null;
+      if (f) f(false);
+    }
+    function probeHealth(hu, cb) {
+      if (!hu || typeof fetch === "undefined") {
+        cb(false);
         return;
       }
-      var u = url();
-      if (!u || typeof WebSocket === "undefined") {
-        N.st = "error";
-        N.err = "\u041D\u0415\u0422 \u0421\u0415\u0420\u0412\u0415\u0420\u0410";
-        if (cb) cb(false);
-        return;
+      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      var to = setTimeout(function() {
+        try {
+          if (ctrl) ctrl.abort();
+        } catch (_e) {
+        }
+      }, 1500);
+      var done = false;
+      function finish2(ok) {
+        if (done) return;
+        done = true;
+        clearTimeout(to);
+        cb(!!ok);
       }
-      if (N.ws && N.ws.readyState === 0) {
-        N.onOpen = cb || N.onOpen;
-        return;
-      }
-      N.st = N.st === "reconnecting" ? "reconnecting" : "connecting";
-      N.onOpen = cb || null;
+      var opts = { method: "GET", cache: "no-store", mode: "cors" };
+      if (ctrl) opts.signal = ctrl.signal;
+      fetch(hu, opts).then(function(r) {
+        finish2(!!r && r.ok);
+      }).catch(function() {
+        finish2(false);
+      });
+    }
+    function openSocket(u) {
       var ws;
       try {
         ws = new WebSocket(u);
       } catch (_e) {
-        N.st = "error";
-        N.err = "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418";
-        if (cb) cb(false);
+        failLink();
         return;
       }
       N.ws = ws;
@@ -2881,7 +2973,7 @@
         var m;
         try {
           m = JSON.parse(e.data);
-        } catch (_e) {
+        } catch (_e2) {
           return;
         }
         onMsg(m.event, m.data || {});
@@ -2891,11 +2983,7 @@
         if (N.ws !== ws) return;
         N.ws = null;
         if (!opened && N.st !== "reconnecting") {
-          N.st = "error";
-          N.err = "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418";
-          var f = N.onOpen;
-          N.onOpen = null;
-          if (f) f(false);
+          failLink();
           return;
         }
         if (N.room) startReconnect();
@@ -2903,6 +2991,37 @@
       };
       ws.onerror = function() {
       };
+    }
+    N.connect = function(cb) {
+      if (N.ws && N.ws.readyState === 1) {
+        if (cb) cb(true);
+        return;
+      }
+      var u = url();
+      if (!u || typeof WebSocket === "undefined") {
+        failLink(cb);
+        return;
+      }
+      if (N.ws && N.ws.readyState === 0) {
+        N.onOpen = cb || N.onOpen;
+        return;
+      }
+      if (N.probing) {
+        N.onOpen = cb || N.onOpen;
+        return;
+      }
+      N.st = N.st === "reconnecting" ? "reconnecting" : "connecting";
+      N.onOpen = cb || null;
+      N.probing = true;
+      probeHealth(toHealth(u), function(ok) {
+        N.probing = false;
+        if (N.st !== "connecting" && N.st !== "reconnecting") return;
+        if (!ok) {
+          failLink();
+          return;
+        }
+        openSocket(u);
+      });
     };
     function startReconnect() {
       if (N.st !== "reconnecting") {
@@ -3495,7 +3614,7 @@
     var pointers = {};
     var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
     var hits = [];
-    var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, lastBackdropMap = "";
+    var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
     var fieldLocked = false, landPause = false;
     var pressId = null;
     var confirmId = null, confirmAt = 0;
@@ -3507,6 +3626,7 @@
     var TO = ["\u0413\u041E\u0420\u041E\u0414\u0410", "\u0414\u0416\u0423\u041D\u0413\u041B\u0415\u0419", "\u041B\u0415\u0414\u041D\u0418\u041A\u0410", "\u0412\u0423\u041B\u041A\u0410\u041D\u0410", "\u041E\u041A\u0415\u0410\u041D\u0410", "\u041A\u041E\u0421\u041C\u041E\u0421\u0410"];
     var HTO = ["\u041A\u0410\u041F\u0418\u0422\u0410\u041D\u0410", "\u041F\u0418\u0420\u0410\u0422\u0410", "\u041D\u0418\u041D\u0414\u0417\u042F", "\u0420\u041E\u0411\u041E\u0422\u0410", "\u041C\u0410\u0413\u0410", "\u0420\u042B\u0426\u0410\u0420\u042F"];
     warmHeroSprites();
+    warmBonusSprites();
     function isPageBuild() {
       return typeof HOP_PAGE !== "undefined" && !!HOP_PAGE;
     }
@@ -3526,11 +3646,31 @@
       var r = (wrap || canvas).getBoundingClientRect();
       return { w: Math.max(1, r.width), h: Math.max(1, r.height), x: 0, y: 0 };
     }
+    function isCoarsePointer() {
+      try {
+        if (window.matchMedia) {
+          if (window.matchMedia("(pointer: coarse)").matches) return true;
+          if (window.matchMedia("(any-pointer: coarse)").matches) return true;
+        }
+      } catch (_e) {
+      }
+      try {
+        if (navigator && (navigator.maxTouchPoints || 0) > 0) return true;
+      } catch (_e2) {
+      }
+      try {
+        if ("ontouchstart" in window) return true;
+      } catch (_e3) {
+      }
+      return false;
+    }
     function resize() {
       var vs = viewSize();
       var cssW = Math.max(1, vs.w), cssH = Math.max(1, vs.h);
       var dpr = Math.max(1, window.devicePixelRatio || 1);
-      isWide = cssW >= 540;
+      isPhone = isCoarsePointer() && Math.min(cssW, cssH) < 540;
+      isWide = cssW >= 540 && !isPhone;
+      phoneLand = isPhone && cssW > cssH;
       var frameX = isWide ? 24 : 0;
       var frameY = isWide ? cssH >= 740 ? 16 : 4 : 0;
       var availW = Math.max(160, cssW - frameX * 2);
@@ -3588,7 +3728,7 @@
       ctx.imageSmoothingEnabled = false;
       ctx.webkitImageSmoothingEnabled = false;
       syncBackdrop(world ? world.map : save.bg);
-      if (fieldLocked && phase === "play" && !paused && !isWide && cssW > cssH) {
+      if (fieldLocked && phase === "play" && !paused && phoneLand) {
         paused = true;
         landPause = true;
         acc = 0;
@@ -4526,7 +4666,7 @@
         ctx.globalAlpha = 1;
       }
     }
-    var BON_HUD = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["x2T", "x2", 500], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
+    var BON_HUD = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
     function drawBonusHud(me) {
       var x = 4, y = 22;
       for (var i = 0; i < BON_HUD.length; i++) {
@@ -4816,6 +4956,12 @@
         drawPlay();
         if (world && world.net) NET.overlay(netApi, world);
       }
+      if (phoneLand && phase !== "play") {
+        dimView(ctx, "rgba(8,6,20,0.55)");
+        box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
+        drawText(ctx, "\u041F\u041E\u0412\u0415\u0420\u041D\u0418 \u0422\u0415\u041B\u0415\u0424\u041E\u041D", LW / 2, LH / 2 - 14, C.cream, 1, "center");
+        hits = [];
+      }
       if (netFixedLW() !== netLW) resize();
       if (running && !driving) raf = requestAnimationFrame(frame);
     }
@@ -4864,7 +5010,7 @@
       if (document.hidden && phase === "play") paused = true;
     }
     function wantTouchPause() {
-      if (!isWide) return true;
+      if (isPhone || !isWide) return true;
       try {
         return !!(navigator && navigator.maxTouchPoints);
       } catch (_e) {
@@ -4938,7 +5084,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD };
+        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD };
       },
       tap: function(id) {
         activate(id);
