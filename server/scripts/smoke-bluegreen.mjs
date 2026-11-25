@@ -870,6 +870,59 @@ try {
     } finally { b2.child.kill('SIGKILL'); g2.child.kill('SIGKILL'); }
   }
 
+  // 19. BUG-50: server-side ws.ping() keeps idle sockets (v1, v2, internal proxy) alive and terminates silent ones
+  {
+    const bp = await freePort(), bi = await freePort(), gp = await freePort(), gi = await freePort();
+    const hbEnv = { WS_PING_MS: '60', WS_PONG_TIMEOUT_MS: '180' };
+    const b = startSlot({ name: 'blue', pubPort: bp, intPort: bi, version: '0.58.0', peerIntPort: gi, extraEnv: hbEnv });
+    const g = startSlot({ name: 'green', pubPort: gp, intPort: gi, version: '0.58.0', peerIntPort: bi, extraEnv: hbEnv });
+    try {
+      await waitReady(b); await waitReady(g);
+      // 19a. Normal idle v1 + v2 sockets receive ws.ping() and survive > 7 intervals (480 ms >> 180 ms pong timeout)
+      const idleV2 = await openWs(`ws://127.0.0.1:${bp}/ws?p=2`, 'hb_v2');
+      const idleV1 = await openWs(`ws://127.0.0.1:${bp}/ws`, 'hb_v1');
+      let pingsV2 = 0, pingsV1 = 0;
+      idleV2.ws.on('ping', () => { pingsV2++; });
+      idleV1.ws.on('ping', () => { pingsV1++; });
+      await idleV2.wait('hello'); await idleV1.wait('hello');
+
+      // 19b. Proxied v1 socket (blue -> green internal/ws) also stays alive across > 7 intervals
+      const gr = await openWs(`ws://127.0.0.1:${gp}/ws`, 'hb_green_host');
+      await gr.wait('hello');
+      gr.send('create', { name: 'HB', kind: 0 });
+      const greenRoom = await gr.wait('room');
+      const proxiedV1 = await openWs(`ws://127.0.0.1:${bp}/ws`, 'hb_proxied_v1');
+      let pingsProxied = 0;
+      proxiedV1.ws.on('ping', () => { pingsProxied++; });
+      await proxiedV1.wait('hello');
+      proxiedV1.send('join', { code: greenRoom.code, name: 'HBJ', kind: 0 });
+      const joinedRoom = await proxiedV1.wait('room');
+
+      // 19c. Silent socket (autoPong: false) gets terminated after WS_PONG_TIMEOUT_MS
+      const silentWs = new WebSocket(`ws://127.0.0.1:${bp}/ws?p=2`, { autoPong: false });
+      let silentPings = 0;
+      silentWs.on('ping', () => { silentPings++; });
+      const silentClosed = new Promise((res) => silentWs.once('close', (code) => res(code)));
+      await new Promise((res) => silentWs.once('open', res));
+
+      await sleep(500);
+      const sc = await Promise.race([silentClosed, sleep(1000).then(() => 'still-open')]);
+      check(
+        idleV2.ws.readyState === 1 && idleV1.ws.readyState === 1 && proxiedV1.ws.readyState === 1 &&
+        joinedRoom?.code === greenRoom?.code && pingsV2 >= 4 && pingsV1 >= 4 && pingsProxied >= 4,
+        `BUG-50: idle v2/v1/proxied sockets survived 500ms (>2x pong timeout) with ws.ping() (pings=${pingsV2}/${pingsV1}/${pingsProxied})`
+      );
+      check(
+        sc === 1006 && silentPings >= 2,
+        `BUG-50: socket that stops answering pongs is terminated (close=${sc}, pings=${silentPings})`
+      );
+      try { idleV2.ws.close(); } catch {}
+      try { idleV1.ws.close(); } catch {}
+      try { proxiedV1.ws.close(); } catch {}
+      try { gr.ws.close(); } catch {}
+    } finally { b.child.kill('SIGKILL'); g.child.kill('SIGKILL'); }
+  }
+
   console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL BLUE-GREEN SMOKE CHECKS PASSED');
   process.exitCode = failures ? 1 : 0;
 } finally {
