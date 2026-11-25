@@ -1,6 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Player } from './player.entity';
+import { PlayerRun } from './player-run.entity';
 import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
 
@@ -13,7 +14,7 @@ export class ProfileModule {
     }
     return {
       module: ProfileModule,
-      imports: [TypeOrmModule.forFeature([Player])],
+      imports: [TypeOrmModule.forFeature([Player, PlayerRun])],
       controllers,
       providers: [ProfileService],
     };

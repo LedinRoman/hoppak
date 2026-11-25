@@ -24,19 +24,29 @@ export class ProfileController {
   }
 
   @Post('profile/migrate')
-  async migrate(@Headers('authorization') auth?: string, @Body() body?: { coins?: number; purchases?: Record<string, number> }) {
+  async migrate(
+    @Headers('authorization') auth?: string,
+    @Body() body?: { coins?: number; purchases?: Record<string, number>; best?: number },
+  ) {
     const p = await this.profiles.requireByToken(bearerToken(auth));
-    const profile = await this.profiles.migrate(p, body?.coins, body?.purchases);
+    const profile = await this.profiles.migrate(p, body?.coins, body?.purchases, body?.best);
     return { ok: true, profile };
+  }
+
+  @Post('profile/buy')
+  async buy(@Headers('authorization') auth?: string, @Body() body?: { key?: string }) {
+    const p = await this.profiles.requireByToken(bearerToken(auth));
+    const result = await this.profiles.buy(p, body?.key);
+    return { ok: true, ...result };
   }
 
   @Post('run/finish')
   async finish(
     @Headers('authorization') auth?: string,
-    @Body() body?: { height?: number; runCoins?: number; bonusCoins?: number },
+    @Body() body?: { height?: number; runCoins?: number; bonusCoins?: number; runId?: string },
   ) {
     const p = await this.profiles.requireByToken(bearerToken(auth));
-    const result = await this.profiles.finishRun(p, body?.height, body?.runCoins, body?.bonusCoins);
+    const result = await this.profiles.finishRun(p, body?.height, body?.runCoins, body?.bonusCoins, body?.runId);
     return { ok: true, ...result };
   }
 
