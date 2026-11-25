@@ -23,7 +23,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
   var hits: any[] = [];
   var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
-  var fieldLocked = false, landPause = false;
+  var fieldLocked = false, landPause = false, manualPause = false;
   var resumeCd = 0, resumeAt = 0, abDenyT = 0, refuseT = 0, popT = -1, wasReady = false, coinT0 = -1, coinSkip = false;
   var pressId: any = null;
   var confirmId: any = null, confirmAt = 0;
@@ -133,11 +133,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (fieldLocked && phase === "play" && phoneLand) {
       if (!landPause || resumeCd > 0) { paused = true; landPause = true; resumeCd = 0; acc = 0; uiAcc = 0; lastT = -1; }
     } else if (landPause && !phoneLand) {
-      startResumeCountdown();
+      landPause = false;
+      if (manualPause) { paused = true; resumeCd = 0; acc = 0; uiAcc = 0; lastT = -1; }
+      else startResumeCountdown();
     }
   }
   function startResumeCountdown() {
     landPause = false;
+    manualPause = false;
     paused = true;
     resumeCd = 3;
     resumeAt = (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -248,7 +251,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     acc = 0; uiAcc = 0; lastT = -1;
     held.left = held.right = false;
     pointers = {}; abTap = false; pressId = null;
-    resumeCd = 0; landPause = false; abDenyT = 0; refuseT = 0; popT = -1; wasReady = false; coinT0 = -1; coinSkip = false;
+    resumeCd = 0; landPause = false; manualPause = false; abDenyT = 0; refuseT = 0; popT = -1; wasReady = false; coinT0 = -1; coinSkip = false;
     try { canvas.focus(); } catch (_e) {}
   }
   function payout() {
@@ -270,7 +273,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.best = save.best;
     writeSave(save);
   }
-  function goMenu() { phase = "menu"; world = null; showSet = false; campCard = -1; paused = false; landPause = false; fieldLocked = false; resize(); }
+  function goMenu() { phase = "menu"; world = null; showSet = false; campCard = -1; paused = false; landPause = false; manualPause = false; fieldLocked = false; resize(); }
 
   function shopTap(key: string) {
     if (key.indexOf("char:") !== 0) return;
@@ -311,7 +314,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (id === "menu") { goMenu(); return; }
     if (id === "back") { showSet = false; campCard = -1; phase = "menu"; return; }
     if (id === "go") { startSquad(); return; }
-    if (id === "pause") { if (phase === "play" && !paused) { paused = true; acc = 0; uiAcc = 0; lastT = -1; } return; }
+    if (id === "pause") { if (phase === "play" && !paused) { paused = true; manualPause = true; acc = 0; uiAcc = 0; lastT = -1; } return; }
     if (id === "resume") { startResumeCountdown(); return; }
     if (id === "font") { phase = "font"; return; }
     if (id === "rematch") {
@@ -432,7 +435,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       e.preventDefault(); return;
     }
     if (phase === "play" && (k === " " || k === "ArrowUp" || k === "w" || k === "W" || k === "ц" || k === "Ц" || k === "Shift")) { requestAbility(); e.preventDefault(); return; }
-    if (k === "Escape" && phase === "play") { paused = true; acc = 0; uiAcc = 0; lastT = -1; return; }
+    if (k === "Escape" && phase === "play") { paused = true; manualPause = true; acc = 0; uiAcc = 0; lastT = -1; return; }
     if (k === "Escape" && phase !== "menu" && phase !== "play") activate(phase === "results" ? "menu" : "back");
     if (phase === "shop" && (k === "ArrowLeft" || k === "ArrowRight")) activate(k === "ArrowLeft" ? "hero:prev" : "hero:next");
     if ((k === "Enter" || k === " ") && phase === "menu") activate("start");
@@ -1114,7 +1117,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (now - resumeAt >= 1000) {
         resumeCd--;
         resumeAt = now;
-        if (resumeCd <= 0) { paused = false; landPause = false; acc = 0; uiAcc = 0; lastT = now; }
+        if (resumeCd <= 0) { paused = false; landPause = false; manualPause = false; acc = 0; uiAcc = 0; lastT = now; }
       }
     }
     syncBackdrop(world ? world.map : save.bg);
@@ -1230,7 +1233,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },
@@ -1240,7 +1243,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     setHero: function (k: number) { save.char = k; },
     addCoins: function (n: number) { save.coins += n; writeSave(save); },
     forceResults: function () { if (world) { finish(world); payout(); phase = "results"; } },
-    pause: function (on: boolean) { paused = !!on; acc = 0; uiAcc = 0; lastT = -1; },
+    pause: function (on: boolean) { paused = !!on; manualPause = !!on; acc = 0; uiAcc = 0; lastT = -1; },
     warp: function (m: number) {
       if (!world) return;
       generateUntil(world, -m * PX_PER_M - LH);

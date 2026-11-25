@@ -4045,7 +4045,7 @@
     var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
     var hits = [];
     var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
-    var fieldLocked = false, landPause = false;
+    var fieldLocked = false, landPause = false, manualPause = false;
     var resumeCd = 0, resumeAt = 0, abDenyT = 0, refuseT = 0, popT = -1, wasReady = false, coinT0 = -1, coinSkip = false;
     var pressId = null;
     var confirmId = null, confirmAt = 0;
@@ -4182,11 +4182,19 @@
           lastT = -1;
         }
       } else if (landPause && !phoneLand) {
-        startResumeCountdown();
+        landPause = false;
+        if (manualPause) {
+          paused = true;
+          resumeCd = 0;
+          acc = 0;
+          uiAcc = 0;
+          lastT = -1;
+        } else startResumeCountdown();
       }
     }
     function startResumeCountdown() {
       landPause = false;
+      manualPause = false;
       paused = true;
       resumeCd = 3;
       resumeAt = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -4357,6 +4365,7 @@
       pressId = null;
       resumeCd = 0;
       landPause = false;
+      manualPause = false;
       abDenyT = 0;
       refuseT = 0;
       popT = -1;
@@ -4395,6 +4404,7 @@
       campCard = -1;
       paused = false;
       landPause = false;
+      manualPause = false;
       fieldLocked = false;
       resize();
     }
@@ -4514,6 +4524,7 @@
       if (id === "pause") {
         if (phase === "play" && !paused) {
           paused = true;
+          manualPause = true;
           acc = 0;
           uiAcc = 0;
           lastT = -1;
@@ -4707,6 +4718,7 @@
       }
       if (k === "Escape" && phase === "play") {
         paused = true;
+        manualPause = true;
         acc = 0;
         uiAcc = 0;
         lastT = -1;
@@ -5542,6 +5554,7 @@
           if (resumeCd <= 0) {
             paused = false;
             landPause = false;
+            manualPause = false;
             acc = 0;
             uiAcc = 0;
             lastT = now;
@@ -5728,7 +5741,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
+        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
       },
       tap: function(id) {
         activate(id);
@@ -5767,6 +5780,7 @@
       },
       pause: function(on) {
         paused = !!on;
+        manualPause = !!on;
         acc = 0;
         uiAcc = 0;
         lastT = -1;
