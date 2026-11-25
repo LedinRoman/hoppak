@@ -28,6 +28,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var campCard = -1;
   var showSet = false;
   var paused = false;
+  var netLW = 0;
   var WHERE = ["В ГОРОДЕ", "В ДЖУНГЛЯХ", "В ЛЕДНИКЕ", "НА ВУЛКАНЕ", "В ОКЕАНЕ", "В КОСМОСЕ"];
   var TO = ["ГОРОДА", "ДЖУНГЛЕЙ", "ЛЕДНИКА", "ВУЛКАНА", "ОКЕАНА", "КОСМОСА"];
   var HTO = ["КАПИТАНА", "ПИРАТА", "НИНДЗЯ", "РОБОТА", "МАГА", "РЫЦАРЯ"];
@@ -45,6 +46,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       lh = Math.max(240, Math.floor(cssH / scale));
       if (lh * scale > cssH) lh = Math.max(240, Math.floor(cssH / scale));
     }
+    var nlw = NET.fixedLW(); /* net: online rooms pin the world width (the map depends on LW) */
+    if (nlw) { scale = Math.max(1, Math.min(Math.floor(cssW / nlw), Math.floor(cssH / 240))); lw = nlw; lh = Math.max(240, Math.floor(cssH / scale)); }
+    netLW = nlw;
     LW = lw; LH = lh; SCALE = scale;
     canvas.width = LW * scale;
     canvas.height = LH * scale;
@@ -114,9 +118,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     mode = "squad";
     startRun(seed != null ? seed : (((Date.now() + ((room && room.round) || 0) * 40503) >>> 0)));
   }
-  function startRun(seed?: number) {
+  function startNet(info: any) { /* net: synchronized online run, seed + map come from the server */
+    mode = "solo"; resize();
+    startRun(info.seed, info.map);
+    NET.attachWorld(world, info);
+  }
+  function startRun(seed?: number, mapId?: string) {
     var s = seed != null ? seed : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
-    world = createWorld(s, mode, save.char, lookNow(), mode === "squad" ? lobbyMap : save.bg);
+    world = createWorld(s, mode, save.char, lookNow(), mapId || (mode === "squad" ? lobbyMap : save.bg));
     var mi = mapIdx(world.map);
     world.recM = mapBest(mi);
     world.goalM = MAPS[mi].goal || 0;
@@ -156,6 +165,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
   function activate(id: string | null) {
     if (!id) return;
+    if (id.indexOf("net:") === 0) { NET.tap(id, netApi); return; }
+    if (world && world.netRound && (id === "rematch" || id === "menu")) { if (id === "menu") { NET.leave(); goMenu(); } else NET.tap("net:rematch", netApi); return; }
     if (id === "start") { mode = "solo"; startRun(); return; }
     if (id === "camp") { phase = "camp"; campCard = -1; return; }
     if (id.indexOf("camp:") === 0) { campTap(id.slice(5)); return; }
@@ -363,7 +374,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     btn("start", x, by, 152, 34, C.mint, "", INK, 2);
     drawText(ctx, "ИГРАТЬ ▶", LW / 2, by + 4, INK, 2, "center");
     drawText(ctx, sub, LW / 2, by + 22, INK, 1, "center");
-    btn("camp", x, by + 40, 152, 22, C.navy, "КАРТЫ");
+    btn("camp", x, by + 40, 72, 22, C.navy, "КАРТЫ");
+    btn("net:menu", x + 80, by + 40, 72, 22, C.coral, "ОНЛАЙН", C.cream);
     btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
     btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
     if (showSet) {
@@ -838,7 +850,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (phase === "play" && world && world.phase === "play" && !paused) {
       acc += dt;
       var steps = 0;
+      if (world.net && NET.waiting(world)) acc = 0;
       while (acc >= STEP && steps < 5) { tickWorld(world, collectInputs()); acc -= STEP; steps++; }
+      if (world.net) NET.frame(world);
       if (world.phase === "results") { payout(); phase = "results"; }
     } else acc = 0;
     ctx.imageSmoothingEnabled = false;
@@ -849,10 +863,23 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     else if (phase === "lobby") drawLobby();
     else if (phase === "results") drawResults();
     else if (phase === "font") drawFontSheet();
-    else drawPlay();
+    else if (phase === "net") { hits = []; NET.draw(netApi); drawFlash(); }
+    else { drawPlay(); if (world && world.net) NET.overlay(netApi, world); }
+    if ((NET.fixedLW() || 0) !== netLW) resize();
     raf = requestAnimationFrame(frame);
   }
 
+  /* net: what the online module may use from the shell */
+  var netApi: any = {
+    ctx: ctx, btn: btn, header: header, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned,
+    bg: function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.32)"); },
+    ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
+    world: function () { return world; }, phase: function () { return phase; },
+    setPhase: function (p: string) { phase = p; }, goMenu: goMenu,
+    bots: function () { activate("mp"); }, startNet: startNet
+  };
+  NET.bind(netApi);
+  NET.tryResume(netApi);
   function onVis() { if (document.hidden && phase === "play") paused = true; }
   resize();
   window.addEventListener("resize", resize);
@@ -900,6 +927,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     },
     getPhase: function () { return phase; },
     getWorld: function () { return world; },
+    net: NET,
     getSave: function () { return save; },
     getSize: function () { return { lw: LW, lh: LH, scale: SCALE, cw: canvas.width, ch: canvas.height }; },
     tap: function (id: string) { activate(id); },

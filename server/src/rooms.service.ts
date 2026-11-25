@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { randomBytes, randomInt } from 'crypto';
 import type { WebSocket } from 'ws';
 import {
-  HERO_COUNT, MAPS, MAX_PLAYERS, NET_LW, Phase, PlayerInfo, RECONNECT_GRACE_MS, ROOM_IDLE_MS, SNAP_HZ, START_DELAY_MS,
+  STALE_MS, HERO_COUNT, MAPS, MAX_PLAYERS, NET_LW, Phase, PlayerInfo, RECONNECT_GRACE_MS, ROOM_IDLE_MS, SNAP_HZ, START_DELAY_MS,
 } from './protocol';
 
 export interface Player {
@@ -281,6 +281,16 @@ export class RoomsService implements OnModuleDestroy {
   }
   sweep(now = Date.now()) {
     for (const r of [...this.rooms.values()]) {
+      // AFK guard: a runner that stopped sending state for 15 s is counted as fallen, so the round can end
+      if (r.phase === 'play' && now - r.startAt > 15_000) {
+        for (const p of r.players) {
+          if (!p.dead && !p.offSince && now - Math.max(p.lastStAt, r.startAt) > STALE_MS) {
+            p.dead = true;
+            this.broadcast(r, 'ev', { pid: p.pid, e: 'dead', m: p.m, why: 'afk' }, p.pid);
+          }
+        }
+        this.maybeFinish(r);
+      }
       for (const p of [...r.players]) {
         if (p.offSince && now - p.offSince > RECONNECT_GRACE_MS) {
           this.log.log(`room ${r.code}: ${p.name} dropped (no reconnect)`);

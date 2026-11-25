@@ -619,6 +619,7 @@ function tickWorld(w: any, inputs: any) {
 
   for (var pi = 0; pi < w.players.length; pi++) {
     var p = w.players[pi];
+    if (p.remote) continue; /* net: remote heroes are placed by NET.frame */
     if (!p.alive) { if (p.y < p.camY + LH + 60) { p.vy = Math.min(p.vy + GRAVITY, 5); p.y += p.vy; } continue; }
     p.prevY = p.y;
     if (p.iceT > 0) p.iceT--;
@@ -805,7 +806,7 @@ function tickWorld(w: any, inputs: any) {
   if (minCam < 1e9) generateUntil(w, minCam - 80);
   for (i = 0; i < w.players.length; i++) {
     var ep = w.players[i];
-    if (ep.alive && w.tick > 150 && ep.y > ep.camY + LH + 6) {
+    if (ep.alive && !ep.remote && w.tick > 150 && ep.y > ep.camY + LH + 6) {
       if (ep.domeT > 0 && ep.domeSave) { ep.domeSave = false; ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; ep.invT = 40; spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2); if (ep.id === 0) toast(w, "КОСМОЩИТ СПАС!"); }
       else killPlayer(w, ep, "fall");
     }
@@ -832,7 +833,8 @@ function tickWorld(w: any, inputs: any) {
   var alive = 0;
   for (i = 0; i < w.players.length; i++) if (w.players[i].alive) alive++;
   var me = w.players[0];
-  if (w.mode === "solo") {
+  if (w.net) { /* net: the server ends the round (NET.frame calls finish) */
+  } else if (w.mode === "solo") {
     if (!me.alive && ++w.finishWait > 70) finish(w);
   } else if (alive <= 1) {
     if (++w.finishWait > 45) finish(w);

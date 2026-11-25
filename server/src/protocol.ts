@@ -37,6 +37,8 @@ export const NET_LW = 180;
 export const MAPS = ['city', 'jungle', 'ice', 'lava', 'aqua', 'space'];
 export const HERO_COUNT = 6;
 export const MAX_MSGS_PER_SEC = 60;
+/** No state from a live runner for this long during a round = counted as fallen (AFK / frozen tab). */
+export const STALE_MS = 15_000;
 
 export type Phase = 'lobby' | 'play' | 'results';
 
