@@ -168,7 +168,9 @@ export class RoomsService implements OnModuleDestroy {
     if (r.proto !== clientProto) {
       throw new RoomError(
         'PROTOCOL_MISMATCH',
-        clientProto < r.proto ? 'Обновите игру для входа' : 'Друг на старой версии',
+        clientProto < r.proto
+          ? 'Другая версия. Обновите!'
+          : 'У друга другая версия игры — обновите страницу',
       );
     }
     if (r.phase === 'play') throw new RoomError('IN_GAME', 'Забег уже идёт');

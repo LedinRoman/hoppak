@@ -222,10 +222,19 @@ try {
   const codeV1Lobby = rV1H2?.code;
   check(!!codeV1Lobby && rV1H2.lw === 180, `v1 lobby room ${codeV1Lobby} created on blue with lw=180`);
 
-  // Local mixed-protocol checks
+  // Local mixed-protocol checks (both directions)
   v1Host2.send('join', { code: code2, name: 'Mix12', kind: 0 });
   const mixLocal12 = await v1Host2.wait('err');
-  check(mixLocal12?.code === 'PROTOCOL_MISMATCH', `local v1 join into v2 room rejected (PROTOCOL_MISMATCH: "${mixLocal12?.msg}")`);
+  check(
+    mixLocal12?.code === 'PROTOCOL_MISMATCH' && mixLocal12?.msg === 'Другая версия. Обновите!' && mixLocal12.msg.length <= 24,
+    `local v1 join into v2 room rejected with v1-safe message ("${mixLocal12?.msg}")`,
+  );
+  c2Menu.send('join', { code: codeV1Lobby, name: 'Mix21', kind: 0 });
+  const mixLocal21Pre = await c2Menu.wait('err');
+  check(
+    mixLocal21Pre?.code === 'PROTOCOL_MISMATCH' && mixLocal21Pre?.msg === 'У друга другая версия игры — обновите страницу',
+    `local v2 join into v1 room rejected with v2 message ("${mixLocal21Pre?.msg}")`,
+  );
 
   const statsPreDrain = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`, { headers: INT_HEADERS })).json();
   check(
@@ -305,18 +314,28 @@ try {
   const rF2Blue = await f2Blue.wait('room');
   check(rF2Blue?.code === code2 && rF2Blue?.lw === 160 && rF2Blue?.players?.length === 2 && updOnReconnect?.version === '0.58.0', `v2 client followed redirect to blue, joined existing room ${code2} (lw=160) while draining, and got update notice`);
 
-  // Mixed-protocol cross-slot checks
+  // Mixed-protocol cross-slot checks (both directions)
   const mix1 = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws`, 'Mix_v1_to_v2'));
   await mix1.wait('hello');
   mix1.send('join', { code: code2, name: 'Mix1', kind: 0 });
   const mixCross12 = await mix1.wait('err');
-  check(mixCross12?.code === 'PROTOCOL_MISMATCH', `cross-slot v1 join into v2 room ${code2} rejected (PROTOCOL_MISMATCH)`);
+  check(
+    mixCross12?.code === 'PROTOCOL_MISMATCH' && mixCross12?.msg === 'Другая версия. Обновите!' && mixCross12.msg.length <= 24,
+    `cross-slot v1 join into v2 room ${code2} rejected with v1-safe message ("${mixCross12?.msg}")`,
+  );
 
-  const mix2 = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, 'Mix_v2_to_v1'));
+  const mix2 = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws?p=2`, 'Mix_v2_to_v1'));
   await mix2.wait('hello');
   mix2.send('join', { code: codeV1Lobby, name: 'Mix2', kind: 0 });
-  const mixLocal21 = await mix2.wait('err');
-  check(mixLocal21?.code === 'PROTOCOL_MISMATCH', `v2 join into v1 room ${codeV1Lobby} rejected (PROTOCOL_MISMATCH: "${mixLocal21?.msg}")`);
+  const redirMix2 = await mix2.wait('redirect');
+  const mix2Blue = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, 'Mix_v2_to_v1_blue'));
+  await mix2Blue.wait('hello');
+  mix2Blue.send('join', { code: redirMix2.code, name: 'Mix2', kind: 0 });
+  const mixCross21 = await mix2Blue.wait('err');
+  check(
+    mixCross21?.code === 'PROTOCOL_MISMATCH' && mixCross21?.msg === 'У друга другая версия игры — обновите страницу',
+    `cross-slot v2 join into v1 room ${codeV1Lobby} rejected with full v2 message ("${mixCross21?.msg}")`,
+  );
 
   // BUG-29: v1 client joins blue's v1 room via green (transparently proxied)
   const f1Green = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws`, 'F_v1_green'));
