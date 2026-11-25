@@ -9,12 +9,13 @@ var FIELD_W: number = (function () {
   return 160;
 })();
 var SPACE_MODE: string = (function () {
-  try { if (typeof HOP_SPACE !== "undefined" && HOP_SPACE) { var v = String(HOP_SPACE).toUpperCase(); if (v === "A" || v === "B" || v === "C") return v; } } catch (_e) {}
+  try { if (typeof HOP_SPACE !== "undefined" && HOP_SPACE) { var v = String(HOP_SPACE).toUpperCase(); if (v === "A" || v === "B" || v === "C" || v === "BC") return v; } } catch (_e) {}
   return "0";
 })();
 var PLAT_TRIM = SPACE_MODE === "A" ? 4 : 0;
-var WALL_PAD = SPACE_MODE === "C" ? 0 : 4;
-var MOVE_WALL = SPACE_MODE === "C" ? 0 : 2;
+var USE_B = SPACE_MODE === "B" || SPACE_MODE === "BC";
+var WALL_PAD = (SPACE_MODE === "C" || SPACE_MODE === "BC") ? 0 : 4;
+var MOVE_WALL = (SPACE_MODE === "C" || SPACE_MODE === "BC") ? 0 : 2;
 var LW = FIELD_W;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
@@ -37,7 +38,7 @@ var ICE_FRIC = 0.975;
 var STEP = 1 / 50; /* slowed in v0.1.1, keep */
 var ROW_SEP = 28; /* min vertical distance between platform rows */
 var GAP_CAP = Math.floor(JUMP_H - 6); /* hard max gap, ~75 px: still one-jump reachable */
-var X_SEP = SPACE_MODE === "B" ? 16 : 10; /* min horizontal gap between platforms of one row */
+var X_SEP = USE_B ? 16 : 10; /* min horizontal gap between platforms of one row */
 var INK = "#0c0818";
 
 var C: any = {
@@ -865,7 +866,7 @@ function genRow(w: any) {
     row.push(mp);
   } else {
     var n: number;
-    if (SPACE_MODE === "B") {
+    if (USE_B) {
       if (m < 190) n = r() < 0.28 ? 1 : 2;
       else if (m < 300) n = r() < 0.45 ? 1 : 2;
       else if (m < 600) n = r() < 0.65 ? 1 : 2;
@@ -886,7 +887,7 @@ function genRow(w: any) {
     var wmin = Math.round(lerp(42, 24, d)) - PLAT_TRIM, wmax = Math.round(lerp(54, 32, d)) - PLAT_TRIM;
     var breakP054 = m > 80 ? lerp(0.10, 0.58, d) : 0;
     var breakP = m < 200 ? 0 : m < 300 ? breakP054 * ((m - 200) / 100) : breakP054;
-    var needReach = SPACE_MODE === "B" && w.prevSolid && w.prevSolid.length;
+    var needReach = USE_B && w.prevSolid && w.prevSolid.length;
     var maxReach = needReach ? (reachRest(w.lastGap || 40) + 4) : undefined;
     for (var i = 0; i < n; i++) {
       var pw = randInt(r, wmin, wmax);
@@ -942,7 +943,7 @@ function genRow(w: any) {
      are identical to v0.54 (gT = m/700, 0.42–0.78 / 0.58–0.94). */
   var gT = clamp(m / 700, 0, 1);
   var minG054: number, maxG054: number, minG: number, maxG: number;
-  if (SPACE_MODE === "B") {
+  if (USE_B) {
     minG054 = Math.max(ROW_SEP + 6, Math.floor(JUMP_H * lerp(0.50, 0.80, gT)));
     maxG054 = Math.min(72, Math.floor(JUMP_H * lerp(0.66, 0.90, gT)));
     if (m < 300) {
@@ -1029,7 +1030,7 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
-  var sp0 = SPACE_MODE === "C" ? mkPlat(0, 0, LW, "normal", 0) : mkPlat(8, 0, LW - 16, "normal", 0);
+  var sp0 = WALL_PAD === 0 ? mkPlat(0, 0, LW, "normal", 0) : mkPlat(8, 0, LW - 16, "normal", 0);
   w.platforms.push(sp0);
   w.prevSolid = [sp0]; w.lastGap = 24;
   var sxs = startXs();
@@ -3066,7 +3067,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var s = String(n), w = textWidth(s, 1) + 9;
     var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
     drawCoin(ctx, x0, y, ui);
-    drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
+    if (SPACE_MODE === "BC") drawTextO(ctx, s, x0 + 9, y, C.gold, "left", "#2a1840");
+    else drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
   }
   function drawBuy(id: string, x: number, y: number, w: number, h: number, price: number) {
     addHit(id, x, y, w, h);
@@ -3087,8 +3089,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function abBar() {
     var coinW = 28;
-    try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + (SPACE_MODE === "C" ? 13 : 19); } catch (_e) {}
+    try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + (SPACE_MODE === "C" ? 13 : SPACE_MODE === "BC" ? 14 : 19); } catch (_e) {}
     if (SPACE_MODE === "C") return { x: 2 + coinW, y: 2, w: 14, h: 14 };
+    if (SPACE_MODE === "BC") return { x: 3 + coinW, y: 2, w: 16, h: 16 };
     return { x: 4 + coinW, y: 5, w: 16, h: 16 };
   }
   function startSquad(seed?: number) {
@@ -3567,7 +3570,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var yy = Math.round(y);
     for (var x = viewX0(); x < LW + VIEW_PAD; x += 4) { var on = ((x - viewX0()) >> 2) % 2 === 0; rect(ctx, x, yy, 4, 1, on ? C.cream : "#162040"); rect(ctx, x, yy + 1, 4, 1, on ? "#162040" : C.cream); }
     var tw = textWidth(label, 1) + 6;
-    var gx = SPACE_MODE === "C" ? 1 : 4;
+    var gx = WALL_PAD === 0 ? 1 : 4;
     rect(ctx, gx - 1, yy - 11, tw + 2, 11, INK); rect(ctx, gx, yy - 10, tw, 9, "#162040");
     drawText(ctx, label, gx + tw / 2, yy - 9, C.gold, 1, "center");
   }
@@ -3577,7 +3580,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.globalAlpha = 0.7;
     for (var x = viewX0(); x < LW + VIEW_PAD; x += 2) rect(ctx, x, yy, 1, 1, C.cream);
     ctx.globalAlpha = 1;
-    var tw = textWidth(label, 1) + 6, lx = LW - tw - (SPACE_MODE === "C" ? 1 : 5);
+    var tw = textWidth(label, 1) + 6, lx = LW - tw - (WALL_PAD === 0 ? 1 : 5);
     rect(ctx, lx - 1, yy - 11, tw + 2, 11, INK); rect(ctx, lx, yy - 10, tw, 9, "#162040");
     drawText(ctx, label, lx + tw / 2, yy - 9, C.cream, 1, "center");
   }
@@ -3656,9 +3659,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
     var me = w.players[0];
     var wantPause = wantTouchPause();
-    var cmp = SPACE_MODE === "C";
-    drawTextO(ctx, metersOf(me) + " М", LW / 2, cmp ? 3 : 6, C.cream, "center");
-    coinsLabel(cmp ? 2 : 5, cmp ? 3 : 6, w.runCoins);
+    var cmp = SPACE_MODE === "C", bc = SPACE_MODE === "BC";
+    var hudOc = bc ? "#2a1840" : undefined;
+    drawTextO(ctx, metersOf(me) + " М", LW / 2, cmp ? 3 : bc ? 4 : 6, C.cream, "center", hudOc);
+    coinsLabel(cmp ? 2 : bc ? 3 : 5, cmp ? 3 : bc ? 5 : 6, w.runCoins);
     if (w.mode === "squad") {
       var place = 1, lead = me, leadM = metersOf(me);
       for (i = 0; i < w.players.length; i++) {
@@ -3669,6 +3673,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var leadLab = lead.id === 0 ? "ТЫ ВПЕРЕДИ" : ((lead.name || "БОТ").slice(0, 8) + " " + leadM + " М");
       if (cmp) {
         drawTextO(ctx, place + "/" + w.players.length + " " + (lead.id === 0 ? "ЛИДЕР" : ((lead.name || "БОТ").slice(0, 3) + " " + leadM + "М")), LW / 2, 12, lead.id === 0 ? C.gold : "#c8bfe0", "center");
+      } else if (bc) {
+        var nmFull = (lead.name || "БОТ").toUpperCase();
+        var sFull = place + "/" + w.players.length + " · " + (lead.id === 0 ? "ЛИДЕР" : (nmFull + " " + leadM + " М"));
+        var sFit = (lead.id !== 0 && textWidth(sFull, 1) > 84) ? (place + "/" + w.players.length + " · " + nmFull.slice(0, 4) + " " + leadM + " М") : sFull;
+        drawTextO(ctx, sFit, LW / 2, 13, lead.id === 0 ? C.gold : "#c8bfe0", "center", hudOc);
       } else {
         drawTextO(ctx, place + "/" + w.players.length, LW / 2, 16, "#c8bfe0", "center");
         drawTextO(ctx, leadLab, LW / 2, 26, lead.id === 0 ? C.gold : C.cream, "center");
@@ -3681,6 +3690,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         rect(ctx, LW - 13, 4, 9, 9, "#1a1430");
         rect(ctx, LW - 11, 6, 2, 5, C.cream);
         rect(ctx, LW - 8, 6, 2, 5, C.cream);
+      } else if (bc) {
+        addHit("pause", LW - 18, 0, 18, 18);
+        rect(ctx, LW - 16, 3, 13, 13, pressId === "pause" ? "#3a4a7a" : INK);
+        rect(ctx, LW - 15, 4, 11, 11, "#1a1430");
+        rect(ctx, LW - 12, 6, 2, 7, C.cream);
+        rect(ctx, LW - 8, 6, 2, 7, C.cream);
       } else {
         var px = LW - 22;
         addHit("pause", px, 0, 22, 22);
@@ -3773,7 +3788,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
-    var cmp = SPACE_MODE === "C", x = cmp ? 2 : 3, y = cmp ? 18 : 22;
+    var cmp = SPACE_MODE === "C", bc = SPACE_MODE === "BC", x = (cmp || bc) ? 2 : 3, y = cmp ? 18 : bc ? (world && world.mode === "squad" ? 23 : 21) : 22;
     for (var i = 0; i < BON_HUD.length; i++) {
       var b = BON_HUD[i], t = me[b[0]];
       if (!(t > 0)) continue;

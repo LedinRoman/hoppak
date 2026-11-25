@@ -9,12 +9,13 @@ var FIELD_W: number = (function () {
   return 160;
 })();
 var SPACE_MODE: string = (function () {
-  try { if (typeof HOP_SPACE !== "undefined" && HOP_SPACE) { var v = String(HOP_SPACE).toUpperCase(); if (v === "A" || v === "B" || v === "C") return v; } } catch (_e) {}
+  try { if (typeof HOP_SPACE !== "undefined" && HOP_SPACE) { var v = String(HOP_SPACE).toUpperCase(); if (v === "A" || v === "B" || v === "C" || v === "BC") return v; } } catch (_e) {}
   return "0";
 })();
 var PLAT_TRIM = SPACE_MODE === "A" ? 4 : 0;
-var WALL_PAD = SPACE_MODE === "C" ? 0 : 4;
-var MOVE_WALL = SPACE_MODE === "C" ? 0 : 2;
+var USE_B = SPACE_MODE === "B" || SPACE_MODE === "BC";
+var WALL_PAD = (SPACE_MODE === "C" || SPACE_MODE === "BC") ? 0 : 4;
+var MOVE_WALL = (SPACE_MODE === "C" || SPACE_MODE === "BC") ? 0 : 2;
 var LW = FIELD_W;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
@@ -37,7 +38,7 @@ var ICE_FRIC = 0.975;
 var STEP = 1 / 50; /* slowed in v0.1.1, keep */
 var ROW_SEP = 28; /* min vertical distance between platform rows */
 var GAP_CAP = Math.floor(JUMP_H - 6); /* hard max gap, ~75 px: still one-jump reachable */
-var X_SEP = SPACE_MODE === "B" ? 16 : 10; /* min horizontal gap between platforms of one row */
+var X_SEP = USE_B ? 16 : 10; /* min horizontal gap between platforms of one row */
 var INK = "#0c0818";
 
 var C: any = {

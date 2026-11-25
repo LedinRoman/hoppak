@@ -234,7 +234,7 @@ function genRow(w: any) {
     row.push(mp);
   } else {
     var n: number;
-    if (SPACE_MODE === "B") {
+    if (USE_B) {
       if (m < 190) n = r() < 0.28 ? 1 : 2;
       else if (m < 300) n = r() < 0.45 ? 1 : 2;
       else if (m < 600) n = r() < 0.65 ? 1 : 2;
@@ -255,7 +255,7 @@ function genRow(w: any) {
     var wmin = Math.round(lerp(42, 24, d)) - PLAT_TRIM, wmax = Math.round(lerp(54, 32, d)) - PLAT_TRIM;
     var breakP054 = m > 80 ? lerp(0.10, 0.58, d) : 0;
     var breakP = m < 200 ? 0 : m < 300 ? breakP054 * ((m - 200) / 100) : breakP054;
-    var needReach = SPACE_MODE === "B" && w.prevSolid && w.prevSolid.length;
+    var needReach = USE_B && w.prevSolid && w.prevSolid.length;
     var maxReach = needReach ? (reachRest(w.lastGap || 40) + 4) : undefined;
     for (var i = 0; i < n; i++) {
       var pw = randInt(r, wmin, wmax);
@@ -311,7 +311,7 @@ function genRow(w: any) {
      are identical to v0.54 (gT = m/700, 0.42–0.78 / 0.58–0.94). */
   var gT = clamp(m / 700, 0, 1);
   var minG054: number, maxG054: number, minG: number, maxG: number;
-  if (SPACE_MODE === "B") {
+  if (USE_B) {
     minG054 = Math.max(ROW_SEP + 6, Math.floor(JUMP_H * lerp(0.50, 0.80, gT)));
     maxG054 = Math.min(72, Math.floor(JUMP_H * lerp(0.66, 0.90, gT)));
     if (m < 300) {
@@ -398,7 +398,7 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
-  var sp0 = SPACE_MODE === "C" ? mkPlat(0, 0, LW, "normal", 0) : mkPlat(8, 0, LW - 16, "normal", 0);
+  var sp0 = WALL_PAD === 0 ? mkPlat(0, 0, LW, "normal", 0) : mkPlat(8, 0, LW - 16, "normal", 0);
   w.platforms.push(sp0);
   w.prevSolid = [sp0]; w.lastGap = 24;
   var sxs = startXs();

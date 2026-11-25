@@ -9,17 +9,18 @@
   }();
   var SPACE_MODE = function() {
     try {
-      if ("0") {
-        var v = String("0").toUpperCase();
-        if (v === "A" || v === "B" || v === "C") return v;
+      if ("BC") {
+        var v = String("BC").toUpperCase();
+        if (v === "A" || v === "B" || v === "C" || v === "BC") return v;
       }
     } catch (_e) {
     }
     return "0";
   }();
   var PLAT_TRIM = SPACE_MODE === "A" ? 4 : 0;
-  var WALL_PAD = SPACE_MODE === "C" ? 0 : 4;
-  var MOVE_WALL = SPACE_MODE === "C" ? 0 : 2;
+  var USE_B = SPACE_MODE === "B" || SPACE_MODE === "BC";
+  var WALL_PAD = SPACE_MODE === "C" || SPACE_MODE === "BC" ? 0 : 4;
+  var MOVE_WALL = SPACE_MODE === "C" || SPACE_MODE === "BC" ? 0 : 2;
   var LW = FIELD_W;
   var LH = 346;
   var VIEW_PAD = 0;
@@ -48,7 +49,7 @@
   var STEP = 1 / 50;
   var ROW_SEP = 28;
   var GAP_CAP = Math.floor(JUMP_H - 6);
-  var X_SEP = SPACE_MODE === "B" ? 16 : 10;
+  var X_SEP = USE_B ? 16 : 10;
   var INK = "#0c0818";
   var C = {
     navy: "#162040",
@@ -1199,7 +1200,7 @@
       row.push(mp);
     } else {
       var n;
-      if (SPACE_MODE === "B") {
+      if (USE_B) {
         if (m < 190) n = r() < 0.28 ? 1 : 2;
         else if (m < 300) n = r() < 0.45 ? 1 : 2;
         else if (m < 600) n = r() < 0.65 ? 1 : 2;
@@ -1218,7 +1219,7 @@
       var wmin = Math.round(lerp(42, 24, d)) - PLAT_TRIM, wmax = Math.round(lerp(54, 32, d)) - PLAT_TRIM;
       var breakP054 = m > 80 ? lerp(0.1, 0.58, d) : 0;
       var breakP = m < 200 ? 0 : m < 300 ? breakP054 * ((m - 200) / 100) : breakP054;
-      var needReach = SPACE_MODE === "B" && w.prevSolid && w.prevSolid.length;
+      var needReach = USE_B && w.prevSolid && w.prevSolid.length;
       var maxReach = needReach ? reachRest(w.lastGap || 40) + 4 : void 0;
       for (var i = 0; i < n; i++) {
         var pw = randInt(r, wmin, wmax);
@@ -1284,7 +1285,7 @@
     for (var j = 0; j < row.length; j++) w.platforms.push(row[j]);
     var gT = clamp(m / 700, 0, 1);
     var minG054, maxG054, minG, maxG;
-    if (SPACE_MODE === "B") {
+    if (USE_B) {
       minG054 = Math.max(ROW_SEP + 6, Math.floor(JUMP_H * lerp(0.5, 0.8, gT)));
       maxG054 = Math.min(72, Math.floor(JUMP_H * lerp(0.66, 0.9, gT)));
       if (m < 300) {
@@ -1454,7 +1455,7 @@
       warnSfxT: 0
     };
     w.nextBonusM = randInt(w.rng, 160, 240);
-    var sp0 = SPACE_MODE === "C" ? mkPlat(0, 0, LW, "normal", 0) : mkPlat(8, 0, LW - 16, "normal", 0);
+    var sp0 = WALL_PAD === 0 ? mkPlat(0, 0, LW, "normal", 0) : mkPlat(8, 0, LW - 16, "normal", 0);
     w.platforms.push(sp0);
     w.prevSolid = [sp0];
     w.lastGap = 24;
@@ -4407,7 +4408,8 @@
       var s = String(n), w = textWidth(s, 1) + 9;
       var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
       drawCoin(ctx, x0, y, ui);
-      drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
+      if (SPACE_MODE === "BC") drawTextO(ctx, s, x0 + 9, y, C.gold, "left", "#2a1840");
+      else drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
     }
     function drawBuy(id, x, y, w, h, price) {
       addHit(id, x, y, w, h);
@@ -4435,10 +4437,11 @@
     function abBar() {
       var coinW = 28;
       try {
-        if (world) coinW = textWidth(String(world.runCoins || 0), 1) + (SPACE_MODE === "C" ? 13 : 19);
+        if (world) coinW = textWidth(String(world.runCoins || 0), 1) + (SPACE_MODE === "C" ? 13 : SPACE_MODE === "BC" ? 14 : 19);
       } catch (_e) {
       }
       if (SPACE_MODE === "C") return { x: 2 + coinW, y: 2, w: 14, h: 14 };
+      if (SPACE_MODE === "BC") return { x: 3 + coinW, y: 2, w: 16, h: 16 };
       return { x: 4 + coinW, y: 5, w: 16, h: 16 };
     }
     function startSquad(seed) {
@@ -5132,7 +5135,7 @@
         rect(ctx, x, yy + 1, 4, 1, on ? "#162040" : C.cream);
       }
       var tw = textWidth(label, 1) + 6;
-      var gx = SPACE_MODE === "C" ? 1 : 4;
+      var gx = WALL_PAD === 0 ? 1 : 4;
       rect(ctx, gx - 1, yy - 11, tw + 2, 11, INK);
       rect(ctx, gx, yy - 10, tw, 9, "#162040");
       drawText(ctx, label, gx + tw / 2, yy - 9, C.gold, 1, "center");
@@ -5143,7 +5146,7 @@
       ctx.globalAlpha = 0.7;
       for (var x = viewX0(); x < LW + VIEW_PAD; x += 2) rect(ctx, x, yy, 1, 1, C.cream);
       ctx.globalAlpha = 1;
-      var tw = textWidth(label, 1) + 6, lx = LW - tw - (SPACE_MODE === "C" ? 1 : 5);
+      var tw = textWidth(label, 1) + 6, lx = LW - tw - (WALL_PAD === 0 ? 1 : 5);
       rect(ctx, lx - 1, yy - 11, tw + 2, 11, INK);
       rect(ctx, lx, yy - 10, tw, 9, "#162040");
       drawText(ctx, label, lx + tw / 2, yy - 9, C.cream, 1, "center");
@@ -5238,9 +5241,10 @@
       ctx.restore();
       var me = w.players[0];
       var wantPause = wantTouchPause();
-      var cmp = SPACE_MODE === "C";
-      drawTextO(ctx, metersOf(me) + " \u041C", LW / 2, cmp ? 3 : 6, C.cream, "center");
-      coinsLabel(cmp ? 2 : 5, cmp ? 3 : 6, w.runCoins);
+      var cmp = SPACE_MODE === "C", bc = SPACE_MODE === "BC";
+      var hudOc = bc ? "#2a1840" : void 0;
+      drawTextO(ctx, metersOf(me) + " \u041C", LW / 2, cmp ? 3 : bc ? 4 : 6, C.cream, "center", hudOc);
+      coinsLabel(cmp ? 2 : bc ? 3 : 5, cmp ? 3 : bc ? 5 : 6, w.runCoins);
       if (w.mode === "squad") {
         var place = 1, lead = me, leadM = metersOf(me);
         for (i = 0; i < w.players.length; i++) {
@@ -5254,6 +5258,11 @@
         var leadLab = lead.id === 0 ? "\u0422\u042B \u0412\u041F\u0415\u0420\u0415\u0414\u0418" : (lead.name || "\u0411\u041E\u0422").slice(0, 8) + " " + leadM + " \u041C";
         if (cmp) {
           drawTextO(ctx, place + "/" + w.players.length + " " + (lead.id === 0 ? "\u041B\u0418\u0414\u0415\u0420" : (lead.name || "\u0411\u041E\u0422").slice(0, 3) + " " + leadM + "\u041C"), LW / 2, 12, lead.id === 0 ? C.gold : "#c8bfe0", "center");
+        } else if (bc) {
+          var nmFull = (lead.name || "\u0411\u041E\u0422").toUpperCase();
+          var sFull = place + "/" + w.players.length + " \xB7 " + (lead.id === 0 ? "\u041B\u0418\u0414\u0415\u0420" : nmFull + " " + leadM + " \u041C");
+          var sFit = lead.id !== 0 && textWidth(sFull, 1) > 84 ? place + "/" + w.players.length + " \xB7 " + nmFull.slice(0, 4) + " " + leadM + " \u041C" : sFull;
+          drawTextO(ctx, sFit, LW / 2, 13, lead.id === 0 ? C.gold : "#c8bfe0", "center", hudOc);
         } else {
           drawTextO(ctx, place + "/" + w.players.length, LW / 2, 16, "#c8bfe0", "center");
           drawTextO(ctx, leadLab, LW / 2, 26, lead.id === 0 ? C.gold : C.cream, "center");
@@ -5266,6 +5275,12 @@
           rect(ctx, LW - 13, 4, 9, 9, "#1a1430");
           rect(ctx, LW - 11, 6, 2, 5, C.cream);
           rect(ctx, LW - 8, 6, 2, 5, C.cream);
+        } else if (bc) {
+          addHit("pause", LW - 18, 0, 18, 18);
+          rect(ctx, LW - 16, 3, 13, 13, pressId === "pause" ? "#3a4a7a" : INK);
+          rect(ctx, LW - 15, 4, 11, 11, "#1a1430");
+          rect(ctx, LW - 12, 6, 2, 7, C.cream);
+          rect(ctx, LW - 8, 6, 2, 7, C.cream);
         } else {
           var px = LW - 22;
           addHit("pause", px, 0, 22, 22);
@@ -5396,7 +5411,7 @@
     }
     var BON_HUD = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
     function drawBonusHud(me) {
-      var cmp = SPACE_MODE === "C", x = cmp ? 2 : 3, y = cmp ? 18 : 22;
+      var cmp = SPACE_MODE === "C", bc = SPACE_MODE === "BC", x = cmp || bc ? 2 : 3, y = cmp ? 18 : bc ? world && world.mode === "squad" ? 23 : 21 : 22;
       for (var i = 0; i < BON_HUD.length; i++) {
         var b = BON_HUD[i], t = me[b[0]];
         if (!(t > 0)) continue;
