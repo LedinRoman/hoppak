@@ -22,7 +22,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var pointers: any = {};
   var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = 0, raf = 0, running = true, driving = false, ui = 0;
   var hits: any[] = [];
-  var SCALE = 1, pScale = 1, cssScale = 1, isWide = false;
+  var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, lastBackdropMap = "";
   var pressId: any = null;
   var confirmId: any = null, confirmAt = 0;
   var campCard = -1;
@@ -37,6 +37,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function isPageBuild() { return typeof HOP_PAGE !== "undefined" && !!HOP_PAGE; }
   function netFixedLW() {
     return (typeof NET !== "undefined" && NET && typeof NET.fixedLW === "function") ? (NET.fixedLW() || 0) : 0;
+  }
+  function syncBackdrop(mapId: string) {
+    if (!wrap) return;
+    if (mapId === lastBackdropMap) return;
+    lastBackdropMap = mapId || "";
+    var cols = skyAt(mapId, 0);
+    wrap.style.background = "radial-gradient(circle at 50% 42%, " + mixHex(cols[1], "#0c0818", 0.55) + " 0%, " + mixHex(cols[0], "#080614", 0.72) + " 62%, #070510 100%)";
   }
   function resize() {
     var r = (wrap || canvas).getBoundingClientRect();
@@ -61,8 +68,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     canvas.height = LH * pScale;
     canvas.style.width = (LW * cssScale) + "px";
     canvas.style.height = (LH * cssScale) + "px";
+    canvas.style.imageRendering = "pixelated";
+    if (isWide) {
+      canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
+      canvas.style.borderRadius = "4px";
+    } else {
+      canvas.style.boxShadow = "none";
+      canvas.style.borderRadius = "0px";
+    }
+    var hintEl = document.getElementById("desk-hint");
+    if (hintEl) hintEl.style.display = (isWide && (cssH - LH * cssScale) >= 34) ? "block" : "none";
     ctx.setTransform(pScale, 0, 0, pScale, 0, 0);
     ctx.imageSmoothingEnabled = false;
+    syncBackdrop(world ? world.map : save.bg);
   }
   function toLogic(cx: number, cy: number) {
     var r = canvas.getBoundingClientRect();
@@ -660,7 +678,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
       var hx2 = colX();
       box(ctx, hx2, LH - 46, 152, 12, C.navy, C.cream);
-      drawText(ctx, "ТАПАЙ СЛЕВА И СПРАВА", LW / 2, LH - 44, C.cream, 1, "center");
+      drawText(ctx, (typeof window !== "undefined" && window.innerWidth >= 540) ? "← → ХОД · ↑ СПОСОБНОСТЬ" : "ТАПАЙ СЛЕВА И СПРАВА", LW / 2, LH - 44, C.cream, 1, "center");
       ctx.globalAlpha = 1;
     }
     if (paused) {
@@ -900,6 +918,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       uiAcc -= UI_STEP;
       uSteps++;
     }
+    syncBackdrop(world ? world.map : save.bg);
     if (phase === "play" && world && world.phase === "play" && !paused) {
       acc += dt;
       var steps = 0;
@@ -1065,8 +1084,9 @@ export default function App() {
     return () => { game.destroy(); };
   }, []);
   return (
-    <div style={{ position: "fixed", inset: 0, width: "100%", height: "100%", margin: 0, background: "#000000", overflow: "hidden", touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", WebkitTapHighlightColor: "transparent", display: "flex", alignItems: "center", justifyContent: "center", padding: "env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)" } as any}>
+    <div style={{ position: "fixed", inset: 0, width: "100%", height: "100%", margin: 0, background: "#070510", overflow: "hidden", touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", WebkitTapHighlightColor: "transparent", display: "flex", alignItems: "center", justifyContent: "center", padding: "env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)" } as any}>
       <canvas ref={ref} tabIndex={0} style={{ display: "block", imageRendering: "pixelated", touchAction: "none", outline: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", WebkitTapHighlightColor: "transparent" } as any} />
+      <div id="desk-hint" style={{ display: "none", position: "fixed", bottom: 6, left: 0, right: 0, textAlign: "center", font: "600 11px/1 monospace", color: "#9a8ab8", letterSpacing: "0.4px", pointerEvents: "none" }}>← → / A D — движение · ↑ / Пробел — способность · Esc — пауза</div>
     </div>
   );
 }
