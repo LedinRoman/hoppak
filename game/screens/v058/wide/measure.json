@@ -1,0 +1,710 @@
+{
+  "v056": {
+    "phone": {
+      "label": "v056_phone",
+      "size": {
+        "lw": 160,
+        "lh": 346,
+        "scale": 2.4375,
+        "pScale": 7.3125,
+        "cssScale": 2.4375,
+        "dpr": 3,
+        "isWide": false,
+        "isPhone": true,
+        "phoneLand": false,
+        "paused": false,
+        "landPause": false,
+        "cw": 1170,
+        "ch": 2530,
+        "viewPad": 0
+      },
+      "canvas": {
+        "width": 1170,
+        "height": 2530,
+        "cssW": 390,
+        "cssH": 843.375,
+        "left": 0,
+        "top": 0
+      },
+      "fieldCssW": 390,
+      "fieldCssH": 843.375,
+      "fieldDevW": 1170,
+      "sideCss": 0,
+      "fieldOxCss": 0,
+      "fieldOyCss": 0,
+      "plats": {
+        "n": 85,
+        "wMin": 39,
+        "wMax": 54,
+        "wAvg": 46.46,
+        "xMin": 4,
+        "xMax": 156,
+        "wallLeft": 4,
+        "wallRight": 4,
+        "spread": 152
+      },
+      "visPlats": [
+        {
+          "x": 31,
+          "w": 54,
+          "cssW": 131.63,
+          "cssLeft": 75.56
+        },
+        {
+          "x": 106,
+          "w": 50,
+          "cssW": 121.88,
+          "cssLeft": 258.38
+        },
+        {
+          "x": 105,
+          "w": 50,
+          "cssW": 121.88,
+          "cssLeft": 255.94
+        },
+        {
+          "x": 27,
+          "w": 51,
+          "cssW": 124.31,
+          "cssLeft": 65.81
+        },
+        {
+          "x": 51,
+          "w": 45,
+          "cssW": 109.69,
+          "cssLeft": 124.31
+        },
+        {
+          "x": 111,
+          "w": 44,
+          "cssW": 107.25,
+          "cssLeft": 270.56
+        },
+        {
+          "x": 61,
+          "w": 46,
+          "cssW": 112.13,
+          "cssLeft": 148.69
+        },
+        {
+          "x": 45,
+          "w": 48,
+          "cssW": 117,
+          "cssLeft": 109.69
+        },
+        {
+          "x": 4,
+          "w": 52,
+          "cssW": 126.75,
+          "cssLeft": 9.75
+        },
+        {
+          "x": 97,
+          "w": 51,
+          "cssW": 124.31,
+          "cssLeft": 236.44
+        },
+        {
+          "x": 45,
+          "w": 43,
+          "cssW": 104.81,
+          "cssLeft": 109.69
+        },
+        {
+          "x": 105,
+          "w": 50,
+          "cssW": 121.88,
+          "cssLeft": 255.94
+        },
+        {
+          "x": 88,
+          "w": 46,
+          "cssW": 112.13,
+          "cssLeft": 214.5
+        },
+        {
+          "x": 16,
+          "w": 53,
+          "cssW": 129.19,
+          "cssLeft": 39
+        },
+        {
+          "x": 77,
+          "w": 48,
+          "cssW": 117,
+          "cssLeft": 187.69
+        },
+        {
+          "x": 10,
+          "w": 53,
+          "cssW": 129.19,
+          "cssLeft": 24.38
+        },
+        {
+          "x": 20,
+          "w": 53,
+          "cssW": 129.19,
+          "cssLeft": 48.75
+        },
+        {
+          "x": 87,
+          "w": 44,
+          "cssW": 107.25,
+          "cssLeft": 212.06
+        }
+      ]
+    },
+    "tg": {
+      "label": "v056_tg",
+      "size": {
+        "lw": 160,
+        "lh": 346,
+        "scale": 2.0809248554913293,
+        "pScale": 6.2427745664739875,
+        "cssScale": 2.0809248554913293,
+        "dpr": 3,
+        "isWide": false,
+        "isPhone": true,
+        "phoneLand": false,
+        "paused": false,
+        "landPause": false,
+        "cw": 1170,
+        "ch": 2160,
+        "viewPad": 13.708333333333343
+      },
+      "canvas": {
+        "width": 1170,
+        "height": 2160,
+        "cssW": 390,
+        "cssH": 720,
+        "left": 0,
+        "top": 0
+      },
+      "fieldCssW": 332.9479768786127,
+      "fieldCssH": 720,
+      "fieldDevW": 998.843930635838,
+      "sideCss": 28.52601156069366,
+      "fieldOxCss": 0,
+      "fieldOyCss": 0,
+      "plats": {
+        "n": 85,
+        "wMin": 39,
+        "wMax": 54,
+        "wAvg": 46.46,
+        "xMin": 4,
+        "xMax": 156,
+        "wallLeft": 4,
+        "wallRight": 4,
+        "spread": 152
+      },
+      "visPlats": [
+        {
+          "x": 31,
+          "w": 54,
+          "cssW": 112.37,
+          "cssLeft": 93.03
+        },
+        {
+          "x": 106,
+          "w": 50,
+          "cssW": 104.05,
+          "cssLeft": 249.1
+        },
+        {
+          "x": 105,
+          "w": 50,
+          "cssW": 104.05,
+          "cssLeft": 247.02
+        },
+        {
+          "x": 27,
+          "w": 51,
+          "cssW": 106.13,
+          "cssLeft": 84.71
+        },
+        {
+          "x": 51,
+          "w": 45,
+          "cssW": 93.64,
+          "cssLeft": 134.65
+        },
+        {
+          "x": 111,
+          "w": 44,
+          "cssW": 91.56,
+          "cssLeft": 259.51
+        },
+        {
+          "x": 61,
+          "w": 46,
+          "cssW": 95.72,
+          "cssLeft": 155.46
+        },
+        {
+          "x": 45,
+          "w": 48,
+          "cssW": 99.88,
+          "cssLeft": 122.17
+        },
+        {
+          "x": 4,
+          "w": 52,
+          "cssW": 108.21,
+          "cssLeft": 36.85
+        },
+        {
+          "x": 97,
+          "w": 51,
+          "cssW": 106.13,
+          "cssLeft": 230.38
+        },
+        {
+          "x": 45,
+          "w": 43,
+          "cssW": 89.48,
+          "cssLeft": 122.17
+        },
+        {
+          "x": 105,
+          "w": 50,
+          "cssW": 104.05,
+          "cssLeft": 247.02
+        },
+        {
+          "x": 88,
+          "w": 46,
+          "cssW": 95.72,
+          "cssLeft": 211.65
+        },
+        {
+          "x": 16,
+          "w": 53,
+          "cssW": 110.29,
+          "cssLeft": 61.82
+        },
+        {
+          "x": 77,
+          "w": 48,
+          "cssW": 99.88,
+          "cssLeft": 188.76
+        },
+        {
+          "x": 10,
+          "w": 53,
+          "cssW": 110.29,
+          "cssLeft": 49.34
+        },
+        {
+          "x": 20,
+          "w": 53,
+          "cssW": 110.29,
+          "cssLeft": 70.14
+        },
+        {
+          "x": 87,
+          "w": 44,
+          "cssW": 91.56,
+          "cssLeft": 209.57
+        }
+      ]
+    }
+  },
+  "v058": {
+    "phone": {
+      "label": "v058_phone",
+      "size": {
+        "lw": 160,
+        "lh": 346,
+        "scale": 2.3333333333333335,
+        "pScale": 7,
+        "cssScale": 2.3333333333333335,
+        "dpr": 3,
+        "isWide": false,
+        "isPhone": true,
+        "phoneLand": false,
+        "paused": false,
+        "landPause": false,
+        "manualPause": false,
+        "resumeCd": 0,
+        "cw": 1170,
+        "ch": 2532,
+        "viewPad": 4,
+        "fieldOx": 25,
+        "fieldOy": 55,
+        "phoneInt": true,
+        "devW": 1170,
+        "devH": 2532
+      },
+      "canvas": {
+        "width": 1170,
+        "height": 2532,
+        "cssW": 390,
+        "cssH": 844,
+        "left": 0,
+        "top": 0
+      },
+      "fieldCssW": 373.33333333333337,
+      "fieldCssH": 807.3333333333334,
+      "fieldDevW": 1120,
+      "sideCss": 8.333333333333314,
+      "fieldOxCss": 8.333333333333334,
+      "fieldOyCss": 18.333333333333332,
+      "plats": {
+        "n": 85,
+        "wMin": 39,
+        "wMax": 54,
+        "wAvg": 46.46,
+        "xMin": 4,
+        "xMax": 156,
+        "wallLeft": 4,
+        "wallRight": 4,
+        "spread": 152
+      },
+      "visPlats": [
+        {
+          "x": 31,
+          "w": 54,
+          "cssW": 126,
+          "cssLeft": 90
+        },
+        {
+          "x": 106,
+          "w": 50,
+          "cssW": 116.67,
+          "cssLeft": 265
+        },
+        {
+          "x": 105,
+          "w": 50,
+          "cssW": 116.67,
+          "cssLeft": 262.67
+        },
+        {
+          "x": 27,
+          "w": 51,
+          "cssW": 119,
+          "cssLeft": 80.67
+        },
+        {
+          "x": 51,
+          "w": 45,
+          "cssW": 105,
+          "cssLeft": 136.67
+        },
+        {
+          "x": 111,
+          "w": 44,
+          "cssW": 102.67,
+          "cssLeft": 276.67
+        },
+        {
+          "x": 61,
+          "w": 46,
+          "cssW": 107.33,
+          "cssLeft": 160
+        },
+        {
+          "x": 45,
+          "w": 48,
+          "cssW": 112,
+          "cssLeft": 122.67
+        },
+        {
+          "x": 4,
+          "w": 52,
+          "cssW": 121.33,
+          "cssLeft": 27
+        },
+        {
+          "x": 97,
+          "w": 51,
+          "cssW": 119,
+          "cssLeft": 244
+        },
+        {
+          "x": 45,
+          "w": 43,
+          "cssW": 100.33,
+          "cssLeft": 122.67
+        },
+        {
+          "x": 105,
+          "w": 50,
+          "cssW": 116.67,
+          "cssLeft": 262.67
+        },
+        {
+          "x": 88,
+          "w": 46,
+          "cssW": 107.33,
+          "cssLeft": 223
+        },
+        {
+          "x": 16,
+          "w": 53,
+          "cssW": 123.67,
+          "cssLeft": 55
+        },
+        {
+          "x": 77,
+          "w": 48,
+          "cssW": 112,
+          "cssLeft": 197.33
+        },
+        {
+          "x": 10,
+          "w": 53,
+          "cssW": 123.67,
+          "cssLeft": 41
+        },
+        {
+          "x": 20,
+          "w": 53,
+          "cssW": 123.67,
+          "cssLeft": 64.33
+        },
+        {
+          "x": 87,
+          "w": 44,
+          "cssW": 102.67,
+          "cssLeft": 220.67
+        }
+      ]
+    },
+    "tg": {
+      "label": "v058_tg",
+      "size": {
+        "lw": 160,
+        "lh": 346,
+        "scale": 2,
+        "pScale": 6,
+        "cssScale": 2,
+        "dpr": 3,
+        "isWide": false,
+        "isPhone": true,
+        "phoneLand": false,
+        "paused": false,
+        "landPause": false,
+        "manualPause": false,
+        "resumeCd": 0,
+        "cw": 1170,
+        "ch": 2160,
+        "viewPad": 18,
+        "fieldOx": 105,
+        "fieldOy": 42,
+        "phoneInt": true,
+        "devW": 1170,
+        "devH": 2160
+      },
+      "canvas": {
+        "width": 1170,
+        "height": 2160,
+        "cssW": 390,
+        "cssH": 720,
+        "left": 0,
+        "top": 0
+      },
+      "fieldCssW": 320,
+      "fieldCssH": 692,
+      "fieldDevW": 960,
+      "sideCss": 35,
+      "fieldOxCss": 35,
+      "fieldOyCss": 14,
+      "plats": {
+        "n": 85,
+        "wMin": 39,
+        "wMax": 54,
+        "wAvg": 46.46,
+        "xMin": 4,
+        "xMax": 156,
+        "wallLeft": 4,
+        "wallRight": 4,
+        "spread": 152
+      },
+      "visPlats": [
+        {
+          "x": 31,
+          "w": 54,
+          "cssW": 108,
+          "cssLeft": 133
+        },
+        {
+          "x": 106,
+          "w": 50,
+          "cssW": 100,
+          "cssLeft": 283
+        },
+        {
+          "x": 105,
+          "w": 50,
+          "cssW": 100,
+          "cssLeft": 281
+        },
+        {
+          "x": 27,
+          "w": 51,
+          "cssW": 102,
+          "cssLeft": 125
+        },
+        {
+          "x": 51,
+          "w": 45,
+          "cssW": 90,
+          "cssLeft": 173
+        },
+        {
+          "x": 111,
+          "w": 44,
+          "cssW": 88,
+          "cssLeft": 293
+        },
+        {
+          "x": 61,
+          "w": 46,
+          "cssW": 92,
+          "cssLeft": 193
+        },
+        {
+          "x": 45,
+          "w": 48,
+          "cssW": 96,
+          "cssLeft": 161
+        },
+        {
+          "x": 4,
+          "w": 52,
+          "cssW": 104,
+          "cssLeft": 79
+        },
+        {
+          "x": 97,
+          "w": 51,
+          "cssW": 102,
+          "cssLeft": 265
+        },
+        {
+          "x": 45,
+          "w": 43,
+          "cssW": 86,
+          "cssLeft": 161
+        },
+        {
+          "x": 105,
+          "w": 50,
+          "cssW": 100,
+          "cssLeft": 281
+        },
+        {
+          "x": 88,
+          "w": 46,
+          "cssW": 92,
+          "cssLeft": 247
+        },
+        {
+          "x": 16,
+          "w": 53,
+          "cssW": 106,
+          "cssLeft": 103
+        },
+        {
+          "x": 77,
+          "w": 48,
+          "cssW": 96,
+          "cssLeft": 225
+        },
+        {
+          "x": 10,
+          "w": 53,
+          "cssW": 106,
+          "cssLeft": 91
+        },
+        {
+          "x": 20,
+          "w": 53,
+          "cssW": 106,
+          "cssLeft": 111
+        },
+        {
+          "x": 87,
+          "w": 44,
+          "cssW": 88,
+          "cssLeft": 245
+        }
+      ]
+    }
+  },
+  "fill": {
+    "phone": {
+      "size": {
+        "lw": 160,
+        "lh": 346,
+        "scale": 2.4375,
+        "pScale": 7.3125,
+        "cssScale": 2.4375,
+        "dpr": 3,
+        "isWide": false,
+        "isPhone": true,
+        "phoneLand": false,
+        "paused": false,
+        "landPause": false,
+        "manualPause": false,
+        "resumeCd": 0,
+        "cw": 1170,
+        "ch": 2530,
+        "viewPad": 0,
+        "fieldOx": 0,
+        "fieldOy": 0,
+        "phoneInt": false,
+        "devW": 1170,
+        "devH": 2530
+      },
+      "canvas": {
+        "width": 1170,
+        "height": 2530,
+        "cssW": 390,
+        "cssH": 843.375,
+        "left": 0,
+        "top": 0
+      },
+      "fieldCssW": 390,
+      "fieldCssH": 843.375,
+      "sideCss": 0
+    },
+    "tg": {
+      "size": {
+        "lw": 160,
+        "lh": 346,
+        "scale": 2.0809248554913293,
+        "pScale": 6.2427745664739875,
+        "cssScale": 2.0809248554913293,
+        "dpr": 3,
+        "isWide": false,
+        "isPhone": true,
+        "phoneLand": false,
+        "paused": false,
+        "landPause": false,
+        "manualPause": false,
+        "resumeCd": 0,
+        "cw": 1170,
+        "ch": 2160,
+        "viewPad": 13.708333333333343,
+        "fieldOx": 0,
+        "fieldOy": 0,
+        "phoneInt": false,
+        "devW": 1170,
+        "devH": 2160
+      },
+      "canvas": {
+        "width": 1170,
+        "height": 2160,
+        "cssW": 390,
+        "cssH": 720,
+        "left": 0,
+        "top": 0
+      },
+      "fieldCssW": 332.9479768786127,
+      "fieldCssH": 720,
+      "sideCss": 28.52601156069366
+    }
+  }
+}

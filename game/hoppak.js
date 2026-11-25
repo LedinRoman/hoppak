@@ -331,6 +331,10 @@
     rim: "#e8ecf4",
     hi: "#ffffff"
   };
+  var PHONE_SCALE = {
+    mode: "fill",
+    k8: 8
+  };
   var MAPS = [
     { id: "city", name: "\u0413\u041E\u0420\u041E\u0414", price: 0, goal: 500, special: "", mobs: [["blob", 180], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
     { id: "jungle", name: "\u0414\u0416\u0423\u041D\u0413\u041B\u0418", price: 80, goal: 700, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
@@ -4154,16 +4158,41 @@
         canvas.style.top = "";
         canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
         canvas.style.borderRadius = "4px";
+      } else if (PHONE_SCALE.mode === "fill") {
+        cssScale = Math.min(availW / lw, availH / lh);
+        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+        cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+        cssHpx = lh * cssScale;
+        var pxW = Math.max(1, Math.round(cssWpx * dpr));
+        var pxH = Math.max(1, Math.round(cssHpx * dpr));
+        canvas.width = pxW;
+        canvas.height = pxH;
+        var worldW = lw + 2 * VIEW_PAD;
+        pScale = pxW / worldW;
+        sx = pxW / worldW;
+        sy = pxH / lh;
+        FIELD_OX = 0;
+        FIELD_OY = 0;
+        PHONE_INT = false;
+        DEV_W = pxW;
+        DEV_H = pxH;
+        canvas.style.position = "absolute";
+        canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
+        canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
+        canvas.style.boxShadow = "none";
+        canvas.style.borderRadius = "0px";
       } else {
         var devW = Math.max(1, Math.round(availW * dpr)), devH = Math.max(1, Math.round(availH * dpr));
+        var kCap = PHONE_SCALE.mode === "k8" ? PHONE_SCALE.k8 : 0;
         pScale = Math.max(1, Math.min(Math.floor(devW / lw), Math.floor(devH / lh)));
+        if (kCap) pScale = kCap;
         cssScale = pScale / dpr;
         FIELD_OX = Math.floor((devW - lw * pScale) / 2);
         FIELD_OY = Math.floor((devH - lh * pScale) / 2);
         DEV_W = devW;
         DEV_H = devH;
         PHONE_INT = true;
-        VIEW_PAD = Math.ceil(FIELD_OX / pScale);
+        VIEW_PAD = Math.ceil(Math.max(0, FIELD_OX) / pScale);
         canvas.width = devW;
         canvas.height = devH;
         cssWpx = devW / dpr;
@@ -4261,8 +4290,14 @@
     function toLogic(cx, cy) {
       var r = canvas.getBoundingClientRect();
       var rw = r.width || 1, rh = r.height || 1;
-      var x = ((cx - r.left) / rw * canvas.width - FIELD_OX) / pScale;
-      var y = ((cy - r.top) / rh * canvas.height - FIELD_OY) / pScale;
+      var x, y;
+      if (PHONE_INT) {
+        x = ((cx - r.left) / rw * canvas.width - FIELD_OX) / pScale;
+        y = ((cy - r.top) / rh * canvas.height - FIELD_OY) / pScale;
+      } else {
+        x = (cx - r.left) / rw * (LW + 2 * VIEW_PAD) - VIEW_PAD;
+        y = (cy - r.top) / rh * LH;
+      }
       if (phase === "play" && cy >= r.top && cy <= r.bottom && (cx < r.left || cx > r.right)) {
         x = cx < r.left ? 0 : LW;
         y = Math.max(0, Math.min(LH, y));

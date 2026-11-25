@@ -256,6 +256,15 @@ var BUBBLE = {
   rim: "#e8ecf4",
   hi: "#ffffff"
 };
+
+/* exp/v058-wide only. Phone scale; world stays 160×346, LW/NET_LW unchanged.
+   "fill" restores the 0.56 fractional nearest-neighbor scale (short side fills the screen).
+   "integer" is v0.57/v0.58 (k = floor, letterbox).
+   "k8" forces integer k=8 and crops height — does not fit 390×844@3 without shrinking visible height below 346. */
+var PHONE_SCALE = {
+  mode: "fill",
+  k8: 8
+};
 /* Campaign maps: open the next one by reaching `goal` m here AND paying its price.
    mobs: [kind, from metres] */
 var MAPS: any[] = [
@@ -2951,14 +2960,36 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.style.top = "";
       canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
       canvas.style.borderRadius = "4px";
+    } else if (PHONE_SCALE.mode === "fill") {
+      /* 0.56: fractional nearest-neighbor, 160×346 fills the short side. Side pads (if height-limited) continue the map sky. */
+      cssScale = Math.min(availW / lw, availH / lh);
+      VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+      cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+      cssHpx = lh * cssScale;
+      var pxW = Math.max(1, Math.round(cssWpx * dpr));
+      var pxH = Math.max(1, Math.round(cssHpx * dpr));
+      canvas.width = pxW;
+      canvas.height = pxH;
+      var worldW = lw + 2 * VIEW_PAD;
+      pScale = pxW / worldW;
+      sx = pxW / worldW;
+      sy = pxH / lh;
+      FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = pxW; DEV_H = pxH;
+      canvas.style.position = "absolute";
+      canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
+      canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
+      canvas.style.boxShadow = "none";
+      canvas.style.borderRadius = "0px";
     } else {
       /* SPEC v0.57: integer physical scale k; canvas covers the screen; field 160×346 centered with integer offset. */
       var devW = Math.max(1, Math.round(availW * dpr)), devH = Math.max(1, Math.round(availH * dpr));
+      var kCap = PHONE_SCALE.mode === "k8" ? PHONE_SCALE.k8 : 0;
       pScale = Math.max(1, Math.min(Math.floor(devW / lw), Math.floor(devH / lh)));
+      if (kCap) pScale = kCap;
       cssScale = pScale / dpr;
       FIELD_OX = Math.floor((devW - lw * pScale) / 2); FIELD_OY = Math.floor((devH - lh * pScale) / 2);
       DEV_W = devW; DEV_H = devH; PHONE_INT = true;
-      VIEW_PAD = Math.ceil(FIELD_OX / pScale);
+      VIEW_PAD = Math.ceil(Math.max(0, FIELD_OX) / pScale);
       canvas.width = devW; canvas.height = devH;
       cssWpx = devW / dpr; cssHpx = devH / dpr;
       sx = sy = pScale;
@@ -3020,8 +3051,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function toLogic(cx: number, cy: number) {
     var r = canvas.getBoundingClientRect();
     var rw = r.width || 1, rh = r.height || 1;
-    var x = ((cx - r.left) / rw * canvas.width - FIELD_OX) / pScale;
-    var y = ((cy - r.top) / rh * canvas.height - FIELD_OY) / pScale;
+    var x: number, y: number;
+    if (PHONE_INT) {
+      x = ((cx - r.left) / rw * canvas.width - FIELD_OX) / pScale;
+      y = ((cy - r.top) / rh * canvas.height - FIELD_OY) / pScale;
+    } else {
+      x = (cx - r.left) / rw * (LW + 2 * VIEW_PAD) - VIEW_PAD;
+      y = (cy - r.top) / rh * LH;
+    }
     if (phase === "play" && cy >= r.top && cy <= r.bottom && (cx < r.left || cx > r.right)) {
       x = cx < r.left ? 0 : LW;
       y = Math.max(0, Math.min(LH, y));
