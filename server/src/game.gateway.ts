@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleDestroy } from '@nestjs/common';
 import {
   ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway,
 } from '@nestjs/websockets';
@@ -8,13 +8,65 @@ import { RoomError, RoomsService, Sess, stats } from './rooms.service';
 
 type Sock = WebSocket & { sess: Sess };
 
+function parsePositiveMs(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : fallback;
+}
+
 @WebSocketGateway({ path: '/ws' })
-export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
   private readonly log = new Logger('Gateway');
-  constructor(private readonly rooms: RoomsService) {}
+  private readonly clients = new Set<Sock>();
+  private readonly heartbeats = new WeakMap<WebSocket, { lastPongAt: number }>();
+  private readonly wsPingMs: number;
+  private readonly wsPongTimeoutMs: number;
+  private wsPingTimer: NodeJS.Timeout | null = null;
+
+  constructor(private readonly rooms: RoomsService) {
+    this.wsPingMs = parsePositiveMs(process.env.WS_PING_MS, 25_000);
+    this.wsPongTimeoutMs = parsePositiveMs(process.env.WS_PONG_TIMEOUT_MS, 60_000);
+    this.wsPingTimer = setInterval(() => this.sweepHeartbeats(), this.wsPingMs);
+    this.wsPingTimer.unref();
+  }
+
+  onModuleDestroy() {
+    if (this.wsPingTimer) { clearInterval(this.wsPingTimer); this.wsPingTimer = null; }
+  }
+
+  private attachHeartbeat(ws: Sock) {
+    if (this.heartbeats.has(ws)) return;
+    const state = { lastPongAt: Date.now() };
+    this.heartbeats.set(ws, state);
+    ws.on('pong', () => { state.lastPongAt = Date.now(); });
+  }
+
+  private sweepHeartbeats() {
+    const now = Date.now();
+    for (const ws of [...this.clients]) {
+      if (ws.readyState === 0) {
+        const hb = this.heartbeats.get(ws);
+        if (hb) hb.lastPongAt = now;
+        continue;
+      }
+      if (ws.readyState !== 1) {
+        this.clients.delete(ws);
+        continue;
+      }
+      const hb = this.heartbeats.get(ws);
+      if (hb && now - hb.lastPongAt > this.wsPongTimeoutMs) {
+        this.log.warn(`terminating dead WS (no pong for ${now - hb.lastPongAt}ms > ${this.wsPongTimeoutMs}ms)`);
+        this.clients.delete(ws);
+        try { ws.terminate(); } catch { /* ignore */ }
+        continue;
+      }
+      try { ws.ping(); } catch { /* ignore */ }
+    }
+  }
 
   handleConnection(ws: Sock) {
     ws.sess = { win: 0, winN: 0 };
+    this.clients.add(ws);
+    this.attachHeartbeat(ws);
     // crude flood guard: count messages per 1s window, drop the excess; kill sockets that keep flooding
     ws.on('message', () => {
       stats.msgsIn++;
@@ -25,6 +77,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.rooms.send(ws, 'hello', { v: PROTOCOL_VERSION, s: Date.now() });
   }
   handleDisconnect(ws: Sock) {
+    this.clients.delete(ws);
     if (ws.sess) this.rooms.disconnected(ws, ws.sess);
   }
 
