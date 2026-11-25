@@ -94,9 +94,27 @@ export class RoomsService implements OnModuleDestroy {
     for (const p of r.players) this.send(p.ws, 'room', this.roomView(r, p));
   }
 
+  private codeRange(): [number, number] {
+    const envMin = Number(process.env.ROOM_CODE_MIN);
+    const envMax = Number(process.env.ROOM_CODE_MAX);
+    if (Number.isInteger(envMin) && Number.isInteger(envMax) && envMin >= 1000 && envMax <= 9999 && envMin <= envMax) {
+      return [envMin, envMax];
+    }
+    const node = (process.env.NODE_NAME || '').trim().toLowerCase();
+    if (node === 'blue') return [1000, 5499];
+    if (node === 'green') return [5500, 9999];
+    return [1000, 9999];
+  }
   private newCode() {
+    const [lo, hi] = this.codeRange();
+    const span = hi - lo + 1;
     for (let i = 0; i < 200; i++) {
-      const c = String(randomInt(1000, 10000));
+      const c = String(randomInt(lo, hi + 1));
+      if (!this.rooms.has(c)) return c;
+    }
+    const start = randomInt(0, span);
+    for (let i = 0; i < span; i++) {
+      const c = String(lo + ((start + i) % span));
       if (!this.rooms.has(c)) return c;
     }
     throw new RoomError('BUSY', 'no free room codes');

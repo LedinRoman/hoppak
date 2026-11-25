@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { timingSafeEqual } from 'crypto';
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
 import { WebSocketServer } from 'ws';
 import { BlueGreenService, TrackedSocket } from './bluegreen.service';
@@ -9,22 +10,55 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
   private server: Server | null = null;
   private wss: WebSocketServer | null = null;
   readonly port: number | null;
+  readonly host: string;
+  readonly token: string;
+  private readonly isLoopback: boolean;
 
   constructor(private readonly bg: BlueGreenService) {
-    const raw = (process.env.INTERNAL_PORT ?? '3001').trim().toLowerCase();
-    if (raw === '0' || raw === 'off' || raw === 'none' || raw === 'false') {
+    const raw = (process.env.INTERNAL_PORT ?? '').trim().toLowerCase();
+    if (!raw || raw === '0' || raw === 'off' || raw === 'none' || raw === 'false') {
       this.port = null;
     } else {
       const n = Number(raw);
-      this.port = Number.isInteger(n) && n > 0 && n <= 65535 ? n : 3001;
+      this.port = Number.isInteger(n) && n > 0 && n <= 65535 ? n : null;
     }
+    this.host = (process.env.INTERNAL_HOST || '127.0.0.1').trim() || '127.0.0.1';
+    this.token = bg.internalToken;
+    this.isLoopback = this.host === '127.0.0.1' || this.host === '::1' || this.host === 'localhost';
+  }
+
+  private checkAuth(req: IncomingMessage): { ok: true } | { ok: false; code: string } {
+    if (!this.token) {
+      if (this.isLoopback) return { ok: true };
+      return { ok: false, code: 'internal_token_required' };
+    }
+    const hdr = req.headers['x-internal-token'];
+    let supplied = Array.isArray(hdr) ? hdr[0] : hdr || '';
+    if (!supplied && typeof req.headers.authorization === 'string') {
+      const m = req.headers.authorization.match(/^Bearer\s+(.+)$/i);
+      if (m) supplied = m[1];
+    }
+    const a = Buffer.from(supplied.trim());
+    const b = Buffer.from(this.token);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      return { ok: false, code: 'unauthorized' };
+    }
+    return { ok: true };
   }
 
   async onModuleInit() {
     if (this.port === null) {
-      this.log.log('internal HTTP server disabled by INTERNAL_PORT');
+      this.log.log('internal HTTP/WS server disabled (INTERNAL_PORT unset)');
       return;
     }
+    if (!this.token) {
+      if (this.isLoopback) {
+        this.log.warn('INTERNAL_TOKEN not set; allowing loopback-only access on ' + this.host);
+      } else {
+        this.log.error(`INTERNAL_TOKEN not set with non-loopback INTERNAL_HOST=${this.host}; all /internal/* requests will return 401`);
+      }
+    }
+
     const wss = new WebSocketServer({ noServer: true });
     this.wss = wss;
 
@@ -33,6 +67,12 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
     });
     server.on('upgrade', (req, socket, head) => {
       try {
+        const auth = this.checkAuth(req);
+        if (!auth.ok) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+          return;
+        }
         const url = new URL(req.url || '/', 'http://localhost');
         if (url.pathname.replace(/\/+$/, '') !== '/internal/ws') {
           socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
@@ -49,13 +89,13 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
 
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
-      server.listen(this.port!, '0.0.0.0', () => {
+      server.listen(this.port!, this.host, () => {
         server.off('error', reject);
         resolve();
       });
     });
     this.server = server;
-    this.log.log(`internal HTTP/WS listening on :${this.port} (node=${this.bg.node})`);
+    this.log.log(`internal HTTP/WS listening on ${this.host}:${this.port} (node=${this.bg.node}, auth=${this.token ? 'token' : 'loopback'})`);
   }
 
   async onModuleDestroy() {
@@ -102,6 +142,10 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
 
   private async handle(req: IncomingMessage, res: ServerResponse) {
     try {
+      const auth = this.checkAuth(req);
+      if (!auth.ok) {
+        return this.sendJson(res, 401, { error: auth.code });
+      }
       const method = (req.method || 'GET').toUpperCase();
       const url = new URL(req.url || '/', 'http://localhost');
       const path = url.pathname.replace(/\/+$/, '') || '/';

@@ -74,6 +74,7 @@ export class BlueGreenService {
   readonly version: string;
   readonly peerInternalUrl: string;
   readonly peerNodeFallback: string;
+  readonly internalToken: string;
   readonly peerTimeoutMs: number;
   readonly drainLobbyTtlMs: number;
   readonly drainResultsCloseMs: number;
@@ -95,10 +96,15 @@ export class BlueGreenService {
       process.env.PEER_NODE_NAME ||
       (this.node === 'blue' ? 'green' : this.node === 'green' ? 'blue' : '')
     ).trim();
+    this.internalToken = (process.env.INTERNAL_TOKEN || '').trim();
     this.peerTimeoutMs = parsePositiveMs(process.env.PEER_TIMEOUT_MS, 800);
     this.drainLobbyTtlMs = parsePositiveMs(process.env.DRAIN_LOBBY_TTL_MS, 15_000);
     this.drainResultsCloseMs = parsePositiveMs(process.env.DRAIN_RESULTS_CLOSE_MS, 1_500);
     this.gracefulShutdownMs = parsePositiveMs(process.env.GRACEFUL_SHUTDOWN_MS, 25_000);
+  }
+
+  private internalHeaders(): Record<string, string> {
+    return this.internalToken ? { 'x-internal-token': this.internalToken } : {};
   }
 
   bindRooms(rooms: RoomsService) {
@@ -386,6 +392,7 @@ export class BlueGreenService {
     if (!/^\d{4}$/.test(clean)) return null;
     try {
       const res = await fetch(`${this.peerInternalUrl}/internal/rooms/${encodeURIComponent(clean)}`, {
+        headers: this.internalHeaders(),
         signal: AbortSignal.timeout(this.peerTimeoutMs),
       });
       if (!res.ok) return null;
@@ -404,6 +411,7 @@ export class BlueGreenService {
     if (!clean) return null;
     try {
       const res = await fetch(`${this.peerInternalUrl}/internal/tokens/${encodeURIComponent(clean)}`, {
+        headers: this.internalHeaders(),
         signal: AbortSignal.timeout(this.peerTimeoutMs),
       });
       if (!res.ok) return null;
@@ -420,6 +428,7 @@ export class BlueGreenService {
     if (!this.peerInternalUrl) return null;
     try {
       const res = await fetch(`${this.peerInternalUrl}/internal/stats`, {
+        headers: this.internalHeaders(),
         signal: AbortSignal.timeout(this.peerTimeoutMs),
       });
       if (!res.ok) return null;
@@ -435,7 +444,7 @@ export class BlueGreenService {
     if (peer) {
       return peer.draining || peer.shuttingDown ? null : peer.node;
     }
-    return this.peerNodeFallback || null;
+    return null;
   }
 
   proxyToPeer(
@@ -453,6 +462,7 @@ export class BlueGreenService {
     ws.sess.proxyQueue = [JSON.stringify({ event: initialEvent, data: initialData ?? {} })];
 
     const upstream = new WebSocket(upstreamUrl, {
+      headers: this.internalHeaders(),
       handshakeTimeout: this.peerTimeoutMs,
     });
     ws.sess.upstream = upstream;

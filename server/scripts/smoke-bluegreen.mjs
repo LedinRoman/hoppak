@@ -20,6 +20,8 @@ const BLUE_PUB = Number(process.env.BLUE_PUB || await freePort());
 const BLUE_INT = Number(process.env.BLUE_INT || await freePort());
 const GREEN_PUB = Number(process.env.GREEN_PUB || await freePort());
 const GREEN_INT = Number(process.env.GREEN_INT || await freePort());
+const INTERNAL_TOKEN = process.env.INTERNAL_TOKEN || 'smoke-secret-token';
+const INT_HEADERS = { 'x-internal-token': INTERNAL_TOKEN };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -42,6 +44,8 @@ function startSlot({ name, pubPort, intPort, version, peerIntPort, extraEnv = {}
       APP_VERSION: version,
       PEER_INTERNAL_URL: `http://127.0.0.1:${peerIntPort}`,
       PEER_TIMEOUT_MS: '800',
+      INTERNAL_HOST: '127.0.0.1',
+      INTERNAL_TOKEN,
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -57,7 +61,7 @@ async function waitReady(slot) {
     try {
       const [h, s] = await Promise.all([
         fetch(`http://127.0.0.1:${slot.pubPort}/api/health`),
-        fetch(`http://127.0.0.1:${slot.intPort}/internal/stats`),
+        fetch(`http://127.0.0.1:${slot.intPort}/internal/stats`, { headers: INT_HEADERS }),
       ]);
       if (h.ok && s.ok) return;
     } catch {
@@ -210,14 +214,14 @@ try {
   const code2 = rD2?.code;
   check(!!code2 && code2 !== code1, `v2 client created lobby room ${code2} on blue`);
 
-  const statsPreDrain = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`)).json();
+  const statsPreDrain = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`, { headers: INT_HEADERS })).json();
   check(
     statsPreDrain.rooms === 2 && statsPreDrain.players === 3 && statsPreDrain.draining === false && statsPreDrain.node === 'blue',
     `blue /internal/stats before drain: rooms=${statsPreDrain.rooms}, players=${statsPreDrain.players}, draining=${statsPreDrain.draining}`
   );
 
-  const roomCheck = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/rooms/${code1}`)).json();
-  const roomMissing = await fetch(`http://127.0.0.1:${BLUE_INT}/internal/rooms/0000`);
+  const roomCheck = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/rooms/${code1}`, { headers: INT_HEADERS })).json();
+  const roomMissing = await fetch(`http://127.0.0.1:${BLUE_INT}/internal/rooms/0000`, { headers: INT_HEADERS });
   check(roomCheck.exists === true && roomCheck.node === 'blue' && roomMissing.status === 404, `internal room check: ${code1}->200, 0000->404`);
 
   // Start the match in room 1 (v1 clients)
@@ -228,7 +232,7 @@ try {
   check(stA && stB && stA.seed === stB.seed && stA.lw === 180, `v1 match started on blue (seed=${stA?.seed})`);
 
   // 4. Drain blue -> v2 clients get {event:'update', data:{version:'0.58.0'}}, v1 clients do NOT
-  const drainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST' })).json();
+  const drainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST', headers: INT_HEADERS })).json();
   check(
     drainRes.ok === true && drainRes.draining === true && drainRes.updateVersion === '0.58.0' && drainRes.notified >= 2,
     `POST /internal/drain on blue -> draining=true, updateVersion=0.58.0, notified=${drainRes.notified}`
@@ -260,7 +264,7 @@ try {
   // Also check POST /internal/announce-update on green
   const annRes = await (await fetch(`http://127.0.0.1:${GREEN_INT}/internal/announce-update`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...INT_HEADERS },
     body: JSON.stringify({ version: '0.58.1' }),
   })).json();
   const updG2 = await g2.wait('update');
@@ -344,7 +348,7 @@ try {
   let statsEnd = null;
   const tDrain = Date.now();
   while (Date.now() - tDrain < 6000) {
-    statsEnd = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`)).json();
+    statsEnd = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`, { headers: INT_HEADERS })).json();
     if (statsEnd.rooms === 0) break;
     await sleep(150);
   }
@@ -399,8 +403,79 @@ try {
     `BUG-25: SIGTERM let running match finish naturally (${sig2Ms}ms < 6000ms), sent results (m=31), exited 0`);
 
   // 9. Undrain rollback test
-  const undrainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/undrain`, { method: 'POST' })).json();
+  const undrainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/undrain`, { method: 'POST', headers: INT_HEADERS })).json();
   check(undrainRes.ok && undrainRes.draining === false, `POST /internal/undrain resets draining=false on blue`);
+
+  // 10. BUG-28: Internal auth & bind checks
+  const noAuth = await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`);
+  const badAuth = await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST', headers: { 'x-internal-token': 'wrong' } });
+  const badWs = await new Promise((res) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${BLUE_INT}/internal/ws?p=1`);
+    ws.once('unexpected-response', (_req, r) => res(r.statusCode));
+    ws.once('open', () => { ws.close(); res(200); });
+    ws.once('error', () => res(401));
+  });
+  check(noAuth.status === 401 && badAuth.status === 401 && badWs === 401,
+    `BUG-28: internal HTTP/WS rejects missing/wrong INTERNAL_TOKEN (${noAuth.status}, ${badAuth.status}, ws=${badWs})`);
+
+  const failClosedPort = await freePort();
+  const failClosedPub = await freePort();
+  const failClosedSrv = spawn(process.execPath, [MAIN_JS], {
+    cwd: SERVER_DIR,
+    env: { ...process.env, NODE_ENV: 'production', PORT: String(failClosedPub), INTERNAL_PORT: String(failClosedPort), INTERNAL_HOST: '0.0.0.0', INTERNAL_TOKEN: '' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  try {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 8000) {
+      try { const h = await fetch(`http://127.0.0.1:${failClosedPub}/api/health`); if (h.ok) break; } catch {}
+      await sleep(80);
+    }
+    const fcRes = await fetch(`http://127.0.0.1:${failClosedPort}/internal/stats`);
+    check(fcRes.status === 401, `BUG-28: 0.0.0.0 without INTERNAL_TOKEN fails closed (${fcRes.status})`);
+  } finally {
+    failClosedSrv.kill('SIGTERM');
+  }
+
+  // 11. BUG-27: Disjoint room codes across slots (400 blue + 1500 green -> 0 collisions)
+  await fetch(`http://127.0.0.1:${BLUE_INT}/internal/undrain`, { method: 'POST', headers: INT_HEADERS });
+  const batchCreate = async (pubPort, count) => {
+    const codes = [];
+    const conns = await Promise.all(Array.from({ length: 50 }, (_, i) => openWs(`ws://127.0.0.1:${pubPort}/ws`, `batch${i}`)));
+    await Promise.all(conns.map((c) => c.wait('hello')));
+    let made = 0;
+    while (made < count) {
+      const chunk = conns.slice(0, Math.min(50, count - made));
+      await Promise.all(chunk.map(async (c, idx) => {
+        c.send('create', { name: `R${made + idx}`, kind: 0 });
+        const rm = await c.wait('room');
+        if (rm?.code) codes.push(rm.code);
+      }));
+      made += chunk.length;
+    }
+    for (const c of conns) { try { c.ws.close(); } catch {} }
+    return codes;
+  };
+  const blueCodes = await batchCreate(BLUE_PUB, 400);
+  const greenCodes = await batchCreate(GREEN_PUB, 1500);
+  const greenSet = new Set(greenCodes);
+  const overlap = blueCodes.filter((c) => greenSet.has(c));
+  const blueInRange = blueCodes.every((c) => Number(c) >= 1000 && Number(c) <= 5499);
+  const greenInRange = greenCodes.every((c) => Number(c) >= 5500 && Number(c) <= 9999);
+  check(blueCodes.length === 400 && greenCodes.length === 1500 && overlap.length === 0 && blueInRange && greenInRange,
+    `BUG-27: ${blueCodes.length} blue (1000..5499) + ${greenCodes.length} green (5500..9999) rooms created with ${overlap.length} collisions`);
+
+  // 12. BUG-26: when peer is dead, v2 create on draining blue returns DRAINING (not redirect to dead peer)
+  await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST', headers: INT_HEADERS });
+  green.child.kill('SIGKILL');
+  await sleep(250);
+  const v2DeadPeer = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, 'V2_dead_peer'));
+  await v2DeadPeer.wait('hello');
+  v2DeadPeer.send('create', { name: 'NoPeer', kind: 0 });
+  const deadPeerErr = await v2DeadPeer.wait('err');
+  const deadPeerRedir = v2DeadPeer.inbox.find((m) => m.event === 'redirect');
+  check(deadPeerErr?.code === 'DRAINING' && !deadPeerRedir,
+    `BUG-26: create on draining slot with dead peer returns DRAINING (no redirect to dead peer)`);
 
   console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL BLUE-GREEN SMOKE CHECKS PASSED');
   process.exitCode = failures ? 1 : 0;
