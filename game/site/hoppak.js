@@ -331,10 +331,6 @@
     rim: "#e8ecf4",
     hi: "#ffffff"
   };
-  var PHONE_SCALE = {
-    mode: "fill",
-    k8: 8
-  };
   var MAPS = [
     { id: "city", name: "\u0413\u041E\u0420\u041E\u0414", price: 0, goal: 500, special: "", mobs: [["blob", 180], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
     { id: "jungle", name: "\u0414\u0416\u0423\u041D\u0413\u041B\u0418", price: 80, goal: 700, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
@@ -4070,7 +4066,7 @@
     var pointers = {};
     var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
     var hits = [];
-    var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
+    var SCALE = 1, pScale = 1, pScaleY = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
     var fieldLocked = false, landPause = false, manualPause = false;
     var resumeCd = 0, resumeAt = 0, abDenyT = 0, refuseT = 0, popT = -1, wasReady = false, coinT0 = -1, coinSkip = false;
     var pressId = null;
@@ -4158,7 +4154,8 @@
         canvas.style.top = "";
         canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
         canvas.style.borderRadius = "4px";
-      } else if (PHONE_SCALE.mode === "fill") {
+        pScaleY = pScale;
+      } else {
         cssScale = Math.min(availW / lw, availH / lh);
         VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
         cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
@@ -4169,35 +4166,14 @@
         canvas.height = pxH;
         var worldW = lw + 2 * VIEW_PAD;
         pScale = pxW / worldW;
-        sx = pxW / worldW;
-        sy = pxH / lh;
-        FIELD_OX = 0;
+        pScaleY = pxH / lh;
+        sx = pScale;
+        sy = pScaleY;
+        FIELD_OX = Math.round(VIEW_PAD * sx);
         FIELD_OY = 0;
         PHONE_INT = false;
         DEV_W = pxW;
         DEV_H = pxH;
-        canvas.style.position = "absolute";
-        canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
-        canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
-        canvas.style.boxShadow = "none";
-        canvas.style.borderRadius = "0px";
-      } else {
-        var devW = Math.max(1, Math.round(availW * dpr)), devH = Math.max(1, Math.round(availH * dpr));
-        var kCap = PHONE_SCALE.mode === "k8" ? PHONE_SCALE.k8 : 0;
-        pScale = Math.max(1, Math.min(Math.floor(devW / lw), Math.floor(devH / lh)));
-        if (kCap) pScale = kCap;
-        cssScale = pScale / dpr;
-        FIELD_OX = Math.floor((devW - lw * pScale) / 2);
-        FIELD_OY = Math.floor((devH - lh * pScale) / 2);
-        DEV_W = devW;
-        DEV_H = devH;
-        PHONE_INT = true;
-        VIEW_PAD = Math.ceil(Math.max(0, FIELD_OX) / pScale);
-        canvas.width = devW;
-        canvas.height = devH;
-        cssWpx = devW / dpr;
-        cssHpx = devH / dpr;
-        sx = sy = pScale;
         canvas.style.position = "absolute";
         canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
         canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
@@ -4290,14 +4266,8 @@
     function toLogic(cx, cy) {
       var r = canvas.getBoundingClientRect();
       var rw = r.width || 1, rh = r.height || 1;
-      var x, y;
-      if (PHONE_INT) {
-        x = ((cx - r.left) / rw * canvas.width - FIELD_OX) / pScale;
-        y = ((cy - r.top) / rh * canvas.height - FIELD_OY) / pScale;
-      } else {
-        x = (cx - r.left) / rw * (LW + 2 * VIEW_PAD) - VIEW_PAD;
-        y = (cy - r.top) / rh * LH;
-      }
+      var x = ((cx - r.left) / rw * canvas.width - FIELD_OX) / pScale;
+      var y = ((cy - r.top) / rh * canvas.height - FIELD_OY) / pScaleY;
       if (phase === "play" && cy >= r.top && cy <= r.bottom && (cx < r.left || cx > r.right)) {
         x = cx < r.left ? 0 : LW;
         y = Math.max(0, Math.min(LH, y));
@@ -5130,16 +5100,24 @@
     }
     function drawPlay() {
       hits = [];
-      var w = world, cam = w.cameraY, i;
+      var w = world, i;
+      var cam = Math.round(w.cameraY * pScaleY) / pScaleY;
       THREAT = w.players[0] && w.players[0].alive ? { x: w.players[0].x, y: w.players[0].y, w: PW, h: PH } : null;
       var shx = w.shake > 0 ? (w.tick % 2 ? 1 : -1) * Math.ceil(w.shake / 3) : 0;
       ctx.save();
       ctx.translate(shx, 0);
       drawBg(ctx, cam, w.tick, w.map);
       ctx.save();
+      var mclip = ctx.getTransform();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      var x0 = Math.ceil(mclip.e - shx * mclip.a - 1e-9);
+      var y0 = Math.ceil(mclip.f - 1e-9);
+      var x1 = Math.floor(mclip.e - shx * mclip.a + LW * mclip.a + 1e-9);
+      var y1 = Math.floor(mclip.f + LH * mclip.d + 1e-9);
       ctx.beginPath();
-      ctx.rect(-shx, 0, LW, LH);
+      ctx.rect(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
       ctx.clip();
+      ctx.setTransform(mclip.a, mclip.b, mclip.c, mclip.d, mclip.e, mclip.f);
       for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
       if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "\u0426\u0415\u041B\u042C " + w.goalM + " \u041C");
       if (w.recM) recLine(-w.recM * PX_PER_M - cam, "\u0420\u0415\u041A\u041E\u0420\u0414 " + w.recM);
@@ -5853,7 +5831,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
+        return { lw: LW, lh: LH, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
       },
       tap: function(id) {
         activate(id);

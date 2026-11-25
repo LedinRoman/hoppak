@@ -257,14 +257,7 @@ var BUBBLE = {
   hi: "#ffffff"
 };
 
-/* exp/v058-wide only. Phone scale; world stays 160×346, LW/NET_LW unchanged.
-   "fill" restores the 0.56 fractional nearest-neighbor scale (short side fills the screen).
-   "integer" is v0.57/v0.58 (k = floor, letterbox).
-   "k8" forces integer k=8 and crops height — does not fit 390×844@3 without shrinking visible height below 346. */
-var PHONE_SCALE = {
-  mode: "fill",
-  k8: 8
-};
+/* Phone scale is the 0.56 fractional nearest-neighbor fill. World stays 160×346, LW/NET_LW unchanged. */
 /* Campaign maps: open the next one by reaching `goal` m here AND paying its price.
    mobs: [kind, from metres] */
 var MAPS: any[] = [
