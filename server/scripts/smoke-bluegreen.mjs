@@ -10,10 +10,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = join(__dirname, '..');
 const MAIN_JS = join(SERVER_DIR, 'dist', 'main.js');
 
-const BLUE_PUB = 8901;
-const BLUE_INT = 3901;
-const GREEN_PUB = 8902;
-const GREEN_INT = 3902;
+import net from 'node:net';
+const freePort = () => new Promise((res, rej) => {
+  const srv = net.createServer();
+  srv.listen(0, '127.0.0.1', () => { const { port } = srv.address(); srv.close(() => res(port)); });
+  srv.on('error', rej);
+});
+const BLUE_PUB = Number(process.env.BLUE_PUB || await freePort());
+const BLUE_INT = Number(process.env.BLUE_INT || await freePort());
+const GREEN_PUB = Number(process.env.GREEN_PUB || await freePort());
+const GREEN_INT = Number(process.env.GREEN_INT || await freePort());
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -125,7 +131,7 @@ const green = startSlot({
 
 try {
   await Promise.all([waitReady(blue), waitReady(green)]);
-  console.log('Both slots ready: blue (:8901/:3901) & green (:8902/:3902)');
+  console.log(`Both slots ready: blue (:${BLUE_PUB}/:${BLUE_INT}) & green (:${GREEN_PUB}/:${GREEN_INT})`);
 
   // 1. /api/health & public vs internal isolation
   const hBlue = await (await fetch(`http://127.0.0.1:${BLUE_PUB}/api/health`)).json();
@@ -272,15 +278,18 @@ try {
   const rF2Blue = await f2Blue.wait('room');
   check(rF2Blue?.code === code2 && rF2Blue?.players?.length === 2 && updOnReconnect?.version === '0.58.0', `v2 client followed redirect to blue, joined existing room ${code2} while draining, and got update notice`);
 
+  // BUG-29: v1 client joins blue's room via green (transparently proxied)
   const f1Green = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws`, 'F_v1_green'));
   await f1Green.wait('hello');
   f1Green.send('join', { code: code2, name: 'JoinerV1', kind: 1 });
-  const errWrongNode = await f1Green.wait('err');
-  check(errWrongNode?.code === 'WRONG_NODE', `join ${code2} on green -> v1 client gets err WRONG_NODE`);
+  const rF1Proxied = await f1Green.wait('room');
+  check(rF1Proxied?.code === code2 && rF1Proxied?.players?.length === 3, `BUG-29: v1 join ${code2} via green transparently proxied to blue (players=${rF1Proxied?.players?.length})`);
+  f1Green.send('leave');
+  await d2.wait('room', (r) => r.players.length === 2);
 
-  f2.send('join', { code: '9999', name: 'Missing', kind: 0 });
+  f2.send('join', { code: '0000', name: 'Missing', kind: 0 });
   const errNotFound = await f2.wait('err');
-  check(errNotFound?.code === 'NOT_FOUND', `join nonexistent 9999 on green -> NOT_FOUND`);
+  check(errNotFound?.code === 'NOT_FOUND', `join nonexistent 0000 on green -> NOT_FOUND`);
 
   // 7. Match on draining blue continues (state snap + events) and finishes cleanly
   a1.send('st', { x: 50, y: -120, vx: 0, vy: -3, f: 1, a: 1, m: 120, ps: 0 });
@@ -292,14 +301,38 @@ try {
   const mobB = await b1.wait('ev', (e) => e.e === 'mob');
   check(mobB?.id === 'slime:40:-100', `match on draining blue relays mob events`);
 
+  // BUG-24: v1 client B drops during drain and reconnects via green (/ws -> active slot)
+  const b1Token = rB1.token;
+  b1.ws.terminate();
+  await a1.wait('room', (r) => r.players.some((p) => !p.on));
+  const b1Re = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws`, 'B_v1_re'));
+  await b1Re.wait('hello');
+  b1Re.send('resume', { token: b1Token });
+  const b1ReRoom = await b1Re.wait('room');
+  const b1ReStart = await b1Re.wait('start');
+  check(b1ReRoom?.code === code1 && b1ReStart?.resumed === true && b1ReStart?.seed === stA.seed, `BUG-24: v1 resume via green recovered seat and running match on draining blue`);
+  b1Re.send('st', { x: 82, y: -180, vx: 0, vy: -3, f: 1, a: 1, m: 180, ps: 0 });
+  await a1.wait('snap');
+
+  // BUG-24: v2 client also recovers via green if it hits /ws with resume
+  const d2Token = rD2.token;
+  d2.ws.terminate();
+  await f2Blue.wait('room', (r) => r.players.some((p) => !p.on));
+  const d2Re = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws?p=2`, 'D_v2_re'));
+  await d2Re.wait('hello');
+  d2Re.send('resume', { token: d2Token });
+  const d2ReRoom = await d2Re.wait('room');
+  check(d2ReRoom?.code === code2 && d2ReRoom?.you === rD2.you, `BUG-24: v2 resume via green recovered seat on draining blue`);
+  d2Re.send('leave');
+
   a1.send('ev', { e: 'dead', m: 15 });
-  b1.send('ev', { e: 'dead', m: 23 });
-  const [resA, resB] = await Promise.all([a1.wait('results'), b1.wait('results')]);
+  b1Re.send('ev', { e: 'dead', m: 23 });
+  const [resA, resB] = await Promise.all([a1.wait('results'), b1Re.wait('results')]);
   const lobA = await a1.wait('room', (r) => r.phase === 'lobby');
   check(resA && resB && resA.ranking[0].m === 23 && !!lobA, `match on draining blue finished cleanly (winner m=23) and returned to lobby`);
 
   // Leave all rooms -> blue stats reach 0 rooms, 0 players
-  a1.send('leave'); b1.send('leave'); d2.send('leave'); f2Blue.send('leave'); g2.send('leave');
+  a1.send('leave'); b1Re.send('leave'); f2Blue.send('leave'); g2.send('leave');
   await sleep(200);
   const statsEnd = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`)).json();
   check(statsEnd.rooms === 0 && statsEnd.players === 0 && statsEnd.draining === true, `blue drained to 0 rooms, 0 players`);

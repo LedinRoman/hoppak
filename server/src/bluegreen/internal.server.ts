@@ -1,11 +1,13 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
-import { BlueGreenService } from './bluegreen.service';
+import { WebSocketServer } from 'ws';
+import { BlueGreenService, TrackedSocket } from './bluegreen.service';
 
 @Injectable()
 export class InternalServer implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('InternalHTTP');
   private server: Server | null = null;
+  private wss: WebSocketServer | null = null;
   readonly port: number | null;
 
   constructor(private readonly bg: BlueGreenService) {
@@ -23,9 +25,28 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
       this.log.log('internal HTTP server disabled by INTERNAL_PORT');
       return;
     }
+    const wss = new WebSocketServer({ noServer: true });
+    this.wss = wss;
+
     const server = createServer((req, res) => {
       void this.handle(req, res);
     });
+    server.on('upgrade', (req, socket, head) => {
+      try {
+        const url = new URL(req.url || '/', 'http://localhost');
+        if (url.pathname.replace(/\/+$/, '') !== '/internal/ws') {
+          socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+          socket.destroy();
+          return;
+        }
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          this.bg.handleInternalWs(ws as TrackedSocket, req);
+        });
+      } catch {
+        socket.destroy();
+      }
+    });
+
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
       server.listen(this.port!, '0.0.0.0', () => {
@@ -34,10 +55,17 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
       });
     });
     this.server = server;
-    this.log.log(`internal HTTP listening on :${this.port} (node=${this.bg.node})`);
+    this.log.log(`internal HTTP/WS listening on :${this.port} (node=${this.bg.node})`);
   }
 
   async onModuleDestroy() {
+    if (this.wss) {
+      for (const client of this.wss.clients) {
+        try { client.close(1001, 'shutdown'); } catch { /* ignore */ }
+      }
+      this.wss.close();
+      this.wss = null;
+    }
     if (!this.server) return;
     const srv = this.server;
     this.server = null;
@@ -107,6 +135,16 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
           return this.sendJson(res, 404, { exists: false, code: code.trim(), node: this.bg.node });
         }
         return this.sendJson(res, 200, room);
+      }
+
+      const tokMatch = method === 'GET' && path.match(/^\/internal\/tokens\/([^/]+)$/);
+      if (tokMatch) {
+        const token = decodeURIComponent(tokMatch[1]);
+        const hit = this.bg.checkToken(token);
+        if (!hit) {
+          return this.sendJson(res, 404, { exists: false, node: this.bg.node });
+        }
+        return this.sendJson(res, 200, hit);
       }
 
       return this.sendJson(res, 404, { error: 'not_found' });

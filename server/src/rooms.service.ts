@@ -137,6 +137,11 @@ export class RoomsService implements OnModuleDestroy {
     this.log.log(`room ${r.code}: ${p.name} joined (${r.players.length}/${MAX_PLAYERS})`);
     return { room: r, player: p };
   }
+  findToken(token: unknown) {
+    const hit = this.byToken.get(String(token ?? ''));
+    if (!hit || !this.rooms.has(hit.room.code)) return null;
+    return hit;
+  }
   resume(ws: WebSocket, token: unknown) {
     const hit = this.byToken.get(String(token ?? ''));
     if (!hit || !this.rooms.has(hit.room.code)) throw new RoomError('NO_SESSION', 'Сессия истекла');

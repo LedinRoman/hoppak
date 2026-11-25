@@ -1,11 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { existsSync, readFileSync } from 'fs';
+import type { IncomingMessage } from 'http';
 import { join } from 'path';
-import type { WebSocket } from 'ws';
+import WebSocket from 'ws';
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../protocol';
 import { RoomsService, Sess } from '../rooms.service';
 
-export type TrackedSocket = WebSocket & { sess: Sess & { protocol?: number; unsupported?: boolean } };
+export type TrackedSocket = WebSocket & {
+  sess: Sess & {
+    protocol?: number;
+    unsupported?: boolean;
+    proxied?: boolean;
+    upstream?: WebSocket;
+    proxyQueue?: (string | Buffer)[];
+  };
+};
 
 export interface PeerStats {
   rooms: number;
@@ -21,6 +30,12 @@ export interface PeerRoomCheck {
   node: string;
   phase?: string;
   players?: number;
+}
+
+export interface PeerTokenCheck {
+  exists: boolean;
+  code: string;
+  node: string;
 }
 
 export type ProtocolNegotiation =
@@ -59,6 +74,7 @@ export class BlueGreenService {
 
   private readonly clients = new Set<TrackedSocket>();
   private roomsService: RoomsService | null = null;
+  private internalWsHandler: ((ws: TrackedSocket, req: IncomingMessage) => void) | null = null;
 
   constructor() {
     this.node = (process.env.NODE_NAME || 'local').trim() || 'local';
@@ -74,6 +90,14 @@ export class BlueGreenService {
 
   bindRooms(rooms: RoomsService) {
     this.roomsService = rooms;
+  }
+
+  setInternalWsHandler(fn: (ws: TrackedSocket, req: IncomingMessage) => void) {
+    this.internalWsHandler = fn;
+  }
+
+  handleInternalWs(ws: TrackedSocket, req: IncomingMessage) {
+    this.internalWsHandler?.(ws, req);
   }
 
   registerClient(ws: TrackedSocket) {
@@ -95,7 +119,6 @@ export class BlueGreenService {
       }
     }
     if (pParam === null || pParam === '') {
-      // Legacy clients (v0.56, v0.57) connect to /ws without ?p=...
       if (MIN_PROTOCOL_VERSION <= 1 && PROTOCOL_VERSION >= 1) {
         return { ok: true, protocol: 1 };
       }
@@ -120,7 +143,6 @@ export class BlueGreenService {
 
   buildHello(protocol: number) {
     if (protocol <= 1) {
-      // v0.57 strictly requires d.v === 1; unknown fields are ignored by v0.56 & v0.57.
       return { v: 1, s: Date.now(), node: this.node };
     }
     return {
@@ -173,6 +195,16 @@ export class BlueGreenService {
     };
   }
 
+  checkToken(token: string): PeerTokenCheck | null {
+    const hit = this.roomsService?.findToken(token);
+    if (!hit) return null;
+    return {
+      exists: true,
+      code: hit.room.code,
+      node: this.node,
+    };
+  }
+
   private sendToSocket(ws: WebSocket, event: string, data: unknown) {
     if (this.roomsService) {
       this.roomsService.send(ws, event, data);
@@ -196,7 +228,7 @@ export class BlueGreenService {
     let notified = 0;
     for (const ws of this.clients) {
       const proto = ws.sess?.protocol ?? 1;
-      if (proto >= 2 && !ws.sess?.unsupported && ws.readyState === 1) {
+      if (proto >= 2 && !ws.sess?.unsupported && !ws.sess?.proxied && ws.readyState === 1) {
         this.sendToSocket(ws, 'update', { version: ver });
         notified++;
       }
@@ -253,6 +285,24 @@ export class BlueGreenService {
     }
   }
 
+  async lookupPeerToken(token: string): Promise<PeerTokenCheck | null> {
+    if (!this.peerInternalUrl) return null;
+    const clean = String(token ?? '').trim();
+    if (!clean) return null;
+    try {
+      const res = await fetch(`${this.peerInternalUrl}/internal/tokens/${encodeURIComponent(clean)}`, {
+        signal: AbortSignal.timeout(this.peerTimeoutMs),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as PeerTokenCheck;
+      if (body && body.exists && body.node) return body;
+      return null;
+    } catch (err) {
+      this.log.warn(`peer token lookup failed (${this.peerInternalUrl}): ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   async lookupPeerStats(): Promise<PeerStats | null> {
     if (!this.peerInternalUrl) return null;
     try {
@@ -273,5 +323,68 @@ export class BlueGreenService {
       return peer.draining ? null : peer.node;
     }
     return this.peerNodeFallback || null;
+  }
+
+  proxyToPeer(
+    ws: TrackedSocket,
+    initialEvent: string,
+    initialData: unknown,
+    fallbackError: { code: string; msg: string },
+  ): boolean {
+    if (!this.peerInternalUrl || ws.sess.proxied || ws.readyState !== 1) return false;
+    const proto = ws.sess.protocol ?? 1;
+    const wsBase = this.peerInternalUrl.replace(/^http(s?):\/\//i, 'ws$1://');
+    const upstreamUrl = `${wsBase}/internal/ws?p=${encodeURIComponent(String(proto))}&proxied=1`;
+
+    ws.sess.proxied = true;
+    ws.sess.proxyQueue = [JSON.stringify({ event: initialEvent, data: initialData ?? {} })];
+
+    const upstream = new WebSocket(upstreamUrl, {
+      handshakeTimeout: this.peerTimeoutMs,
+    });
+    ws.sess.upstream = upstream;
+    let opened = false;
+
+    upstream.on('open', () => {
+      opened = true;
+      if (ws.readyState !== 1) {
+        try { upstream.close(); } catch { /* ignore */ }
+        return;
+      }
+      const queued = ws.sess.proxyQueue || [];
+      ws.sess.proxyQueue = [];
+      for (const frame of queued) {
+        if (upstream.readyState === 1) upstream.send(frame);
+      }
+      this.log.log(`proxied WS (${initialEvent}, p=${proto}) -> ${this.peerInternalUrl}`);
+    });
+
+    upstream.on('message', (data, isBinary) => {
+      if (ws.readyState === 1) {
+        ws.send(isBinary ? data : data.toString());
+      }
+    });
+
+    upstream.on('close', (code, reason) => {
+      ws.sess.upstream = undefined;
+      if (ws.readyState === 1) {
+        const safeCode = code === 1000 || (code >= 3000 && code <= 4999) ? code : 1000;
+        try { ws.close(safeCode, reason?.toString() || ''); } catch { /* ignore */ }
+      }
+    });
+
+    upstream.on('error', (err) => {
+      this.log.warn(`peer WS proxy error (${this.peerInternalUrl}): ${err.message}`);
+      if (!opened && ws.readyState === 1) {
+        ws.sess.proxied = false;
+        ws.sess.proxyQueue = undefined;
+        ws.sess.upstream = undefined;
+        this.sendToSocket(ws, 'err', fallbackError);
+      } else if (ws.readyState === 1) {
+        try { ws.close(1011, 'peer_proxy_error'); } catch { /* ignore */ }
+      }
+    });
+
+    return true;
   }
 }
