@@ -131,8 +131,8 @@ export class RoomsService implements OnModuleDestroy {
   join(ws: WebSocket, code: unknown, name: unknown, kind: unknown) {
     const r = this.rooms.get(String(code ?? '').trim());
     if (!r) throw new RoomError('NOT_FOUND', 'Комната не найдена');
-    if (r.players.length >= MAX_PLAYERS) throw new RoomError('FULL', 'Комната заполнена');
     if (r.phase === 'play') throw new RoomError('IN_GAME', 'Забег уже идёт');
+    if (r.players.length >= MAX_PLAYERS) throw new RoomError('FULL', 'Комната заполнена');
     const p = this.addPlayer(r, ws, name, kind);
     this.log.log(`room ${r.code}: ${p.name} joined (${r.players.length}/${MAX_PLAYERS})`);
     return { room: r, player: p };

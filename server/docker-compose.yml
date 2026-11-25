@@ -1,0 +1,11 @@
+# docker compose -f server/docker-compose.yml up -d --build   (run from the repo root)
+services:
+  hoppak:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "8787"
+    ports:
+      - "127.0.0.1:8787:8787"   # nginx in front terminates TLS (see DEPLOY.md)

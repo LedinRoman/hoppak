@@ -1,0 +1,14 @@
+**/node_modules
+server/dist
+server/public
+server/logs
+game/screens
+game/backups
+game/v02-backup
+concepts
+concepts_pixel
+sprites_in
+sprites_out
+sprites_tool
+*.png
+.git
