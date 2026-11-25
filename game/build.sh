@@ -13,7 +13,7 @@ PY
 $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --outfile=hoppak.js --log-level=warning
 sed -i '1i /* Хоппак v0.5 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
-$ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --outfile=/tmp/hop.min.tsx --log-level=warning
+$ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --outfile=/tmp/hop.min.tsx --log-level=warning
 python3 - << 'PY'
 import re
 t = open("/tmp/hop.min.tsx").read().strip()

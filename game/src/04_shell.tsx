@@ -34,6 +34,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var HTO = ["КАПИТАНА", "ПИРАТА", "НИНДЗЯ", "РОБОТА", "МАГА", "РЫЦАРЯ"];
 
   warmHeroSprites();
+  function isPageBuild() { return typeof HOP_PAGE !== "undefined" && !!HOP_PAGE; }
   function resize() {
     var r = (wrap || canvas).getBoundingClientRect();
     var cssW = Math.max(1, r.width), cssH = Math.max(1, r.height);
@@ -354,9 +355,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
     rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.14)");
     var x = colX();
-    box(ctx, x + 10, 10, 132, 28, C.navy, C.cream);
-    drawText(ctx, "ХОППАК", LW / 2 + 1, 15, C.coral, 3, "center");
-    drawText(ctx, "ХОППАК", LW / 2, 14, C.cream, 3, "center");
+    box(ctx, x + 6, 10, 122, 28, C.navy, C.cream);
+    drawText(ctx, "ХОППАК", x + 67, 15, C.coral, 3, "center");
+    drawText(ctx, "ХОППАК", x + 66, 14, C.cream, 3, "center");
     gear(x + 134, 8);
     drawText(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 42, C.cream, 1, "center");
     plaque();
@@ -374,10 +375,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     btn("start", x, by, 152, 34, C.mint, "", INK, 2);
     drawText(ctx, "ИГРАТЬ ▶", LW / 2, by + 4, INK, 2, "center");
     drawText(ctx, sub, LW / 2, by + 22, INK, 1, "center");
-    btn("camp", x, by + 40, 72, 22, C.navy, "КАРТЫ");
-    btn("net:menu", x + 80, by + 40, 72, 22, C.coral, "ОНЛАЙН", C.cream);
-    btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
-    btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+    if (isPageBuild()) {
+      btn("camp", x, by + 40, 152, 22, C.navy, "КАРТЫ");
+      btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
+      btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+    } else {
+      btn("camp", x, by + 40, 72, 22, C.navy, "КАРТЫ");
+      btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "ОНЛАЙН", C.cream, 1, C.mint);
+      btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
+      btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+    }
     if (showSet) {
       box(ctx, x, 70, 152, 86, C.navy, C.cream);
       drawText(ctx, "НАСТРОЙКИ", LW / 2, 76, C.gold, 1, "center");
