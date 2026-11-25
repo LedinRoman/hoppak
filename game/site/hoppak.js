@@ -1,4 +1,4 @@
-/* Хоппак v0.57 site — HOP_SERVER baked in, do not edit */
+/* Хоппак v0.58 site — HOP_SERVER baked in, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;
