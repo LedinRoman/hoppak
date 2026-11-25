@@ -147,10 +147,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.earned = world.earnH + world.earnC;
     var mi = mapIdx(world.map);
     world.prevMapBest = mapBest(mi);
+    world.newBest = mtr > (world.prevMapBest || 0);
     if (mtr > world.prevMapBest) save.mapBest[world.map] = mtr;
     save.coins += world.earned;
-    world.newBest = mtr > save.best;
-    if (world.newBest) save.best = mtr;
+    if (mtr > save.best) save.best = mtr;
     world.best = save.best;
     writeSave(save);
   }
@@ -822,11 +822,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
     if (M2.goal && mi2 + 1 < MAPS.length) {
       var nxt = MAPS[mi2 + 1], b = mapBest(mi2), met = b >= M2.goal;
-      box(ctx, x, y, 152, 28, C.navy, met ? C.mint : C.gold);
-      drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
-      drawText(ctx, b + "/" + M2.goal + " М", x + 146, y + 3, C.cream, 1, "right");
-      bar(x + 6, y + 16, 140, 6, b / M2.goal, met ? C.mint : C.gold);
-      y += 32;
+      if (met) {
+        addHit("camp", x, y, 152, 22);
+        box(ctx, x, y, 152, 22, C.navy, C.mint);
+        drawText(ctx, nxt.name + ": МОЖНО ОТКРЫТЬ", LW / 2, y + 7, C.mint, 1, "center");
+        y += 26;
+      } else {
+        box(ctx, x, y, 152, 28, C.navy, C.gold);
+        drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
+        drawText(ctx, b + "/" + M2.goal + " М", x + 146, y + 3, C.cream, 1, "right");
+        bar(x + 6, y + 16, 140, 6, b / M2.goal, C.gold);
+        y += 32;
+      }
     }
     var rec = save.mapBest[world.map] || world.best || 0;
     box(ctx, x, y, 152, 44, C.navy, C.gold);
@@ -839,13 +846,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     else { drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 2, C.cream, 1, "center"); y += 14; }
     var nh = nextHeroNeed();
     if (nh) {
-      box(ctx, x, y, 152, 22, C.navy, C.coral);
-      drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
-      var runs = nh.left <= 0 ? "МОЖНО КУПИТЬ" : ("ЕЩЁ " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " ЗАБЕГА");
-      drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
+      if (nh.left === 0) {
+        addHit("shop", x, y, 152, 22);
+        box(ctx, x, y, 152, 22, C.navy, C.mint);
+        drawText(ctx, "ХВАТАЕТ НА " + HTO[nh.i] + "!", LW / 2, y + 7, C.mint, 1, "center");
+      } else {
+        box(ctx, x, y, 152, 22, C.navy, C.coral);
+        drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
+        var runs = "ЕЩЁ " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " ЗАБЕГА";
+        drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
+      }
     }
     var lab = squad ? "РЕВАНШ ▶" : "ЕЩЁ РАЗ ▶";
-    btn("rematch", x, LH - 64, 152, 28, squad ? C.coral : C.mint, lab, squad ? C.cream : INK, 2);
+    btn("rematch", x, LH - 64, 152, 28, C.mint, lab, INK, 2);
     btn("menu", x, LH - 32, 72, 22, C.navy, "МЕНЮ");
     btn("shop", x + 80, LH - 32, 72, 22, C.navy, "МАГАЗИН");
   }
