@@ -39,4 +39,10 @@ export class ProfileController {
     const result = await this.profiles.finishRun(p, body?.height, body?.runCoins, body?.bonusCoins);
     return { ok: true, ...result };
   }
+
+  @Post('auth/telegram')
+  async authTelegram(@Headers('authorization') auth?: string, @Body() body?: { initData?: string }) {
+    const result = await this.profiles.authTelegram(bearerToken(auth), body?.initData);
+    return { ok: true, ...result };
+  }
 }

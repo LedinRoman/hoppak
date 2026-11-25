@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Player } from './player.entity';
 import { hashToken, newGuestToken } from './auth';
+import { parseAndVerifyInitData } from './telegram';
 import {
   FINISH_INTERVAL_MS, HOUR_AWARD_MAX, MIGRATE_COINS_MAX,
   awardForRun, clamp, mergePurchases, sanitizePurchases,
@@ -14,6 +15,7 @@ export type PublicProfile = {
   purchases: Record<string, number>;
   migratedAt: string | null;
   createdAt: string;
+  telegramId: string | null;
 };
 
 @Injectable()
@@ -38,6 +40,7 @@ export class ProfileService {
       purchases: p.purchases || {},
       migratedAt: p.migratedAt ? p.migratedAt.toISOString() : null,
       createdAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
+      telegramId: p.telegramId ? String(p.telegramId) : null,
     };
   }
 
@@ -99,5 +102,51 @@ export class ProfileService {
       profile: this.toPublic(p),
       limited: awarded < want ? 'HOUR_CAP' : undefined,
     };
+  }
+
+  async authTelegram(
+    guestToken: string | null,
+    initData: unknown,
+  ): Promise<{ token: string; profile: PublicProfile; linked: boolean }> {
+    const repo = this.requireDb();
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      throw new HttpException({ ok: false, error: 'TELEGRAM_AUTH_UNAVAILABLE' }, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+    const { telegramId } = parseAndVerifyInitData(initData, botToken);
+
+    const existingByTg = await repo.findOne({ where: { telegramId } });
+    const guest = guestToken ? await this.findByToken(guestToken) : null;
+
+    if (existingByTg) {
+      if (guest && guest.id === existingByTg.id && guestToken) {
+        return { token: guestToken, profile: this.toPublic(existingByTg), linked: false };
+      }
+      const nextToken = newGuestToken();
+      existingByTg.guestTokenHash = hashToken(nextToken);
+      await repo.save(existingByTg);
+      return { token: nextToken, profile: this.toPublic(existingByTg), linked: false };
+    }
+
+    if (guest) {
+      if (guest.telegramId && guest.telegramId !== telegramId) {
+        throw new HttpException({ ok: false, error: 'GUEST_ALREADY_LINKED' }, HttpStatus.CONFLICT);
+      }
+      guest.telegramId = telegramId;
+      guest.telegramLinkedAt = new Date();
+      await repo.save(guest);
+      return { token: guestToken!, profile: this.toPublic(guest), linked: true };
+    }
+
+    const token = newGuestToken();
+    const created = repo.create({
+      guestTokenHash: hashToken(token),
+      coins: 0,
+      purchases: {},
+      telegramId,
+      telegramLinkedAt: new Date(),
+    });
+    await repo.save(created);
+    return { token, profile: this.toPublic(created), linked: true };
   }
 }
