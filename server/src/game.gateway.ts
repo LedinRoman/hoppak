@@ -3,11 +3,21 @@ import {
   ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway,
 } from '@nestjs/websockets';
 import type { IncomingMessage } from 'http';
-import { BlueGreenService, TrackedSocket } from './bluegreen/bluegreen.service';
+import { BlueGreenService, TrackedSocket, V1_MOVE_FAIL_MSG } from './bluegreen/bluegreen.service';
 import { MAX_MSGS_PER_SEC, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from './protocol';
 import { RoomError, RoomsService, stats } from './rooms.service';
 
 type Sock = TrackedSocket;
+
+/** Cheap event-name peek for frames of a proxied socket (no full parse of `st` frames). */
+const RoomsGatewayPeek = {
+  event(raw: unknown, isBinary: boolean): string {
+    if (isBinary) return '';
+    const t = String(raw ?? '');
+    const m = t.slice(0, 40).match(/^\s*\{\s*"event"\s*:\s*"([a-z]+)"/);
+    return m ? m[1] : '';
+  },
+};
 
 @WebSocketGateway({ path: '/ws' })
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -28,6 +38,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (now - s.win > 1000) { s.win = now; s.winN = 0; }
       if (++s.winN > MAX_MSGS_PER_SEC * 3) { ws.close(4008, 'flood'); return; }
       if (s.proxied) {
+        // BUG-44: a proxied socket is bound to the peer only for that one room. A new create/join
+        // (after a refused join or a leave) is handled by this slot again; leave is forwarded, then we detach.
+        const ev = RoomsGatewayPeek.event(raw, isBinary);
+        if (ev === 'create' || ev === 'join') { this.bg.detachProxy(ws); return; }
+        if (ev === 'leave') { this.bg.detachProxy(ws, isBinary ? (raw as Buffer) : raw.toString()); return; }
         if (s.upstream && s.upstream.readyState === 1 && !s.proxyQueue?.length) {
           s.upstream.send(isBinary ? raw : raw.toString());
         } else if (s.proxyQueue) {
@@ -67,6 +82,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       skipHello = new URL(req.url || '/', 'http://localhost').searchParams.get('proxied') === '1';
     } catch { /* ignore */ }
     if (!this.setupSocket(ws, req, skipHello)) return;
+    ws.sess.internal = true;
     ws.on('message', (raw) => {
       if (ws.sess.unsupported || ws.sess.proxied) return;
       let m: any;
@@ -113,9 +129,23 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (ws.sess.unsupported || ws.sess.proxied || ws.sess.winN > MAX_MSGS_PER_SEC) return;
     try { await fn(); } catch (e) {
       if (ws.readyState !== 1) return;
-      if (e instanceof RoomError) this.rooms.send(ws, 'err', { code: e.code, msg: e.message });
-      else { this.log.error(e); this.rooms.send(ws, 'err', { code: 'INTERNAL', msg: 'Ошибка сервера' }); }
+      if (e instanceof RoomError) {
+        this.rooms.send(ws, 'err', { code: e.code, msg: e.message });
+        // BUG-43: after NO_SESSION the client has no room; close so its «ЕЩЁ РАЗ» opens a fresh socket
+        // (old v0.56/v0.57 treat an open socket as "connected" and would stay stuck in «НЕТ СВЯЗИ»).
+        if (e.code === 'NO_SESSION') {
+          const t = setTimeout(() => { try { if (ws.readyState === 1 && !ws.sess.room) ws.close(1000, 'no_session'); } catch { /* ignore */ } }, 150);
+          t.unref?.();
+        }
+      } else { this.log.error(e); this.rooms.send(ws, 'err', { code: 'INTERNAL', msg: 'Ошибка сервера' }); }
     }
+  }
+  /** `st`/`ev` are fire-and-forget relay frames: outside a room (e.g. during a blind resume) drop them silently (BUG-36). */
+  private relay(ws: Sock, fn: (room: any, player: any) => void) {
+    if (ws.sess.unsupported || ws.sess.proxied || ws.sess.winN > MAX_MSGS_PER_SEC) return;
+    const { room, player } = ws.sess;
+    if (!room || !player || !this.rooms.rooms.has(room.code) || player.ws !== ws) return;
+    try { fn(room, player); } catch (e) { if (!(e instanceof RoomError)) this.log.error(e); }
   }
   private inRoom(ws: Sock) {
     const { room, player } = ws.sess;
@@ -143,6 +173,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
             this.rooms.send(ws, 'redirect', { node: peerNode, reason: 'draining' });
             return;
           }
+        } else {
+          // BUG-43: old v1 clients can't follow a redirect; create the room on the active peer through the proxy.
+          const peerNode = await this.bg.resolveActivePeerNode();
+          if (ws.readyState !== 1) return;
+          if (peerNode && this.bg.proxyToPeer(ws, 'create', d ?? {}, { code: 'DRAINING', msg: V1_MOVE_FAIL_MSG })) return;
+          throw new RoomError('DRAINING', V1_MOVE_FAIL_MSG);
         }
         throw new RoomError('DRAINING', 'Сервер обновляется');
       }
@@ -170,6 +206,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           throw new RoomError('WRONG_NODE', 'Комната на другом узле');
         }
       }
+      const local = this.rooms.rooms.get(code);
+      if (local?.migrating) throw new RoomError('BUSY', 'Попробуй ещё раз');
       const hit = this.rooms.join(ws, code, d?.name, d?.kind, ws.sess.protocol ?? 1);
       this.attach(ws, hit);
       this.rooms.pushRoom(hit.room);
@@ -180,6 +218,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return this.guardAsync(ws, async () => {
       const token = String(d?.token ?? '').trim();
       if (!this.rooms.findToken(token)) {
+        // BUG-32/35: the room moved to the other slot (maybe while this client's socket was blinking).
+        const mv = this.bg.movedTo(token);
+        if (mv) {
+          if ((ws.sess.protocol ?? 1) >= 2) {
+            this.rooms.send(ws, 'redirect', { node: mv.node, code: mv.code, resume: true, reason: 'migrate' });
+            return;
+          }
+          if (!ws.sess.internal && this.bg.proxyToPeer(ws, 'resume', { token }, { code: 'NO_SESSION', msg: V1_MOVE_FAIL_MSG })) return;
+        }
         const peer = await this.bg.lookupPeerToken(token);
         if (ws.readyState !== 1) return;
         if (peer && this.bg.proxyToPeer(ws, 'resume', { token }, { code: 'NO_SESSION', msg: 'Сессия истекла' })) {
@@ -210,24 +257,22 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const { room, player } = this.inRoom(ws);
       if (this.bg.draining || this.bg.shuttingDown) {
         if (player.pid !== room.host) throw new RoomError('NOT_HOST', 'Только хост');
-        if ((ws.sess.protocol ?? 1) >= 2) {
-          if (this.bg.announcedVersion) this.rooms.send(ws, 'update', { version: this.bg.announcedVersion });
-          const peerNode = await this.bg.resolveActivePeerNode();
-          if (ws.readyState !== 1) return;
-          if (peerNode) { this.rooms.send(ws, 'redirect', { node: peerNode, reason: 'draining' }); return; }
-        }
-        throw new RoomError('DRAINING', 'Сервер обновляется');
+        if (room.phase === 'play') throw new RoomError('IN_GAME', 'Забег уже идёт');
+        // BUG-32: a rematch on a draining slot moves the whole room to the active slot (players, score,
+        // host and tokens kept); the host presses СТАРТ again there. No new round starts here.
+        await this.bg.migrateRoom(room);
+        return;
       }
       this.rooms.start(room, player);
     });
   }
   @SubscribeMessage('st')
   st(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
-    this.guard(ws, () => { const { room, player } = this.inRoom(ws); this.rooms.state(room, player, d); });
+    this.relay(ws, (room, player) => this.rooms.state(room, player, d));
   }
   @SubscribeMessage('ev')
   ev(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
-    this.guard(ws, () => { const { room, player } = this.inRoom(ws); this.rooms.event(room, player, d); });
+    this.relay(ws, (room, player) => this.rooms.event(room, player, d));
   }
   @SubscribeMessage('leave')
   leave(@ConnectedSocket() ws: Sock) {

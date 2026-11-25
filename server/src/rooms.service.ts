@@ -39,6 +39,13 @@ export interface Room {
   touched: number;
   snapTimer: NodeJS.Timeout | null;
   drainCloseAt?: number;
+  migratedFrom?: string;
+  migrating?: boolean;
+}
+
+export interface MigratedRoom {
+  code: string; host: number; map: string; proto: number; lw: number; field: FieldConfig; round: number; nextPid: number;
+  players: { pid: number; slot: number; name: string; kind: number; token: string }[];
 }
 
 export class RoomError extends Error {
@@ -303,10 +310,8 @@ export class RoomsService implements OnModuleDestroy {
   }
   forceFinishAll(reasonCode = 'SERVER_SHUTDOWN', msg = 'Сервер перезагружается') {
     for (const r of [...this.rooms.values()]) {
-      if (r.phase === 'play') {
-        this.finishRound(r, true);
-        this.broadcast(r, 'err', { code: reasonCode, msg });
-      }
+      if (r.phase === 'play') this.finishRound(r, true);
+      this.broadcast(r, 'err', { code: reasonCode, msg });
       this.destroyRoom(r);
     }
   }
@@ -319,6 +324,53 @@ export class RoomsService implements OnModuleDestroy {
       }
     }
     this.destroy(r);
+  }
+
+  /* ---------- blue-green room migration (BUG-32) ---------- */
+  /** Snapshot of a lobby/results room that the peer slot can re-create 1:1 (same pids, tokens, host, round). */
+  exportRoom(r: Room): MigratedRoom {
+    return {
+      code: r.code, host: r.host, map: r.map, proto: r.proto, lw: r.lw, field: { ...r.field }, round: r.round, nextPid: r.nextPid,
+      players: r.players.map((p) => ({ pid: p.pid, slot: p.slot, name: p.name, kind: p.kind, token: p.token })),
+    };
+  }
+  /**
+   * Re-create a migrated room under a new code from this slot's range. Players start "offline" with a
+   * longer grace (MIGRATE_GRACE_MS) and take their seats back with `resume { token }`.
+   */
+  importRoom(d: MigratedRoom, graceMs: number): Room {
+    if (!d || !Array.isArray(d.players) || !d.players.length || d.players.length > MAX_PLAYERS) {
+      throw new RoomError('BAD_IMPORT', 'bad room snapshot');
+    }
+    for (const q of d.players) {
+      if (typeof q?.token !== 'string' || q.token.length < 8 || q.token.length > 64) throw new RoomError('BAD_IMPORT', 'bad token');
+      if (this.byToken.has(q.token)) throw new RoomError('BAD_IMPORT', 'token already present');
+    }
+    const proto = Number(d.proto) >= 2 ? 2 : 1;
+    const field = proto >= 2 ? { ...this.fieldForProtocol(2), ...(d.field || {}) } : this.fieldForProtocol(1);
+    const now = Date.now();
+    const code = this.newCode();
+    const r: Room = {
+      code, host: Number(d.host) | 0, phase: 'lobby', map: MAPS.includes(String(d.map)) ? String(d.map) : 'city', proto,
+      lw: Number(d.lw) > 0 ? Math.round(Number(d.lw)) : field.w, field, round: Math.max(0, Number(d.round) | 0), seed: 0, startAt: 0,
+      players: [], nextPid: Math.max(Number(d.nextPid) | 0, ...d.players.map((q) => (Number(q.pid) | 0) + 1)),
+      touched: now, snapTimer: null, migratedFrom: String(d.code || ''),
+    };
+    // offSince in the future = a longer reconnect grace than RECONNECT_GRACE_MS for the move.
+    const offSince = now + Math.max(0, graceMs - RECONNECT_GRACE_MS);
+    for (const q of d.players) {
+      const kind = RoomsService.cleanKind(q.kind);
+      const p: Player = {
+        pid: Number(q.pid) | 0, slot: Number(q.slot) | 0, name: RoomsService.cleanName(q.name, kind), kind, ready: false,
+        token: q.token, ws: null, offSince, st: null, stDirty: false, lastStAt: 0, dead: false, m: 0, suspicious: 0,
+      };
+      r.players.push(p);
+      this.byToken.set(p.token, { room: r, player: p });
+    }
+    if (!r.players.some((p) => p.pid === r.host)) r.host = r.players[0].pid;
+    this.rooms.set(code, r);
+    this.log.log(`room ${code} imported from ${r.migratedFrom || '?'} (${r.players.length} players, round ${r.round})`);
+    return r;
   }
 
   /* ---------- leaving / reconnect / cleanup ---------- */

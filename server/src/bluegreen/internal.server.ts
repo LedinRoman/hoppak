@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { timingSafeEqual } from 'crypto';
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
 import { WebSocketServer } from 'ws';
+import { RoomError } from '../rooms.service';
 import { BlueGreenService, TrackedSocket } from './bluegreen.service';
 
 @Injectable()
@@ -13,6 +14,8 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
   readonly host: string;
   readonly token: string;
   private readonly isLoopback: boolean;
+  private lastRejectLogAt = 0;
+  private rejectedSinceLog = 0;
 
   constructor(private readonly bg: BlueGreenService) {
     const raw = (process.env.INTERNAL_PORT ?? '').trim().toLowerCase();
@@ -25,6 +28,19 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
     this.host = (process.env.INTERNAL_HOST || '127.0.0.1').trim() || '127.0.0.1';
     this.token = bg.internalToken;
     this.isLoopback = this.host === '127.0.0.1' || this.host === '::1' || this.host === 'localhost';
+  }
+
+  /** BUG-48: a token mismatch must be visible in the log (rate-limited). */
+  private logReject(req: IncomingMessage, code: string) {
+    this.rejectedSinceLog++;
+    const now = Date.now();
+    if (now - this.lastRejectLogAt < 10_000) return;
+    this.log.error(
+      `rejected ${req.method || 'GET'} ${(req.url || '').split('?')[0]} from ${req.socket?.remoteAddress || '?'}: ${code} ` +
+      `(${this.rejectedSinceLog} rejected in the last window). INTERNAL_TOKEN must be identical on both slots and in deploy.sh`,
+    );
+    this.lastRejectLogAt = now;
+    this.rejectedSinceLog = 0;
   }
 
   private checkAuth(req: IncomingMessage): { ok: true } | { ok: false; code: string } {
@@ -69,6 +85,7 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
       try {
         const auth = this.checkAuth(req);
         if (!auth.ok) {
+          this.logReject(req, auth.code);
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
           socket.destroy();
           return;
@@ -144,6 +161,7 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
     try {
       const auth = this.checkAuth(req);
       if (!auth.ok) {
+        this.logReject(req, auth.code);
         return this.sendJson(res, 401, { error: auth.code });
       }
       const method = (req.method || 'GET').toUpperCase();
@@ -169,6 +187,16 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
         const ver = typeof body.version === 'string' ? body.version : url.searchParams.get('version') || undefined;
         const result = this.bg.announceUpdate(ver);
         return this.sendJson(res, 200, { ok: true, node: this.bg.node, ...result });
+      }
+
+      if (method === 'POST' && path === '/internal/rooms/import') {
+        const body = await this.readBody(req);
+        try {
+          return this.sendJson(res, 200, this.bg.importRoom(body));
+        } catch (e) {
+          if (e instanceof RoomError) return this.sendJson(res, e.code === 'DRAINING' ? 409 : 400, { ok: false, error: e.code, msg: e.message });
+          throw e;
+        }
       }
 
       const roomMatch = method === 'GET' && path.match(/^\/internal\/rooms\/([^/]+)$/);
