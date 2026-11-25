@@ -189,7 +189,9 @@ function genRow(w: any) {
   var spec = mapInfo(w.map).special;
   var row: any[] = [];
   var rowId = w.rowN++;
-  var moveP = m > 40 ? lerp(0.14, 0.45, d) : 0;
+  /* Moving plats: v0.54 started at 40 m. Soften the first stretch; from 70 m the
+     chance is the same formula as v0.54, so past ~300 m nothing changes. */
+  var moveP = m > 70 ? lerp(0.14, 0.45, d) : 0;
   var isMove = w.lastKind !== "move" && r() < moveP;
   if (isMove) {
     var mw = Math.round(lerp(40, 26, d));
@@ -199,14 +201,19 @@ function genRow(w: any) {
     row.push(mp);
   } else {
     var n: number;
-    if (m < 250) n = r() < 0.18 ? 3 : (r() < 0.22 ? 1 : 2);
+    /* Singles start later than in v0.54 (which allowed them from 0 m). After 300 m
+       the branches match v0.54 exactly (250–600 was already 45% singles). */
+    if (m < 190) n = r() < 0.22 ? 3 : 2;
+    else if (m < 300) n = r() < 0.16 ? 3 : (r() < 0.18 ? 1 : 2);
     else if (m < 600) n = r() < 0.08 ? 3 : (r() < 0.45 ? 1 : 2);
     else {
       n = r() < lerp(0.62, 0.12, (d - 0.28) / 0.72) ? 2 : 1;
       if (n === 2 && m < 900 && r() < 0.06) n = 3;
     }
+    if (spec === "ice" && m < 300 && n === 1) n = 2;
     var wmin = Math.round(lerp(42, 24, d)), wmax = Math.round(lerp(54, 32, d));
-    var breakP = m > 80 ? lerp(0.10, 0.58, d) : 0;
+    var breakP054 = m > 80 ? lerp(0.10, 0.58, d) : 0;
+    var breakP = m < 200 ? 0 : m < 300 ? breakP054 * ((m - 200) / 100) : breakP054;
     for (var i = 0; i < n; i++) {
       var pw = randInt(r, wmin, wmax);
       var x = findX(r, pw, row);
@@ -250,10 +257,19 @@ function genRow(w: any) {
   w.lastKind = isMove ? "move" : "static";
   for (var j = 0; j < row.length; j++) w.platforms.push(row[j]);
 
-  /* Gap vs height, not the slow difficulty() ramp: otherwise first 600 m barely widens. */
+  /* Gap vs height. Soften the opening (min ~0.34 JUMP_H); from 300 m the values
+     are identical to v0.54 (gT = m/700, 0.42–0.78 / 0.58–0.94). */
   var gT = clamp(m / 700, 0, 1);
-  var minG = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
-  var maxG = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
+  var minG054 = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
+  var maxG054 = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
+  var minG: number, maxG: number;
+  if (m < 300) {
+    var u = clamp(m / 300, 0, 1);
+    minG = Math.round(lerp(Math.max(ROW_SEP, Math.floor(JUMP_H * 0.34)), minG054, u));
+    maxG = Math.round(lerp(Math.min(GAP_CAP, Math.floor(JUMP_H * 0.50)), maxG054, u));
+  } else {
+    minG = minG054; maxG = maxG054;
+  }
   if (minG > maxG) minG = maxG;
   var gap = randInt(r, minG, maxG);
 
@@ -437,6 +453,16 @@ function grabPlayer(w: any, p: any, mo: any) {
   if (p.id === 0) toast(w, "ЗМЕЯ СХВАТИЛА!");
 }
 function toast(w: any, s: string) { w.toast = s; w.toastT = 70; }
+function hasLandablePlat(w: any, p: any) {
+  var feet = p.y + PH, reach = 28;
+  for (var i = 0; i < w.platforms.length; i++) {
+    var q = w.platforms[i];
+    if (q.broken) continue;
+    if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) continue;
+    if (q.y + 3 >= (p.prevY + PH) - 2 && q.y <= feet + reach && overlapsX(p.x + 1, PW - 2, q.x, q.w)) return true;
+  }
+  return false;
+}
 function landOn(w: any, p: any, pl: any) {
   p.y = pl.y - PH;
   p.baseY = pl.y;
@@ -914,7 +940,10 @@ function tickWorld(w: any, inputs: any) {
   if (minCam < 1e9) generateUntil(w, minCam - 80);
   for (i = 0; i < w.players.length; i++) {
     var ep = w.players[i];
-    if (ep.alive && !ep.remote && w.tick > 80 && ep.y > ep.camY + LH) {
+    /* BUG-14: don't kill on the same tick as a bounce (vy < 0 or squash from landOn),
+       and give a 4 px margin past the camera. If a landable platform is still under
+       the hero (e.g. Knight pound at the rim), let them reach it. */
+    if (ep.alive && !ep.remote && w.tick > 80 && ep.vy >= 0 && ep.squash === 0 && ep.y > ep.camY + LH + 4 && !hasLandablePlat(w, ep)) {
       if (ep.domeT > 0 && ep.domeSave) { ep.domeSave = false; ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; ep.invT = 40; spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2); if (ep.id === 0) toast(w, "КОСМОЩИТ СПАС!"); }
       else killPlayer(w, ep, "fall");
     }
