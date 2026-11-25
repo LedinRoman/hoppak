@@ -55,48 +55,106 @@ export interface FieldConfig {
 export const DEFAULT_FIELD: FieldConfig = { w: 160, h: 346, pxPerM: 8 };
 export const DEFAULT_FIELD_W_V1 = 180;
 
-function positiveNum(raw: unknown, fallback: number, integer = false): number {
-  if (raw === undefined || raw === null || raw === '') return fallback;
+/** Sane bounds for the field (BUG-47): anything outside is rejected with an ERROR log and the default is used. */
+export const FIELD_BOUNDS = {
+  w: { min: 120, max: 320 },
+  h: { min: 200, max: 800 },
+  pxPerM: { min: 2, max: 32 },
+} as const;
+
+type FieldLog = (level: 'log' | 'warn' | 'error', msg: string) => void;
+const defaultFieldLog: FieldLog = (level, msg) => {
+  // eslint-disable-next-line no-console
+  (level === 'error' ? console.error : level === 'warn' ? console.warn : console.log)(`[Field] ${msg}`);
+};
+
+/** Parse one numeric field value; undefined = not set. Returns NaN-free value or null (rejected, logged). */
+function boundedNum(
+  raw: unknown, key: keyof typeof FIELD_BOUNDS, source: string, integer: boolean, log: FieldLog,
+): number | null | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined;
   const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return fallback;
-  return integer ? Math.round(n) : n;
+  const { min, max } = FIELD_BOUNDS[key];
+  if (!Number.isFinite(n) || n < min || n > max || (integer && Math.round(n) !== n)) {
+    log('error', `invalid ${key}=${JSON.stringify(raw)} from ${source} (allowed ${min}..${max}${integer ? ', integer' : ''}); ignored`);
+    return null;
+  }
+  return n;
 }
 
-function readFieldJson(): Partial<FieldConfig> {
+function readFieldJson(log: FieldLog): { cfg: Record<string, unknown>; source: string } {
+  const explicit = (process.env.FIELD_CONFIG_PATH || '').trim();
+  if (explicit) {
+    if (!existsSync(explicit)) {
+      log('error', `FIELD_CONFIG_PATH=${explicit} does not exist; using env/defaults`);
+      return { cfg: {}, source: 'defaults' };
+    }
+  }
   const candidates = [
-    process.env.FIELD_CONFIG_PATH,
+    explicit,
     join(process.cwd(), 'field.config.json'),
     join(__dirname, '..', 'field.config.json'),
     join(__dirname, '..', '..', 'field.config.json'),
   ].filter((p): p is string => Boolean(p && p.trim()));
 
   for (const file of candidates) {
+    if (!existsSync(file)) continue;
     try {
-      if (!existsSync(file)) continue;
       const parsed = JSON.parse(readFileSync(file, 'utf8'));
-      if (parsed && typeof parsed === 'object') return parsed;
-    } catch {
-      /* ignore malformed/unreadable config and continue */
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return { cfg: parsed, source: file };
+      log('error', `${file} is not a JSON object; using env/defaults`);
+    } catch (e) {
+      log('error', `${file} is not valid JSON (${(e as Error).message}); using env/defaults`);
     }
+    return { cfg: {}, source: 'defaults' };
   }
-  return {};
+  log('warn', 'no field.config.json found (not baked into the Docker image); using env/defaults');
+  return { cfg: {}, source: 'defaults' };
 }
 
-export function loadFieldConfig(): FieldConfig {
-  const fileCfg = readFieldJson();
-  const w = positiveNum(process.env.FIELD_W ?? process.env.NET_LW, positiveNum(fileCfg.w, DEFAULT_FIELD.w, true), true);
-  const h = positiveNum(process.env.FIELD_H, positiveNum(fileCfg.h, DEFAULT_FIELD.h, true), true);
-  const pxPerM = positiveNum(
-    process.env.FIELD_PX_PER_M ?? process.env.FIELD_SCALE,
-    positiveNum(fileCfg.pxPerM, DEFAULT_FIELD.pxPerM, false),
-    false,
-  );
-  return { w, h, pxPerM };
+function pick(
+  key: keyof typeof FIELD_BOUNDS, envNames: string[], fileCfg: Record<string, unknown>, fileSrc: string,
+  integer: boolean, fallback: number, log: FieldLog,
+): number {
+  for (const name of envNames) {
+    const v = boundedNum(process.env[name], key, `env ${name}`, integer, log);
+    if (typeof v === 'number') return v;
+    if (v === null) break; // invalid env -> fall through to file/default (already logged)
+  }
+  const f = boundedNum(fileCfg[key], key, fileSrc, integer, log);
+  if (typeof f === 'number') return f;
+  return fallback;
 }
 
-export function loadV1FieldWidth(): number {
-  return positiveNum(process.env.FIELD_W_V1 ?? process.env.NET_LW_V1, DEFAULT_FIELD_W_V1, true);
+let cachedField: FieldConfig | null = null;
+let cachedV1: number | null = null;
+
+export function loadFieldConfig(log: FieldLog = defaultFieldLog): FieldConfig {
+  if (cachedField) return { ...cachedField };
+  const { cfg, source } = readFieldJson(log);
+  const w = pick('w', ['FIELD_W', 'NET_LW'], cfg, source, true, DEFAULT_FIELD.w, log);
+  const h = pick('h', ['FIELD_H'], cfg, source, true, DEFAULT_FIELD.h, log);
+  const pxPerM = pick('pxPerM', ['FIELD_PX_PER_M', 'FIELD_SCALE'], cfg, source, false, DEFAULT_FIELD.pxPerM, log);
+  cachedField = { w, h, pxPerM };
+  log('log', `v2 field: ${JSON.stringify(cachedField)} (file: ${source})`);
+  return { ...cachedField };
 }
+
+export function loadV1FieldWidth(log: FieldLog = defaultFieldLog): number {
+  if (cachedV1 !== null) return cachedV1;
+  let w = DEFAULT_FIELD_W_V1;
+  for (const name of ['FIELD_W_V1', 'NET_LW_V1']) {
+    const v = boundedNum(process.env[name], 'w', `env ${name}`, true, log);
+    if (typeof v === 'number') { w = v; break; }
+    if (v === null) break;
+  }
+  cachedV1 = w;
+  log('log', `v1 room width: ${w}`);
+  return w;
+}
+
+/** Test hook. */
+export function resetFieldCache() { cachedField = null; cachedV1 = null; }
 
 export const MAPS = ['city', 'jungle', 'ice', 'lava', 'aqua', 'space'];
 export const HERO_COUNT = 6;
