@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import type { IncomingMessage } from 'http';
 import { join } from 'path';
 import WebSocket from 'ws';
-import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../protocol';
+import { FieldConfig, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION, loadFieldConfig } from '../protocol';
 import { Room, RoomsService, Sess } from '../rooms.service';
 
 export type TrackedSocket = WebSocket & {
@@ -30,6 +30,9 @@ export interface PeerRoomCheck {
   code: string;
   node: string;
   phase?: string;
+  proto?: number;
+  lw?: number;
+  field?: FieldConfig;
   players?: number;
 }
 
@@ -79,6 +82,7 @@ export class BlueGreenService {
   readonly drainLobbyTtlMs: number;
   readonly drainResultsCloseMs: number;
   readonly gracefulShutdownMs: number;
+  readonly field: FieldConfig;
 
   draining = false;
   shuttingDown = false;
@@ -101,6 +105,7 @@ export class BlueGreenService {
     this.drainLobbyTtlMs = parsePositiveMs(process.env.DRAIN_LOBBY_TTL_MS, 15_000);
     this.drainResultsCloseMs = parsePositiveMs(process.env.DRAIN_RESULTS_CLOSE_MS, 1_500);
     this.gracefulShutdownMs = parsePositiveMs(process.env.GRACEFUL_SHUTDOWN_MS, 25_000);
+    this.field = loadFieldConfig();
   }
 
   private internalHeaders(): Record<string, string> {
@@ -177,6 +182,7 @@ export class BlueGreenService {
       s: Date.now(),
       node: this.node,
       version: this.version,
+      field: this.roomsService ? this.roomsService.v2Field : this.field,
     };
   }
 
@@ -220,6 +226,8 @@ export class BlueGreenService {
       code: room.code,
       node: this.node,
       phase: room.phase,
+      proto: room.proto,
+      lw: room.lw,
       players: room.players.length,
     };
   }

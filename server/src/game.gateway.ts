@@ -146,7 +146,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
         throw new RoomError('DRAINING', 'Сервер обновляется');
       }
-      const hit = this.rooms.create(ws, d?.name, d?.kind);
+      const hit = this.rooms.create(ws, d?.name, d?.kind, ws.sess.protocol ?? 1);
       this.attach(ws, hit);
       this.rooms.pushRoom(hit.room);
     });
@@ -170,7 +170,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           throw new RoomError('WRONG_NODE', 'Комната на другом узле');
         }
       }
-      const hit = this.rooms.join(ws, code, d?.name, d?.kind);
+      const hit = this.rooms.join(ws, code, d?.name, d?.kind, ws.sess.protocol ?? 1);
       this.attach(ws, hit);
       this.rooms.pushRoom(hit.room);
     });

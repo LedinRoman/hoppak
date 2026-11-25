@@ -170,7 +170,7 @@ try {
 
   const c2Menu = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, 'C_v2_menu'));
   const helloC2 = await c2Menu.wait('hello');
-  check(helloC2 && helloC2.v === 2 && helloC2.node === 'blue' && helloC2.version === '0.57.0', `/ws?p=2 receives hello v:2, node:'blue', version:'0.57.0'`);
+  check(helloC2 && helloC2.v === 2 && helloC2.node === 'blue' && helloC2.version === '0.57.0' && helloC2.field?.w === 160 && helloC2.field?.h === 346 && helloC2.field?.pxPerM === 8, `/ws?p=2 receives hello v:2, node:'blue', version:'0.57.0', field=${JSON.stringify(helloC2?.field)}`);
 
   const badOld = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=0`, 'Bad_p0'));
   const errOld = await badOld.wait('err');
@@ -200,7 +200,7 @@ try {
   a1.send('create', { name: 'OldA', kind: 'human' });
   const rA1 = await a1.wait('room');
   const code1 = rA1?.code;
-  check(!!code1 && /^\d{4}$/.test(code1), `v1 client created room ${code1} on blue`);
+  check(!!code1 && /^\d{4}$/.test(code1) && rA1.lw === 180, `v1 client created room ${code1} on blue with lw=180`);
 
   b1.send('join', { code: code1, name: 'OldB', kind: 1 });
   const rB1 = await b1.wait('room');
@@ -212,11 +212,24 @@ try {
   d2.send('create', { name: 'HostV2', kind: 0 });
   const rD2 = await d2.wait('room');
   const code2 = rD2?.code;
-  check(!!code2 && code2 !== code1, `v2 client created lobby room ${code2} on blue`);
+  check(!!code2 && code2 !== code1 && rD2.lw === 160 && rD2.field?.w === 160 && rD2.field?.h === 346 && rD2.field?.pxPerM === 8, `v2 client created lobby room ${code2} on blue with lw=160, field=${JSON.stringify(rD2.field)}`);
+
+  // Second v1 lobby room on blue to test BUG-29 (v1->v1 cross-slot join) & mixed-protocol checks
+  const v1Host2 = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws`, 'V1_host2'));
+  await v1Host2.wait('hello');
+  v1Host2.send('create', { name: 'V1H2', kind: 0 });
+  const rV1H2 = await v1Host2.wait('room');
+  const codeV1Lobby = rV1H2?.code;
+  check(!!codeV1Lobby && rV1H2.lw === 180, `v1 lobby room ${codeV1Lobby} created on blue with lw=180`);
+
+  // Local mixed-protocol checks
+  v1Host2.send('join', { code: code2, name: 'Mix12', kind: 0 });
+  const mixLocal12 = await v1Host2.wait('err');
+  check(mixLocal12?.code === 'PROTOCOL_MISMATCH', `local v1 join into v2 room rejected (PROTOCOL_MISMATCH: "${mixLocal12?.msg}")`);
 
   const statsPreDrain = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`, { headers: INT_HEADERS })).json();
   check(
-    statsPreDrain.rooms === 2 && statsPreDrain.players === 3 && statsPreDrain.draining === false && statsPreDrain.node === 'blue',
+    statsPreDrain.rooms === 3 && statsPreDrain.players === 4 && statsPreDrain.draining === false && statsPreDrain.node === 'blue',
     `blue /internal/stats before drain: rooms=${statsPreDrain.rooms}, players=${statsPreDrain.players}, draining=${statsPreDrain.draining}`
   );
 
@@ -229,7 +242,7 @@ try {
   await sleep(50);
   a1.send('start', {});
   const [stA, stB] = await Promise.all([a1.wait('start'), b1.wait('start')]);
-  check(stA && stB && stA.seed === stB.seed && stA.lw === 180, `v1 match started on blue (seed=${stA?.seed})`);
+  check(stA && stB && stA.seed === stB.seed && stA.lw === 180, `v1 match started on blue (seed=${stA?.seed}, lw=180)`);
 
   // 4. Drain blue -> v2 clients get {event:'update', data:{version:'0.58.0'}}, v1 clients do NOT
   const drainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST', headers: INT_HEADERS })).json();
@@ -259,7 +272,15 @@ try {
   await g2.wait('hello');
   g2.send('create', { name: 'GreenHost', kind: 2 });
   const rG2 = await g2.wait('room');
-  check(!!rG2?.code, `new room ${rG2?.code} created on green after blue drained`);
+  check(!!rG2?.code && rG2.lw === 160, `new room ${rG2?.code} created on green after blue drained (lw=160)`);
+  const g2b = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws?p=2`, 'G_v2_guest'));
+  await g2b.wait('hello');
+  g2b.send('join', { code: rG2.code, name: 'GGuest', kind: 1 });
+  await g2b.wait('room');
+  g2b.send('ready', { ready: true }); await sleep(40);
+  g2.send('start', {});
+  const gStart = await g2.wait('start');
+  check(gStart && gStart.lw === 160, `v2 match start on green uses lw=160`);
 
   // Also check POST /internal/announce-update on green
   const annRes = await (await fetch(`http://127.0.0.1:${GREEN_INT}/internal/announce-update`, {
@@ -282,16 +303,30 @@ try {
   const updOnReconnect = await f2Blue.wait('update');
   f2Blue.send('join', { code: code2, name: 'JoinerV2', kind: 1 });
   const rF2Blue = await f2Blue.wait('room');
-  check(rF2Blue?.code === code2 && rF2Blue?.players?.length === 2 && updOnReconnect?.version === '0.58.0', `v2 client followed redirect to blue, joined existing room ${code2} while draining, and got update notice`);
+  check(rF2Blue?.code === code2 && rF2Blue?.lw === 160 && rF2Blue?.players?.length === 2 && updOnReconnect?.version === '0.58.0', `v2 client followed redirect to blue, joined existing room ${code2} (lw=160) while draining, and got update notice`);
 
-  // BUG-29: v1 client joins blue's room via green (transparently proxied)
+  // Mixed-protocol cross-slot checks
+  const mix1 = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws`, 'Mix_v1_to_v2'));
+  await mix1.wait('hello');
+  mix1.send('join', { code: code2, name: 'Mix1', kind: 0 });
+  const mixCross12 = await mix1.wait('err');
+  check(mixCross12?.code === 'PROTOCOL_MISMATCH', `cross-slot v1 join into v2 room ${code2} rejected (PROTOCOL_MISMATCH)`);
+
+  const mix2 = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, 'Mix_v2_to_v1'));
+  await mix2.wait('hello');
+  mix2.send('join', { code: codeV1Lobby, name: 'Mix2', kind: 0 });
+  const mixLocal21 = await mix2.wait('err');
+  check(mixLocal21?.code === 'PROTOCOL_MISMATCH', `v2 join into v1 room ${codeV1Lobby} rejected (PROTOCOL_MISMATCH: "${mixLocal21?.msg}")`);
+
+  // BUG-29: v1 client joins blue's v1 room via green (transparently proxied)
   const f1Green = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws`, 'F_v1_green'));
   await f1Green.wait('hello');
-  f1Green.send('join', { code: code2, name: 'JoinerV1', kind: 1 });
+  f1Green.send('join', { code: codeV1Lobby, name: 'JoinerV1', kind: 1 });
   const rF1Proxied = await f1Green.wait('room');
-  check(rF1Proxied?.code === code2 && rF1Proxied?.players?.length === 3, `BUG-29: v1 join ${code2} via green transparently proxied to blue (players=${rF1Proxied?.players?.length})`);
+  check(rF1Proxied?.code === codeV1Lobby && rF1Proxied?.lw === 180 && rF1Proxied?.players?.length === 2,
+    `BUG-29: v1 join ${codeV1Lobby} via green transparently proxied to blue (lw=180, players=${rF1Proxied?.players?.length})`);
   f1Green.send('leave');
-  await d2.wait('room', (r) => r.players.length === 2);
+  await v1Host2.wait('room', (r) => r.players.length === 1);
 
   f2.send('join', { code: '0000', name: 'Missing', kind: 0 });
   const errNotFound = await f2.wait('err');
@@ -354,7 +389,7 @@ try {
   }
   check(statsEnd && statsEnd.rooms === 0 && statsEnd.players === 0 && statsEnd.draining === true,
     `BUG-25: blue auto-drained to 0 rooms/0 players without client leave (in ${Date.now() - tDrain}ms)`);
-  g2.send('leave');
+  g2b.send('leave'); g2.send('leave');
 
   // 8. BUG-25 Graceful SIGTERM tests (timeout force-finish + natural finish before timeout)
   const sigPub1 = await freePort(), sigInt1 = await freePort();
@@ -476,6 +511,52 @@ try {
   const deadPeerRedir = v2DeadPeer.inbox.find((m) => m.event === 'redirect');
   check(deadPeerErr?.code === 'DRAINING' && !deadPeerRedir,
     `BUG-26: create on draining slot with dead peer returns DRAINING (no redirect to dead peer)`);
+
+  // 13. Configurable field config (FIELD_W, FIELD_H, FIELD_PX_PER_M) without hardcoding; v1 stays at 180
+  const cfgPub = await freePort();
+  const cfgSrv = spawn(process.execPath, [MAIN_JS], {
+    cwd: SERVER_DIR,
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      PORT: String(cfgPub),
+      INTERNAL_PORT: 'off',
+      NODE_NAME: 'blue',
+      FIELD_W: '208',
+      FIELD_H: '416',
+      FIELD_PX_PER_M: '10',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  try {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 8000) {
+      try { const h = await fetch(`http://127.0.0.1:${cfgPub}/api/health`); if (h.ok) break; } catch {}
+      await sleep(80);
+    }
+    const c2 = track(await openWs(`ws://127.0.0.1:${cfgPub}/ws?p=2`, 'cfg_v2'));
+    const ch2 = await c2.wait('hello');
+    c2.send('create', { name: 'Cfg2', kind: 0 });
+    const cr2 = await c2.wait('room');
+    c2.send('start', {});
+    const cs2 = await c2.wait('start');
+    const c1 = track(await openWs(`ws://127.0.0.1:${cfgPub}/ws`, 'cfg_v1'));
+    const ch1 = await c1.wait('hello');
+    c1.send('create', { name: 'Cfg1', kind: 0 });
+    const cr1 = await c1.wait('room');
+    check(
+      ch2?.field?.w === 208 && ch2?.field?.h === 416 && ch2?.field?.pxPerM === 10 &&
+      cr2?.lw === 208 && cr2?.field?.w === 208 && cr2?.field?.h === 416 && cr2?.field?.pxPerM === 10 &&
+      cs2?.lw === 208 && cs2?.field?.w === 208 && cs2?.field?.h === 416 && cs2?.field?.pxPerM === 10,
+      `custom FIELD_W=208, FIELD_H=416, FIELD_PX_PER_M=10 propagated to hello/room/start (${JSON.stringify(cs2?.field)})`,
+    );
+    check(
+      ch1?.v === 1 && ch1?.field === undefined && cr1?.lw === 180 && cr1?.field === undefined,
+      `custom v2 field config does not break v1 clients (hello.v=${ch1?.v}, lw=${cr1?.lw})`,
+    );
+  } finally {
+    cfgSrv.kill('SIGTERM');
+  }
 
   console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL BLUE-GREEN SMOKE CHECKS PASSED');
   process.exitCode = failures ? 1 : 0;

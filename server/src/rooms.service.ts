@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { randomBytes, randomInt } from 'crypto';
 import type { WebSocket } from 'ws';
 import {
-  STALE_MS, HERO_COUNT, MAPS, MAX_PLAYERS, NET_LW, Phase, PlayerInfo, RECONNECT_GRACE_MS, ROOM_IDLE_MS, SNAP_HZ, START_DELAY_MS,
+  FieldConfig, STALE_MS, HERO_COUNT, MAPS, MAX_PLAYERS, Phase, PlayerInfo, RECONNECT_GRACE_MS, ROOM_IDLE_MS, SNAP_HZ, START_DELAY_MS, loadFieldConfig, loadV1FieldWidth,
 } from './protocol';
 
 export interface Player {
@@ -28,7 +28,9 @@ export interface Room {
   host: number;
   phase: Phase;
   map: string;
+  proto: number;
   lw: number;
+  field: FieldConfig;
   round: number;
   seed: number;
   startAt: number;
@@ -53,6 +55,8 @@ export class RoomsService implements OnModuleDestroy {
   private readonly log = new Logger('Rooms');
   readonly rooms = new Map<string, Room>();
   private readonly byToken = new Map<string, { room: Room; player: Player }>();
+  readonly v2Field: FieldConfig = loadFieldConfig();
+  readonly v1FieldWidth: number = loadV1FieldWidth();
   onRoomFinished?: (r: Room) => void;
   onDrainExpire?: (r: Room) => void;
   private sweeper = setInterval(() => this.sweep(), 500);
@@ -76,7 +80,9 @@ export class RoomsService implements OnModuleDestroy {
   }
   roomView(r: Room, p: Player) {
     return {
-      code: r.code, you: p.pid, token: p.token, host: r.host, phase: r.phase, map: r.map, lw: r.lw, round: r.round,
+      code: r.code, you: p.pid, token: p.token, host: r.host, phase: r.phase, map: r.map, lw: r.lw,
+      ...(r.proto >= 2 ? { field: r.field } : {}),
+      round: r.round,
       players: r.players.map((q) => this.info(q)),
     };
   }
@@ -137,10 +143,16 @@ export class RoomsService implements OnModuleDestroy {
   }
 
   /* ---------- lobby ---------- */
-  create(ws: WebSocket, name: unknown, kind: unknown) {
+  private fieldForProtocol(proto: number): FieldConfig {
+    if (proto >= 2) return { ...this.v2Field };
+    return { w: this.v1FieldWidth, h: 346, pxPerM: 8 };
+  }
+  create(ws: WebSocket, name: unknown, kind: unknown, proto = 1) {
     const code = this.newCode();
+    const roomProto = proto >= 2 ? 2 : 1;
+    const field = this.fieldForProtocol(roomProto);
     const r: Room = {
-      code, host: 0, phase: 'lobby', map: 'city', lw: NET_LW, round: 0, seed: 0, startAt: 0, players: [], nextPid: 0,
+      code, host: 0, phase: 'lobby', map: 'city', proto: roomProto, lw: field.w, field, round: 0, seed: 0, startAt: 0, players: [], nextPid: 0,
       touched: Date.now(), snapTimer: null,
     };
     this.rooms.set(code, r);
@@ -149,9 +161,16 @@ export class RoomsService implements OnModuleDestroy {
     this.log.log(`room ${code} created by ${p.name}`);
     return { room: r, player: p };
   }
-  join(ws: WebSocket, code: unknown, name: unknown, kind: unknown) {
+  join(ws: WebSocket, code: unknown, name: unknown, kind: unknown, proto = 1) {
     const r = this.rooms.get(String(code ?? '').trim());
     if (!r) throw new RoomError('NOT_FOUND', 'Комната не найдена');
+    const clientProto = proto >= 2 ? 2 : 1;
+    if (r.proto !== clientProto) {
+      throw new RoomError(
+        'PROTOCOL_MISMATCH',
+        clientProto < r.proto ? 'Обновите игру для входа' : 'Друг на старой версии',
+      );
+    }
     if (r.phase === 'play') throw new RoomError('IN_GAME', 'Забег уже идёт');
     if (r.players.length >= MAX_PLAYERS) throw new RoomError('FULL', 'Комната заполнена');
     const p = this.addPlayer(r, ws, name, kind);
@@ -203,7 +222,11 @@ export class RoomsService implements OnModuleDestroy {
     this.log.log(`room ${r.code}: round ${r.round} started, seed ${r.seed}, map ${r.map}, ${r.players.length} players`);
   }
   startView(r: Room) {
-    return { round: r.round, seed: r.seed, map: r.map, lw: r.lw, at: r.startAt, players: r.players.map((q) => this.info(q)) };
+    return {
+      round: r.round, seed: r.seed, map: r.map, lw: r.lw,
+      ...(r.proto >= 2 ? { field: r.field } : {}),
+      at: r.startAt, players: r.players.map((q) => this.info(q)),
+    };
   }
 
   /* ---------- in-run relay ---------- */
@@ -226,7 +249,7 @@ export class RoomsService implements OnModuleDestroy {
       if (p.st[1] - y > 900 * dt + 400) p.suspicious++;
     }
     if (m < p.m) m = p.m; // height can't go down
-    p.m = Math.max(p.m, Math.floor(m / 8));
+    p.m = Math.max(p.m, Math.floor(m / (r.field?.pxPerM || 8)));
     p.st = [Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(vx * 100) / 100, Math.round(vy * 100) / 100, f, a, Math.round(m), (Number(d.ps) | 0) & 0xffff];
     p.stDirty = true;
     p.lastStAt = now;
