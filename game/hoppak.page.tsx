@@ -2296,6 +2296,7 @@ var NET_SEND_MS = 66; /* own state ~15 Hz */
 var NET_DELAY_MS = 150; /* interpolation buffer */
 var NET_GRACE_MS = 10000;
 var NET_HEALTH_MS = 60000;
+var NET_LOBBY_PING_MS = 25000;
 var NET_MAX_REDIRECTS = 2;
 var NET_XS = [74, 22, 124, 48]; /* start x by slot (same as the bot squad) */
 var NET_TAGS: any = { host: "ХОСТ", ready: "ГОТОВ", wait: "ЖДЁМ", off: "НЕТ СВЯЗИ" };
@@ -2313,7 +2314,7 @@ var NET: any = (function () {
     node: "", targetNode: "", serverVersion: "", field: null as any,
     updateAvail: false, updateVersion: "", updateDismissed: "",
     pendingAction: null as any, redirCount: 0, redirecting: false,
-    pollTimer: 0, healthMs: NET_HEALTH_MS, probeSeq: 0,
+    pollTimer: 0, pingTimer: 0, healthMs: NET_HEALTH_MS, probeSeq: 0,
     room: null, you: -1, token: "", err: "", errCode: "", sub: "home", code: "", startInfo: null, results: null,
     off: 0, rtt: 0, pingT: 0, lastSend: 0, reconUntil: 0, reconTimer: 0, reconTry: 0, onOpen: null as any, probing: false,
     stats: { sent: 0, recv: 0, snaps: 0, startedAt: 0 },
@@ -2322,7 +2323,7 @@ var NET: any = (function () {
   };
   function now() { return Date.now(); }
   function serverNow() { return now() + N.off; }
-  /* Build-time origin, e.g. --define:HOP_SERVER="https://76-13-250-251.sslip.io".
+  /* Build-time origin, e.g. --define:HOP_SERVER="https://game.example.com".
      From it we derive wss://host/ws and https://host/api/health. */
   function builtinOrigin() {
     try { if (typeof HOP_SERVER !== "undefined" && HOP_SERVER) return String(HOP_SERVER).replace(/\/$/, ""); } catch (_e) {}
@@ -2461,8 +2462,21 @@ var NET: any = (function () {
     if (!toHealth(url())) return;
     N.pollTimer = setInterval(function () { N.pollHealth(); }, ms);
   }
+  function stopLobbyPing() {
+    if (N.pingTimer) { clearInterval(N.pingTimer); N.pingTimer = 0; }
+  }
+  function startLobbyPing(ws: any) {
+    stopLobbyPing();
+    var w: any = typeof window !== "undefined" ? window : null;
+    var ms = (w && typeof w.HOPPAK_LOBBY_PING_MS === "number" && w.HOPPAK_LOBBY_PING_MS > 0) ? w.HOPPAK_LOBBY_PING_MS : NET_LOBBY_PING_MS;
+    N.pingTimer = setInterval(function () {
+      if (N.ws !== ws || ws.readyState !== 1) { stopLobbyPing(); return; }
+      if (N.st === "online" && now() - N.pingT >= ms) ping();
+    }, ms);
+  }
   N.stopPolling = function () {
     if (N.pollTimer) { clearInterval(N.pollTimer); N.pollTimer = 0; }
+    stopLobbyPing();
   };
 
   /* ---------- connection ---------- */
@@ -2514,6 +2528,8 @@ var NET: any = (function () {
     var to = setTimeout(function () { if (!opened) { try { ws.close(); } catch (_e) {} } }, 5000);
     ws.onopen = function () {
       opened = true; clearTimeout(to);
+      N.pingT = now();
+      startLobbyPing(ws);
       /* Stay in connecting until hello confirms the protocol version.
          Old site builds at /v/<ver>/ share the same /ws; a mismatch must not crash. */
       if (N.helloTimer) clearTimeout(N.helloTimer);
@@ -2527,6 +2543,7 @@ var NET: any = (function () {
       clearTimeout(to);
       if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
       if (N.ws !== ws) return;
+      stopLobbyPing();
       N.ws = null;
       if (N.redirecting) return;
       if (N.st === "unsupported") return;
@@ -2818,16 +2835,18 @@ var NET: any = (function () {
       if (wb !== wa) return wb - wa;
       return (S.best[b] || 0) - (S.best[a] || 0);
     });
-    var h = 13 + pids.length * 11;
+    var rc = S.rounds.length, r100 = rc % 100, r10 = rc % 10;
+    var rw = (r100 >= 11 && r100 <= 14) ? "РАУНДОВ" : r10 === 1 ? "РАУНД" : (r10 >= 2 && r10 <= 4) ? "РАУНДА" : "РАУНДОВ";
+    var h = 11 + pids.length * 9;
     box(ctx, x, y, 152, h, C.navy, C.gold);
-    drawText(ctx, "СЧЁТ ВЕЧЕРА · " + S.rounds.length + " РАУНД", LW / 2, y + 3, C.gold, 1, "center");
+    drawText(ctx, "СЧЁТ ВЕЧЕРА · " + rc + " " + rw, LW / 2, y + 2, C.gold, 1, "center");
     for (var i2 = 0; i2 < pids.length; i2++) {
       var pid = pids[i2], nm = String(S.names[pid] || "ИГРОК").slice(0, 8);
-      var lineY = y + 13 + i2 * 11;
+      var lineY = y + 11 + i2 * 9;
       drawText(ctx, nm, x + 6, lineY, C.cream, 1, "left");
       drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, C.cream, 1, "right");
     }
-    return y + h + 6;
+    return y + h + 2;
   };
 
   /* ---------- world integration ---------- */
@@ -3032,30 +3051,30 @@ var NET: any = (function () {
     drawText(ctx, "СКАЖИ КОД ДРУЗЬЯМ", LW / 2, 44, "#9a8ab8", 1, "center");
     var sorted = R.players.slice().sort(function (a: any, b: any) { return a.slot - b.slot; });
     for (var i = 0; i < 4; i++) {
-      var y = 56 + i * 26, p = sorted[i];
+      var y = 54 + i * 25, p = sorted[i];
       if (!p) {
-        box(ctx, x, y, 152, 23, "#141030", "#3a3450");
+        box(ctx, x, y, 152, 22, "#141030", "#3a3450");
         drawText(ctx, "СВОБОДНО", LW / 2, y + 8, "#5a4c82", 1, "center");
         continue;
       }
       var isMe = p.pid === N.you;
-      box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, isMe ? C.gold : C.cream);
-      drawJumper(ctx, x + 6, y + 5, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
+      box(ctx, x, y, 152, 22, isMe ? "#2a2050" : C.navy, isMe ? C.gold : C.cream);
+      drawJumper(ctx, x + 6, y + 4, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
       drawText(ctx, cleanNick(p.name) || "ИГРОК", x + 28, y + 3, C.cream, 1, "left");
       var tag = !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
       var tc = !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
-      drawText(ctx, tag + (isMe ? " · ТЫ" : ""), x + 28, y + 13, tc, 1, "left");
+      drawText(ctx, tag + (isMe ? " · ТЫ" : ""), x + 28, y + 12, tc, 1, "left");
       drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
     }
-    var my = 56 + 4 * 26 + 4;
+    var my = 54 + 4 * 25 + 2;
     if (host) {
       api.btn("net:mprev", x, my, 20, 18, "#1a1430", "<", C.cream);
       api.btn("net:mnext", x + 132, my, 20, 18, "#1a1430", ">", C.cream);
     }
     box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
     drawText(ctx, "КАРТА: " + mapInfo(R.map).name, LW / 2, my + 6, C.gold, 1, "center");
-    api.btn("net:hero", x, my + 22, 152, 18, "#1a1430", "ГЕРОЙ: " + CHARS[api.save().char].name.toUpperCase() + " ▶", C.cream, 1, C.gold);
-    var evY = my + 44;
+    api.btn("net:hero", x, my + 20, 152, 18, "#1a1430", "ГЕРОЙ: " + CHARS[api.save().char].name.toUpperCase() + " ▶", C.cream, 1, C.gold);
+    var evY = my + 40;
     if (N.session && N.session.rounds && N.session.rounds.length) evY = N.drawEvening(ctx, x, evY);
     var by = Math.max(evY + 4, LH - 66);
     if (host) {
@@ -4221,28 +4240,47 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     header("ИТОГИ", 2);
     var list = world.players.slice().sort(function (a: any, b: any) { return a.place - b.place; });
     var squad = world.mode === "squad";
-    var rowH = squad ? 28 : 36;
+    var rowH = squad ? 17 : 36;
     var y = 36;
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       var fill = p.place === 1 ? "#6a4a10" : p.place === 2 ? "#3a4050" : p.place === 3 ? "#4a3020" : C.navy;
-      box(ctx, x, y, 152, rowH - 3, fill, p.id === 0 ? C.gold : C.cream);
-      drawText(ctx, String(p.place), x + 10, y + (rowH - 3) / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
-      drawJumper(ctx, x + 22, y + Math.round((rowH - 3) / 2 - 8), p.look, 1, "idle", false, true);
-      drawText(ctx, p.name + (p.id === 0 && squad ? " (ТЫ)" : ""), x + 42, y + 4, C.cream, 1, "left");
-      drawText(ctx, metersOf(p) + " М", x + 42, y + 14, C.cream, 1, "left");
+      if (squad) {
+        box(ctx, x, y, 152, rowH - 2, fill, p.id === 0 ? C.gold : C.cream);
+        drawText(ctx, String(p.place), x + 7, y + 4, p.place === 1 ? C.gold : C.cream, 1, "center");
+        drawJumper(ctx, x + 15, y + 3, p.look, 1, "idle", false, true, 0.75);
+        var nm = String(p.name || "").slice(0, 8) + (p.id === 0 ? " (ТЫ)" : "");
+        drawText(ctx, nm, x + 28, y + 4, C.cream, 1, "left");
+        drawText(ctx, metersOf(p) + " М", x + 148, y + 4, C.cream, 1, "right");
+      } else {
+        box(ctx, x, y, 152, rowH - 3, fill, p.id === 0 ? C.gold : C.cream);
+        drawText(ctx, String(p.place), x + 10, y + (rowH - 3) / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
+        drawJumper(ctx, x + 22, y + Math.round((rowH - 3) / 2 - 8), p.look, 1, "idle", false, true);
+        drawText(ctx, p.name, x + 42, y + 4, C.cream, 1, "left");
+        drawText(ctx, metersOf(p) + " М", x + 42, y + 14, C.cream, 1, "left");
+      }
       y += rowH;
     }
     var me = world.players[0], mtr = metersOf(me), why = whyText(me);
-    if (why) { box(ctx, x, y, 152, 14, "#201838", "#8a7ab8"); drawText(ctx, why, LW / 2, y + 4, "#d8c8f0", 1, "center"); y += 18; }
+    if (why) {
+      if (squad) { box(ctx, x, y, 152, 11, "#201838", "#8a7ab8"); drawText(ctx, why, LW / 2, y + 2, "#d8c8f0", 1, "center"); y += 13; }
+      else { box(ctx, x, y, 152, 14, "#201838", "#8a7ab8"); drawText(ctx, why, LW / 2, y + 4, "#d8c8f0", 1, "center"); y += 18; }
+    }
     var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
     if (M2.goal && mi2 + 1 < MAPS.length) {
       var nxt = MAPS[mi2 + 1], b = mapBest(mi2), met = b >= M2.goal;
       if (met) {
-        addHit("camp", x, y, 152, 22);
-        box(ctx, x, y, 152, 22, C.navy, C.mint);
-        drawText(ctx, nxt.name + ": МОЖНО ОТКРЫТЬ", LW / 2, y + 7, C.mint, 1, "center");
-        y += 26;
+        var gh1 = squad ? 14 : 22;
+        addHit("camp", x, y, 152, gh1);
+        box(ctx, x, y, 152, gh1, C.navy, C.mint);
+        drawText(ctx, nxt.name + ": МОЖНО ОТКРЫТЬ", LW / 2, y + (squad ? 4 : 7), C.mint, 1, "center");
+        y += gh1 + (squad ? 2 : 4);
+      } else if (squad) {
+        box(ctx, x, y, 152, 18, C.navy, C.gold);
+        drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 2, C.cream, 1, "left");
+        drawText(ctx, b + "/" + M2.goal + " М", x + 146, y + 2, C.cream, 1, "right");
+        bar(x + 6, y + 11, 140, 4, b / M2.goal, C.gold);
+        y += 20;
       } else {
         box(ctx, x, y, 152, 28, C.navy, C.gold);
         drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
@@ -4252,10 +4290,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     var rec = save.mapBest[world.map] || world.best || 0;
-    box(ctx, x, y, 152, 56, C.navy, C.gold);
-    drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 4, C.cream, 1, "left"); coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
-    drawText(ctx, "СОБРАНО", x + 6, y + 15, C.cream, 1, "left"); coinsLabel(x + 146, y + 15, world.earnC || 0, "right");
-    rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
     var dur = 700, nowA = (typeof performance !== "undefined" ? performance.now() : Date.now());
     if (coinT0 < 0) coinT0 = nowA;
     var k = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
@@ -4263,22 +4297,44 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var shownEarn = Math.round((world.earned || 0) * k);
     var shownTot = (world.coinFrom != null ? world.coinFrom : (save.coins - (world.earned || 0))) + shownEarn;
     if (k < 1 && (ui % 4 === 0)) hopSfx("tick");
-    drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
-    y += 60;
+    if (squad) {
+      box(ctx, x, y, 152, 33, C.navy, C.gold);
+      drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 3, C.cream, 1, "left"); coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
+      drawText(ctx, "СОБРАНО", x + 6, y + 12, C.cream, 1, "left"); coinsLabel(x + 146, y + 12, world.earnC || 0, "right");
+      rect(ctx, x + 6, y + 20, 140, 1, "#5a4a7a");
+      drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 23, C.gold, 1, "center");
+      y += 35;
+    } else {
+      box(ctx, x, y, 152, 56, C.navy, C.gold);
+      drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 4, C.cream, 1, "left"); coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
+      drawText(ctx, "СОБРАНО", x + 6, y + 15, C.cream, 1, "left"); coinsLabel(x + 146, y + 15, world.earnC || 0, "right");
+      rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
+      drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
+      y += 60;
+    }
     if (world.net && typeof NET !== "undefined" && NET.drawEvening) y = NET.drawEvening(ctx, x, y);
-    if (world.newBest) { box(ctx, x, y, 152, 13, C.navy, C.gold); drawText(ctx, "НОВЫЙ РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 3, C.gold, 1, "center"); y += 16; }
-    else { drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 2, C.cream, 1, "center"); y += 14; }
+    if (world.newBest) {
+      var bh = squad ? 11 : 13;
+      box(ctx, x, y, 152, bh, C.navy, C.gold);
+      drawText(ctx, "НОВЫЙ РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + (squad ? 2 : 3), C.gold, 1, "center");
+      y += bh + (squad ? 2 : 3);
+    } else {
+      drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + (squad ? 1 : 2), C.cream, 1, "center");
+      y += squad ? 11 : 14;
+    }
     var nh = nextHeroNeed();
     if (nh) {
       if (nh.left === 0) {
-        addHit("shop", x, y, 152, 22);
-        box(ctx, x, y, 152, 22, C.navy, C.mint);
-        drawText(ctx, "ХВАТАЕТ НА " + HTO[nh.i] + "!", LW / 2, y + 7, C.mint, 1, "center");
+        var nh1 = squad ? 15 : 22;
+        addHit("shop", x, y, 152, nh1);
+        box(ctx, x, y, 152, nh1, C.navy, C.mint);
+        drawText(ctx, "ХВАТАЕТ НА " + HTO[nh.i] + "!", LW / 2, y + (squad ? 4 : 7), C.mint, 1, "center");
       } else {
-        box(ctx, x, y, 152, 22, C.navy, C.coral);
-        drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
+        var nh2 = squad ? 19 : 22;
+        box(ctx, x, y, 152, nh2, C.navy, C.coral);
+        drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + (squad ? 2 : 3), C.cream, 1, "center");
         var runs = "ЕЩЁ " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " ЗАБЕГА";
-        drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
+        drawText(ctx, runs, LW / 2, y + (squad ? 10 : 12), C.gold, 1, "center");
       }
     }
     var lab = squad ? "РЕВАНШ ▶" : "ЕЩЁ РАЗ ▶";

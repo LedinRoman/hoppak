@@ -1104,28 +1104,47 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     header("ИТОГИ", 2);
     var list = world.players.slice().sort(function (a: any, b: any) { return a.place - b.place; });
     var squad = world.mode === "squad";
-    var rowH = squad ? 28 : 36;
+    var rowH = squad ? 17 : 36;
     var y = 36;
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       var fill = p.place === 1 ? "#6a4a10" : p.place === 2 ? "#3a4050" : p.place === 3 ? "#4a3020" : C.navy;
-      box(ctx, x, y, 152, rowH - 3, fill, p.id === 0 ? C.gold : C.cream);
-      drawText(ctx, String(p.place), x + 10, y + (rowH - 3) / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
-      drawJumper(ctx, x + 22, y + Math.round((rowH - 3) / 2 - 8), p.look, 1, "idle", false, true);
-      drawText(ctx, p.name + (p.id === 0 && squad ? " (ТЫ)" : ""), x + 42, y + 4, C.cream, 1, "left");
-      drawText(ctx, metersOf(p) + " М", x + 42, y + 14, C.cream, 1, "left");
+      if (squad) {
+        box(ctx, x, y, 152, rowH - 2, fill, p.id === 0 ? C.gold : C.cream);
+        drawText(ctx, String(p.place), x + 7, y + 4, p.place === 1 ? C.gold : C.cream, 1, "center");
+        drawJumper(ctx, x + 15, y + 3, p.look, 1, "idle", false, true, 0.75);
+        var nm = String(p.name || "").slice(0, 8) + (p.id === 0 ? " (ТЫ)" : "");
+        drawText(ctx, nm, x + 28, y + 4, C.cream, 1, "left");
+        drawText(ctx, metersOf(p) + " М", x + 148, y + 4, C.cream, 1, "right");
+      } else {
+        box(ctx, x, y, 152, rowH - 3, fill, p.id === 0 ? C.gold : C.cream);
+        drawText(ctx, String(p.place), x + 10, y + (rowH - 3) / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
+        drawJumper(ctx, x + 22, y + Math.round((rowH - 3) / 2 - 8), p.look, 1, "idle", false, true);
+        drawText(ctx, p.name, x + 42, y + 4, C.cream, 1, "left");
+        drawText(ctx, metersOf(p) + " М", x + 42, y + 14, C.cream, 1, "left");
+      }
       y += rowH;
     }
     var me = world.players[0], mtr = metersOf(me), why = whyText(me);
-    if (why) { box(ctx, x, y, 152, 14, "#201838", "#8a7ab8"); drawText(ctx, why, LW / 2, y + 4, "#d8c8f0", 1, "center"); y += 18; }
+    if (why) {
+      if (squad) { box(ctx, x, y, 152, 11, "#201838", "#8a7ab8"); drawText(ctx, why, LW / 2, y + 2, "#d8c8f0", 1, "center"); y += 13; }
+      else { box(ctx, x, y, 152, 14, "#201838", "#8a7ab8"); drawText(ctx, why, LW / 2, y + 4, "#d8c8f0", 1, "center"); y += 18; }
+    }
     var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
     if (M2.goal && mi2 + 1 < MAPS.length) {
       var nxt = MAPS[mi2 + 1], b = mapBest(mi2), met = b >= M2.goal;
       if (met) {
-        addHit("camp", x, y, 152, 22);
-        box(ctx, x, y, 152, 22, C.navy, C.mint);
-        drawText(ctx, nxt.name + ": МОЖНО ОТКРЫТЬ", LW / 2, y + 7, C.mint, 1, "center");
-        y += 26;
+        var gh1 = squad ? 14 : 22;
+        addHit("camp", x, y, 152, gh1);
+        box(ctx, x, y, 152, gh1, C.navy, C.mint);
+        drawText(ctx, nxt.name + ": МОЖНО ОТКРЫТЬ", LW / 2, y + (squad ? 4 : 7), C.mint, 1, "center");
+        y += gh1 + (squad ? 2 : 4);
+      } else if (squad) {
+        box(ctx, x, y, 152, 18, C.navy, C.gold);
+        drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 2, C.cream, 1, "left");
+        drawText(ctx, b + "/" + M2.goal + " М", x + 146, y + 2, C.cream, 1, "right");
+        bar(x + 6, y + 11, 140, 4, b / M2.goal, C.gold);
+        y += 20;
       } else {
         box(ctx, x, y, 152, 28, C.navy, C.gold);
         drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
@@ -1135,10 +1154,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     var rec = save.mapBest[world.map] || world.best || 0;
-    box(ctx, x, y, 152, 56, C.navy, C.gold);
-    drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 4, C.cream, 1, "left"); coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
-    drawText(ctx, "СОБРАНО", x + 6, y + 15, C.cream, 1, "left"); coinsLabel(x + 146, y + 15, world.earnC || 0, "right");
-    rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
     var dur = 700, nowA = (typeof performance !== "undefined" ? performance.now() : Date.now());
     if (coinT0 < 0) coinT0 = nowA;
     var k = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
@@ -1146,22 +1161,44 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var shownEarn = Math.round((world.earned || 0) * k);
     var shownTot = (world.coinFrom != null ? world.coinFrom : (save.coins - (world.earned || 0))) + shownEarn;
     if (k < 1 && (ui % 4 === 0)) hopSfx("tick");
-    drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
-    y += 60;
+    if (squad) {
+      box(ctx, x, y, 152, 33, C.navy, C.gold);
+      drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 3, C.cream, 1, "left"); coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
+      drawText(ctx, "СОБРАНО", x + 6, y + 12, C.cream, 1, "left"); coinsLabel(x + 146, y + 12, world.earnC || 0, "right");
+      rect(ctx, x + 6, y + 20, 140, 1, "#5a4a7a");
+      drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 23, C.gold, 1, "center");
+      y += 35;
+    } else {
+      box(ctx, x, y, 152, 56, C.navy, C.gold);
+      drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 4, C.cream, 1, "left"); coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
+      drawText(ctx, "СОБРАНО", x + 6, y + 15, C.cream, 1, "left"); coinsLabel(x + 146, y + 15, world.earnC || 0, "right");
+      rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
+      drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
+      y += 60;
+    }
     if (world.net && typeof NET !== "undefined" && NET.drawEvening) y = NET.drawEvening(ctx, x, y);
-    if (world.newBest) { box(ctx, x, y, 152, 13, C.navy, C.gold); drawText(ctx, "НОВЫЙ РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 3, C.gold, 1, "center"); y += 16; }
-    else { drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 2, C.cream, 1, "center"); y += 14; }
+    if (world.newBest) {
+      var bh = squad ? 11 : 13;
+      box(ctx, x, y, 152, bh, C.navy, C.gold);
+      drawText(ctx, "НОВЫЙ РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + (squad ? 2 : 3), C.gold, 1, "center");
+      y += bh + (squad ? 2 : 3);
+    } else {
+      drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + (squad ? 1 : 2), C.cream, 1, "center");
+      y += squad ? 11 : 14;
+    }
     var nh = nextHeroNeed();
     if (nh) {
       if (nh.left === 0) {
-        addHit("shop", x, y, 152, 22);
-        box(ctx, x, y, 152, 22, C.navy, C.mint);
-        drawText(ctx, "ХВАТАЕТ НА " + HTO[nh.i] + "!", LW / 2, y + 7, C.mint, 1, "center");
+        var nh1 = squad ? 15 : 22;
+        addHit("shop", x, y, 152, nh1);
+        box(ctx, x, y, 152, nh1, C.navy, C.mint);
+        drawText(ctx, "ХВАТАЕТ НА " + HTO[nh.i] + "!", LW / 2, y + (squad ? 4 : 7), C.mint, 1, "center");
       } else {
-        box(ctx, x, y, 152, 22, C.navy, C.coral);
-        drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
+        var nh2 = squad ? 19 : 22;
+        box(ctx, x, y, 152, nh2, C.navy, C.coral);
+        drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + (squad ? 2 : 3), C.cream, 1, "center");
         var runs = "ЕЩЁ " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " ЗАБЕГА";
-        drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
+        drawText(ctx, runs, LW / 2, y + (squad ? 10 : 12), C.gold, 1, "center");
       }
     }
     var lab = squad ? "РЕВАНШ ▶" : "ЕЩЁ РАЗ ▶";

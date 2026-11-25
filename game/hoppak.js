@@ -3141,6 +3141,7 @@
   var NET_DELAY_MS = 150;
   var NET_GRACE_MS = 1e4;
   var NET_HEALTH_MS = 6e4;
+  var NET_LOBBY_PING_MS = 25e3;
   var NET_MAX_REDIRECTS = 2;
   var NET_XS = [74, 22, 124, 48];
   var NET_TAGS = { host: "\u0425\u041E\u0421\u0422", ready: "\u0413\u041E\u0422\u041E\u0412", wait: "\u0416\u0414\u0401\u041C", off: "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418" };
@@ -3171,6 +3172,7 @@
       redirCount: 0,
       redirecting: false,
       pollTimer: 0,
+      pingTimer: 0,
       healthMs: NET_HEALTH_MS,
       probeSeq: 0,
       room: null,
@@ -3391,11 +3393,30 @@
         N.pollHealth();
       }, ms);
     }
+    function stopLobbyPing() {
+      if (N.pingTimer) {
+        clearInterval(N.pingTimer);
+        N.pingTimer = 0;
+      }
+    }
+    function startLobbyPing(ws) {
+      stopLobbyPing();
+      var w = typeof window !== "undefined" ? window : null;
+      var ms = w && typeof w.HOPPAK_LOBBY_PING_MS === "number" && w.HOPPAK_LOBBY_PING_MS > 0 ? w.HOPPAK_LOBBY_PING_MS : NET_LOBBY_PING_MS;
+      N.pingTimer = setInterval(function() {
+        if (N.ws !== ws || ws.readyState !== 1) {
+          stopLobbyPing();
+          return;
+        }
+        if (N.st === "online" && now() - N.pingT >= ms) ping();
+      }, ms);
+    }
     N.stopPolling = function() {
       if (N.pollTimer) {
         clearInterval(N.pollTimer);
         N.pollTimer = 0;
       }
+      stopLobbyPing();
     };
     function buildWsUrl(node) {
       var base = url();
@@ -3480,6 +3501,8 @@
       ws.onopen = function() {
         opened = true;
         clearTimeout(to);
+        N.pingT = now();
+        startLobbyPing(ws);
         if (N.helloTimer) clearTimeout(N.helloTimer);
         N.helloTimer = setTimeout(function() {
           N.helloTimer = 0;
@@ -3503,6 +3526,7 @@
           N.helloTimer = 0;
         }
         if (N.ws !== ws) return;
+        stopLobbyPing();
         N.ws = null;
         if (N.redirecting) return;
         if (N.st === "unsupported") return;
@@ -3961,16 +3985,18 @@
         if (wb !== wa) return wb - wa;
         return (S.best[b] || 0) - (S.best[a] || 0);
       });
-      var h = 13 + pids.length * 11;
+      var rc = S.rounds.length, r100 = rc % 100, r10 = rc % 10;
+      var rw = r100 >= 11 && r100 <= 14 ? "\u0420\u0410\u0423\u041D\u0414\u041E\u0412" : r10 === 1 ? "\u0420\u0410\u0423\u041D\u0414" : r10 >= 2 && r10 <= 4 ? "\u0420\u0410\u0423\u041D\u0414\u0410" : "\u0420\u0410\u0423\u041D\u0414\u041E\u0412";
+      var h = 11 + pids.length * 9;
       box(ctx, x, y, 152, h, C.navy, C.gold);
-      drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 " + S.rounds.length + " \u0420\u0410\u0423\u041D\u0414", LW / 2, y + 3, C.gold, 1, "center");
+      drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 " + rc + " " + rw, LW / 2, y + 2, C.gold, 1, "center");
       for (var i2 = 0; i2 < pids.length; i2++) {
         var pid = pids[i2], nm = String(S.names[pid] || "\u0418\u0413\u0420\u041E\u041A").slice(0, 8);
-        var lineY = y + 13 + i2 * 11;
+        var lineY = y + 11 + i2 * 9;
         drawText(ctx, nm, x + 6, lineY, C.cream, 1, "left");
         drawText(ctx, (S.wins[pid] || 0) + "\u041F  " + (S.best[pid] || 0) + "\u041C", x + 146, lineY, C.cream, 1, "right");
       }
-      return y + h + 6;
+      return y + h + 2;
     };
     function lookOf(k) {
       return makeLook(k, "base", "none");
@@ -4264,30 +4290,30 @@
         return a.slot - b.slot;
       });
       for (var i = 0; i < 4; i++) {
-        var y = 56 + i * 26, p = sorted[i];
+        var y = 54 + i * 25, p = sorted[i];
         if (!p) {
-          box(ctx, x, y, 152, 23, "#141030", "#3a3450");
+          box(ctx, x, y, 152, 22, "#141030", "#3a3450");
           drawText(ctx, "\u0421\u0412\u041E\u0411\u041E\u0414\u041D\u041E", LW / 2, y + 8, "#5a4c82", 1, "center");
           continue;
         }
         var isMe = p.pid === N.you;
-        box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, isMe ? C.gold : C.cream);
-        drawJumper(ctx, x + 6, y + 5, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
+        box(ctx, x, y, 152, 22, isMe ? "#2a2050" : C.navy, isMe ? C.gold : C.cream);
+        drawJumper(ctx, x + 6, y + 4, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
         drawText(ctx, cleanNick(p.name) || "\u0418\u0413\u0420\u041E\u041A", x + 28, y + 3, C.cream, 1, "left");
         var tag = !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
         var tc = !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
-        drawText(ctx, tag + (isMe ? " \xB7 \u0422\u042B" : ""), x + 28, y + 13, tc, 1, "left");
+        drawText(ctx, tag + (isMe ? " \xB7 \u0422\u042B" : ""), x + 28, y + 12, tc, 1, "left");
         drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
       }
-      var my = 56 + 4 * 26 + 4;
+      var my = 54 + 4 * 25 + 2;
       if (host) {
         api.btn("net:mprev", x, my, 20, 18, "#1a1430", "<", C.cream);
         api.btn("net:mnext", x + 132, my, 20, 18, "#1a1430", ">", C.cream);
       }
       box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
       drawText(ctx, "\u041A\u0410\u0420\u0422\u0410: " + mapInfo(R.map).name, LW / 2, my + 6, C.gold, 1, "center");
-      api.btn("net:hero", x, my + 22, 152, 18, "#1a1430", "\u0413\u0415\u0420\u041E\u0419: " + CHARS[api.save().char].name.toUpperCase() + " \u25B6", C.cream, 1, C.gold);
-      var evY = my + 44;
+      api.btn("net:hero", x, my + 20, 152, 18, "#1a1430", "\u0413\u0415\u0420\u041E\u0419: " + CHARS[api.save().char].name.toUpperCase() + " \u25B6", C.cream, 1, C.gold);
+      var evY = my + 40;
       if (N.session && N.session.rounds && N.session.rounds.length) evY = N.drawEvening(ctx, x, evY);
       var by = Math.max(evY + 4, LH - 66);
       if (host) {
@@ -5959,32 +5985,54 @@
         return a.place - b2.place;
       });
       var squad = world.mode === "squad";
-      var rowH = squad ? 28 : 36;
+      var rowH = squad ? 17 : 36;
       var y = 36;
       for (var i = 0; i < list.length; i++) {
         var p = list[i];
         var fill = p.place === 1 ? "#6a4a10" : p.place === 2 ? "#3a4050" : p.place === 3 ? "#4a3020" : C.navy;
-        box(ctx, x, y, 152, rowH - 3, fill, p.id === 0 ? C.gold : C.cream);
-        drawText(ctx, String(p.place), x + 10, y + (rowH - 3) / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
-        drawJumper(ctx, x + 22, y + Math.round((rowH - 3) / 2 - 8), p.look, 1, "idle", false, true);
-        drawText(ctx, p.name + (p.id === 0 && squad ? " (\u0422\u042B)" : ""), x + 42, y + 4, C.cream, 1, "left");
-        drawText(ctx, metersOf(p) + " \u041C", x + 42, y + 14, C.cream, 1, "left");
+        if (squad) {
+          box(ctx, x, y, 152, rowH - 2, fill, p.id === 0 ? C.gold : C.cream);
+          drawText(ctx, String(p.place), x + 7, y + 4, p.place === 1 ? C.gold : C.cream, 1, "center");
+          drawJumper(ctx, x + 15, y + 3, p.look, 1, "idle", false, true, 0.75);
+          var nm = String(p.name || "").slice(0, 8) + (p.id === 0 ? " (\u0422\u042B)" : "");
+          drawText(ctx, nm, x + 28, y + 4, C.cream, 1, "left");
+          drawText(ctx, metersOf(p) + " \u041C", x + 148, y + 4, C.cream, 1, "right");
+        } else {
+          box(ctx, x, y, 152, rowH - 3, fill, p.id === 0 ? C.gold : C.cream);
+          drawText(ctx, String(p.place), x + 10, y + (rowH - 3) / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
+          drawJumper(ctx, x + 22, y + Math.round((rowH - 3) / 2 - 8), p.look, 1, "idle", false, true);
+          drawText(ctx, p.name, x + 42, y + 4, C.cream, 1, "left");
+          drawText(ctx, metersOf(p) + " \u041C", x + 42, y + 14, C.cream, 1, "left");
+        }
         y += rowH;
       }
       var me = world.players[0], mtr = metersOf(me), why = whyText(me);
       if (why) {
-        box(ctx, x, y, 152, 14, "#201838", "#8a7ab8");
-        drawText(ctx, why, LW / 2, y + 4, "#d8c8f0", 1, "center");
-        y += 18;
+        if (squad) {
+          box(ctx, x, y, 152, 11, "#201838", "#8a7ab8");
+          drawText(ctx, why, LW / 2, y + 2, "#d8c8f0", 1, "center");
+          y += 13;
+        } else {
+          box(ctx, x, y, 152, 14, "#201838", "#8a7ab8");
+          drawText(ctx, why, LW / 2, y + 4, "#d8c8f0", 1, "center");
+          y += 18;
+        }
       }
       var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
       if (M2.goal && mi2 + 1 < MAPS.length) {
         var nxt = MAPS[mi2 + 1], b = mapBest(mi2), met = b >= M2.goal;
         if (met) {
-          addHit("camp", x, y, 152, 22);
-          box(ctx, x, y, 152, 22, C.navy, C.mint);
-          drawText(ctx, nxt.name + ": \u041C\u041E\u0416\u041D\u041E \u041E\u0422\u041A\u0420\u042B\u0422\u042C", LW / 2, y + 7, C.mint, 1, "center");
-          y += 26;
+          var gh1 = squad ? 14 : 22;
+          addHit("camp", x, y, 152, gh1);
+          box(ctx, x, y, 152, gh1, C.navy, C.mint);
+          drawText(ctx, nxt.name + ": \u041C\u041E\u0416\u041D\u041E \u041E\u0422\u041A\u0420\u042B\u0422\u042C", LW / 2, y + (squad ? 4 : 7), C.mint, 1, "center");
+          y += gh1 + (squad ? 2 : 4);
+        } else if (squad) {
+          box(ctx, x, y, 152, 18, C.navy, C.gold);
+          drawText(ctx, "\u0414\u041E " + TO[mi2 + 1], x + 6, y + 2, C.cream, 1, "left");
+          drawText(ctx, b + "/" + M2.goal + " \u041C", x + 146, y + 2, C.cream, 1, "right");
+          bar(x + 6, y + 11, 140, 4, b / M2.goal, C.gold);
+          y += 20;
         } else {
           box(ctx, x, y, 152, 28, C.navy, C.gold);
           drawText(ctx, "\u0414\u041E " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
@@ -5994,12 +6042,6 @@
         }
       }
       var rec = save.mapBest[world.map] || world.best || 0;
-      box(ctx, x, y, 152, 56, C.navy, C.gold);
-      drawText(ctx, "\u0412\u042B\u0421\u041E\u0422\u0410 " + mtr + " \u041C", x + 6, y + 4, C.cream, 1, "left");
-      coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
-      drawText(ctx, "\u0421\u041E\u0411\u0420\u0410\u041D\u041E", x + 6, y + 15, C.cream, 1, "left");
-      coinsLabel(x + 146, y + 15, world.earnC || 0, "right");
-      rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
       var dur = 700, nowA = typeof performance !== "undefined" ? performance.now() : Date.now();
       if (coinT0 < 0) coinT0 = nowA;
       var k = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
@@ -6007,28 +6049,48 @@
       var shownEarn = Math.round((world.earned || 0) * k);
       var shownTot = (world.coinFrom != null ? world.coinFrom : save.coins - (world.earned || 0)) + shownEarn;
       if (k < 1 && ui % 4 === 0) hopSfx("tick");
-      drawText(ctx, "+" + shownEarn + " \u2192 " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
-      y += 60;
+      if (squad) {
+        box(ctx, x, y, 152, 33, C.navy, C.gold);
+        drawText(ctx, "\u0412\u042B\u0421\u041E\u0422\u0410 " + mtr + " \u041C", x + 6, y + 3, C.cream, 1, "left");
+        coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
+        drawText(ctx, "\u0421\u041E\u0411\u0420\u0410\u041D\u041E", x + 6, y + 12, C.cream, 1, "left");
+        coinsLabel(x + 146, y + 12, world.earnC || 0, "right");
+        rect(ctx, x + 6, y + 20, 140, 1, "#5a4a7a");
+        drawText(ctx, "+" + shownEarn + " \u2192 " + shownTot, LW / 2, y + 23, C.gold, 1, "center");
+        y += 35;
+      } else {
+        box(ctx, x, y, 152, 56, C.navy, C.gold);
+        drawText(ctx, "\u0412\u042B\u0421\u041E\u0422\u0410 " + mtr + " \u041C", x + 6, y + 4, C.cream, 1, "left");
+        coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
+        drawText(ctx, "\u0421\u041E\u0411\u0420\u0410\u041D\u041E", x + 6, y + 15, C.cream, 1, "left");
+        coinsLabel(x + 146, y + 15, world.earnC || 0, "right");
+        rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
+        drawText(ctx, "+" + shownEarn + " \u2192 " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
+        y += 60;
+      }
       if (world.net && typeof NET !== "undefined" && NET.drawEvening) y = NET.drawEvening(ctx, x, y);
       if (world.newBest) {
-        box(ctx, x, y, 152, 13, C.navy, C.gold);
-        drawText(ctx, "\u041D\u041E\u0412\u042B\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 \u041A\u0410\u0420\u0422\u042B " + rec + " \u041C", LW / 2, y + 3, C.gold, 1, "center");
-        y += 16;
+        var bh = squad ? 11 : 13;
+        box(ctx, x, y, 152, bh, C.navy, C.gold);
+        drawText(ctx, "\u041D\u041E\u0412\u042B\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 \u041A\u0410\u0420\u0422\u042B " + rec + " \u041C", LW / 2, y + (squad ? 2 : 3), C.gold, 1, "center");
+        y += bh + (squad ? 2 : 3);
       } else {
-        drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 \u041A\u0410\u0420\u0422\u042B " + rec + " \u041C", LW / 2, y + 2, C.cream, 1, "center");
-        y += 14;
+        drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 \u041A\u0410\u0420\u0422\u042B " + rec + " \u041C", LW / 2, y + (squad ? 1 : 2), C.cream, 1, "center");
+        y += squad ? 11 : 14;
       }
       var nh = nextHeroNeed();
       if (nh) {
         if (nh.left === 0) {
-          addHit("shop", x, y, 152, 22);
-          box(ctx, x, y, 152, 22, C.navy, C.mint);
-          drawText(ctx, "\u0425\u0412\u0410\u0422\u0410\u0415\u0422 \u041D\u0410 " + HTO[nh.i] + "!", LW / 2, y + 7, C.mint, 1, "center");
+          var nh1 = squad ? 15 : 22;
+          addHit("shop", x, y, 152, nh1);
+          box(ctx, x, y, 152, nh1, C.navy, C.mint);
+          drawText(ctx, "\u0425\u0412\u0410\u0422\u0410\u0415\u0422 \u041D\u0410 " + HTO[nh.i] + "!", LW / 2, y + (squad ? 4 : 7), C.mint, 1, "center");
         } else {
-          box(ctx, x, y, 152, 22, C.navy, C.coral);
-          drawText(ctx, "\u0414\u041E " + HTO[nh.i] + " \u041E\u0421\u0422\u0410\u041B\u041E\u0421\u042C \u25CF " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
+          var nh2 = squad ? 19 : 22;
+          box(ctx, x, y, 152, nh2, C.navy, C.coral);
+          drawText(ctx, "\u0414\u041E " + HTO[nh.i] + " \u041E\u0421\u0422\u0410\u041B\u041E\u0421\u042C \u25CF " + nh.left, LW / 2, y + (squad ? 2 : 3), C.cream, 1, "center");
           var runs = "\u0415\u0429\u0401 " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " \u0417\u0410\u0411\u0415\u0413\u0410";
-          drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
+          drawText(ctx, runs, LW / 2, y + (squad ? 10 : 12), C.gold, 1, "center");
         }
       }
       var lab = squad ? "\u0420\u0415\u0412\u0410\u041D\u0428 \u25B6" : "\u0415\u0429\u0401 \u0420\u0410\u0417 \u25B6";
