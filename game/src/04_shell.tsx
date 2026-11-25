@@ -606,16 +606,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     tags.sort(function (a: any, b: any) { return b.y - a.y; });
     for (i = 0; i < tags.length; i++) {
       var tg = tags[i];
-      tg.w = textWidth(tg.p.alive ? tg.p.name : "ВЫБЫЛ", 1) + 3;
+      var isMe = tg.p.id === 0;
+      var label = !tg.p.alive ? "ВЫБЫЛ" : isMe ? "▼" : (tg.p.name || "БОТ").slice(0, 3);
+      tg.w = textWidth(label, 1) + 4;
       for (var j = 0; j < i; j++) {
         var o = tags[j];
         if (Math.abs(o.x - tg.x) < (o.w + tg.w) / 2 + 1 && Math.abs(o.y - tg.y) < 10) tg.y = o.y - 10;
       }
       var lx = clamp(tg.x, tg.w / 2 + 1, LW - 12 - tg.w / 2);
-      ctx.globalAlpha = 0.72;
-      rect(ctx, Math.round(lx - tg.w / 2), tg.y, tg.w, 9, tg.p.alive ? (tg.p.id === 0 ? "#3a2a10" : C.navy) : "#4a1020");
-      ctx.globalAlpha = 0.92;
-      drawText(ctx, tg.p.alive ? tg.p.name : "ВЫБЫЛ", lx, tg.y + 1, tg.p.alive ? (tg.p.id === 0 ? C.gold : C.cream) : C.red, 1, "center");
+      ctx.globalAlpha = isMe ? 0.85 : 0.5;
+      if (!isMe) rect(ctx, Math.round(lx - tg.w / 2), tg.y, tg.w, 9, tg.p.alive ? C.navy : "#4a1020");
+      drawText(ctx, label, lx, tg.y + (isMe ? 2 : 1), tg.p.alive ? (isMe ? C.gold : C.cream) : C.red, 1, "center");
       ctx.globalAlpha = 1;
     }
     ctx.restore();
@@ -769,20 +770,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawAbIcon(H.ab, cx - 6, cy - 6);
     ctx.globalAlpha = 1;
     var lab = me.wall ? "ПРЫЖОК" : H.abName;
-    var chg = "", ic = H.charge;
-    if (ic === "time") chg = Math.round(f * 100) + "%";
-    else if (ic === "coins") chg = Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-    else if (ic === "height") chg = Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-    else chg = Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-    var tx = b.x + 28;
-    drawText(ctx, lab + ":", tx, b.y + 4, ready ? C.gold : C.cream, 1, "left");
-    var ix = tx + textWidth(lab + ": ", 1);
-    if (ic === "time") icoClock(ix, b.y + 13, C.cream);
-    else if (ic === "coins") drawCoin(ctx, ix, b.y + 14, ui);
-    else if (ic === "height") drawText(ctx, "↑", ix, b.y + 14, C.mint, 1, "left");
-    else icoSkull(ix, b.y + 13, C.cream);
-    var gap = ic === "height" ? 8 : 9;
-    drawText(ctx, chg, ix + gap, b.y + 14, ready ? C.gold : C.cream, 1, "left");
+    var ic = H.charge, chg = ic === "time" ? Math.round(f * 100) + "%" : Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
+    var tcol = ready ? C.gold : C.cream, ty = b.y + 9;
+    drawText(ctx, lab, b.x + 28, ty, tcol, 1, "left");
+    var rw = textWidth(chg, 1), rx = b.x + b.w - 6;
+    var ix = rx - rw - 9;
+    if (ic === "time") icoClock(ix, ty, tcol);
+    else if (ic === "coins") drawCoin(ctx, ix, ty + 1, ui);
+    else if (ic === "height") drawText(ctx, "↑", ix, ty, C.mint, 1, "left");
+    else icoSkull(ix, ty, tcol);
+    drawText(ctx, chg, rx, ty, tcol, 1, "right");
   }
   function whyText(p: any) {
     var m = metersOf(p), w = p.why || "";

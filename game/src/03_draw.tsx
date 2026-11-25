@@ -101,7 +101,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   if (map === "city" || map === "space") {
     var moonA = map === "space" ? 0.95 : 1 - clamp((m - 1200) / 600, 0, 1);
     if (moonA > 0) {
-      var mx = LW - 21, my = Math.round(6 + alt * 0.015); if (menu) my = Math.max(70, my);
+      var mx = LW - 21, my = Math.max(28, Math.round(6 + alt * 0.015)); if (menu) my = Math.max(70, my);
       ctx.globalAlpha = moonA;
       var mc = map === "space" ? "#a8d8ff" : "#f8e4a8", md = map === "space" ? "#78a8e0" : "#e0c078";
       rect(ctx, mx + 3, my, 10, 16, mc); rect(ctx, mx, my + 3, 16, 10, mc); rect(ctx, mx + 1, my + 1, 14, 14, mc);
