@@ -23,6 +23,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
   var hits: any[] = [];
   var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, lastBackdropMap = "";
+  var fieldLocked = false, landPause = false;
   var pressId: any = null;
   var confirmId: any = null, confirmAt = 0;
   var campCard = -1;
@@ -43,48 +44,86 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (mapId === lastBackdropMap) return;
     lastBackdropMap = mapId || "";
     var cols = skyAt(mapId, 0);
-    wrap.style.background = "radial-gradient(circle at 50% 42%, " + mixHex(cols[1], "#0c0818", 0.55) + " 0%, " + mixHex(cols[0], "#080614", 0.72) + " 62%, #070510 100%)";
+    wrap.style.background = "linear-gradient(" + cols[0] + " 0%, " + cols[1] + " 50%, " + cols[2] + " 100%)";
+  }
+  function viewSize() {
+    var vv = window.visualViewport;
+    if (vv && vv.width > 0 && vv.height > 0) return { w: vv.width, h: vv.height, x: vv.offsetLeft || 0, y: vv.offsetTop || 0 };
+    var r = (wrap || canvas).getBoundingClientRect();
+    return { w: Math.max(1, r.width), h: Math.max(1, r.height), x: 0, y: 0 };
   }
   function resize() {
-    var r = (wrap || canvas).getBoundingClientRect();
-    var cssW = Math.max(1, r.width), cssH = Math.max(1, r.height);
+    var vs = viewSize();
+    var cssW = Math.max(1, vs.w), cssH = Math.max(1, vs.h);
     var dpr = Math.max(1, window.devicePixelRatio || 1);
     isWide = cssW >= 540;
-    var padX = isWide ? 24 : 0;
-    var padY = isWide ? (cssH >= 740 ? 16 : 4) : 0;
-    var availW = Math.max(160, cssW - padX * 2);
-    var availH = Math.max(240, cssH - padY * 2);
+    var frameX = isWide ? 24 : 0;
+    var frameY = isWide ? (cssH >= 740 ? 16 : 4) : 0;
+    var availW = Math.max(160, cssW - frameX * 2);
+    var availH = Math.max(240, cssH - frameY * 2);
     var lw = netFixedLW() || 160;
     var lh = 346;
-    pScale = Math.max(1, Math.min(Math.floor((availW * dpr) / lw), Math.floor((availH * dpr) / lh)));
-    if (!isWide && (lh * pScale) / dpr < availH * 0.85) {
-      pScale = Math.max(1, Math.floor((availW * dpr) / lw));
-      lh = Math.max(280, Math.min(346, Math.floor((availH * dpr) / pScale)));
-    }
-    cssScale = pScale / dpr;
-    netLW = netFixedLW();
-    LW = lw; LH = lh; SCALE = cssScale;
-    canvas.width = LW * pScale;
-    canvas.height = LH * pScale;
-    canvas.style.width = (LW * cssScale) + "px";
-    canvas.style.height = (LH * cssScale) + "px";
-    canvas.style.imageRendering = "pixelated";
+    if (fieldLocked) { lw = LW; lh = LH; }
+    var sx: number, sy: number, cssWpx: number, cssHpx: number;
     if (isWide) {
+      pScale = Math.max(1, Math.min(Math.floor((availW * dpr) / lw), Math.floor((availH * dpr) / lh)));
+      cssScale = pScale / dpr;
+      sx = sy = pScale;
+      canvas.width = lw * pScale;
+      canvas.height = lh * pScale;
+      cssWpx = lw * cssScale;
+      cssHpx = lh * cssScale;
+      canvas.style.position = "";
+      canvas.style.left = "";
+      canvas.style.top = "";
       canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
       canvas.style.borderRadius = "4px";
     } else {
+      /* Fractional nearest-neighbor scale so 160×346 fills the short side. Side pads continue the map sky. */
+      cssScale = Math.min(availW / lw, availH / lh);
+      VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+      cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+      cssHpx = lh * cssScale;
+      var pxW = Math.max(1, Math.round(cssWpx * dpr));
+      var pxH = Math.max(1, Math.round(cssHpx * dpr));
+      canvas.width = pxW;
+      canvas.height = pxH;
+      var worldW = lw + 2 * VIEW_PAD;
+      pScale = pxW / worldW;
+      sx = pxW / worldW;
+      sy = pxH / lh;
+      canvas.style.position = "absolute";
+      canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
+      canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
       canvas.style.boxShadow = "none";
       canvas.style.borderRadius = "0px";
     }
+    if (isWide) VIEW_PAD = 0;
+    netLW = netFixedLW();
+    LW = lw; LH = lh; SCALE = cssScale;
+    canvas.style.width = cssWpx + "px";
+    canvas.style.height = cssHpx + "px";
+    canvas.style.imageRendering = "pixelated";
     var hintEl = document.getElementById("desk-hint");
     if (hintEl) hintEl.style.display = (isWide && (cssH - LH * cssScale) >= 34) ? "block" : "none";
-    ctx.setTransform(pScale, 0, 0, pScale, 0, 0);
+    ctx.setTransform(sx, 0, 0, sy, VIEW_PAD * sx, 0);
     ctx.imageSmoothingEnabled = false;
+    (ctx as any).webkitImageSmoothingEnabled = false;
     syncBackdrop(world ? world.map : save.bg);
+    if (fieldLocked && phase === "play" && !paused && !isWide && cssW > cssH) {
+      paused = true; landPause = true; acc = 0; uiAcc = 0; lastT = -1;
+    }
   }
   function toLogic(cx: number, cy: number) {
     var r = canvas.getBoundingClientRect();
-    return { x: ((cx - r.left) / r.width) * LW, y: ((cy - r.top) / r.height) * LH };
+    var rw = r.width || 1, rh = r.height || 1;
+    var x = (cx - r.left) / rw * (LW + 2 * VIEW_PAD) - VIEW_PAD;
+    var y = (cy - r.top) / rh * LH;
+    if (phase === "play" && cy >= r.top && cy <= r.bottom && (cx < r.left || cx > r.right)) {
+      x = cx < r.left ? 0 : LW;
+      y = Math.max(0, Math.min(LH, y));
+    }
+    return { x: x, y: y };
   }
   function colX() { return Math.round((LW - 152) / 2); }
   function lookNow() { return makeLook(save.char, save.color, save.hat); }
@@ -156,7 +195,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.goalM = MAPS[mi].goal || 0;
     phase = "play";
     paused = false;
-    acc = 0;
+    landPause = false;
+    fieldLocked = true;
+    acc = 0; uiAcc = 0; lastT = -1;
     held.left = held.right = false;
     pointers = {}; abTap = false; pressId = null;
     try { canvas.focus(); } catch (_e) {}
@@ -178,7 +219,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.best = save.best;
     writeSave(save);
   }
-  function goMenu() { phase = "menu"; world = null; showSet = false; campCard = -1; paused = false; }
+  function goMenu() { phase = "menu"; world = null; showSet = false; campCard = -1; paused = false; landPause = false; fieldLocked = false; resize(); }
 
   function shopTap(key: string) {
     if (key.indexOf("char:") !== 0) return;
@@ -217,7 +258,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (id === "menu") { goMenu(); return; }
     if (id === "back") { showSet = false; campCard = -1; phase = "menu"; return; }
     if (id === "go") { startSquad(); return; }
-    if (id === "resume") { paused = false; acc = 0; uiAcc = 0; lastT = -1; return; }
+    if (id === "pause") { if (phase === "play" && !paused) { paused = true; acc = 0; uiAcc = 0; lastT = -1; } return; }
+    if (id === "resume") { paused = false; landPause = false; acc = 0; uiAcc = 0; lastT = -1; return; }
     if (id === "font") { phase = "font"; return; }
     if (id === "rematch") {
       if (mode === "squad") { room.round = (room.round || 0) + 1; startSquad((((Date.now() + room.round * 40503) >>> 0))); }
@@ -284,12 +326,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function onPtrDown(e: any) {
     e.preventDefault();
     try { canvas.focus(); } catch (_e) {}
+    try { if (e.pointerId != null) (e.currentTarget || ptrRoot).setPointerCapture(e.pointerId); } catch (_e) {}
     var loc = toLogic(e.clientX, e.clientY);
     var id = hitAt(loc.x, loc.y);
     pressId = id;
     if (phase !== "play") return;
     if (paused) return;
-    if (id === "ab") return;
+    if (id === "ab" || id === "pause") return;
     pointers[e.pointerId != null ? e.pointerId : 1] = { x: loc.x, y: loc.y, sx: loc.x, sy: loc.y };
     recomputeHold();
   }
@@ -308,6 +351,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var id = hitAt(loc.x, loc.y);
     if (phase === "play") {
       if (paused) { if (id === "resume" || id === "menu") activate(id); }
+      else if (id === "pause" && pressId === "pause") activate("pause");
       else if (id === "ab" && pressId === "ab") abTap = true;
       delete pointers[e.pointerId != null ? e.pointerId : 1];
       recomputeHold();
@@ -382,13 +426,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawMenu() {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
-    rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.14)");
+    dimView(ctx, "rgba(18,14,44,0.14)");
     var x = colX();
     box(ctx, x + 6, 10, 122, 28, C.navy, C.cream);
     drawText(ctx, "ХОППАК", x + 67, 15, C.coral, 3, "center");
     drawText(ctx, "ХОППАК", x + 66, 14, C.cream, 3, "center");
     gear(x + 134, 8);
-    drawText(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 42, C.cream, 1, "center");
+    drawText(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 39, C.cream, 1, "center");
     plaque();
     var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + b + "/" + M.goal + " М") : (M.name + " · " + b + " М");
@@ -445,7 +489,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawShop() {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
-    rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.32)");
+    dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
     header("МАГАЗИН", 2);
     coinsLabel(LW - 6, 12, save.coins, "right");
@@ -493,7 +537,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawCamp() {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
-    rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.34)");
+    dimView(ctx, "rgba(18,14,44,0.34)");
     var x = colX();
     header("КАМПАНИЯ", 2);
     coinsLabel(LW - 6, 12, save.coins, "right");
@@ -530,7 +574,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawCampCard() {
     var i = campCard, M = MAPS[i], open = mapOpen(i), can = !open && mapGoalMet(i);
     var x = colX(), y = Math.round(LH / 2 - 70);
-    rect(ctx, 0, 0, LW, LH, "rgba(8,6,20,0.55)");
+    dimView(ctx, "rgba(8,6,20,0.55)");
     box(ctx, x, y, 152, 140, C.navy, open ? C.gold : can ? C.mint : C.cream);
     drawBgSwatch(x + 8, y + 8, 36, 28, M.id);
     drawText(ctx, M.name, x + 50, y + 10, C.cream, 2, "left");
@@ -551,7 +595,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawLobby() { /* UI only: bot lobby now, online room UI can hook here later */
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
-    rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.32)");
+    dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
     header("ЗАБЕГ С БОТАМИ", 1);
     var ps = lobbyNames();
@@ -657,13 +701,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, label, LW / 2, 9, C.cream, 1, "center");
     box(ctx, 4, 6, textWidth(String(w.runCoins), 1) + 15, 13, C.navy, C.gold);
     coinsLabel(7, 9, w.runCoins);
+    var wantPause = wantTouchPause();
     if (w.mode === "squad") {
       var place = 1;
       for (i = 0; i < w.players.length; i++) if (w.players[i] !== me && metersOf(w.players[i]) > metersOf(me)) place++;
       var pl = place + "/" + w.players.length;
       var pw2 = textWidth(pl, 1) + 8;
-      box(ctx, LW - pw2 - 4, 6, pw2, 13, C.navy, C.cream);
-      drawText(ctx, pl, LW - 8, 9, C.cream, 1, "right");
+      var pr = wantPause ? LW - 22 : LW - 4;
+      box(ctx, pr - pw2, 6, pw2, 13, C.navy, C.cream);
+      drawText(ctx, pl, pr - 4, 9, C.cream, 1, "right");
+    }
+    if (wantPause) {
+      addHit("pause", LW - 20, 4, 16, 16);
+      box(ctx, LW - 20, 4, 16, 16, pressId === "pause" ? "#3a4a7a" : C.navy, C.cream);
+      rect(ctx, LW - 15, 8, 2, 8, C.cream);
+      rect(ctx, LW - 11, 8, 2, 8, C.cream);
     }
     drawBonusHud(me);
     drawAbBar(me);
@@ -682,10 +734,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.globalAlpha = 1;
     }
     if (paused) {
-      rect(ctx, 0, 0, LW, LH, "rgba(8,6,20,0.55)");
-      box(ctx, colX(), LH / 2 - 36, 152, 72, C.navy, C.gold);
-      drawText(ctx, "ПАУЗА", LW / 2, LH / 2 - 24, C.gold, 2, "center");
-      btn("resume", colX() + 10, LH / 2 + 2, 132, 24, C.mint, "ПРОДОЛЖИТЬ", INK);
+      dimView(ctx, "rgba(8,6,20,0.55)");
+      box(ctx, colX(), LH / 2 - 48, 152, 100, C.navy, C.gold);
+      drawText(ctx, "ПАУЗА", LW / 2, LH / 2 - 38, C.gold, 2, "center");
+      if (landPause) drawText(ctx, "ПОВЕРНИ ТЕЛЕФОН", LW / 2, LH / 2 - 16, C.cream, 1, "center");
+      btn("resume", colX() + 10, LH / 2 - (landPause ? 4 : 8), 132, 22, C.mint, "ПРОДОЛЖИТЬ", INK);
+      btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "МЕНЮ");
     }
   }
   function drawFxBack(p: any, sy: number, cam: number) {
@@ -816,9 +870,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (w === "shot") return "СБИЛ ВЫСТРЕЛ НА " + m + " М";
     if (w === "hole") return "ЗАТЯНУЛА ДЫРА НА " + m + " М";
     if (w.indexOf("mob:") === 0) {
-      var nm = (MOBS[w.slice(4)] || {}).name || "МОБ";
-      var fem = /А$|Я$|Ь$|ЛЬ$/.test(nm) && nm !== "КРАБ";
-      return (fem ? "СБИЛА " : "СБИЛ ") + nm + " НА " + m + " М";
+      var mo = MOBS[w.slice(4)] || {};
+      var nm = mo.name || "МОБ";
+      return ((mo.g === "f") ? "СБИЛА " : "СБИЛ ") + nm + " НА " + m + " М";
     }
     return w ? w + " " + m + " М" : "";
   }
@@ -829,7 +883,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawResults() {
     hits = [];
     drawBg(ctx, world.cameraY, ui, world.map);
-    rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.36)");
+    dimView(ctx, "rgba(18,14,44,0.36)");
     var x = colX();
     header("ИТОГИ", 2);
     var list = world.players.slice().sort(function (a: any, b: any) { return a.place - b.place; });
@@ -893,7 +947,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawFontSheet() {
     hits = [];
-    rect(ctx, 0, 0, LW, LH, "#120c28");
+    dimView(ctx, "#120c28");
     drawText(ctx, "ШРИФТ", LW / 2, 6, C.gold, 2, "center");
     var words = ["НИНДЗЯ", "МЕНЮ", "КОСМОЩИТ", "ЗАРЯД 40%", "КУПИТЬ ● 80", "ДОЙДИ ДО ЦЕЛИ →", "ИГРАТЬ ▶", "ЕЩЁ РАЗ ▶", "С БОТАМИ", "✓ ЦЕЛЬ 500 М"];
     for (var i = 0; i < words.length; i++) drawText(ctx, words[i], 6, 28 + i * 12, C.cream, 1, "left");
@@ -912,7 +966,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     lastT = now;
     uiAcc += dt;
     var uSteps = 0;
-    while (uiAcc >= UI_STEP && uSteps < 5) {
+    while (uiAcc + 1e-9 >= UI_STEP && uSteps < 5) {
       ui++;
       if (flashT > 0) flashT--;
       uiAcc -= UI_STEP;
@@ -923,7 +977,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       acc += dt;
       var steps = 0;
       if (world.net && NET.waiting && NET.waiting(world)) acc = 0;
-      while (acc >= STEP && steps < 5) {
+      while (acc + 1e-9 >= STEP && steps < 5) {
         tickWorld(world, collectInputs());
         acc -= STEP;
         steps++;
@@ -948,7 +1002,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   /* net: what the online module may use from the shell */
   var netApi: any = {
     ctx: ctx, btn: btn, header: header, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned,
-    bg: function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.32)"); },
+    bg: function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
     setPhase: function (p: string) { phase = p; }, goMenu: goMenu,
@@ -960,17 +1014,23 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     acc = 0; uiAcc = 0; lastT = -1;
     if (document.hidden && phase === "play") paused = true;
   }
+  function wantTouchPause() {
+    if (!isWide) return true;
+    try { return !!(navigator && navigator.maxTouchPoints); } catch (_e) { return false; }
+  }
+  var ptrRoot: any = wrap || canvas;
   resize();
   window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", resize);
   if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
   var onCtx = function (e: any) { e.preventDefault(); };
   var onKD = function (e: any) { onKey(e, true); };
   var onKU = function (e: any) { onKey(e, false); };
   var noScroll = function (e: any) { e.preventDefault(); };
-  canvas.addEventListener("pointerdown", onPtrDown);
-  canvas.addEventListener("pointermove", onPtrMove);
-  canvas.addEventListener("pointerup", onPtrUp);
-  canvas.addEventListener("pointercancel", onPtrUp);
+  ptrRoot.addEventListener("pointerdown", onPtrDown);
+  ptrRoot.addEventListener("pointermove", onPtrMove);
+  ptrRoot.addEventListener("pointerup", onPtrUp);
+  ptrRoot.addEventListener("pointercancel", onPtrUp);
   canvas.addEventListener("contextmenu", onCtx);
   window.addEventListener("keydown", onKD);
   window.addEventListener("keyup", onKU);
@@ -981,6 +1041,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   document.addEventListener("selectstart", noScroll);
   document.addEventListener("dragstart", noScroll);
   canvas.addEventListener("touchstart", noScroll, { passive: false });
+  if (ptrRoot !== canvas) ptrRoot.addEventListener("touchstart", noScroll, { passive: false });
   raf = requestAnimationFrame(frame);
 
   return {
@@ -988,11 +1049,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       running = false;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
+      window.removeEventListener("orientationchange", resize);
       if (window.visualViewport) window.visualViewport.removeEventListener("resize", resize);
-      canvas.removeEventListener("pointerdown", onPtrDown);
-      canvas.removeEventListener("pointermove", onPtrMove);
-      canvas.removeEventListener("pointerup", onPtrUp);
-      canvas.removeEventListener("pointercancel", onPtrUp);
+      ptrRoot.removeEventListener("pointerdown", onPtrDown);
+      ptrRoot.removeEventListener("pointermove", onPtrMove);
+      ptrRoot.removeEventListener("pointerup", onPtrUp);
+      ptrRoot.removeEventListener("pointercancel", onPtrUp);
+      if (ptrRoot !== canvas) ptrRoot.removeEventListener("touchstart", noScroll);
       canvas.removeEventListener("contextmenu", onCtx);
       window.removeEventListener("keydown", onKD);
       window.removeEventListener("keyup", onKU);
@@ -1008,7 +1071,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, cw: canvas.width, ch: canvas.height }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },

@@ -6,6 +6,10 @@ type Ctx = CanvasRenderingContext2D;
 
 var LW = 160;
 var LH = 346;
+var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
+function viewX0() { return -VIEW_PAD; }
+function viewW() { return LW + VIEW_PAD * 2; }
+function dimView(ctx: Ctx, col: string) { rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col); }
 var PX_PER_M = 8;
 var PW = 12;
 var PH = 16;
@@ -20,8 +24,8 @@ var TURN_ACCEL = 0.24;
 var AIR_FRIC = 0.91;
 var ICE_FRIC = 0.975;
 var STEP = 1 / 50; /* slowed in v0.1.1, keep */
-var ROW_SEP = 22; /* min vertical distance between platform rows */
-var GAP_CAP = Math.floor(JUMP_H - 18); /* hard max gap, ~63 px: always reachable with margin */
+var ROW_SEP = 28; /* min vertical distance between platform rows */
+var GAP_CAP = Math.floor(JUMP_H - 6); /* hard max gap, ~75 px: still one-jump reachable */
 var X_SEP = 10; /* min horizontal gap between platforms of one row */
 var INK = "#0c0818";
 
@@ -214,29 +218,29 @@ var MAPS: any[] = [
 ];
 /* mob kinds. b = behaviour; plat = stands on a platform; gap = min vertical gap (px) it needs */
 var MOBS: any = {
-  blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.22, name: "СЛИЗЕНЬ" },
-  magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, name: "ЛАВОСЛИЗЬ" },
-  penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, name: "ПИНГВИН" },
-  crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, name: "КРАБ" },
-  alien: { b: "walk", w: 12, h: 9, gap: 0, plat: true, sp: 0.3, name: "ПРИШЕЛЕЦ" },
-  frog: { b: "hop", w: 12, h: 8, gap: 31, plat: true, name: "ЛЯГУШКА" },
-  monkey: { b: "throw", w: 12, h: 11, gap: 0, plat: true, name: "ОБЕЗЬЯНА" },
-  spitter: { b: "spit", w: 12, h: 10, gap: 0, plat: true, name: "ПЛЕВУН" },
-  bat: { b: "fly", w: 14, h: 10, gap: 34, name: "МЫШЬ" },
-  parrot: { b: "fly", w: 14, h: 10, gap: 38, dive: true, name: "ПОПУГАЙ" },
-  owl: { b: "fly", w: 14, h: 10, gap: 34, name: "СОВА" },
-  firebat: { b: "fly", w: 14, h: 10, gap: 34, name: "ОГНЕМЫШЬ" },
-  ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, name: "СКАТ" },
-  bob: { b: "sway", w: 12, h: 12, gap: 34, name: "МЕДУЗА" },
-  ember: { b: "sway", w: 12, h: 12, gap: 34, name: "ОГНЕШАР" },
-  snake: { b: "snake", w: 10, h: 8, gap: 38, name: "ЗМЕЯ-ЛИАНА" },
-  puffer: { b: "puff", w: 12, h: 12, gap: 40, name: "РЫБА-ЁЖ" },
-  hole: { b: "pull", w: 14, h: 14, gap: 44, name: "ЧЁРНАЯ ДЫРА" },
-  whirl: { b: "pull", w: 14, h: 14, gap: 44, name: "ВОДОВОРОТ" },
-  wind: { b: "wind", w: 24, h: 10, gap: 40, name: "ВЬЮГА" },
-  ufo: { b: "shoot", w: 14, h: 8, gap: 34, name: "НЛО" },
-  frost: { b: "shoot", w: 12, h: 12, gap: 38, freeze: true, name: "ЛЕДЯНОЙ ДУХ" },
-  comet: { b: "comet", w: 12, h: 8, gap: 34, name: "КОМЕТА" }
+  blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.22, name: "СЛИЗЕНЬ", g: "m" },
+  magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, name: "ЛАВОСЛИЗЬ", g: "f" },
+  penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, name: "ПИНГВИН", g: "m" },
+  crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, name: "КРАБ", g: "m" },
+  alien: { b: "walk", w: 12, h: 9, gap: 0, plat: true, sp: 0.3, name: "ПРИШЕЛЕЦ", g: "m" },
+  frog: { b: "hop", w: 12, h: 8, gap: 31, plat: true, name: "ЛЯГУШКА", g: "f" },
+  monkey: { b: "throw", w: 12, h: 11, gap: 0, plat: true, name: "ОБЕЗЬЯНА", g: "f" },
+  spitter: { b: "spit", w: 12, h: 10, gap: 0, plat: true, name: "ПЛЕВУН", g: "m" },
+  bat: { b: "fly", w: 14, h: 10, gap: 34, name: "МЫШЬ", g: "f" },
+  parrot: { b: "fly", w: 14, h: 10, gap: 38, dive: true, name: "ПОПУГАЙ", g: "m" },
+  owl: { b: "fly", w: 14, h: 10, gap: 34, name: "СОВА", g: "f" },
+  firebat: { b: "fly", w: 14, h: 10, gap: 34, name: "ОГНЕМЫШЬ", g: "f" },
+  ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, name: "СКАТ", g: "m" },
+  bob: { b: "sway", w: 12, h: 12, gap: 34, name: "МЕДУЗА", g: "f" },
+  ember: { b: "sway", w: 12, h: 12, gap: 34, name: "ОГНЕШАР", g: "m" },
+  snake: { b: "snake", w: 10, h: 8, gap: 38, name: "ЗМЕЯ-ЛИАНА", g: "f" },
+  puffer: { b: "puff", w: 12, h: 12, gap: 40, name: "РЫБА-ЁЖ", g: "f" },
+  hole: { b: "pull", w: 14, h: 14, gap: 44, name: "ЧЁРНАЯ ДЫРА", g: "f" },
+  whirl: { b: "pull", w: 14, h: 14, gap: 44, name: "ВОДОВОРОТ", g: "m" },
+  wind: { b: "wind", w: 24, h: 10, gap: 40, name: "ВЬЮГА", g: "f" },
+  ufo: { b: "shoot", w: 14, h: 8, gap: 34, name: "НЛО", g: "m" },
+  frost: { b: "shoot", w: 12, h: 12, gap: 38, freeze: true, name: "ЛЕДЯНОЙ ДУХ", g: "m" },
+  comet: { b: "comet", w: 12, h: 8, gap: 34, name: "КОМЕТА", g: "f" }
 };
 
 var FONT: any = {

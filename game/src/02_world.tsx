@@ -28,7 +28,7 @@ function mkMob(kind: string, x: number, y: number, d: number, extra: any) {
 function platAlive(w: any, pl: any) {
   return !!(pl && !pl.broken && w.platforms.indexOf(pl) >= 0);
 }
-function hangTop(pl: any) { return pl.y + 6; }
+function hangTop(pl: any) { return pl.y + 5; }
 function spaceBelow(w: any, pl: any, x: number, ww: number) {
   var best = 1e9;
   for (var i = 0; i < w.platforms.length; i++) {
@@ -189,7 +189,7 @@ function genRow(w: any) {
   var spec = mapInfo(w.map).special;
   var row: any[] = [];
   var rowId = w.rowN++;
-  var moveP = m > 80 ? lerp(0.08, 0.34, d) : 0;
+  var moveP = m > 40 ? lerp(0.14, 0.45, d) : 0;
   var isMove = w.lastKind !== "move" && r() < moveP;
   if (isMove) {
     var mw = Math.round(lerp(40, 26, d));
@@ -199,13 +199,14 @@ function genRow(w: any) {
     row.push(mp);
   } else {
     var n: number;
-    if (m < 600) n = r() < 0.4 ? 3 : 2;
+    if (m < 250) n = r() < 0.18 ? 3 : (r() < 0.22 ? 1 : 2);
+    else if (m < 600) n = r() < 0.08 ? 3 : (r() < 0.45 ? 1 : 2);
     else {
-      n = r() < lerp(0.95, 0.15, (d - 0.28) / 0.72) ? 2 : 1;
-      if (n === 2 && m < 1200 && r() < 0.15) n = 3;
+      n = r() < lerp(0.62, 0.12, (d - 0.28) / 0.72) ? 2 : 1;
+      if (n === 2 && m < 900 && r() < 0.06) n = 3;
     }
     var wmin = Math.round(lerp(42, 24, d)), wmax = Math.round(lerp(54, 32, d));
-    var breakP = m > 200 ? lerp(0.04, 0.5, d) : 0;
+    var breakP = m > 80 ? lerp(0.10, 0.58, d) : 0;
     for (var i = 0; i < n; i++) {
       var pw = randInt(r, wmin, wmax);
       var x = findX(r, pw, row);
@@ -249,8 +250,10 @@ function genRow(w: any) {
   w.lastKind = isMove ? "move" : "static";
   for (var j = 0; j < row.length; j++) w.platforms.push(row[j]);
 
-  var minG = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.28, 0.56, d)));
-  var maxG = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.44, 0.77, d)));
+  /* Gap vs height, not the slow difficulty() ramp: otherwise first 600 m barely widens. */
+  var gT = clamp(m / 700, 0, 1);
+  var minG = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
+  var maxG = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
   if (minG > maxG) minG = maxG;
   var gap = randInt(r, minG, maxG);
 
@@ -780,13 +783,21 @@ function tickWorld(w: any, inputs: any) {
     }
     var dir = inp.dir || 0;
     if (p.freezeT > 0) { dir = 0; p.vx *= 0.9; }
-    else if (inp.ax) {
-      p.vx = lerp(p.vx, MAX_VX * clamp(inp.ax, -1, 1), 0.22);
-      dir = inp.ax < -0.12 ? -1 : inp.ax > 0.12 ? 1 : 0;
-    } else if (dir) {
-      var acc = dir * p.vx < 0 ? TURN_ACCEL : ACCEL;
+    else if (inp.ax || dir) {
+      /* Touch, keys and tilt share one accel / cap path so left/right and devices match. */
       var cap = p.iceT > 0 ? MAX_VX * 1.15 : MAX_VX;
-      p.vx = clamp(p.vx + dir * acc, -cap, cap);
+      var target: number;
+      if (inp.ax) {
+        target = cap * clamp(inp.ax, -1, 1);
+        dir = inp.ax < -0.12 ? -1 : inp.ax > 0.12 ? 1 : 0;
+      } else {
+        target = dir * cap;
+      }
+      var want = target - p.vx;
+      var acc = (target * p.vx < 0) ? TURN_ACCEL : ACCEL;
+      if (Math.abs(want) <= acc) p.vx = target;
+      else p.vx += (want < 0 ? -1 : 1) * acc;
+      p.vx = clamp(p.vx, -cap, cap);
     } else {
       p.vx *= p.iceT > 0 ? ICE_FRIC : AIR_FRIC;
       if (Math.abs(p.vx) < 0.04) p.vx = 0;
@@ -905,7 +916,7 @@ function tickWorld(w: any, inputs: any) {
   if (minCam < 1e9) generateUntil(w, minCam - 80);
   for (i = 0; i < w.players.length; i++) {
     var ep = w.players[i];
-    if (ep.alive && !ep.remote && w.tick > 150 && ep.y > ep.camY + LH + 6) {
+    if (ep.alive && !ep.remote && w.tick > 80 && ep.y > ep.camY + LH) {
       if (ep.domeT > 0 && ep.domeSave) { ep.domeSave = false; ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; ep.invT = 40; spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2); if (ep.id === 0) toast(w, "КОСМОЩИТ СПАС!"); }
       else killPlayer(w, ep, "fall");
     }

@@ -30,8 +30,8 @@ function drawCloud(ctx: Ctx, x: number, y: number, s: number, col: string, hl: s
   rect(ctx, x + 2 * s, y + 7 * s, 22 * s, s, sh);
 }
 function drawBuildings(ctx: Ctx, baseY: number, seed: number, far: boolean, tick: number) {
-  var x = -4, i = 0;
-  while (x < LW) {
+  var x = viewX0() - 4, i = 0;
+  while (x < LW + VIEW_PAD) {
     var bw = (far ? 10 : 14) + Math.floor(hash(seed + i) * (far ? 8 : 10));
     var bh = (far ? 22 : 30) + Math.floor(hash(seed + i * 3.1) * (far ? 30 : 34));
     var top = Math.round(baseY - bh);
@@ -55,8 +55,8 @@ function drawBuildings(ctx: Ctx, baseY: number, seed: number, far: boolean, tick
   }
 }
 function drawPeaks(ctx: Ctx, baseY: number, seed: number, col: string, capCol: string, far: boolean) {
-  var x = -8, i = 0;
-  while (x < LW + 8) {
+  var x = viewX0() - 8, i = 0;
+  while (x < LW + VIEW_PAD + 8) {
     var w = (far ? 22 : 28) + Math.floor(hash(seed + i) * 14);
     var h = (far ? 26 : 36) + Math.floor(hash(seed + i * 2.3) * 26);
     for (var r = 0; r < h; r += 2) {
@@ -78,15 +78,15 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     var t = i / (bands - 1);
     var col = t < 0.5 ? mixHex(sky[0], sky[1], t / 0.5) : mixHex(sky[1], sky[2], (t - 0.5) / 0.5);
     var y0 = Math.round((LH * i) / bands), y1 = Math.round((LH * (i + 1)) / bands);
-    rect(ctx, 0, y0, LW, y1 - y0, col);
-    if (i > 0) { ctx.fillStyle = col; for (var dx = (i % 2) * 2; dx < LW; dx += 4) ctx.fillRect(dx, y0 - 1, 2, 1); }
+    rect(ctx, viewX0(), y0, viewW(), y1 - y0, col);
+    if (i > 0) { ctx.fillStyle = col; for (var dx = viewX0() + (i % 2) * 2; dx < LW + VIEW_PAD; dx += 4) ctx.fillRect(dx, y0 - 1, 2, 1); }
   }
   /* stars / plankton / embers */
   if (map === "city" || map === "space" || map === "ice" || (map === "jungle" && m > 500)) {
     var starA = map === "space" ? 0.9 : clamp(0.55 + m / 2200, 0.55, 1);
     var nStars = map === "space" ? 68 : Math.round(lerp(28, 72, clamp(m / 2500, 0, 1)));
     for (i = 0; i < nStars; i++) {
-      var sx = Math.floor(hash(i) * LW);
+      var sx = Math.floor(hash(i) * viewW()) + viewX0();
       var sy = mod(Math.floor(hash(i + 50) * (LH + 40)) + alt * (0.04 + hash(i + 90) * 0.05), LH + 40) - 20;
       if (map !== "space" && m < 300 && sy > LH * 0.65) continue;
       var tw = (Math.floor(tick / 14) + i) % 9 === 0;
@@ -121,7 +121,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     var acs = map === "ice" ? ["#72ffdc", "#7cd8ff", "#f288ff"] : ["#6af8c0", "#6ed4ff", "#f080e8"];
     for (k = 0; k < 3; k++) {
       ctx.globalAlpha = 0.42 * aur;
-      for (var ax = 0; ax < LW; ax += 2) {
+      for (var ax = viewX0(); ax < LW + VIEW_PAD; ax += 2) {
         var ay = 46 + k * 16 + Math.sin(ax * 0.045 + tick * 0.012 + k * 1.7) * 9 + Math.sin(ax * 0.11 + k) * 3;
         rect(ctx, ax, ay, 2, 7 - k, acs[k]);
       }
@@ -238,24 +238,24 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   var roofY = Math.round(-camY);
   if (roofY < LH && roofY > -40) {
     if (map === "jungle") {
-      rect(ctx, 0, roofY + 3, LW, LH, "#2a4e36"); rect(ctx, 0, roofY + 3, LW, 2, "#62d458");
+      rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#2a4e36"); rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#62d458");
       for (var tx = 6; tx < LW; tx += 22) { rect(ctx, tx, roofY + 8, 12, 8, "#3a6848"); rect(ctx, tx + 2, roofY + 10, 4, 2, "#80e870"); }
     } else if (map === "ice") {
-      rect(ctx, 0, roofY + 3, LW, LH, "#6eb8e8"); rect(ctx, 0, roofY + 3, LW, 3, "#e8fbff");
+      rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#6eb8e8"); rect(ctx, viewX0(), roofY + 3, viewW(), 3, "#e8fbff");
       for (tx = 8; tx < LW; tx += 18) rect(ctx, tx, roofY + 10, 8, 4, "#9cd8fa");
     } else if (map === "lava") {
-      rect(ctx, 0, roofY + 3, LW, LH, "#3a202c"); rect(ctx, 0, roofY + 3, LW, 2, "#ff7c30");
+      rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#3a202c"); rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#ff7c30");
       for (tx = 10; tx < LW; tx += 26) rect(ctx, tx, roofY + 11, 10, 2, "#ff5820");
     } else if (map === "aqua") {
-      rect(ctx, 0, roofY + 3, LW, LH, "#d8b46c"); rect(ctx, 0, roofY + 3, LW, 2, "#ffe49c");
+      rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#d8b46c"); rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#ffe49c");
       for (tx = 10; tx < LW; tx += 28) { rect(ctx, tx, roofY - 4, 2, 7, "#ff70a0"); rect(ctx, tx - 2, roofY - 2, 2, 3, "#ff70a0"); rect(ctx, tx + 8, roofY - 5, 2, 8, "#48e090"); }
     } else if (map === "space") {
-      rect(ctx, 0, roofY + 3, LW, LH, "#343264"); rect(ctx, 0, roofY + 3, LW, 2, "#78f0ff");
+      rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#343264"); rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#78f0ff");
       for (tx = 12; tx < LW; tx += 24) rect(ctx, tx, roofY + 10, 8, 3, "#6058a4");
     } else {
-      rect(ctx, 0, roofY + 3, LW, LH, C.brick);
-      for (var ty = roofY + 7; ty < LH; ty += 6) for (tx = 0; tx < LW; tx += 8) rect(ctx, tx + (((ty - roofY) / 6) % 2 ? 4 : 0), ty, 3, 1, C.brickL);
-      rect(ctx, 0, roofY + 3, LW, 2, C.roof);
+      rect(ctx, viewX0(), roofY + 3, viewW(), LH, C.brick);
+      for (var ty = roofY + 7; ty < LH; ty += 6) for (tx = viewX0(); tx < LW + VIEW_PAD; tx += 8) rect(ctx, tx + (((ty - roofY) / 6) % 2 ? 4 : 0), ty, 3, 1, C.brickL);
+      rect(ctx, viewX0(), roofY + 3, viewW(), 2, C.roof);
       rect(ctx, 6, roofY + 12, 18, 10, "#342a52"); rect(ctx, 8, roofY + 14, 14, 1, "#706498"); rect(ctx, 8, roofY + 17, 14, 1, "#706498");
       rect(ctx, 132, roofY + 10, 2, 16, "#706498"); rect(ctx, 127, roofY + 10, 12, 1, "#706498");
     }

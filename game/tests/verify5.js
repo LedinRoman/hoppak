@@ -1,6 +1,6 @@
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const fs = require('fs');
-const OUT = '/workspace/jumper/game/screens/v052/';
+const OUT = '/workspace/jumper/game/screens/v054/verify5/';
 fs.mkdirSync(OUT, { recursive: true });
 const SIZES = [
   [360, 640, '360x640'],
@@ -137,12 +137,16 @@ const SIZES = [
     await open(w, h);
     const sz = await H(() => window.__hoppak.getSize());
     sizes[name] = sz;
-    const cssW = sz.lw * sz.cssScale, cssH = sz.lh * sz.cssScale;
-    const integer = sz.lw === 160 && sz.lh >= 280 && sz.lh <= 346
-      && sz.pScale === Math.floor(sz.pScale) && sz.pScale >= 1
-      && sz.cw === sz.lw * sz.pScale && sz.ch === sz.lh * sz.pScale
-      && cssW <= w + 0.51 && cssH <= h + 0.51;
-    sizes[name].integerOk = integer;
+    const pad = sz.viewPad || 0;
+    const cssW = (sz.lw + 2 * pad) * sz.cssScale, cssH = sz.lh * sz.cssScale;
+    const fieldOk = sz.lw === 160 && sz.lh === 346
+      && sz.pScale >= 1
+      && Math.abs(sz.cw - (sz.lw + 2 * pad) * sz.pScale) < 1.02
+      && Math.abs(sz.ch - Math.round(sz.lh * sz.cssScale * sz.dpr)) < 1.02
+      && cssW <= w + 1.02 && cssH <= h + 1.02
+      && (cssW >= w * 0.97 || cssH >= h * 0.97);
+    sizes[name].integerOk = fieldOk;
+    sizes[name].fieldOk = fieldOk;
     await H(() => { const s = window.__hoppak.getSave(); s.mapBest.city = 355; s.best = 355; s.coins = 80; });
     await shot('size_' + name + '_menu');
     await H(() => window.__hoppak.tap('camp')); await shot('size_' + name + '_campaign');
