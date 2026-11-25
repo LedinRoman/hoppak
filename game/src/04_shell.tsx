@@ -428,7 +428,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.save(); ctx.beginPath(); ctx.rect(bx + 1, by + 1, pw - 2, 20); ctx.clip();
       drawJumper(ctx, bx + 3, by + 4, makeLook(k, "base", "none"), 1, "idle", false, true, 1);
       ctx.restore();
-      if (on) { rect(ctx, bx + 2, by + 2, 5, 4, C.mint); drawText(ctx, "✓", bx + 3, by + 2, INK, 1, "left"); }
+      if (on) {
+        var qx = bx + pw - 8, qy = by + 1;
+        rect(ctx, qx, qy, 7, 7, C.mint);
+        rect(ctx, qx + 1, qy + 3, 2, 1, INK); rect(ctx, qx + 2, qy + 4, 2, 1, INK);
+        rect(ctx, qx + 4, qy + 2, 1, 1, INK); rect(ctx, qx + 5, qy + 1, 1, 1, INK);
+      }
     }
     var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
     var y0 = 64, ch = LH - y0 - 42;
@@ -445,8 +450,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, H2.type, LW / 2, mid + 50, C.gold, 1, "center");
     drawText(ctx, H2.abDesc[0], LW / 2, mid + 62, C.cream, 1, "center");
     drawText(ctx, H2.abDesc[1], LW / 2, mid + 72, C.cream, 1, "center");
-    var cl = H2.charge === "time" ? "ЗАРЯД  " + Math.round(H2.need / 50) + " СЕК" : H2.charge === "coins" ? "ЗАРЯД  ● " + H2.need : H2.charge === "height" ? "ЗАРЯД  ↑ " + H2.need + " М" : "ЗАРЯД  " + H2.need + " МОБА";
-    drawText(ctx, cl, LW / 2, mid + 84, "#9a8ab8", 1, "center");
+    drawChargeLine(LW / 2, mid + 84, H2, "#9a8ab8");
     var byb = y0 + ch - 28;
     if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "ВЫБРАН", C.gold, 1, C.gold);
     else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "ВЫБРАТЬ", INK);
@@ -731,7 +735,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
   }
   function icoClock(x: number, y: number, col: string) {
-    rect(ctx, x + 1, y, 5, 7, col); rect(ctx, x + 2, y + 1, 3, 5, "#0c0818"); rect(ctx, x + 3, y + 2, 1, 3, col); rect(ctx, x + 3, y + 4, 2, 1, col);
+    rect(ctx, x + 1, y, 5, 1, col); rect(ctx, x, y + 1, 7, 5, col); rect(ctx, x + 1, y + 6, 5, 1, col);
+    rect(ctx, x + 1, y + 1, 5, 5, "#0c0818");
+    rect(ctx, x + 3, y + 2, 1, 3, col); rect(ctx, x + 3, y + 4, 2, 1, col);
+  }
+  function drawChargeLine(cx: number, y: number, H: any, col: string) {
+    var ic = H.charge, chg = ic === "time" ? Math.round(H.need / 50) + " СЕК" : ic === "coins" ? String(H.need) : ic === "height" ? H.need + " М" : H.need + " МОБА";
+    var pre = "ЗАРЯД: ", iw = 8, gap = 2, tw = textWidth(pre, 1) + iw + gap + textWidth(chg, 1);
+    var x0 = Math.round(cx - tw / 2);
+    drawText(ctx, pre, x0, y, col, 1, "left");
+    var ix = x0 + textWidth(pre, 1);
+    if (ic === "time") icoClock(ix, y, col);
+    else if (ic === "coins") drawCoin(ctx, ix, y + 1, ui);
+    else if (ic === "height") drawText(ctx, "↑", ix, y, C.mint, 1, "left");
+    else icoSkull(ix, y, col);
+    drawText(ctx, chg, ix + iw + gap, y, col, 1, "left");
   }
   function icoSkull(x: number, y: number, col: string) {
     rect(ctx, x + 1, y, 5, 4, col); rect(ctx, x + 2, y + 4, 3, 2, col); rect(ctx, x + 2, y + 1, 1, 1, "#0c0818"); rect(ctx, x + 4, y + 1, 1, 1, "#0c0818");
