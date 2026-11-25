@@ -6,9 +6,11 @@
    Usage (from repo root): node game/tests/bluegreen-e2e.mjs
 */
 import http from 'node:http';
+import net from 'node:net';
+import { tmpdir } from 'node:os';
 import { execFileSync, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -34,14 +36,30 @@ try {
   ({ chromium } = require('/usr/local/lib/pnpm/5/.pnpm/playwright-core@1.59.1/node_modules/playwright-core'));
 }
 
-const BLUE_PUB = 8921;
-const BLUE_INT = 3921;
-const GREEN_PUB = 8922;
-const GREEN_INT = 3922;
-const PROXY_PORT = 8920;
-const V1_PORT = 8923;
-const FAULT_PORT = 8924;
+let BLUE_PUB = 0;
+let BLUE_INT = 0;
+let GREEN_PUB = 0;
+let GREEN_INT = 0;
+let PROXY_PORT = 0;
+let V1_PORT = 0;
+let FAULT_PORT = 0;
+let CUSTOM_PORT = 0;
 const INTERNAL_TOKEN = 'e2e-internal-secret';
+const PROD_HOST = '76-13-250-251.sslip.io';
+
+function pickPort(envKey) {
+  const v = process.env[envKey];
+  if (v) return Promise.resolve(Number(v));
+  return new Promise((res, rej) => {
+    const srv = net.createServer();
+    srv.unref();
+    srv.on('error', rej);
+    srv.listen(0, '127.0.0.1', () => {
+      const { port } = srv.address();
+      srv.close(() => res(port));
+    });
+  });
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 23), ...a);
@@ -109,27 +127,34 @@ async function waitSlotReady(slot) {
 }
 
 function buildLegacyClient(commit, outDir) {
-  execFileSync('rm', ['-rf', outDir]);
   mkdirSync(outDir, { recursive: true });
   // read-only `git archive` from this worktree's repository (never touches /workspace/jumper's working copy)
   execFileSync('bash', ['-lc', `git -C "${REPO_DIR}" archive ${commit} game | tar -x -C "${outDir}" --strip-components=1`]);
-  execFileSync('bash', [join(outDir, 'build.sh')], { cwd: outDir, stdio: 'ignore' });
+  // isolate legacy build.sh temp files away from shared /tmp
+  const bsh = join(outDir, 'build.sh');
+  const raw = readFileSync(bsh, 'utf8')
+    .replaceAll('/tmp/hoppak.game.ts', join(outDir, '.hoppak.game.ts'))
+    .replaceAll('/tmp/hop.min.tsx', join(outDir, '.hop.min.tsx'));
+  writeFileSync(bsh, raw);
+  execFileSync('bash', [bsh], { cwd: outDir, stdio: 'ignore' });
   return outDir;
 }
 
 function buildTestClient(outDir) {
-  execFileSync('rm', ['-rf', outDir]);
   mkdirSync(outDir, { recursive: true });
   execFileSync('bash', ['-lc', `cp -r "${GAME_DIR}/src" "${GAME_DIR}/build.sh" "${GAME_DIR}/index.html" "${outDir}/"`]);
-  execFileSync('bash', [join(outDir, 'build.sh')], { cwd: outDir, stdio: 'ignore', env: { ...process.env, HOP_VERSION: TEST_CLIENT_VERSION } });
+  const env = { ...process.env, HOP_VERSION: TEST_CLIENT_VERSION };
+  delete env.HOP_SERVER_URL;
+  delete env.HOP_SERVER;
+  execFileSync('bash', [join(outDir, 'build.sh')], { cwd: outDir, stdio: 'ignore', env });
   return outDir;
 }
 
-function createCaddyProxy({ bluePort, greenPort, gameDir, oldDirs = {} }) {
+function createCaddyProxy({ bluePort, greenPort, customPort, gameDir, oldDirs = {} }) {
   let active = 'blue';
   const httpLog = [];
   const wsLog = [];
-  const slots = { blue: bluePort, green: greenPort, custom: 8925 };
+  const slots = { blue: bluePort, green: greenPort, custom: customPort };
   const activeConns = new Set();
 
   const indexHtml = readFileSync(join(gameDir, 'index.html'));
@@ -366,16 +391,32 @@ function createFaultServer(port) {
 async function run() {
   if (!existsSync(MAIN_JS)) throw new Error(`Missing bluegreen server build at ${MAIN_JS}`);
   mkdirSync(SHOTS_DIR, { recursive: true });
+  BLUE_PUB = await pickPort('BG_E2E_BLUE_PUB');
+  BLUE_INT = await pickPort('BG_E2E_BLUE_INT');
+  GREEN_PUB = await pickPort('BG_E2E_GREEN_PUB');
+  GREEN_INT = await pickPort('BG_E2E_GREEN_INT');
+  PROXY_PORT = await pickPort('BG_E2E_PROXY_PORT');
+  V1_PORT = await pickPort('BG_E2E_V1_PORT');
+  FAULT_PORT = await pickPort('BG_E2E_FAULT_PORT');
+  CUSTOM_PORT = await pickPort('BG_E2E_CUSTOM_PORT');
 
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'hoppak-bg-e2e-'));
   const blue = startSlot({ name: 'blue', pubPort: BLUE_PUB, intPort: BLUE_INT, version: '0.57.0', peerIntPort: GREEN_INT });
   const green = startSlot({ name: 'green', pubPort: GREEN_PUB, intPort: GREEN_INT, version: '0.58.0', peerIntPort: BLUE_INT });
   // real prod builds: v0.56 = 312cbc9, v0.57 = b5c3fc8 (prod since 2026-11-25)
-  const old056Dir = buildLegacyClient('312cbc9', '/tmp/hoppak-old-v056');
-  const old057Dir = buildLegacyClient('b5c3fc8', '/tmp/hoppak-old-v057');
-  const testDir = buildTestClient('/tmp/hoppak-v2-test');
+  const old056Dir = buildLegacyClient('312cbc9', join(tmpRoot, 'old-v056'));
+  const old057Dir = buildLegacyClient('b5c3fc8', join(tmpRoot, 'old-v057'));
+  const testDir = buildTestClient(join(tmpRoot, 'v2-test'));
+  check(!readFileSync(join(testDir, 'hoppak.js'), 'utf8').includes(PROD_HOST),
+    `test build hoppak.js has no hard-coded prod host (${PROD_HOST})`);
+  if (existsSync(join(GAME_DIR, 'hoppak.js'))) {
+    check(!readFileSync(join(GAME_DIR, 'hoppak.js'), 'utf8').includes(PROD_HOST),
+      `game/hoppak.js has no hard-coded prod host (${PROD_HOST})`);
+  }
   const proxy = createCaddyProxy({
     bluePort: BLUE_PUB,
     greenPort: GREEN_PUB,
+    customPort: CUSTOM_PORT,
     gameDir: testDir,
     oldDirs: { '0.56': old056Dir, '0.57': old057Dir },
   });
@@ -531,7 +572,7 @@ async function run() {
           const w = __hoppak.getWorld(), p = w.players[0];
           __hoppak.setAutoPlay(false);
           p.domeT = 0; p.domeSave = false; p.shieldT = 0; p.rocketT = 0; p.invT = 0; p.hookN = 0; p.grabT = 0;
-          p.y = p.camY + __hoppak.getSize().lh + 40; p.vy = 5;
+          p.y = p.camY + __hoppak.getSize().lh + 80; p.vy = 12;
         });
         await sleep(250);
       }
@@ -652,7 +693,7 @@ async function run() {
       `redirect loop stopped after max 2 redirects (3rd blocked, server saw ${faultSrv.getRedirectCount()} create attempts)`);
 
     // 9. Test server-provided custom field config (FIELD_W=208, FIELD_H=416, FIELD_PX_PER_M=10) without hardcoding!
-    const customPort = 8925;
+    const customPort = CUSTOM_PORT;
     const customSrv = spawn(process.execPath, [MAIN_JS], {
       cwd: BG_SERVER_DIR,
       env: {
@@ -786,7 +827,7 @@ async function run() {
     };
     const enterCode = (pg, code) => pg.evaluate((c) => { __hoppak.tap('net:enter'); for (const d of c) __hoppak.tap('net:k' + d); __hoppak.tap('net:ok'); }, code);
     const killMe = async (pg) => {
-      for (let t = 0; t < 30 && await pg.evaluate(() => __hoppak.getWorld()?.players?.[0]?.alive); t++) {
+      for (let t = 0; t < 40 && await pg.evaluate(() => __hoppak.getWorld()?.players?.[0]?.alive); t++) {
         await pg.evaluate(() => {
           const w = __hoppak.getWorld(), p = w.players[0];
           __hoppak.setAutoPlay(false);
@@ -890,6 +931,16 @@ async function run() {
     for (const pg of Q) allRes2 = (await waitFor(pg, () => __hoppak.getPhase() === 'results', null, 8000)) && allRes2;
     const rounds2 = await Promise.all(Q.map((pg) => pg.evaluate(() => __hoppak.net.session?.rounds?.length)));
     check(allRes2 && rounds2.every((r) => r === 2), `S11 (BUG-32): evening score has 2 rounds for everybody (${rounds2.join('/')})`);
+    await sleep(800);
+    await Q[0].screenshot({ path: join(SHOTS_DIR, '09_bug51_4p_results_banner.png') });
+    const bug51 = await Q[0].evaluate(() => ({
+      banner: __hoppak.net.shouldShowBanner(),
+      rounds: __hoppak.net.session?.rounds?.length,
+      players: __hoppak.getWorld()?.players?.length,
+      phase: __hoppak.getPhase(),
+    }));
+    check(bug51.phase === 'results' && bug51.players === 4 && bug51.rounds === 2 && bug51.banner === true,
+      `BUG-51: 4-player results after 2 rounds with active update banner (${JSON.stringify(bug51)})`);
     // v1 rematch on green through the old slot's proxy
     for (const pg of [O56, O57]) await pg.evaluate(() => { if (__hoppak.getPhase() === 'results') __hoppak.tap('rematch'); });
     await waitFor(O56, () => __hoppak.getPhase() === 'net');
@@ -960,6 +1011,22 @@ async function run() {
     const wBlue = proxy.wsLog.slice(wsBeforeW).filter((w) => w.pathname === '/ws/blue').length;
     check(wBack && wBlue >= 2, `S17 (BUG-33): with active green dead, both clients reconnected to /ws/blue (${wBlue} WS) and the round on blue continues`);
 
+    // ===== 14. BUG-50: client sends periodic ping in lobby while idle =====
+    proxy.setActive('blue');
+    {
+      const ctxPing = await browser.newContext({ viewport: { width: 390, height: 844 } });
+      await ctxPing.addInitScript(() => { window.HOPPAK_LOBBY_PING_MS = 120; });
+      const pPing = await ctxPing.newPage();
+      await pPing.goto(`http://127.0.0.1:${PROXY_PORT}/v/0.57.0/`);
+      await pPing.evaluate(() => __hoppak.tap('net:menu'));
+      await waitFor(pPing, () => __hoppak.net.st === 'online', null, 5000);
+      const sent0 = await pPing.evaluate(() => __hoppak.net.stats.sent);
+      await sleep(550);
+      const pingRes = await pPing.evaluate(() => ({ sent: __hoppak.net.stats.sent, recv: __hoppak.net.stats.recv, st: __hoppak.net.st }));
+      check(pingRes.st === 'online' && pingRes.sent >= sent0 + 2 && pingRes.recv >= 2,
+        `BUG-50 client: idle lobby sends periodic ping (${sent0} -> ${pingRes.sent}, recv=${pingRes.recv})`);
+    }
+
     // Check web-root and relative assets in source via grep check summary
     check(p1Errors.length === 0 && p2Errors.length === 0 && errsQ.length === 0 && errsOld.length === 0 && errsW.length === 0,
       `no uncaught page errors (p1=${p1Errors.length}, p2=${p2Errors.length}, switch=${errsQ.length + errsOld.length + errsW.length}) ${JSON.stringify([...errsQ, ...errsOld, ...errsW]).slice(0, 300)}`);
@@ -972,6 +1039,7 @@ async function run() {
     blue.child.kill('SIGTERM');
     green.child.kill('SIGTERM');
     await sleep(250);
+    rmSync(tmpRoot, { recursive: true, force: true });
   }
 }
 
