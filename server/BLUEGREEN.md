@@ -26,9 +26,9 @@
 | `PORT` | `8787` | Публичный HTTP/WS порт (`/api/health`, `/ws`). |
 | `INTERNAL_PORT` | отключён | Внутренний HTTP/WS порт для `/internal/*`. Включается числовым портом (например `3001`); `0`/`off`/`none`/`false` или пустое значение отключают внутренний сервер. |
 | `INTERNAL_HOST` | `127.0.0.1` | Адрес бинда внутреннего сервера. Для межконтейнерной сети в Docker задавайте `0.0.0.0` **обязательно вместе с `INTERNAL_TOKEN`**. |
-| `INTERNAL_TOKEN` | `""` | Общий секрет для всех запросов `/internal/*` и `/internal/ws` (`x-internal-token` или `Authorization: Bearer <token>`). При не-loopback `INTERNAL_HOST` без токена сервер отвечает `401` (fail-closed). |
+| `INTERNAL_TOKEN` | `""` | Общий секрет для всех запросов `/internal/*` и `/internal/ws` (`x-internal-token` или `Authorization: Bearer <token>`). При не-loopback `INTERNAL_HOST` без токена сервер **не стартует** (BUG-48). |
 | `NODE_NAME` | `local` | Имя слота (`blue` или `green`). Передаётся в `hello`, `/api/health`, `/internal/*`. |
-| `APP_VERSION` | из `package.json` | Версия сборки для `/api/health`, `hello` (v2) и `update`. |
+| `APP_VERSION` | **обязательна** в prod/blue-green | Версия сборки для `/api/health`, `hello` (v2) и `update`. Без неё при `NODE_ENV=production` или `NODE_NAME=blue|green` сервер не стартует (BUG-34); локально — версия из `package.json`. |
 | `PEER_INTERNAL_URL` | `""` | URL внутреннего порта соседнего слота (например `http://game_green:3001` для `blue` и `http://game_blue:3001` для `green`). |
 | `PEER_TIMEOUT_MS` | `800` | Таймаут HTTP/WS запросов к соседнему слоту (мс). |
 | `ROOM_CODE_MIN` / `ROOM_CODE_MAX` | `blue`: `1000..5499`, `green`: `5500..9999` | Непересекающиеся диапазоны 4-значных кодов комнат по слотам (устраняет коллизии кодов между слотами). |
@@ -102,15 +102,53 @@
    - `/ws/blue`: переписать путь в `/ws` с сохранением query (`uri path_regexp ^/ws/blue$ /ws` или `handle_path /ws/blue* { rewrite * /ws; reverse_proxy game_blue:8787 }`) — `@WebSocketGateway({ path: '/ws' })` требует путь `/ws` и query `?p=...` в upstream.
    - `/ws/green`: аналогично rewrite `/ws/green` -> `/ws` с сохранением query на `game_green:8787`.
    - `/api/*` (и `/health`): проксировать на активный слот (`reverse_proxy <active_slot>:8787`).
-4. **Таймауты и перезагрузка без обрыва WS (`stream_close_delay`):**
-   - В глобальном блоке Caddy `servers { ... }` обязательно задать `timeouts { ... }` и `stream_close_delay` (например `stream_close_delay 30m`, не меньше длительности матча), иначе `caddy reload` при переключении `blue <-> green` закроет активные WS-соединения через ~1 с и спровоцирует лишние реконнекты.
+4. **Перезагрузка Caddy без обрыва WS (`stream_close_delay`, BUG-46):**
+   - `stream_close_delay` — это **подопция `reverse_proxy`**, а не глобального блока `servers { }` (в `servers` такой опции нет: Caddy либо не стартует, либо опция будет проигнорирована). Источник: https://caddyserver.com/docs/caddyfile/directives/reverse_proxy (раздел *Streaming*: `stream_timeout`, `stream_close_delay`).
+   - Задавать её нужно в **каждом** `reverse_proxy`, через который идут WebSocket'ы (`/ws`, `/ws/blue`, `/ws/green`), иначе `caddy reload` при переключении `blue <-> green` закроет все активные WS сразу:
+     ```caddyfile
+     handle /internal/* {
+         respond 404
+     }
+     handle /ws/blue {
+         rewrite * /ws
+         reverse_proxy game_blue:8787 {
+             stream_close_delay 30m
+         }
+     }
+     handle /ws/green {
+         rewrite * /ws
+         reverse_proxy game_green:8787 {
+             stream_close_delay 30m
+         }
+     }
+     handle /ws {
+         reverse_proxy {$ACTIVE_SLOT}:8787 {   # game_blue | game_green
+             stream_close_delay 30m
+         }
+     }
+     ```
+     (`rewrite * /ws` сохраняет query `?p=2`.) `30m` — с запасом больше любой партии; после закрытия старого слота его сокеты всё равно закроются сервером (`1001`), и клиенты переподключатся.
+   - Сервер переживает и обрыв без `stream_close_delay` (клиент v2 переподключается к слоту комнаты, v1 — через `/ws` с прозрачным прокси), но это лишний «мигающий» реконнект у всех игроков.
 5. **Остановка контейнера (`SIGTERM` / `stop_grace_period`):**
    - В `docker-compose.yml` задать `stop_grace_period: 35s` (больше `GRACEFUL_SHUTDOWN_MS=25000`), чтобы Docker не слал `SIGKILL` раньше, чем сервер доиграет активные матчи и отправит `results`.
-   - В `deploy.sh`:
-     1) поднять неактивный слот и дождаться `200` от `/api/health`;
-     2) переключить маршрутизацию Caddy на новый слот и сделать `caddy reload`;
-     3) вызвать `POST http://<old_slot>:3001/internal/drain` с заголовком `x-internal-token: $INTERNAL_TOKEN` и телом `{"version":"<new_ver>"}`;
-     4) поллить `GET http://<old_slot>:3001/internal/stats` (с `x-internal-token`) до `rooms === 0`, после чего остановить старый контейнер (`docker stop` / `compose stop`, он получит `SIGTERM` и корректно завершит оставшиеся матчи).
+   - **Правило одного `SIGTERM`** (страховка): посылать ровно один `SIGTERM` (`docker stop`/`compose stop`) и ждать выхода процесса. Сервер сам защищён (BUG-45): повторные `SIGTERM`/`SIGINT` во время graceful shutdown **игнорируются** (в лог пишется `ignored repeated SIGTERM`), жёсткий стоп — только по таймауту `GRACEFUL_SHUTDOWN_MS` (принудительные `results` + `err SERVER_SHUTDOWN` всем) или `SIGKILL` от Docker по `stop_grace_period`. Но `docker kill -s KILL`, повторный `compose down` с маленьким таймаутом и т. п. по-прежнему рвут матч — не делать.
+6. **Шаги переключения (`release.sh` / `deploy.sh`):**
+   1) Поднять неактивный слот с **явным** `APP_VERSION=<новая версия>` (без него в `NODE_ENV=production` или при `NODE_NAME=blue|green` сервер не стартует, см. ниже) и дождаться `200` от `/api/health` этого слота **и** `GET /internal/stats` с токеном (проверка, что `INTERNAL_TOKEN` у слотов совпадает — шаг 2).
+   2) **Проверка токенов (BUG-48):** с машины деплоя `curl -s -o /dev/null -w '%{http_code}' -H "x-internal-token: $INTERNAL_TOKEN" http://<new_slot>:3001/internal/stats` и то же для `<old_slot>` — оба должны вернуть `200`. Дополнительно `/api/health` каждого слота отдаёт `peerAuth`: `"ok"` — сосед принимает наш токен, `"unauthorized"` — токены разные (в логе слота `ERROR peer ... rejected INTERNAL_TOKEN (401)`), `"unreachable"` — сосед не отвечает. Переключать только при `peerAuth === "ok"` на новом слоте.
+   3) Переключить маршрут `/ws` и `/api/*` Caddy на новый слот, `caddy reload`.
+   4) `POST http://<old_slot>:3001/internal/drain` (заголовок `x-internal-token`, тело `{"version":"<new_ver>"}`).
+      После `drain` комнаты старого слота **переезжают целиком** на новый слот (BUG-32): сразу после `results` (через `DRAIN_RESULTS_CLOSE_MS`), при попытке реванша, или по `DRAIN_LOBBY_TTL_MS` для лобби. Код комнаты меняется, состав, хост, номер раунда и токены игроков сохраняются; v2-клиенты получают `redirect {node, code, resume:true}`, v1-клиенты (v0.56/v0.57) продолжают играть через прозрачный прокси старого слота. Идущие раунды доигрываются на старом слоте.
+   5) Поллить `GET http://<old_slot>:3001/internal/stats` до `rooms === 0` **с лимитом ожидания** (страховка Producer: по умолчанию в `release.sh`, рекомендую `DRAIN_WAIT_MAX=600` с, т. е. 10 минут — длиннее любой партии). Если лимит истёк — в лог `release.sh` предупреждение со списком `rooms/players` и всё равно переход к шагу 6 (слот сам принудительно завершит матчи с `results` по `GRACEFUL_SHUTDOWN_MS`). `connections > 0` при `rooms === 0` — это проксируемые v1-сокеты, их можно не ждать: при остановке слота они переподключатся к новому слоту по тому же токену.
+   6) Один `docker stop` (`compose stop game_<old>`) старого слота → он получает `SIGTERM` и выходит сам.
+7. **Пошаговый откат (новый слот плохой):**
+   1) Если старый слот ещё жив (шаги 4–5): `POST http://<old_slot>:3001/internal/undrain` — снимает drain и `update`; затем вернуть маршрут `/ws` и `/api/*` в Caddy на старый слот, `caddy reload`.
+   2) `POST http://<new_slot>:3001/internal/drain` (без `version`, чтобы не показывать «обновление») — комнаты нового слота переедут обратно на старый тем же механизмом; дождаться `rooms === 0` (с тем же лимитом), один `docker stop` нового слота.
+   3) Если старый слот уже остановлен: поднять его заново из предыдущего образа с прежним `APP_VERSION`, дождаться `/api/health` + `peerAuth: "ok"`, дальше как в пп. 1–2.
+   4) После отката клиенты v2 со свежей сборкой увидят на старом сервере `hello.version` меньше своей — плашки «обновить» не будет (плашка показывается только если версия сервера **строго больше** версии клиента).
+8. **Конфиг поля в Docker (BUG-47):** текущий `server/Dockerfile` **не копирует** `server/field.config.json` в образ, поэтому в контейнере без доп. действий работают только env/дефолты (`160×346×8`, v1 = `180`). Варианты на выбор Devops: (а) смонтировать файл `volumes: - ./server/field.config.json:/app/field.config.json:ro` (или задать `FIELD_CONFIG_PATH`), (б) добавить `COPY server/field.config.json ./` в Dockerfile, (в) задавать `FIELD_W/FIELD_H/FIELD_PX_PER_M/FIELD_W_V1` в env. При старте сервер пишет в лог источник и итоговое поле (`field: {...} from ...`); битый файл/невалидные значения — `ERROR` в логе и дефолт для этого параметра. Допустимые границы: `w` и `FIELD_W_V1` 120..320, `h` 200..800, `pxPerM` 2..32.
+9. **Обязательные проверки на старте (сервер откажется стартовать с понятной ошибкой в логе и `exit 1`):**
+   - `APP_VERSION` пуст при `NODE_ENV=production` или `NODE_NAME=blue|green` (BUG-34: иначе версия бралась из `package.json` = `0.1.0`, и клиенты видели вечную плашку обновления);
+   - включён `INTERNAL_PORT`, `INTERNAL_HOST` не loopback (например `0.0.0.0`) и пуст `INTERNAL_TOKEN` (BUG-48).
 
 ## 7. Запуск проверок
 
