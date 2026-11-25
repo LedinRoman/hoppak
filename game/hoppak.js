@@ -1,4 +1,4 @@
-/* Хоппак v0.55 — generated from hoppak.page.tsx by build.sh, do not edit */
+/* Хоппак v0.56 — generated from hoppak.page.tsx by build.sh, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;
@@ -856,7 +856,7 @@
     var spec = mapInfo(w.map).special;
     var row = [];
     var rowId = w.rowN++;
-    var moveP = m > 40 ? lerp(0.14, 0.45, d) : 0;
+    var moveP = m > 70 ? lerp(0.14, 0.45, d) : 0;
     var isMove = w.lastKind !== "move" && r() < moveP;
     if (isMove) {
       var mw = Math.round(lerp(40, 26, d));
@@ -866,14 +866,17 @@
       row.push(mp);
     } else {
       var n;
-      if (m < 250) n = r() < 0.18 ? 3 : r() < 0.22 ? 1 : 2;
+      if (m < 190) n = r() < 0.22 ? 3 : 2;
+      else if (m < 300) n = r() < 0.16 ? 3 : r() < 0.18 ? 1 : 2;
       else if (m < 600) n = r() < 0.08 ? 3 : r() < 0.45 ? 1 : 2;
       else {
         n = r() < lerp(0.62, 0.12, (d - 0.28) / 0.72) ? 2 : 1;
         if (n === 2 && m < 900 && r() < 0.06) n = 3;
       }
+      if (spec === "ice" && m < 300 && n === 1) n = 2;
       var wmin = Math.round(lerp(42, 24, d)), wmax = Math.round(lerp(54, 32, d));
-      var breakP = m > 80 ? lerp(0.1, 0.58, d) : 0;
+      var breakP054 = m > 80 ? lerp(0.1, 0.58, d) : 0;
+      var breakP = m < 200 ? 0 : m < 300 ? breakP054 * ((m - 200) / 100) : breakP054;
       for (var i = 0; i < n; i++) {
         var pw = randInt(r, wmin, wmax);
         var x = findX(r, pw, row);
@@ -923,8 +926,17 @@
     w.lastKind = isMove ? "move" : "static";
     for (var j = 0; j < row.length; j++) w.platforms.push(row[j]);
     var gT = clamp(m / 700, 0, 1);
-    var minG = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
-    var maxG = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
+    var minG054 = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
+    var maxG054 = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
+    var minG, maxG;
+    if (m < 300) {
+      var u = clamp(m / 300, 0, 1);
+      minG = Math.round(lerp(Math.max(ROW_SEP, Math.floor(JUMP_H * 0.34)), minG054, u));
+      maxG = Math.round(lerp(Math.min(GAP_CAP, Math.floor(JUMP_H * 0.5)), maxG054, u));
+    } else {
+      minG = minG054;
+      maxG = maxG054;
+    }
     if (minG > maxG) minG = maxG;
     var gap = randInt(r, minG, maxG);
     var pMon = m < 120 ? 0 : m < 400 ? 0.065 : lerp(0.08, 0.28, d);
@@ -1220,6 +1232,16 @@
   function toast(w, s) {
     w.toast = s;
     w.toastT = 70;
+  }
+  function hasLandablePlat(w, p) {
+    var feet = p.y + PH, reach = 28;
+    for (var i = 0; i < w.platforms.length; i++) {
+      var q = w.platforms[i];
+      if (q.broken) continue;
+      if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) continue;
+      if (q.y + 3 >= p.prevY + PH - 2 && q.y <= feet + reach && overlapsX(p.x + 1, PW - 2, q.x, q.w)) return true;
+    }
+    return false;
   }
   function landOn(w, p, pl) {
     p.y = pl.y - PH;
@@ -1878,7 +1900,7 @@
     if (minCam < 1e9) generateUntil(w, minCam - 80);
     for (i = 0; i < w.players.length; i++) {
       var ep = w.players[i];
-      if (ep.alive && !ep.remote && w.tick > 80 && ep.y > ep.camY + LH) {
+      if (ep.alive && !ep.remote && w.tick > 80 && ep.vy >= 0 && ep.squash === 0 && ep.y > ep.camY + LH + 4 && !hasLandablePlat(w, ep)) {
         if (ep.domeT > 0 && ep.domeSave) {
           ep.domeSave = false;
           ep.y = ep.camY + LH - PH - 12;
