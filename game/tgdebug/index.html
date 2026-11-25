@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1a1230">
+  <title>Хоппак 2.0 — Telegram safe area</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #1a1230;
+      --ink: #f6ecd0;
+      --muted: #b8c0d0;
+      --line: #352772;
+      --field: #2a1c58;
+      --sai: rgba(220, 40, 40, 0.45);
+      --sai-edge: #e44;
+      --csai: rgba(240, 140, 20, 0.45);
+      --csai-edge: #f90;
+      --ok: #7ad8a0;
+      --warn: #ffd07a;
+      --bad: #ff8a8a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      overflow: hidden; }
+    #env-probe {
+      position: absolute; visibility: hidden; pointer-events: none;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+    }
+    #stage { position: fixed; inset: 0; }
+    #sides, #field, #bands { position: absolute; inset: 0; pointer-events: none; }
+    #side-fill {
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        90deg,
+        #24184a 0 10px,
+        #1e143c 10px 20px,
+        #2c1c56 20px 30px,
+        #1e143c 30px 36px
+      );
+    }
+    #field-box {
+      position: absolute;
+      background: #2a1c58;
+      box-shadow: inset 0 0 0 2px #7ad8ff;
+    }
+    #field-label {
+      position: absolute; left: 8px; bottom: 8px;
+      color: #7ad8ff; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+      text-shadow: 0 1px 2px #000;
+    }
+    .band { position: absolute; pointer-events: none; }
+    .band.sai { background: var(--sai); box-shadow: inset 0 0 0 1px var(--sai-edge); }
+    .band.csai { background: var(--csai); box-shadow: inset 0 0 0 1px var(--csai-edge); }
+    #panel {
+      position: absolute; left: 8px; right: 8px; top: 8px;
+      max-height: calc(100% - 16px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      background: rgba(16, 10, 32, 0.86);
+      border: 1px solid #4a3a7a;
+      border-radius: 10px;
+      padding: 10px 12px 12px;
+      pointer-events: auto;
+    }
+    #badge {
+      display: inline-block; font-size: 15px; font-weight: 800;
+      padding: 4px 10px; border-radius: 6px; margin-bottom: 8px;
+      letter-spacing: 0.02em;
+    }
+    #badge.out { background: #5a2040; color: var(--bad); }
+    #badge.in { background: #1a4a38; color: var(--ok); }
+    h1 { font-size: 15px; font-weight: 700; color: var(--muted); margin: 0 0 8px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; margin-bottom: 8px; }
+    .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+      padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .row .k { color: var(--muted); font-size: 12px; flex: 0 1 auto; }
+    .row .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
+      text-align: right; word-break: break-all; }
+    .block { margin: 8px 0; }
+    .block h2 { font-size: 12px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.06em; margin-bottom: 4px; }
+    .block h2.sai { color: #ff8a8a; }
+    .block h2.csai { color: #ffc06a; }
+    .insets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center; }
+    .insets .cell { background: rgba(255,255,255,0.05); border-radius: 6px; padding: 4px 2px; }
+    .insets .lk { font-size: 11px; color: var(--muted); }
+    .insets .lv { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .kline { font-size: 20px; font-weight: 800; margin: 4px 0 8px; }
+    .kline span { color: #7ad8ff; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    button {
+      appearance: none; border: 0; border-radius: 8px;
+      background: #3a2a6a; color: var(--ink);
+      font-size: 14px; font-weight: 700; padding: 8px 10px;
+      min-height: 40px; cursor: pointer;
+    }
+    button:active { transform: scale(0.98); }
+    button.pri { background: #2a6a58; }
+    button.on { background: #6a4a20; }
+    #log {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px; line-height: 1.35; color: var(--muted);
+      max-height: 22vh; overflow: auto; white-space: pre-wrap;
+      background: rgba(0,0,0,0.28); border-radius: 6px; padding: 6px 8px;
+    }
+    .legend { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+      vertical-align: -1px; margin-right: 3px; }
+  </style>
+</head>
+<body>
+  <div id="env-probe"></div>
+  <div id="stage">
+    <div id="side-fill"></div>
+    <div id="field-box"><div id="field-label"></div></div>
+    <div id="bands"></div>
+    <div id="panel">
+      <div id="badge" class="out">не в Telegram</div>
+      <h1>Хоппак 2.0 · safe area debug · @HoppakBot</h1>
+      <div class="grid" id="metrics"></div>
+      <div class="block">
+        <h2 class="sai">safeAreaInset (красный)</h2>
+        <div class="insets" id="sai"></div>
+      </div>
+      <div class="block">
+        <h2 class="csai">contentSafeAreaInset (оранжевый)</h2>
+        <div class="insets" id="csai"></div>
+      </div>
+      <div class="block">
+        <h2>CSS env(safe-area-inset-*)</h2>
+        <div class="insets" id="env"></div>
+      </div>
+      <div class="kline" id="kline"></div>
+      <div class="btns">
+        <button id="btn-solo" class="pri" type="button">поле 288 (solo)</button>
+        <button id="btn-online" type="button">поле 324 (online)</button>
+      </div>
+      <div class="btns">
+        <button id="btn-expand" type="button">expand()</button>
+        <button id="btn-fs" type="button">requestFullscreen()</button>
+        <button id="btn-exit" type="button">exitFullscreen()</button>
+        <button id="btn-swipes" type="button">disableVerticalSwipes()</button>
+        <button id="btn-copy" class="pri" type="button">скопировать JSON</button>
+      </div>
+      <div class="legend">
+        <span class="sw" style="background:#e44"></span>safeAreaInset
+        · <span class="sw" style="background:#f90"></span>contentSafeAreaInset (внутрь от safe)
+        · полосатый фон по бокам поля
+      </div>
+      <div class="block">
+        <h2>события</h2>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+(function () {
+  var FIELD_H = 623;
+  var mode = 'solo'; // solo 288, online 324
+  var events = [];
+  var scriptFailed = !window.Telegram;
+
+  function fieldW() { return mode === 'online' ? 324 : 288; }
+
+  function wa() {
+    return window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+  }
+
+  function inTelegram() {
+    var w = wa();
+    if (!w) return false;
+    if (w.initData) return true;
+    var p = w.platform;
+    return !!(p && p !== 'unknown');
+  }
+
+  function inset(obj) {
+    obj = obj || {};
+    return {
+      top: num(obj.top),
+      right: num(obj.right),
+      bottom: num(obj.bottom),
+      left: num(obj.left)
+    };
+  }
+
+  function num(v) {
+    var n = Number(v);
+    return isFinite(n) ? n : 0;
+  }
+
+  function cssVar(name) {
+    var s = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (!s) return null;
+    var n = parseFloat(s);
+    return isFinite(n) ? n : s;
+  }
+
+  function envInsets() {
+    var el = document.getElementById('env-probe');
+    var s = getComputedStyle(el);
+    return {
+      top: parseFloat(s.paddingTop) || 0,
+      right: parseFloat(s.paddingRight) || 0,
+      bottom: parseFloat(s.paddingBottom) || 0,
+      left: parseFloat(s.paddingLeft) || 0
+    };
+  }
+
+  function tgCssInsets(prefix) {
+    return {
+      top: cssVar('--tg-' + prefix + '-top'),
+      right: cssVar('--tg-' + prefix + '-right'),
+      bottom: cssVar('--tg-' + prefix + '-bottom'),
+      left: cssVar('--tg-' + prefix + '-left')
+    };
+  }
+
+  function deviceSize() {
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = window.innerWidth;
+    var cssH = window.innerHeight;
+    return {
+      dpr: dpr,
+      cssW: cssW,
+      cssH: cssH,
+      W: Math.round(cssW * dpr),
+      H: Math.round(cssH * dpr)
+    };
+  }
+
+  function layout() {
+    var d = deviceSize();
+    var fw = fieldW();
+    var k = Math.max(1, Math.min(Math.floor(d.W / fw), Math.floor(d.H / FIELD_H)));
+    var share = (fw * k) / d.W;
+    return { dpr: d.dpr, W: d.W, H: d.H, cssW: d.cssW, cssH: d.cssH, fieldW: fw, k: k, share: share };
+  }
+
+  function snapshot() {
+    var w = wa();
+    var l = layout();
+    var ready8 = null;
+    try { ready8 = w && typeof w.isVersionAtLeast === 'function' ? w.isVersionAtLeast('8.0') : null; }
+    catch (e) { ready8 = null; }
+    return {
+      inTelegram: inTelegram(),
+      scriptLoaded: !!window.Telegram,
+      scriptFailed: scriptFailed,
+      bot: '@HoppakBot',
+      webApp: {
+        version: w ? w.version : null,
+        platform: w ? w.platform : null,
+        isVersionAtLeast_8_0: ready8,
+        viewportHeight: w ? w.viewportHeight : null,
+        viewportStableHeight: w ? w.viewportStableHeight : null,
+        isFullscreen: w ? !!w.isFullscreen : null,
+        isExpanded: w ? !!w.isExpanded : null,
+        isActive: w && 'isActive' in w ? !!w.isActive : null,
+        colorScheme: w ? w.colorScheme : null
+      },
+      window: {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio || 1,
+        visualViewport: window.visualViewport ? {
+          width: window.visualViewport.width,
+          height: window.visualViewport.height,
+          offsetTop: window.visualViewport.offsetTop,
+          scale: window.visualViewport.scale
+        } : null
+      },
+      screen: {
+        width: window.screen && screen.width,
+        height: window.screen && screen.height,
+        availWidth: window.screen && screen.availWidth,
+        availHeight: window.screen && screen.availHeight
+      },
+      safeAreaInset: inset(w && w.safeAreaInset),
+      contentSafeAreaInset: inset(w && w.contentSafeAreaInset),
+      cssEnvSafeAreaInset: envInsets(),
+      tgCssVars: {
+        safeAreaInset: tgCssInsets('safe-area-inset'),
+        contentSafeAreaInset: tgCssInsets('content-safe-area-inset'),
+        viewportHeight: cssVar('--tg-viewport-height'),
+        viewportStableHeight: cssVar('--tg-viewport-stable-height')
+      },
+      field: {
+        mode: mode,
+        sim: mode === 'online' ? '180×346' : '160×346',
+        render: l.fieldW + '×' + FIELD_H,
+        k: l.k,
+        deviceW: l.W,
+        deviceH: l.H,
+        fieldDeviceW: l.fieldW * l.k,
+        fieldDeviceH: FIELD_H * l.k,
+        shareOfWidth: Math.round(l.share * 10000) / 100,
+        formula: 'k = max(1, min(floor(Wdev/fieldW), floor(Hdev/623))), Wdev=innerWidth*dpr'
+      },
+      events: events.slice()
+    };
+  }
+
+  function fmt(v) {
+    if (v === null || v === undefined || v === '') return '—';
+    if (typeof v === 'boolean') return v ? 'да' : 'нет';
+    if (typeof v === 'number') {
+      if (!isFinite(v)) return '—';
+      return (Math.abs(v) >= 100 || Number.isInteger(v)) ? String(v) : String(Math.round(v * 1000) / 1000);
+    }
+    return String(v);
+  }
+
+  function insetsHtml(o) {
+    return ['top', 'right', 'bottom', 'left'].map(function (k) {
+      return '<div class="cell"><div class="lk">' + k + '</div><div class="lv">' + fmt(o[k]) + '</div></div>';
+    }).join('');
+  }
+
+  function row(k, v) {
+    return '<div class="row"><span class="k">' + k + '</span><span class="v">' + fmt(v) + '</span></div>';
+  }
+
+  function nowStamp() {
+    var d = new Date();
+    var p = function (n, w) { return String(n).padStart(w, '0'); };
+    return p(d.getHours(), 2) + ':' + p(d.getMinutes(), 2) + ':' + p(d.getSeconds(), 2) + '.' + p(d.getMilliseconds(), 3);
+  }
+
+  function logEvent(name, extra) {
+    var rec = { t: nowStamp(), iso: new Date().toISOString(), name: name };
+    if (extra !== undefined) rec.data = extra;
+    events.push(rec);
+    if (events.length > 80) events.shift();
+    var line = rec.t + '  ' + name + (extra !== undefined ? '  ' + JSON.stringify(extra) : '');
+    var el = document.getElementById('log');
+    el.textContent = (el.textContent ? el.textContent + '\n' : '') + line;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function render() {
+    var s = snapshot();
+    var badge = document.getElementById('badge');
+    if (s.inTelegram) {
+      badge.className = 'in';
+      badge.textContent = 'Telegram Mini App';
+    } else {
+      badge.className = 'out';
+      badge.textContent = 'не в Telegram';
+    }
+
+    var w = s.webApp;
+    document.getElementById('metrics').innerHTML =
+      row('WebApp.version', w.version) +
+      row('platform', w.platform) +
+      row("isVersionAtLeast('8.0')", w.isVersionAtLeast_8_0) +
+      row('viewportHeight', w.viewportHeight) +
+      row('viewportStableHeight', w.viewportStableHeight) +
+      row('isFullscreen', w.isFullscreen) +
+      row('window', s.window.innerWidth + ' × ' + s.window.innerHeight) +
+      row('devicePixelRatio', s.window.devicePixelRatio) +
+      row('screen', s.screen.width + ' × ' + s.screen.height);
+
+    document.getElementById('sai').innerHTML = insetsHtml(s.safeAreaInset);
+    document.getElementById('csai').innerHTML = insetsHtml(s.contentSafeAreaInset);
+    document.getElementById('env').innerHTML = insetsHtml(s.cssEnvSafeAreaInset);
+
+    var f = s.field;
+    document.getElementById('kline').innerHTML =
+      'поле <span>' + f.render + '</span>  ·  k=<span>' + f.k + '</span>  ·  ' +
+      '<span>' + f.shareOfWidth + '%</span> ширины  ·  ' +
+      f.deviceW + '×' + f.deviceH + ' dev px';
+
+    document.getElementById('btn-solo').className = mode === 'solo' ? 'pri' : '';
+    document.getElementById('btn-online').className = mode === 'online' ? 'pri' : '';
+
+    var l = layout();
+    var box = document.getElementById('field-box');
+    var cssFw = (l.fieldW * l.k) / l.dpr;
+    var cssFh = (FIELD_H * l.k) / l.dpr;
+    var left = (l.cssW - cssFw) / 2;
+    var top = (l.cssH - cssFh) / 2;
+    box.style.left = left + 'px';
+    box.style.top = top + 'px';
+    box.style.width = cssFw + 'px';
+    box.style.height = cssFh + 'px';
+    document.getElementById('field-label').textContent =
+      (mode === 'online' ? 'online 324×623' : 'solo 288×623') + '  k=' + l.k;
+
+    var bands = document.getElementById('bands');
+    bands.innerHTML = '';
+    function addBand(cls, x, y, w, h) {
+      if (w <= 0 || h <= 0) return;
+      var d = document.createElement('div');
+      d.className = 'band ' + cls;
+      d.style.left = x + 'px';
+      d.style.top = y + 'px';
+      d.style.width = w + 'px';
+      d.style.height = h + 'px';
+      bands.appendChild(d);
+    }
+    var sai = s.safeAreaInset;
+    var csa = s.contentSafeAreaInset;
+    // Device safe area from the viewport edges (red).
+    addBand('sai', 0, 0, l.cssW, sai.top);
+    addBand('sai', 0, l.cssH - sai.bottom, l.cssW, sai.bottom);
+    addBand('sai', 0, sai.top, sai.left, l.cssH - sai.top - sai.bottom);
+    addBand('sai', l.cssW - sai.right, sai.top, sai.right, l.cssH - sai.top - sai.bottom);
+    // Telegram content inset stacked inward of the device inset (orange),
+    // matching HUD placement below the sum of both.
+    addBand('csai', sai.left, sai.top, l.cssW - sai.left - sai.right, csa.top);
+    addBand('csai', sai.left, l.cssH - sai.bottom - csa.bottom, l.cssW - sai.left - sai.right, csa.bottom);
+    addBand('csai', sai.left, sai.top + csa.top, csa.left, l.cssH - sai.top - sai.bottom - csa.top - csa.bottom);
+    addBand('csai', l.cssW - sai.right - csa.right, sai.top + csa.top, csa.right, l.cssH - sai.top - sai.bottom - csa.top - csa.bottom);
+  }
+
+  function call(name) {
+    var w = wa();
+    if (!w || typeof w[name] !== 'function') {
+      logEvent(name, { ok: false, error: w ? 'method missing' : 'not in Telegram / script missing' });
+      render();
+      return;
+    }
+    try {
+      w[name]();
+      logEvent(name, { ok: true });
+    } catch (e) {
+      logEvent(name, { ok: false, error: String(e && e.message ? e.message : e) });
+    }
+    render();
+  }
+
+  function copyJson() {
+    var text = JSON.stringify(snapshot(), null, 2);
+    function ok() { logEvent('copyJSON', { ok: true, bytes: text.length }); render(); }
+    function fail(err) {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        var copied = document.execCommand('copy');
+        document.body.removeChild(ta);
+        logEvent('copyJSON', { ok: copied, fallback: true, error: err ? String(err) : undefined });
+      } catch (e) {
+        logEvent('copyJSON', { ok: false, error: String(e) });
+      }
+      render();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok).catch(fail);
+    } else {
+      fail();
+    }
+  }
+
+  function bindTgEvents() {
+    var w = wa();
+    if (!w || typeof w.onEvent !== 'function') return;
+    ['safeAreaChanged', 'contentSafeAreaChanged', 'viewportChanged', 'fullscreenChanged', 'fullscreenFailed',
+      'activated', 'deactivated'].forEach(function (ev) {
+      try {
+        w.onEvent(ev, function (data) {
+          logEvent(ev, data === undefined ? undefined : data);
+          render();
+        });
+      } catch (e) {}
+    });
+  }
+
+  document.getElementById('btn-solo').onclick = function () { mode = 'solo'; logEvent('toggleField', { mode: mode }); render(); };
+  document.getElementById('btn-online').onclick = function () { mode = 'online'; logEvent('toggleField', { mode: mode }); render(); };
+  document.getElementById('btn-expand').onclick = function () { call('expand'); };
+  document.getElementById('btn-fs').onclick = function () { call('requestFullscreen'); };
+  document.getElementById('btn-exit').onclick = function () { call('exitFullscreen'); };
+  document.getElementById('btn-swipes').onclick = function () { call('disableVerticalSwipes'); };
+  document.getElementById('btn-copy').onclick = copyJson;
+
+  window.addEventListener('resize', function () { logEvent('window.resize'); render(); });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () { logEvent('visualViewport.resize'); render(); });
+  }
+
+  var w = wa();
+  if (w) {
+    try { if (typeof w.ready === 'function') w.ready(); } catch (e) {}
+    try { if (typeof w.setHeaderColor === 'function') w.setHeaderColor('#1a1230'); } catch (e) {}
+    bindTgEvents();
+    if (inTelegram()) {
+      try { if (typeof w.expand === 'function') { w.expand(); logEvent('expand', { ok: true, auto: true }); } }
+      catch (e) { logEvent('expand', { ok: false, auto: true, error: String(e) }); }
+    }
+  } else {
+    scriptFailed = true;
+    logEvent('telegram-web-app.js', { ok: false, error: 'Telegram.WebApp missing' });
+  }
+
+  logEvent('start', { inTelegram: inTelegram(), href: location.href });
+  render();
+})();
+  </script>
+</body>
+</html>
