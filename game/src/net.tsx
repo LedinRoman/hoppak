@@ -6,17 +6,30 @@
    Model: every client simulates the same seeded map and only its own hero; remote heroes are
    drawn from server-relayed snapshots (20 Hz) with ~150 ms interpolation. Stomped mobs and
    deaths are relayed as events; the server decides when the round ends (everybody fell). */
-/* Must match server PROTOCOL_VERSION in net @ 2e6bfc0 (hello { v, s }). */
-var NET_PROTO = 1;
+/* Protocol v2 (blue-green aware: node, redirect, update) with N-1=1 fallback for old servers. */
+var NET_PROTO = 2;
 var NET_SEND_MS = 66; /* own state ~15 Hz */
 var NET_DELAY_MS = 150; /* interpolation buffer */
 var NET_GRACE_MS = 10000;
+var NET_HEALTH_MS = 60000;
+var NET_MAX_REDIRECTS = 2;
 var NET_XS = [74, 22, 124, 48]; /* start x by slot (same as the bot squad) */
 var NET_TAGS: any = { host: "ХОСТ", ready: "ГОТОВ", wait: "ЖДЁМ", off: "НЕТ СВЯЗИ" };
+
+function buildVersion() {
+  try { if (typeof HOP_VERSION !== "undefined" && HOP_VERSION) return String(HOP_VERSION).trim(); } catch (_e) {}
+  return "0.57.0";
+}
+var CLIENT_VERSION = buildVersion();
 
 var NET: any = (function () {
   var N: any = {
     ws: null, st: "off", /* off | connecting | online | reconnecting | error | unsupported */
+    proto: NET_PROTO, clientVersion: CLIENT_VERSION, serverProto: 0,
+    node: "", targetNode: "", serverVersion: "",
+    updateAvail: false, updateVersion: "", updateDismissed: "",
+    pendingAction: null as any, redirCount: 0, redirecting: false,
+    pollTimer: 0, healthMs: NET_HEALTH_MS, probeSeq: 0,
     room: null, you: -1, token: "", err: "", sub: "home", code: "", startInfo: null, results: null,
     off: 0, rtt: 0, pingT: 0, lastSend: 0, reconUntil: 0, reconTimer: 0, onOpen: null as any, probing: false,
     stats: { sent: 0, recv: 0, snaps: 0, startedAt: 0 },
@@ -48,7 +61,7 @@ var NET: any = (function () {
       else if (s.indexOf("ws://") === 0) s = "http://" + s.slice(5);
       var u = new URL(s);
       var path = u.pathname || "";
-      if (path.lastIndexOf("/ws") === path.length - 3) path = path.slice(0, -3);
+      path = path.replace(/\/ws(?:\/[^/]+)?\/?$/, "");
       if (path.charAt(path.length - 1) === "/") path = path.slice(0, -1);
       u.pathname = path + "/api/health";
       u.search = ""; u.hash = "";
@@ -94,9 +107,84 @@ var NET: any = (function () {
   N.send = send;
   N.serverNow = serverNow;
 
+  /* ---------- version & update tracking ---------- */
+  function noteServerVersion(v: any) {
+    if (typeof v !== "string") return;
+    var ver = v.trim();
+    if (!ver) return;
+    N.serverVersion = ver;
+    if (ver !== N.clientVersion) {
+      N.updateVersion = ver;
+      N.updateAvail = true;
+    }
+  }
+  N.shouldShowBanner = function () {
+    return !!(N.updateAvail && N.updateVersion && N.updateDismissed !== N.updateVersion);
+  };
+  N.dismissUpdate = function () {
+    N.updateDismissed = N.updateVersion || "__dismissed__";
+  };
+  N.reloadApp = function () {
+    if (N.room) {
+      send("leave", {});
+      N.room = null; N.token = ""; N.node = ""; N.targetNode = "";
+      store("hoppak.net.token", null); store("hoppak.net.node", null);
+    }
+    var w: any = typeof window !== "undefined" ? window : null;
+    if (!w || !w.location) return;
+    try {
+      if (w.location.protocol === "file:") { w.location.reload(); return; }
+      w.location.assign("/" + (w.location.search || ""));
+    } catch (_e) {
+      try { w.location.reload(); } catch (_e2) {}
+    }
+  };
+  N.pollHealth = function () {
+    var hu = toHealth(url());
+    if (!hu || typeof fetch === "undefined") return Promise.resolve(null);
+    var opts: any = { method: "GET", cache: "no-store", mode: "cors" };
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var to = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, 3000);
+    if (ctrl) opts.signal = ctrl.signal;
+    return fetch(hu, opts).then(function (r: any) {
+      clearTimeout(to);
+      if (!r || !r.ok) return null;
+      return r.json().then(function (d: any) {
+        if (d && d.version) noteServerVersion(d.version);
+        return d;
+      }).catch(function () { return null; });
+    }).catch(function () { clearTimeout(to); return null; });
+  };
+  function startHealthPoll() {
+    if (N.pollTimer) return;
+    var w: any = typeof window !== "undefined" ? window : null;
+    var ms = (w && typeof w.HOPPAK_HEALTH_MS === "number" && w.HOPPAK_HEALTH_MS > 0) ? w.HOPPAK_HEALTH_MS : N.healthMs;
+    if (!toHealth(url())) return;
+    N.pollTimer = setInterval(function () { N.pollHealth(); }, ms);
+  }
+  N.stopPolling = function () {
+    if (N.pollTimer) { clearInterval(N.pollTimer); N.pollTimer = 0; }
+  };
+
   /* ---------- connection ---------- */
+  function buildWsUrl(node?: string) {
+    var base = url();
+    if (!base) return "";
+    try {
+      var u = new URL(base);
+      if (node && node !== "local") {
+        u.pathname = u.pathname.replace(/\/ws(?:\/[^/]+)?\/?$/, "") + "/ws/" + encodeURIComponent(node);
+      }
+      u.searchParams.set("p", String(NET_PROTO));
+      return u.toString();
+    } catch (_e) {
+      var sep = base.indexOf("?") >= 0 ? "&" : "?";
+      return base + sep + "p=" + NET_PROTO;
+    }
+  }
   function failLink(cb?: any) {
     N.st = "error"; N.err = "НЕТ СВЯЗИ";
+    N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
     var f = cb || N.onOpen; N.onOpen = null; if (f) f(false);
   }
   function probeHealth(hu: string, cb: any) {
@@ -110,7 +198,13 @@ var NET: any = (function () {
     }
     var opts: any = { method: "GET", cache: "no-store", mode: "cors" };
     if (ctrl) opts.signal = ctrl.signal;
-    fetch(hu, opts).then(function (r: any) { finish(!!r && r.ok); }).catch(function () { finish(false); });
+    fetch(hu, opts).then(function (r: any) {
+      if (!r || !r.ok) { finish(false); return; }
+      r.json().then(function (d: any) {
+        if (d && d.version) noteServerVersion(d.version);
+        finish(true);
+      }).catch(function () { finish(true); });
+    }).catch(function () { finish(false); });
   }
   function openSocket(u: string) {
     var ws: any;
@@ -129,12 +223,14 @@ var NET: any = (function () {
       }, 2000);
     };
     ws.onmessage = function (e: any) { N.stats.recv++; var m: any; try { m = JSON.parse(e.data); } catch (_e2) { return; } onMsg(m.event, m.data || {}); };
-    ws.onclose = function () {
+    ws.onclose = function (e: any) {
       clearTimeout(to);
       if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
       if (N.ws !== ws) return;
       N.ws = null;
+      if (N.redirecting) return;
       if (N.st === "unsupported") return;
+      if (e && e.code === 4002) { rejectVersion(); return; }
       if (!opened && N.st !== "reconnecting") { failLink(); return; }
       if (N.room) startReconnect(); else if (N.st !== "error") N.st = "off";
     };
@@ -142,22 +238,29 @@ var NET: any = (function () {
   }
   N.connect = function (cb?: any) {
     if (N.ws && N.ws.readyState === 1) { if (cb) cb(true); return; }
-    var u = url();
+    var u = buildWsUrl(N.targetNode);
     if (!u || typeof WebSocket === "undefined") { failLink(cb); return; }
     if (N.ws && N.ws.readyState === 0) { N.onOpen = cb || N.onOpen; return; }
     if (N.probing) { N.onOpen = cb || N.onOpen; return; }
     N.st = N.st === "reconnecting" ? "reconnecting" : "connecting";
     N.onOpen = cb || null;
     N.probing = true;
+    var seq = ++N.probeSeq;
     probeHealth(toHealth(u), function (ok: boolean) {
+      if (seq !== N.probeSeq) return;
       N.probing = false;
       if (N.st !== "connecting" && N.st !== "reconnecting") return;
-      if (!ok) { failLink(); return; }
+      if (!ok) {
+        if (N.st === "reconnecting" && N.room) startReconnect();
+        else failLink();
+        return;
+      }
       openSocket(u);
     });
   };
   function startReconnect() {
     if (N.st !== "reconnecting") { N.st = "reconnecting"; N.reconUntil = now() + NET_GRACE_MS; }
+    N.targetNode = N.node || load("hoppak.net.node") || "";
     if (N.reconTimer) return;
     N.reconTimer = setTimeout(function () {
       N.reconTimer = 0;
@@ -172,6 +275,7 @@ var NET: any = (function () {
     N.st = "unsupported";
     N.err = "ОНЛАЙН НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ";
     N.room = null;
+    N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
     var ws = N.ws;
     N.ws = null;
     try { if (ws) ws.close(); } catch (_e) {}
@@ -179,7 +283,9 @@ var NET: any = (function () {
     if (N.api && N.api.phase() === "net") N.sub = "home";
   }
   function giveUp(msg: string) {
-    N.st = "error"; N.err = msg; N.room = null; N.token = ""; store("hoppak.net.token", null);
+    N.st = "error"; N.err = msg; N.room = null; N.token = ""; N.node = ""; N.targetNode = "";
+    N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
+    store("hoppak.net.token", null); store("hoppak.net.node", null);
     var w = N.api && N.api.world();
     if (w && w.net && w.phase === "play") { w.net = false; w.netLost = true; }
     if (N.api && N.api.phase() === "net") N.sub = "home";
@@ -198,15 +304,62 @@ var NET: any = (function () {
       N.rtt = N.rtt ? N.rtt * 0.8 + rtt * 0.2 : rtt;
     } else if (ev === "hello") {
       if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
-      if (d.v !== NET_PROTO) { rejectVersion(); return; }
+      if (d.supported === false || (d.v !== 1 && d.v !== NET_PROTO)) { rejectVersion(); return; }
+      N.serverProto = d.v;
+      N.node = d.node ? String(d.node) : "";
+      if (N.room) store("hoppak.net.node", N.node || null);
+      if (d.version) noteServerVersion(d.version);
       ping();
       var tok = N.token || load("hoppak.net.token");
       if (N.st === "reconnecting" && tok) send("resume", { token: tok });
       else { N.st = "online"; var f = N.onOpen; N.onOpen = null; if (f) f(true); }
       if (d.s && !N.rtt) N.off = d.s - now();
+    } else if (ev === "update") {
+      if (d && d.version) noteServerVersion(d.version);
+    } else if (ev === "redirect") {
+      var nextNode = d && d.node ? String(d.node).trim() : "";
+      var act = (d && d.code)
+        ? { type: "join", code: String(d.code).trim() }
+        : (N.pendingAction || (d && d.reason === "draining" ? { type: "create" } : null));
+      if (!nextNode || !act) {
+        N.pendingAction = null; N.redirCount = 0;
+        N.err = "ОШИБКА ПЕРЕХОДА";
+        if (N.api) N.api.say(N.err);
+        return;
+      }
+      N.redirCount = (N.redirCount || 0) + 1;
+      if (N.redirCount > NET_MAX_REDIRECTS) {
+        N.pendingAction = null; N.redirCount = 0;
+        N.err = "СЕРВЕР ПЕРЕГРУЖЕН";
+        if (N.api) N.api.say(N.err);
+        return;
+      }
+      N.pendingAction = act;
+      N.redirecting = true;
+      N.targetNode = nextNode;
+      var oldWs = N.ws;
+      N.ws = null;
+      if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+      if (N.reconTimer) { clearTimeout(N.reconTimer); N.reconTimer = 0; }
+      N.probeSeq++;
+      N.probing = false;
+      N.onOpen = null;
+      try { if (oldWs) oldWs.close(); } catch (_e) {}
+      N.st = "connecting";
+      N.connect(function (ok: boolean) {
+        N.redirecting = false;
+        if (!ok) { N.pendingAction = null; N.redirCount = 0; return; }
+        var m = me();
+        if (act.type === "join") { m.code = act.code; send("join", m); }
+        else if (act.type === "create") send("create", m);
+      });
     } else if (ev === "room") {
       var wasRecon = N.st === "reconnecting";
-      N.room = d; N.you = d.you; N.token = d.token; store("hoppak.net.token", d.token); N.st = "online";
+      N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
+      N.room = d; N.you = d.you; N.token = d.token;
+      store("hoppak.net.token", d.token);
+      if (N.node) store("hoppak.net.node", N.node);
+      N.st = "online";
       sessionFor(d.code);
       if (wasRecon) { var f = N.onOpen; N.onOpen = null; if (f) f(true); }
       if (N.api && N.api.phase() === "net" && N.sub !== "room") N.sub = "room";
@@ -233,6 +386,8 @@ var NET: any = (function () {
       N.results = d;
       noteResults(d);
     } else if (ev === "err") {
+      N.pendingAction = null; N.redirCount = 0;
+      if (d.code === "UNSUPPORTED_PROTOCOL") { rejectVersion(); return; }
       N.err = d.msg || d.code;
       if (d.code === "NO_SESSION") giveUp("КОМНАТА ЗАКРЫТА");
       if (N.api) N.api.say(cleanText(N.err, 24) || "ОШИБКА");
@@ -241,11 +396,19 @@ var NET: any = (function () {
 
   /* ---------- room actions ---------- */
   function me() { return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0 }; }
-  N.create = function () { N.connect(function (ok: boolean) { if (ok) { var m = me(); send("create", m); } }); };
-  N.join = function (code: string) { N.connect(function (ok: boolean) { if (ok) { var m: any = me(); m.code = code; send("join", m); } }); };
+  N.create = function () {
+    N.redirCount = 0; N.pendingAction = { type: "create" };
+    N.connect(function (ok: boolean) { if (ok) { var m = me(); send("create", m); } });
+  };
+  N.join = function (code: string) {
+    N.redirCount = 0; N.pendingAction = { type: "join", code: String(code || "").trim() };
+    N.connect(function (ok: boolean) { if (ok) { var m: any = me(); m.code = N.pendingAction.code; send("join", m); } });
+  };
   N.leave = function () {
     if (N.room) send("leave", {});
-    N.room = null; N.token = ""; N.startInfo = null; N.results = null; N.session = emptySession(""); store("hoppak.net.token", null);
+    N.room = null; N.token = ""; N.startInfo = null; N.results = null; N.session = emptySession("");
+    N.targetNode = ""; N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
+    store("hoppak.net.token", null); store("hoppak.net.node", null);
     if (N.reconTimer) { clearTimeout(N.reconTimer); N.reconTimer = 0; }
     if (N.st === "reconnecting") N.st = N.ws ? "online" : "off";
   };
@@ -427,10 +590,12 @@ var NET: any = (function () {
   N.open = function (api: any) {
     N.api = api; N.err = "";
     if (N.room) { N.sub = "room"; return; }
+    if (!N.ws) N.targetNode = "";
+    N.pendingAction = null; N.redirCount = 0;
     N.sub = "home";
     N.connect(function (ok: boolean) { if (!ok) N.sub = "home"; });
   };
-  N.bind = function (api: any) { N.api = api; };
+  N.bind = function (api: any) { N.api = api; startHealthPoll(); };
   function statusLine() {
     if (N.st === "online") return { t: "СЕРВЕР НА СВЯЗИ", c: C.mint };
     if (N.st === "connecting") return { t: "ПОДКЛЮЧАЕМСЯ...", c: C.gold };
@@ -530,7 +695,7 @@ var NET: any = (function () {
     N.api = api;
     if (id === "net:menu") { api.setPhase("net"); N.open(api); return; }
     if (id === "net:back") { api.goMenu(); return; }
-    if (id === "net:retry") { N.err = ""; N.connect(); return; }
+    if (id === "net:retry") { N.err = ""; N.targetNode = ""; N.pendingAction = null; N.redirCount = 0; N.connect(); return; }
     if (id === "net:bots") { api.bots(); return; }
     if (id === "net:name") {
       var cur = cleanNick(nick());
@@ -563,6 +728,8 @@ var NET: any = (function () {
   N.tryResume = function (api: any) {
     N.api = api;
     if (!load("hoppak.net.token")) return;
+    N.node = load("hoppak.net.node") || "";
+    N.targetNode = N.node;
     N.st = "reconnecting"; N.reconUntil = now() + NET_GRACE_MS;
     N.connect();
   };

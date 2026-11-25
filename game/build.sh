@@ -13,6 +13,7 @@
 set -e
 cd "$(dirname "$0")"
 ESB=/tmp/esb/node_modules/.bin/esbuild
+CLIENT_VER="${HOP_VERSION:-0.58.0}"
 cat src/01_core.tsx src/02_world.tsx src/03_draw.tsx src/net.tsx src/04_shell.tsx > hoppak.page.tsx
 python3 - << 'PY'
 src = open("hoppak.page.tsx").read()
@@ -20,10 +21,10 @@ game = src.split("/* @@APP */")[0]
 game = game.split("\n", 1)[1]  # drop grok/canvas import
 open("/tmp/hoppak.game.ts", "w").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
 PY
-$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --outfile=hoppak.js --log-level=warning
+$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --define:HOP_VERSION="\"${CLIENT_VER}\"" --outfile=hoppak.js --log-level=warning
 sed -i '1i /* Хоппак v0.58 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
-$ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --outfile=/tmp/hop.min.tsx --log-level=warning
+$ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --define:HOP_VERSION="\"${CLIENT_VER}\"" --outfile=/tmp/hop.min.tsx --log-level=warning
 python3 - << 'PY'
 import re
 t = open("/tmp/hop.min.tsx").read().strip()
@@ -56,6 +57,7 @@ if [ "${1:-}" = "site" ]; then
   mkdir -p site
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
     --define:HOP_SERVER="\"${SITE_ORIGIN}\"" \
+    --define:HOP_VERSION="\"${CLIENT_VER}\"" \
     --outfile=site/hoppak.js --log-level=warning
   sed -i '1i /* Хоппак v0.58 site — HOP_SERVER baked in, do not edit */' site/hoppak.js
   python3 - << PY
@@ -72,4 +74,8 @@ PY
   node --check site/hoppak.js && echo "site js ok $(wc -c < site/hoppak.js) bytes"
   # confirm the origin string is baked in
   grep -o "${SITE_ORIGIN}" site/hoppak.js | head -1 | sed "s/^/baked: /"
+  mkdir -p "site/v/${CLIENT_VER}"
+  cp site/index.html "site/v/${CLIENT_VER}/index.html"
+  cp site/hoppak.js "site/v/${CLIENT_VER}/hoppak.js"
+  echo "site versioned: site/v/${CLIENT_VER}/ (ver=${CLIENT_VER})"
 fi

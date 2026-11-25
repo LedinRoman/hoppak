@@ -302,6 +302,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
   function activate(id: string | null) {
     if (!id) return;
+    if (id === "update:dismiss") { if (typeof NET !== "undefined" && NET.dismissUpdate) NET.dismissUpdate(); return; }
+    if (id === "update:reload") { if (typeof NET !== "undefined" && NET.reloadApp) NET.reloadApp(); return; }
     if (id.indexOf("net:") === 0) { NET.tap(id, netApi); return; }
     if (world && world.netRound && (id === "rematch" || id === "menu")) { if (id === "menu") { NET.leave(); goMenu(); } else NET.tap("net:rematch", netApi); return; }
     if (id === "start") { mode = "solo"; startRun(); return; }
@@ -483,6 +485,26 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var w = textWidth(title, sc) + 16;
     box(ctx, Math.round(LW / 2 - w / 2), 8, w, 7 * sc + 10, C.navy, C.cream);
     drawText(ctx, title, LW / 2, 13, C.cream, sc, "center");
+  }
+  function drawUpdateBanner() {
+    if (typeof NET === "undefined" || !NET.shouldShowBanner || !NET.shouldShowBanner()) return;
+    if (phase !== "menu" && phase !== "lobby" && phase !== "results" && phase !== "net") return;
+    var x = colX(), w = 152, h = 22, dw = 18, lw = w - dw;
+    var y = phase === "menu" ? (LH - 26) : phase === "results" ? 258 : phase === "net" ? (NET.sub === "room" && NET.room ? 254 : 284) : 254;
+    var onR = pressId === "update:reload", onD = pressId === "update:dismiss";
+    var fill = onR ? mixHex(C.navy, "#ffffff", 0.16) : C.navy;
+    addHit("update:reload", x, y, lw, h);
+    addHit("update:dismiss", x + lw, y, dw, h);
+    box(ctx, x, y, w, h, fill, C.mint);
+    if (onD) rect(ctx, x + lw, y + 1, dw - 1, h - 2, mixHex(C.navy, "#ffffff", 0.16));
+    rect(ctx, x + lw, y + 3, 1, h - 6, "#3a4a7a");
+    drawText(ctx, "ДОСТУПНА НОВАЯ ВЕРСИЯ", x + lw / 2, y + 3, C.cream, 1, "center");
+    drawText(ctx, "ОБНОВИТЬ?", x + lw / 2, y + 12, C.mint, 1, "center");
+    var cx = x + lw + Math.floor((dw - 5) / 2), cy = y + Math.floor((h - 5) / 2);
+    for (var i = 0; i < 5; i++) {
+      rect(ctx, cx + i, cy + i, 1, 1, "#9a8ab8");
+      rect(ctx, cx + 4 - i, cy + i, 1, 1, "#9a8ab8");
+    }
   }
   function drawFlash() {
     if (flashT <= 0) return;
@@ -1202,6 +1224,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     else if (phase === "font") drawFontSheet();
     else if (phase === "net") { hits = []; NET.draw(netApi); drawFlash(); }
     else { drawPlay(); if (world && world.net) NET.overlay(netApi, world); }
+    if (phase === "menu" || phase === "lobby" || phase === "results" || phase === "net") drawUpdateBanner();
     if (phoneLand && phase !== "play") {
       dimView(ctx, "rgba(8,6,20,0.55)");
       box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
@@ -1268,6 +1291,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     destroy: function () {
       running = false;
       cancelAnimationFrame(raf);
+      if (typeof NET !== "undefined" && NET.stopPolling) NET.stopPolling();
       window.removeEventListener("resize", resize);
       window.removeEventListener("orientationchange", onOrientationChange);
       if (window.visualViewport) window.visualViewport.removeEventListener("resize", resize);

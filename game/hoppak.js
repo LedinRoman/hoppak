@@ -3132,17 +3132,42 @@
     if (drawBonusSprite(ctx, it.kind, cx, cy)) return;
     drawItemIcon(ctx, it.kind, x, y);
   }
-  var NET_PROTO = 1;
+  var NET_PROTO = 2;
   var NET_SEND_MS = 66;
   var NET_DELAY_MS = 150;
   var NET_GRACE_MS = 1e4;
+  var NET_HEALTH_MS = 6e4;
+  var NET_MAX_REDIRECTS = 2;
   var NET_XS = [74, 22, 124, 48];
   var NET_TAGS = { host: "\u0425\u041E\u0421\u0422", ready: "\u0413\u041E\u0422\u041E\u0412", wait: "\u0416\u0414\u0401\u041C", off: "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418" };
-  var NET = function() {
+  function buildVersion() {
+    try {
+      if ("0.58.0") return String("0.58.0").trim();
+    } catch (_e) {
+    }
+    return "0.57.0";
+  }
+  var CLIENT_VERSION = buildVersion();
+  var NET = (function() {
     var N = {
       ws: null,
       st: "off",
       /* off | connecting | online | reconnecting | error | unsupported */
+      proto: NET_PROTO,
+      clientVersion: CLIENT_VERSION,
+      serverProto: 0,
+      node: "",
+      targetNode: "",
+      serverVersion: "",
+      updateAvail: false,
+      updateVersion: "",
+      updateDismissed: "",
+      pendingAction: null,
+      redirCount: 0,
+      redirecting: false,
+      pollTimer: 0,
+      healthMs: NET_HEALTH_MS,
+      probeSeq: 0,
       room: null,
       you: -1,
       token: "",
@@ -3195,7 +3220,7 @@
         else if (s.indexOf("ws://") === 0) s = "http://" + s.slice(5);
         var u = new URL(s);
         var path = u.pathname || "";
-        if (path.lastIndexOf("/ws") === path.length - 3) path = path.slice(0, -3);
+        path = path.replace(/\/ws(?:\/[^/]+)?\/?$/, "");
         if (path.charAt(path.length - 1) === "/") path = path.slice(0, -1);
         u.pathname = path + "/api/health";
         u.search = "";
@@ -3261,9 +3286,109 @@
     }
     N.send = send;
     N.serverNow = serverNow;
+    function noteServerVersion(v) {
+      if (typeof v !== "string") return;
+      var ver = v.trim();
+      if (!ver) return;
+      N.serverVersion = ver;
+      if (ver !== N.clientVersion) {
+        N.updateVersion = ver;
+        N.updateAvail = true;
+      }
+    }
+    N.shouldShowBanner = function() {
+      return !!(N.updateAvail && N.updateVersion && N.updateDismissed !== N.updateVersion);
+    };
+    N.dismissUpdate = function() {
+      N.updateDismissed = N.updateVersion || "__dismissed__";
+    };
+    N.reloadApp = function() {
+      if (N.room) {
+        send("leave", {});
+        N.room = null;
+        N.token = "";
+        N.node = "";
+        N.targetNode = "";
+        store("hoppak.net.token", null);
+        store("hoppak.net.node", null);
+      }
+      var w = typeof window !== "undefined" ? window : null;
+      if (!w || !w.location) return;
+      try {
+        if (w.location.protocol === "file:") {
+          w.location.reload();
+          return;
+        }
+        w.location.assign("/" + (w.location.search || ""));
+      } catch (_e) {
+        try {
+          w.location.reload();
+        } catch (_e2) {
+        }
+      }
+    };
+    N.pollHealth = function() {
+      var hu = toHealth(url());
+      if (!hu || typeof fetch === "undefined") return Promise.resolve(null);
+      var opts = { method: "GET", cache: "no-store", mode: "cors" };
+      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      var to = setTimeout(function() {
+        try {
+          if (ctrl) ctrl.abort();
+        } catch (_e) {
+        }
+      }, 3e3);
+      if (ctrl) opts.signal = ctrl.signal;
+      return fetch(hu, opts).then(function(r) {
+        clearTimeout(to);
+        if (!r || !r.ok) return null;
+        return r.json().then(function(d) {
+          if (d && d.version) noteServerVersion(d.version);
+          return d;
+        }).catch(function() {
+          return null;
+        });
+      }).catch(function() {
+        clearTimeout(to);
+        return null;
+      });
+    };
+    function startHealthPoll() {
+      if (N.pollTimer) return;
+      var w = typeof window !== "undefined" ? window : null;
+      var ms = w && typeof w.HOPPAK_HEALTH_MS === "number" && w.HOPPAK_HEALTH_MS > 0 ? w.HOPPAK_HEALTH_MS : N.healthMs;
+      if (!toHealth(url())) return;
+      N.pollTimer = setInterval(function() {
+        N.pollHealth();
+      }, ms);
+    }
+    N.stopPolling = function() {
+      if (N.pollTimer) {
+        clearInterval(N.pollTimer);
+        N.pollTimer = 0;
+      }
+    };
+    function buildWsUrl(node) {
+      var base = url();
+      if (!base) return "";
+      try {
+        var u = new URL(base);
+        if (node && node !== "local") {
+          u.pathname = u.pathname.replace(/\/ws(?:\/[^/]+)?\/?$/, "") + "/ws/" + encodeURIComponent(node);
+        }
+        u.searchParams.set("p", String(NET_PROTO));
+        return u.toString();
+      } catch (_e) {
+        var sep = base.indexOf("?") >= 0 ? "&" : "?";
+        return base + sep + "p=" + NET_PROTO;
+      }
+    }
     function failLink(cb) {
       N.st = "error";
       N.err = "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418";
+      N.pendingAction = null;
+      N.redirCount = 0;
+      N.redirecting = false;
       var f = cb || N.onOpen;
       N.onOpen = null;
       if (f) f(false);
@@ -3290,7 +3415,16 @@
       var opts = { method: "GET", cache: "no-store", mode: "cors" };
       if (ctrl) opts.signal = ctrl.signal;
       fetch(hu, opts).then(function(r) {
-        finish2(!!r && r.ok);
+        if (!r || !r.ok) {
+          finish2(false);
+          return;
+        }
+        r.json().then(function(d) {
+          if (d && d.version) noteServerVersion(d.version);
+          finish2(true);
+        }).catch(function() {
+          finish2(true);
+        });
       }).catch(function() {
         finish2(false);
       });
@@ -3332,7 +3466,7 @@
         }
         onMsg(m.event, m.data || {});
       };
-      ws.onclose = function() {
+      ws.onclose = function(e) {
         clearTimeout(to);
         if (N.helloTimer) {
           clearTimeout(N.helloTimer);
@@ -3340,7 +3474,12 @@
         }
         if (N.ws !== ws) return;
         N.ws = null;
+        if (N.redirecting) return;
         if (N.st === "unsupported") return;
+        if (e && e.code === 4002) {
+          rejectVersion();
+          return;
+        }
         if (!opened && N.st !== "reconnecting") {
           failLink();
           return;
@@ -3356,7 +3495,7 @@
         if (cb) cb(true);
         return;
       }
-      var u = url();
+      var u = buildWsUrl(N.targetNode);
       if (!u || typeof WebSocket === "undefined") {
         failLink(cb);
         return;
@@ -3372,11 +3511,14 @@
       N.st = N.st === "reconnecting" ? "reconnecting" : "connecting";
       N.onOpen = cb || null;
       N.probing = true;
+      var seq = ++N.probeSeq;
       probeHealth(toHealth(u), function(ok) {
+        if (seq !== N.probeSeq) return;
         N.probing = false;
         if (N.st !== "connecting" && N.st !== "reconnecting") return;
         if (!ok) {
-          failLink();
+          if (N.st === "reconnecting" && N.room) startReconnect();
+          else failLink();
           return;
         }
         openSocket(u);
@@ -3387,6 +3529,7 @@
         N.st = "reconnecting";
         N.reconUntil = now() + NET_GRACE_MS;
       }
+      N.targetNode = N.node || load("hoppak.net.node") || "";
       if (N.reconTimer) return;
       N.reconTimer = setTimeout(function() {
         N.reconTimer = 0;
@@ -3409,6 +3552,9 @@
       N.st = "unsupported";
       N.err = "\u041E\u041D\u041B\u0410\u0419\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418";
       N.room = null;
+      N.pendingAction = null;
+      N.redirCount = 0;
+      N.redirecting = false;
       var ws = N.ws;
       N.ws = null;
       try {
@@ -3425,7 +3571,13 @@
       N.err = msg;
       N.room = null;
       N.token = "";
+      N.node = "";
+      N.targetNode = "";
+      N.pendingAction = null;
+      N.redirCount = 0;
+      N.redirecting = false;
       store("hoppak.net.token", null);
+      store("hoppak.net.node", null);
       var w = N.api && N.api.world();
       if (w && w.net && w.phase === "play") {
         w.net = false;
@@ -3455,10 +3607,14 @@
           clearTimeout(N.helloTimer);
           N.helloTimer = 0;
         }
-        if (d.v !== NET_PROTO) {
+        if (d.supported === false || d.v !== 1 && d.v !== NET_PROTO) {
           rejectVersion();
           return;
         }
+        N.serverProto = d.v;
+        N.node = d.node ? String(d.node) : "";
+        if (N.room) store("hoppak.net.node", N.node || null);
+        if (d.version) noteServerVersion(d.version);
         ping();
         var tok = N.token || load("hoppak.net.token");
         if (N.st === "reconnecting" && tok) send("resume", { token: tok });
@@ -3469,12 +3625,70 @@
           if (f) f(true);
         }
         if (d.s && !N.rtt) N.off = d.s - now();
+      } else if (ev === "update") {
+        if (d && d.version) noteServerVersion(d.version);
+      } else if (ev === "redirect") {
+        var nextNode = d && d.node ? String(d.node).trim() : "";
+        var act = d && d.code ? { type: "join", code: String(d.code).trim() } : N.pendingAction || (d && d.reason === "draining" ? { type: "create" } : null);
+        if (!nextNode || !act) {
+          N.pendingAction = null;
+          N.redirCount = 0;
+          N.err = "\u041E\u0428\u0418\u0411\u041A\u0410 \u041F\u0415\u0420\u0415\u0425\u041E\u0414\u0410";
+          if (N.api) N.api.say(N.err);
+          return;
+        }
+        N.redirCount = (N.redirCount || 0) + 1;
+        if (N.redirCount > NET_MAX_REDIRECTS) {
+          N.pendingAction = null;
+          N.redirCount = 0;
+          N.err = "\u0421\u0415\u0420\u0412\u0415\u0420 \u041F\u0415\u0420\u0415\u0413\u0420\u0423\u0416\u0415\u041D";
+          if (N.api) N.api.say(N.err);
+          return;
+        }
+        N.pendingAction = act;
+        N.redirecting = true;
+        N.targetNode = nextNode;
+        var oldWs = N.ws;
+        N.ws = null;
+        if (N.helloTimer) {
+          clearTimeout(N.helloTimer);
+          N.helloTimer = 0;
+        }
+        if (N.reconTimer) {
+          clearTimeout(N.reconTimer);
+          N.reconTimer = 0;
+        }
+        N.probeSeq++;
+        N.probing = false;
+        N.onOpen = null;
+        try {
+          if (oldWs) oldWs.close();
+        } catch (_e) {
+        }
+        N.st = "connecting";
+        N.connect(function(ok) {
+          N.redirecting = false;
+          if (!ok) {
+            N.pendingAction = null;
+            N.redirCount = 0;
+            return;
+          }
+          var m = me();
+          if (act.type === "join") {
+            m.code = act.code;
+            send("join", m);
+          } else if (act.type === "create") send("create", m);
+        });
       } else if (ev === "room") {
         var wasRecon = N.st === "reconnecting";
+        N.pendingAction = null;
+        N.redirCount = 0;
+        N.redirecting = false;
         N.room = d;
         N.you = d.you;
         N.token = d.token;
         store("hoppak.net.token", d.token);
+        if (N.node) store("hoppak.net.node", N.node);
         N.st = "online";
         sessionFor(d.code);
         if (wasRecon) {
@@ -3510,6 +3724,12 @@
         N.results = d;
         noteResults(d);
       } else if (ev === "err") {
+        N.pendingAction = null;
+        N.redirCount = 0;
+        if (d.code === "UNSUPPORTED_PROTOCOL") {
+          rejectVersion();
+          return;
+        }
         N.err = d.msg || d.code;
         if (d.code === "NO_SESSION") giveUp("\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410");
         if (N.api) N.api.say(cleanText(N.err, 24) || "\u041E\u0428\u0418\u0411\u041A\u0410");
@@ -3519,6 +3739,8 @@
       return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0 };
     }
     N.create = function() {
+      N.redirCount = 0;
+      N.pendingAction = { type: "create" };
       N.connect(function(ok) {
         if (ok) {
           var m = me();
@@ -3527,10 +3749,12 @@
       });
     };
     N.join = function(code) {
+      N.redirCount = 0;
+      N.pendingAction = { type: "join", code: String(code || "").trim() };
       N.connect(function(ok) {
         if (ok) {
           var m = me();
-          m.code = code;
+          m.code = N.pendingAction.code;
           send("join", m);
         }
       });
@@ -3542,7 +3766,12 @@
       N.startInfo = null;
       N.results = null;
       N.session = emptySession("");
+      N.targetNode = "";
+      N.pendingAction = null;
+      N.redirCount = 0;
+      N.redirecting = false;
       store("hoppak.net.token", null);
+      store("hoppak.net.node", null);
       if (N.reconTimer) {
         clearTimeout(N.reconTimer);
         N.reconTimer = 0;
@@ -3816,6 +4045,9 @@
         N.sub = "room";
         return;
       }
+      if (!N.ws) N.targetNode = "";
+      N.pendingAction = null;
+      N.redirCount = 0;
       N.sub = "home";
       N.connect(function(ok) {
         if (!ok) N.sub = "home";
@@ -3823,6 +4055,7 @@
     };
     N.bind = function(api) {
       N.api = api;
+      startHealthPoll();
     };
     function statusLine() {
       if (N.st === "online") return { t: "\u0421\u0415\u0420\u0412\u0415\u0420 \u041D\u0410 \u0421\u0412\u042F\u0417\u0418", c: C.mint };
@@ -3938,6 +4171,9 @@
       }
       if (id === "net:retry") {
         N.err = "";
+        N.targetNode = "";
+        N.pendingAction = null;
+        N.redirCount = 0;
         N.connect();
         return;
       }
@@ -4037,12 +4273,14 @@
     N.tryResume = function(api) {
       N.api = api;
       if (!load("hoppak.net.token")) return;
+      N.node = load("hoppak.net.node") || "";
+      N.targetNode = N.node;
       N.st = "reconnecting";
       N.reconUntil = now() + NET_GRACE_MS;
       N.connect();
     };
     return N;
-  }();
+  })();
   function startHoppak(canvas) {
     var raw = canvas.getContext("2d");
     var noop = function() {
@@ -4458,6 +4696,14 @@
     }
     function activate(id) {
       if (!id) return;
+      if (id === "update:dismiss") {
+        if (typeof NET !== "undefined" && NET.dismissUpdate) NET.dismissUpdate();
+        return;
+      }
+      if (id === "update:reload") {
+        if (typeof NET !== "undefined" && NET.reloadApp) NET.reloadApp();
+        return;
+      }
       if (id.indexOf("net:") === 0) {
         NET.tap(id, netApi);
         return;
@@ -4794,6 +5040,26 @@
       var w = textWidth(title, sc) + 16;
       box(ctx, Math.round(LW / 2 - w / 2), 8, w, 7 * sc + 10, C.navy, C.cream);
       drawText(ctx, title, LW / 2, 13, C.cream, sc, "center");
+    }
+    function drawUpdateBanner() {
+      if (typeof NET === "undefined" || !NET.shouldShowBanner || !NET.shouldShowBanner()) return;
+      if (phase !== "menu" && phase !== "lobby" && phase !== "results" && phase !== "net") return;
+      var x = colX(), w = 152, h = 22, dw = 18, lw = w - dw;
+      var y = phase === "menu" ? LH - 26 : phase === "results" ? 258 : phase === "net" ? NET.sub === "room" && NET.room ? 254 : 284 : 254;
+      var onR = pressId === "update:reload", onD = pressId === "update:dismiss";
+      var fill = onR ? mixHex(C.navy, "#ffffff", 0.16) : C.navy;
+      addHit("update:reload", x, y, lw, h);
+      addHit("update:dismiss", x + lw, y, dw, h);
+      box(ctx, x, y, w, h, fill, C.mint);
+      if (onD) rect(ctx, x + lw, y + 1, dw - 1, h - 2, mixHex(C.navy, "#ffffff", 0.16));
+      rect(ctx, x + lw, y + 3, 1, h - 6, "#3a4a7a");
+      drawText(ctx, "\u0414\u041E\u0421\u0422\u0423\u041F\u041D\u0410 \u041D\u041E\u0412\u0410\u042F \u0412\u0415\u0420\u0421\u0418\u042F", x + lw / 2, y + 3, C.cream, 1, "center");
+      drawText(ctx, "\u041E\u0411\u041D\u041E\u0412\u0418\u0422\u042C?", x + lw / 2, y + 12, C.mint, 1, "center");
+      var cx = x + lw + Math.floor((dw - 5) / 2), cy = y + Math.floor((h - 5) / 2);
+      for (var i = 0; i < 5; i++) {
+        rect(ctx, cx + i, cy + i, 1, 1, "#9a8ab8");
+        rect(ctx, cx + 4 - i, cy + i, 1, 1, "#9a8ab8");
+      }
     }
     function drawFlash() {
       if (flashT <= 0) return;
@@ -5683,6 +5949,7 @@
         drawPlay();
         if (world && world.net) NET.overlay(netApi, world);
       }
+      if (phase === "menu" || phase === "lobby" || phase === "results" || phase === "net") drawUpdateBanner();
       if (phoneLand && phase !== "play") {
         dimView(ctx, "rgba(8,6,20,0.55)");
         box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
@@ -5795,6 +6062,7 @@
       destroy: function() {
         running = false;
         cancelAnimationFrame(raf);
+        if (typeof NET !== "undefined" && NET.stopPolling) NET.stopPolling();
         window.removeEventListener("resize", resize);
         window.removeEventListener("orientationchange", onOrientationChange);
         if (window.visualViewport) window.visualViewport.removeEventListener("resize", resize);
