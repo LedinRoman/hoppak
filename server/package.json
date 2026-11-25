@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "dev": "tsc -p tsconfig.json && node dist/main.js",
-    "client": "bash scripts/build-client.sh"
+    "client": "bash scripts/build-client.sh",
+    "test:bluegreen": "node scripts/smoke-bluegreen.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.0",
