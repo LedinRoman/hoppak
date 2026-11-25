@@ -1,0 +1,727 @@
+[
+ {
+  "shot": "desk_menu",
+  "calls": 11117,
+  "offGrid": 1,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawJumper<drawMenu": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawMenu",
+    "k": 2,
+    "args": [
+     64,
+     109,
+     36,
+     32
+    ],
+    "tr": [
+     2,
+     2,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "desk_play_ability",
+  "calls": 3231,
+  "offGrid": 1,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 2,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     2,
+     2,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "desk_play_base",
+  "calls": 2511,
+  "offGrid": 1,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 2,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     2,
+     2,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "phone_menu",
+  "calls": 11170,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawMenu": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawMenu",
+    "k": 7,
+    "args": [
+     64,
+     109,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "phone_play_ability",
+  "calls": 3291,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "phone_play_base",
+  "calls": 2579,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_c25",
+  "calls": 3257,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_c60",
+  "calls": 3067,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_c90",
+  "calls": 3101,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_ready_pop0",
+  "calls": 3205,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_ready_pop4",
+  "calls": 3197,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_ready_pop9",
+  "calls": 3125,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_ready",
+  "calls": 3117,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_refuse10",
+  "calls": 3035,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_refuse8",
+  "calls": 3043,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_refuse6",
+  "calls": 3043,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_refuse4",
+  "calls": 3043,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_active70",
+  "calls": 3079,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "ring_active30",
+  "calls": 3023,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "slime_alert_0",
+  "calls": 3059,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "slime_alert_4",
+  "calls": 3059,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "slime_alert_20",
+  "calls": 3059,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "break_14",
+  "calls": 3065,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "break_9",
+  "calls": 3065,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "break_3",
+  "calls": 3047,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 7,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     7,
+     7,
+     25,
+     55
+    ]
+   }
+  ]
+ }
+]

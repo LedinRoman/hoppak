@@ -275,6 +275,7 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
   var tk = tick || 0;
   var x = Math.round(p.x), y = Math.round(p.y - cam), w = p.w;
   if (y < -16 || y > LH + 12) return;
+  if (p.type === "break") { drawBreakPlat(ctx, p, x, y, tk); return; }
   if (p.type === "cloud") {
     if (p.broken) return;
     ctx.globalAlpha = p.lifeT < 60 && (p.lifeT >> 3) % 2 ? 0.5 : 1;
@@ -306,34 +307,7 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
   }
   rect(ctx, x + 1, y + 6, w - 1, 1, "rgba(0,0,0,0.28)");
   var i;
-  if (p.type === "break") {
-    rect(ctx, x, y, w, 5, C.brk); rect(ctx, x, y + 4, w, 2, C.brkD);
-    ctx.fillStyle = C.brkRim;
-    for (i = 0; i < w; i += 4) ctx.fillRect(x + i, y, 2, 1);
-    rect(ctx, x, y + 1, 1, 4, C.brkRim); rect(ctx, x + w - 1, y + 1, 1, 4, C.brkRim);
-    ctx.fillStyle = C.brkD;
-    var c1 = x + Math.floor(w * 0.3);
-    ctx.fillRect(c1, y + 1, 1, 4); ctx.fillRect(c1 + 1, y + 3, 2, 1);
-    ctx.fillRect(x + Math.floor(w * 0.68), y + 1, 1, 5); ctx.fillRect(x + Math.floor(w * 0.5), y + 2, 3, 1);
-    rect(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 3, "#120a2c");
-    /* Temporary crack until Design's sprite. Same palette, no new colors. */
-    ctx.fillStyle = "#120a2c";
-    var zx = x + 2, zy = y + 2, step = 0;
-    while (zx < x + w - 2) {
-      ctx.fillRect(zx, zy, 2, 1);
-      step++;
-      zy = (step % 2) ? y + 3 : y + 1;
-      zx += 2;
-    }
-    ctx.fillStyle = C.brkD;
-    zx = x + 3; zy = y + 1; step = 0;
-    while (zx < x + w - 3) {
-      ctx.fillRect(zx, zy, 1, 1);
-      step++;
-      zy = (step % 2) ? y + 2 : y + 1;
-      zx += 2;
-    }
-  } else if (p.type === "move") {
+  if (p.type === "move") {
     rect(ctx, x, y, w, 5, C.mov); rect(ctx, x, y + 4, w, 2, C.movD);
     rect(ctx, x, y, w, 1, C.gold); rect(ctx, x, y + 1, 1, 4, C.gold); rect(ctx, x + w - 1, y + 1, 1, 4, C.gold);
     rect(ctx, x + 2, y + 2, 1, 1, "#9ad0f0"); rect(ctx, x + w - 3, y + 2, 1, 1, "#9ad0f0");
@@ -393,8 +367,8 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
 function drawTrack(ctx: Ctx, p: any, cam: number) {
   var y = Math.round(p.y - cam) + 2;
   if (y < -10 || y > LH + 10) return;
-  ctx.fillStyle = "rgba(255,216,80,0.34)";
-  for (var x = 3; x < LW - 3; x += 5) ctx.fillRect(x, y, 2, 1);
+  ctx.fillStyle = "rgba(20,12,40,0.30)";
+  ctx.fillRect(0, y + 1, LW, 1);
 }
 
 var MOBPAL: any = {
@@ -425,7 +399,9 @@ function drawMob(ctx: Ctx, m: any, cam: number, mapId?: string, frozen?: boolean
     return;
   }
   var k: number, b = m.b, lk = m.vx > 0 ? 1 : 0, wb = Math.floor(t / 12) % 2;
-  if (m.kind === "blob" || m.kind === "magma" || m.kind === "alien" || m.kind === "crab") {
+  if ((m.kind === "blob" || m.kind === "magma" || m.kind === "alien" || m.kind === "crab") && slimeAlert(m)) {
+    drawWalkerAlert(ctx, m, x, y, pal, t);
+  } else if (m.kind === "blob" || m.kind === "magma" || m.kind === "alien" || m.kind === "crab") {
     rect(ctx, x + 2, y - 1 + wb, 8, 1, INK); rect(ctx, x - 1, y + 3, 14, 5, INK); rect(ctx, x, y + 1 + wb, 12, 3, INK);
     rect(ctx, x + 3, y + wb, 6, 1, pal[0]); rect(ctx, x + 1, y + 1 + wb, 10, 2, pal[0]); rect(ctx, x, y + 3, 12, 4, pal[0]);
     rect(ctx, x, y + 7, 12, 1, pal[1]); rect(ctx, x + 3, y + 1 + wb, 2, 1, pal[2]);
@@ -572,7 +548,7 @@ function drawBullet(ctx: Ctx, b: any, cam: number) {
 }
 var ITEM_COL: any = { bigcoin: "#f0b428", shield: "#3d8ad8", magnet: "#e03848", rocket: "#ff6a3a" };
 function drawItemIcon(ctx: Ctx, kind: string, x: number, y: number) {
-  if (drawBonusSprite(ctx, kind, x + 5, y + 5, 0.5)) return;
+  if (HUD_ICONS[kind]) { drawHudIcon(ctx, kind, x, y); return; }
   if (kind === "bigcoin") { rect(ctx, x + 2, y + 1, 6, 8, C.gold); rect(ctx, x + 1, y + 2, 8, 6, C.gold); rect(ctx, x + 3, y + 2, 2, 2, "#fff4c0"); rect(ctx, x + 4, y + 4, 2, 3, C.goldD); }
   else if (kind === "shield") { rect(ctx, x + 2, y + 1, 6, 5, "#5ec8ff"); rect(ctx, x + 3, y + 6, 4, 2, "#5ec8ff"); rect(ctx, x + 4, y + 8, 2, 1, "#5ec8ff"); rect(ctx, x + 3, y + 2, 2, 3, "#e8fcff"); }
   else if (kind === "magnet") { rect(ctx, x + 1, y + 1, 3, 7, "#ff5a62"); rect(ctx, x + 6, y + 1, 3, 7, "#ff5a62"); rect(ctx, x + 1, y + 6, 8, 3, "#ff5a62"); rect(ctx, x + 1, y + 1, 3, 2, "#e8ecf4"); rect(ctx, x + 6, y + 1, 3, 2, "#e8ecf4"); rect(ctx, x + 4, y + 6, 2, 1, "#a82a38"); }

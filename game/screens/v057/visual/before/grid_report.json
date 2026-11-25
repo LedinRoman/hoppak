@@ -1,0 +1,317 @@
+[
+ {
+  "shot": "desk_menu",
+  "calls": 2870,
+  "offGrid": 1,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawJumper<drawMenu": 1
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawMenu",
+    "k": 2,
+    "args": [
+     48,
+     77,
+     72,
+     64
+    ],
+    "tr": [
+     2,
+     2,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "desk_play_ability",
+  "calls": 2108,
+  "offGrid": 4,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawBonusSprite<drawItem": 1,
+   "drawImage ← drawJumper<drawPlay": 1,
+   "drawImage ← drawBonusSprite<drawItemIcon": 2
+  },
+  "sample": [
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawBonusSprite<drawItem",
+    "k": 2,
+    "args": [
+     128,
+     163,
+     10,
+     18
+    ],
+    "tr": [
+     2,
+     2,
+     0,
+     0
+    ]
+   },
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawJumper<drawPlay",
+    "k": 2,
+    "args": [
+     70,
+     216,
+     36,
+     32
+    ],
+    "tr": [
+     2,
+     2,
+     0,
+     0
+    ]
+   },
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawBonusSprite<drawItemIcon",
+    "k": 2,
+    "args": [
+     6,
+     23,
+     10,
+     10
+    ],
+    "tr": [
+     2,
+     2,
+     0,
+     0
+    ]
+   },
+   {
+    "kind": "drawImage",
+    "ok": false,
+    "fn": "drawBonusSprite<drawItemIcon",
+    "k": 2,
+    "args": [
+     22,
+     23,
+     11,
+     11
+    ],
+    "tr": [
+     2,
+     2,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "phone_menu",
+  "calls": 2868,
+  "offGrid": 2868,
+  "k": 7.3125,
+  "byCaller": {
+   "fillRect ← drawBg<drawMenu": 1195,
+   "fillRect ← drawBuildings<drawBg": 236,
+   "fillRect ← dimView<drawMenu": 1,
+   "fillRect ← box<drawMenu": 7,
+   "fillRect ← drawMenu<frame": 716,
+   "fillRect ← box<gear": 7,
+   "fillRect ← gear<drawMenu": 4,
+   "fillRect ← box<plaque": 7,
+   "fillRect ← drawCoin<coinsLabel": 4,
+   "fillRect ← coinsLabel<plaque": 19,
+   "fillRect ← plaque<drawMenu": 134,
+   "drawImage ← drawJumper<drawMenu": 1,
+   "fillRect ← box<btn": 42,
+   "fillRect ← btn<drawMenu": 495
+  },
+  "sample": [
+   {
+    "kind": "fillRect",
+    "ok": false,
+    "fn": "drawBg<drawMenu",
+    "k": 7.3125,
+    "args": [
+     0,
+     0,
+     160,
+     14
+    ],
+    "tr": [
+     7.313,
+     7.312,
+     0,
+     0
+    ]
+   },
+   {
+    "kind": "fillRect",
+    "ok": false,
+    "fn": "drawBg<drawMenu",
+    "k": 7.3125,
+    "args": [
+     0,
+     14,
+     160,
+     15
+    ],
+    "tr": [
+     7.313,
+     7.312,
+     0,
+     0
+    ]
+   },
+   {
+    "kind": "fillRect",
+    "ok": false,
+    "fn": "drawBg<drawMenu",
+    "k": 7.3125,
+    "args": [
+     2,
+     13,
+     2,
+     1
+    ],
+    "tr": [
+     7.313,
+     7.312,
+     0,
+     0
+    ]
+   },
+   {
+    "kind": "fillRect",
+    "ok": false,
+    "fn": "drawBg<drawMenu",
+    "k": 7.3125,
+    "args": [
+     6,
+     13,
+     2,
+     1
+    ],
+    "tr": [
+     7.313,
+     7.312,
+     0,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "shot": "phone_play_ability",
+  "calls": 2125,
+  "offGrid": 2125,
+  "k": 7.3125,
+  "byCaller": {
+   "fillRect ← drawBg<drawPlay": 980,
+   "fillRect ← drawCloud<drawBg": 66,
+   "fillRect ← drawTrack<drawPlay": 31,
+   "fillRect ← drawPlatform<drawPlay": 230,
+   "fillRect ← dashLine<drawPlay": 318,
+   "fillRect ← box<dashLine": 14,
+   "fillRect ← drawCoin<drawPlay": 12,
+   "drawImage ← drawBonusSprite<drawItem": 1,
+   "fillRect ← drawMob<drawPlay": 18,
+   "fillRect ← eyes<drawMob": 8,
+   "fillRect ← drawFxBack<drawPlay": 8,
+   "drawImage ← drawJumper<drawPlay": 1,
+   "fillRect ← ring<drawFxFront": 28,
+   "fillRect ← box<drawPlay": 28,
+   "fillRect ← drawPlay<frame": 256,
+   "fillRect ← drawCoin<coinsLabel": 4,
+   "fillRect ← coinsLabel<drawPlay": 28,
+   "fillRect ← box<drawBonusHud": 14,
+   "drawImage ← drawBonusSprite<drawItemIcon": 2,
+   "fillRect ← drawBonusHud<drawPlay": 4,
+   "fillRect ← fillDisc<drawAbBar": 30,
+   "fillRect ← strokeArc<drawAbBar": 37,
+   "fillRect ← drawAbIcon<drawAbBar": 7
+  },
+  "sample": [
+   {
+    "kind": "fillRect",
+    "ok": false,
+    "fn": "drawBg<drawPlay",
+    "k": 7.3125,
+    "args": [
+     0,
+     0,
+     160,
+     14
+    ],
+    "tr": [
+     7.313,
+     7.312,
+     0,
+     0
+    ]
+   },
+   {
+    "kind": "fillRect",
+    "ok": false,
+    "fn": "drawBg<drawPlay",
+    "k": 7.3125,
+    "args": [
+     0,
+     14,
+     160,
+     15
+    ],
+    "tr": [
+     7.313,
+     7.312,
+     0,
+     0
+    ]
+   },
+   {
+    "kind": "fillRect",
+    "ok": false,
+    "fn": "drawBg<drawPlay",
+    "k": 7.3125,
+    "args": [
+     2,
+     13,
+     2,
+     1
+    ],
+    "tr": [
+     7.313,
+     7.312,
+     0,
+     0
+    ]
+   },
+   {
+    "kind": "fillRect",
+    "ok": false,
+    "fn": "drawBg<drawPlay",
+    "k": 7.3125,
+    "args": [
+     6,
+     13,
+     2,
+     1
+    ],
+    "tr": [
+     7.313,
+     7.312,
+     0,
+     0
+    ]
+   }
+  ]
+ }
+]

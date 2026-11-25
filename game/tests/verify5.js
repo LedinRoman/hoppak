@@ -137,14 +137,15 @@ const SIZES = [
     await open(w, h);
     const sz = await H(() => window.__hoppak.getSize());
     sizes[name] = sz;
-    const pad = sz.viewPad || 0;
-    const cssW = (sz.lw + 2 * pad) * sz.cssScale, cssH = sz.lh * sz.cssScale;
+    /* v0.57: integer k, canvas covers the device, 160×346 field letterboxed, never cropped. */
+    const k = sz.pScale, ox = sz.fieldOx || 0, oy = sz.fieldOy || 0;
     const fieldOk = sz.lw === 160 && sz.lh === 346
-      && sz.pScale >= 1
-      && Math.abs(sz.cw - (sz.lw + 2 * pad) * sz.pScale) < 1.02
-      && Math.abs(sz.ch - Math.round(sz.lh * sz.cssScale * sz.dpr)) < 1.02
-      && cssW <= w + 1.02 && cssH <= h + 1.02
-      && (cssW >= w * 0.97 || cssH >= h * 0.97);
+      && Number.isInteger(k) && k >= 1
+      && k === Math.max(1, Math.min(Math.floor(sz.cw / 160), Math.floor(sz.ch / 346)))
+      && ox >= 0 && oy >= 0
+      && ox + 160 * k <= sz.cw && oy + 346 * k <= sz.ch
+      && Math.abs(ox - Math.floor((sz.cw - 160 * k) / 2)) < 1
+      && Math.abs(oy - Math.floor((sz.ch - 346 * k) / 2)) < 1;
     sizes[name].integerOk = fieldOk;
     sizes[name].fieldOk = fieldOk;
     await H(() => { const s = window.__hoppak.getSave(); s.mapBest.city = 355; s.best = 355; s.coins = 80; });

@@ -24,7 +24,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var hits: any[] = [];
   var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
   var fieldLocked = false, landPause = false;
-  var resumeCd = 0, resumeAt = 0, abDenyT = 0, coinT0 = -1, coinSkip = false;
+  var resumeCd = 0, resumeAt = 0, abDenyT = 0, refuseT = 0, popT = -1, wasReady = false, coinT0 = -1, coinSkip = false;
   var pressId: any = null;
   var confirmId: any = null, confirmAt = 0;
   var campCard = -1;
@@ -96,26 +96,23 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
       canvas.style.borderRadius = "4px";
     } else {
-      /* Fractional nearest-neighbor scale so 160×346 fills the short side. Side pads continue the map sky. */
-      cssScale = Math.min(availW / lw, availH / lh);
-      VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
-      cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
-      cssHpx = lh * cssScale;
-      var pxW = Math.max(1, Math.round(cssWpx * dpr));
-      var pxH = Math.max(1, Math.round(cssHpx * dpr));
-      canvas.width = pxW;
-      canvas.height = pxH;
-      var worldW = lw + 2 * VIEW_PAD;
-      pScale = pxW / worldW;
-      sx = pxW / worldW;
-      sy = pxH / lh;
+      /* SPEC v0.57: integer physical scale k; canvas covers the screen; field 160×346 centered with integer offset. */
+      var devW = Math.max(1, Math.round(availW * dpr)), devH = Math.max(1, Math.round(availH * dpr));
+      pScale = Math.max(1, Math.min(Math.floor(devW / lw), Math.floor(devH / lh)));
+      cssScale = pScale / dpr;
+      FIELD_OX = Math.floor((devW - lw * pScale) / 2); FIELD_OY = Math.floor((devH - lh * pScale) / 2);
+      DEV_W = devW; DEV_H = devH; PHONE_INT = true;
+      VIEW_PAD = Math.ceil(FIELD_OX / pScale);
+      canvas.width = devW; canvas.height = devH;
+      cssWpx = devW / dpr; cssHpx = devH / dpr;
+      sx = sy = pScale;
       canvas.style.position = "absolute";
       canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
       canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
       canvas.style.boxShadow = "none";
       canvas.style.borderRadius = "0px";
     }
-    if (isWide) VIEW_PAD = 0;
+    if (isWide) { VIEW_PAD = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
     netLW = netFixedLW();
     LW = lw; LH = lh; SCALE = cssScale;
     canvas.style.width = cssWpx + "px";
@@ -123,7 +120,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     canvas.style.imageRendering = "pixelated";
     var hintEl = document.getElementById("desk-hint");
     if (hintEl) hintEl.style.display = (isWide && (cssH - LH * cssScale) >= 34) ? "block" : "none";
-    ctx.setTransform(sx, 0, 0, sy, VIEW_PAD * sx, 0);
+    ctx.setTransform(sx, 0, 0, sy, FIELD_OX, FIELD_OY);
     ctx.imageSmoothingEnabled = false;
     (ctx as any).webkitImageSmoothingEnabled = false;
     syncBackdrop(world ? world.map : save.bg);
@@ -140,6 +137,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     resumeAt = (typeof performance !== "undefined" ? performance.now() : Date.now());
     acc = 0; uiAcc = 0; lastT = -1;
   }
+  function heroHasAb(me: any) { var dbg: any = (window as any).__dbg; if (dbg && dbg.noAb) return false; return !!(me && CHARS[me.kind] && CHARS[me.kind].ab); }
   function showFirstTimeToast(id: string, text?: string) {
     if (!save.seen) save.seen = {};
     if (save.seen[id]) return;
@@ -150,14 +148,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function requestAbility() {
     audioUnlock();
     if (!world || !world.players || !world.players[0] || !world.players[0].alive) return;
+    if (!heroHasAb(world.players[0])) return;
     if (abReady(world.players[0])) { abTap = true; return; }
-    if (abDenyT <= 0) { abDenyT = 18; hopSfx("deny"); }
+    if (abDenyT <= 0) { abDenyT = 18; refuseT = 10; hopSfx("deny"); showFirstTimeToast("abDeny"); }
   }
   function toLogic(cx: number, cy: number) {
     var r = canvas.getBoundingClientRect();
     var rw = r.width || 1, rh = r.height || 1;
-    var x = (cx - r.left) / rw * (LW + 2 * VIEW_PAD) - VIEW_PAD;
-    var y = (cy - r.top) / rh * LH;
+    var x = ((cx - r.left) / rw * canvas.width - FIELD_OX) / pScale;
+    var y = ((cy - r.top) / rh * canvas.height - FIELD_OY) / pScale;
     if (phase === "play" && cy >= r.top && cy <= r.bottom && (cx < r.left || cx > r.right)) {
       x = cx < r.left ? 0 : LW;
       y = Math.max(0, Math.min(LH, y));
@@ -215,11 +214,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (confirmId === id && Date.now() < confirmAt) { confirmId = null; apply(); writeSave(save); }
     else { confirmId = id; confirmAt = Date.now() + 2000; }
   }
-  function abBar() {
-    var coinW = 28;
-    try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19; } catch (_e) {}
-    return { x: 4 + coinW, y: 5, w: 16, h: 16 };
-  }
+  function abBar() { return { x: 0, y: 0, w: 26, h: 26 }; }
   function startSquad(seed?: number) {
     /* Bot-only run. Online rooms will call a net start later; keep this off the lobby draw path. */
     mode = "squad";
@@ -243,7 +238,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     acc = 0; uiAcc = 0; lastT = -1;
     held.left = held.right = false;
     pointers = {}; abTap = false; pressId = null;
-    resumeCd = 0; landPause = false; abDenyT = 0; coinT0 = -1; coinSkip = false;
+    resumeCd = 0; landPause = false; abDenyT = 0; refuseT = 0; popT = -1; wasReady = false; coinT0 = -1; coinSkip = false;
     try { canvas.focus(); } catch (_e) {}
   }
   function payout() {
@@ -452,6 +447,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
 
   /* ---------- screens ---------- */
+  var TITLE = { face: "#ffe9a8", outline: "#2a1840", shadow: "#6a3cb4" };
   var MENU_CAM = function () { return -LH + 70; };
   function header(title: string, sc: number) {
     var w = textWidth(title, sc) + 16;
@@ -490,12 +486,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
     dimView(ctx, "rgba(18,14,44,0.14)");
     var x = colX();
-    box(ctx, x + 6, 10, 122, 28, C.navy, C.cream);
-    drawText(ctx, "ХОППАК", x + 67, 15, C.coral, 3, "center");
-    drawText(ctx, "ХОППАК", x + 66, 14, C.cream, 3, "center");
-    gear(x + 134, 8);
-    drawText(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 39, C.cream, 1, "center");
-    plaque();
+    drawBig(ctx, "ХОППАК", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
+    gear(LW - 22, 4);
+    drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 41, C.cream, "center");
+    coinsLabel(5, 6, save.coins);
     var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + b + "/" + M.goal + " М") : (M.name + " · " + b + " М");
     var by = LH - 118;
@@ -504,12 +498,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var hop = Math.round(Math.sin(ph * Math.PI) * 10);
     var pose = ph < 0.08 || ph > 0.95 ? "squash" : ph < 0.5 ? "up" : "fall";
     rect(ctx, LW / 2 - 28, py + 2, 56, 5, C.wood); rect(ctx, LW / 2 - 28, py + 6, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, py + 2, 56, 1, C.edge);
-    drawJumper(ctx, LW / 2 - 12, py + 2 - 32 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 2);
+    drawJumper(ctx, LW / 2 - 6, py + 2 - 16 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 1);
     btn("shop", x + 36, py + 16, 80, 16, "#1a1430", "ГЕРОЙ ▶", C.cream, 1, C.gold);
     by = Math.max(py + 40, by);
     btn("start", x, by, 152, 34, C.mint, "", INK, 2);
-    drawText(ctx, "ИГРАТЬ ▶", LW / 2, by + 4, INK, 2, "center");
-    drawText(ctx, sub, LW / 2, by + 22, INK, 1, "center");
+    drawBig(ctx, "ИГРАТЬ ▶", LW / 2, by + 4, INK, 2, "center");
+    drawText(ctx, sub, LW / 2, by + 23, INK, 1, "center");
     if (isPageBuild()) {
       btn("camp", x, by + 40, 152, 22, C.navy, "КАРТЫ");
       btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
@@ -692,26 +686,42 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (p.vy > 1.5) return "fall";
     return "idle";
   }
-  function dashLine(y: number, label: string, col: string, right: boolean) {
+  function goalLine(y: number, label: string) {
     if (y < -8 || y > LH + 8) return;
     var yy = Math.round(y);
-    for (var x = 0; x < LW; x += 6) rect(ctx, x, yy, 3, 1, col);
+    for (var x = viewX0(); x < LW + VIEW_PAD; x += 4) { var on = ((x - viewX0()) >> 2) % 2 === 0; rect(ctx, x, yy, 4, 1, on ? C.cream : "#162040"); rect(ctx, x, yy + 1, 4, 1, on ? "#162040" : C.cream); }
     var tw = textWidth(label, 1) + 6;
-    var lx = right ? LW - tw - 4 : 4;
-    box(ctx, lx, yy - 6, tw, 11, "#0c0818", col);
-    drawText(ctx, label, lx + tw / 2, yy - 4, col, 1, "center");
+    rect(ctx, 3, yy - 11, tw + 2, 11, INK); rect(ctx, 4, yy - 10, tw, 9, "#162040");
+    drawText(ctx, label, 4 + tw / 2, yy - 9, C.gold, 1, "center");
+  }
+  function recLine(y: number, label: string) {
+    if (y < -8 || y > LH + 8) return;
+    var yy = Math.round(y);
+    ctx.globalAlpha = 0.7;
+    for (var x = viewX0(); x < LW + VIEW_PAD; x += 2) rect(ctx, x, yy, 1, 1, C.cream);
+    ctx.globalAlpha = 1;
+    var tw = textWidth(label, 1) + 6, lx = LW - tw - 5;
+    rect(ctx, lx - 1, yy - 11, tw + 2, 11, INK); rect(ctx, lx, yy - 10, tw, 9, "#162040");
+    drawText(ctx, label, lx + tw / 2, yy - 9, C.cream, 1, "center");
+  }
+  function drawReadyPip(me: any, sy: number) {
+    var dbg: any = (window as any).__dbg || {}; var pp = dbg.ring && dbg.ring.pop != null ? dbg.ring.pop : popT;
+    if (!heroHasAb(me) || pp < 0 || pp >= 36) return;
+    var x = Math.round(me.x + PW / 2) - 2, y = Math.round(sy) - 9;
+    rect(ctx, x + 1, y, 1, 1, C.gold); rect(ctx, x, y + 1, 3, 1, C.gold); rect(ctx, x + 1, y + 2, 1, 1, C.gold); rect(ctx, x + 1, y + 1, 1, 1, "#fff2a8");
   }
   function drawPlay() {
     hits = [];
     var w = world, cam = w.cameraY, i;
+    THREAT = w.players[0] && w.players[0].alive ? { x: w.players[0].x, y: w.players[0].y, w: PW, h: PH } : null;
     var shx = w.shake > 0 ? (w.tick % 2 ? 1 : -1) * Math.ceil(w.shake / 3) : 0;
     ctx.save();
     ctx.translate(shx, 0);
     drawBg(ctx, cam, w.tick, w.map);
     for (i = 0; i < w.platforms.length; i++) if (w.platforms[i].type === "move") drawTrack(ctx, w.platforms[i], cam);
     for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
-    if (w.goalM) dashLine(-w.goalM * PX_PER_M - cam, "ЦЕЛЬ " + w.goalM + " М", C.gold, false);
-    if (w.recM) dashLine(-w.recM * PX_PER_M - cam, "РЕКОРД " + w.recM, C.cream, true);
+    if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "ЦЕЛЬ " + w.goalM + " М");
+    if (w.recM) recLine(-w.recM * PX_PER_M - cam, "РЕКОРД " + w.recM);
     if (w.goalM) { var gy = -w.goalM * PX_PER_M - cam; if (gy > 8 && gy < LH - 8) showFirstTimeToast("goal"); }
     if (w.recM) { var ry = -w.recM * PX_PER_M - cam; if (ry > 8 && ry < LH - 8) showFirstTimeToast("record"); }
     for (i = 0; i < w.platforms.length; i++) {
@@ -743,6 +753,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var pose = p.alive ? poseOf(p) : "fall";
       drawFxBack(p, sy, cam);
       drawJumper(ctx, p.x, sy, p.look, p.face, pose, blink, p.alive);
+      if (p.id === 0) drawReadyPip(p, sy);
       drawFxFront(p, sy);
       if (p.wallT > 0) {} else if (p.x < 6) drawJumper(ctx, p.x + LW, sy, p.look, p.face, pose, blink, p.alive);
       if (p.wallT <= 0 && p.x > LW - PW - 6) drawJumper(ctx, p.x - LW, sy, p.look, p.face, pose, blink, p.alive);
@@ -767,13 +778,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.restore();
 
     var me = w.players[0];
-    var label = metersOf(me) + " М";
-    var hw = textWidth(label, 1) + 10;
-    box(ctx, Math.round(LW / 2 - hw / 2), 6, hw, 13, C.navy, C.cream);
-    drawText(ctx, label, LW / 2, 9, C.cream, 1, "center");
-    box(ctx, 4, 6, textWidth(String(w.runCoins), 1) + 15, 13, C.navy, C.gold);
-    coinsLabel(7, 9, w.runCoins);
     var wantPause = wantTouchPause();
+    drawTextO(ctx, metersOf(me) + " М", 80, 6, C.cream, "center");
+    coinsLabel(wantPause ? 136 : 155, 6, w.runCoins, "right");
     if (w.mode === "squad") {
       var place = 1, lead = me, leadM = metersOf(me);
       for (i = 0; i < w.players.length; i++) {
@@ -781,37 +788,36 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (w.players[i] !== me && om > metersOf(me)) place++;
         if (om > leadM) { lead = w.players[i]; leadM = om; }
       }
-      var pl = place + "/" + w.players.length;
-      var pw2 = textWidth(pl, 1) + 8;
-      var pr = wantPause ? LW - 22 : LW - 4;
-      box(ctx, pr - pw2, 6, pw2, 13, C.navy, C.cream);
-      drawText(ctx, pl, pr - 4, 9, C.cream, 1, "right");
+      drawTextO(ctx, place + "/" + w.players.length, 80, 16, "#c8bfe0", "center");
       var leadLab = lead.id === 0 ? "ТЫ ВПЕРЕДИ" : ((lead.name || "БОТ").slice(0, 8) + " " + leadM + " М");
-      var lw2 = textWidth(leadLab, 1) + 8;
-      box(ctx, pr - lw2, 20, lw2, 11, C.navy, lead.id === 0 ? C.gold : C.cream);
-      drawText(ctx, leadLab, pr - 4, 22, lead.id === 0 ? C.gold : C.cream, 1, "right");
+      drawTextO(ctx, leadLab, 80, 26, lead.id === 0 ? C.gold : C.cream, "center");
     }
     if (wantPause) {
-      addHit("pause", LW - 20, 4, 16, 16);
-      box(ctx, LW - 20, 4, 16, 16, pressId === "pause" ? "#3a4a7a" : C.navy, C.cream);
-      rect(ctx, LW - 15, 8, 2, 8, C.cream);
-      rect(ctx, LW - 11, 8, 2, 8, C.cream);
+      addHit("pause", 138, 0, 22, 22);
+      rect(ctx, 141, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
+      rect(ctx, 142, 4, 13, 13, "#1a1430");
+      rect(ctx, 145, 7, 2, 7, C.cream);
+      rect(ctx, 150, 7, 2, 7, C.cream);
     }
     drawBonusHud(me);
-    drawAbBar(me);
+    drawAbRing(me);
     if (w.toastT > 0) {
       var tw2 = textWidth(w.toast, 1) + 12;
+      var tx0 = Math.round(LW / 2 - tw2 / 2);
       ctx.globalAlpha = Math.min(1, w.toastT / 15);
-      box(ctx, Math.round(LW / 2 - tw2 / 2), 38, tw2, 13, C.navy, C.gold);
-      drawText(ctx, w.toast, LW / 2, 41, C.gold, 1, "center");
+      rect(ctx, tx0 - 1, 73, tw2 + 2, 15, INK); rect(ctx, tx0, 74, tw2, 13, "#162040");
+      drawText(ctx, w.toast, LW / 2, 77, C.gold, 1, "center");
       ctx.globalAlpha = 1;
     }
     if (w.tick < 170) {
       ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
-      var hx2 = colX();
-      var hint = !isPhone ? "← → ХОД · ↑ СПОСОБНОСТЬ" : "ТАП ← → · СВАЙП ↑"; /* TODO_DESIGN */
-      box(ctx, hx2, LH - 46, 152, 12, C.navy, C.cream);
-      drawText(ctx, hint, LW / 2, LH - 44, C.cream, 1, "center");
+      var hasAb = heroHasAb(me), Hn = CHARS[me.kind];
+      if (!isPhone) {
+        drawTextO(ctx, hasAb ? ("← → ХОД · ↑ " + Hn.abName) : "← → ХОД", LW / 2, 77, C.cream, "center");
+      } else {
+        drawTextO(ctx, "ТАП СЛЕВА / СПРАВА", LW / 2, 77, C.cream, "center");
+        if (hasAb) drawTextO(ctx, "СВАЙП ↑ · " + Hn.abName, LW / 2, 88, C.cream, "center");
+      }
       ctx.globalAlpha = 1;
     }
     if ((w.fallWarn || w.liftWarn) && !paused) {
@@ -834,7 +840,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (paused) {
       dimView(ctx, "rgba(8,6,20,0.55)");
       box(ctx, colX(), LH / 2 - 48, 152, 100, C.navy, C.gold);
-      drawText(ctx, "ПАУЗА", LW / 2, LH / 2 - 38, C.gold, 2, "center");
+      drawBig(ctx, "ПАУЗА", LW / 2, LH / 2 - 40, C.gold, 2, "center", INK);
       if (resumeCd > 0) {
         drawText(ctx, String(resumeCd), LW / 2, LH / 2 - 14, C.gold, 3, "center");
         btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "МЕНЮ");
@@ -873,17 +879,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
-    var x = 4, y = 22;
+    var x = 3, y = heroHasAb(me) ? 27 : 4;
     for (var i = 0; i < BON_HUD.length; i++) {
       var b = BON_HUD[i], t = me[b[0]];
       if (!(t > 0)) continue;
-      box(ctx, x, y, 14, 18, C.navy, ITEM_COL[b[1]] || C.cream);
-      if (b[0] === "domeT") { rect(ctx, x + 3, y + 3, 8, 6, "#7ad8ff"); rect(ctx, x + 5, y + 2, 4, 1, "#7ad8ff"); }
-      else if (b[0] === "wallT") { rect(ctx, x + 2, y + 2, 2, 9, "#a8a8b8"); rect(ctx, x + 5, y + 4, 6, 2, "#d82a2a"); rect(ctx, x + 6, y + 6, 4, 4, "#26305a"); }
-      else drawItemIcon(ctx, b[1], x + 2, y + 1);
+      if (b[0] === "domeT" || b[0] === "wallT") continue;
+      rect(ctx, x, y, 16, 18, INK); rect(ctx, x + 1, y + 1, 14, 16, "#1a1430");
+      drawHudIcon(ctx, b[1], x + 3, y + 2);
       var f = clamp(t / b[2], 0, 1);
-      rect(ctx, x + 2, y + 14, 10, 2, "#1a1430"); rect(ctx, x + 2, y + 14, Math.max(1, Math.round(10 * f)), 2, ITEM_COL[b[1]] || C.cream);
-      x += 16;
+      rect(ctx, x + 3, y + 14, 10, 2, "#2c2a52"); rect(ctx, x + 3, y + 14, Math.max(1, Math.round(10 * f)), 2, ITEM_COL[b[1]] || C.cream);
+      y += 20;
     }
   }
   function fillDisc(cx: number, cy: number, r: number, col: string) {
@@ -941,38 +946,44 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function icoSkull(x: number, y: number, col: string) {
     rect(ctx, x + 1, y, 5, 4, col); rect(ctx, x + 2, y + 4, 3, 2, col); rect(ctx, x + 2, y + 1, 1, 1, "#0c0818"); rect(ctx, x + 4, y + 1, 1, 1, "#0c0818");
   }
-  function drawAbBar(me: any) {
-    var H = CHARS[me.kind], b = abBar();
-    addHit("ab", b.x, b.y, b.w, b.h);
-    var ready = me.alive && me.abCharge >= H.need, active = !!(me.wall);
-    var f = clamp(me.abCharge / H.need, 0, 1);
-    var deny = abDenyT > 0;
-    var cx = b.x + 8, cy = b.y + 8;
-    var rim = (deny && (ui % 4 < 2)) ? C.red : ready ? ((ui >> 3) % 2 ? C.gold : C.cream) : active ? "#d82a2a" : "#3a4a7a";
-    fillDisc(cx, cy, 8, rim);
-    fillDisc(cx, cy, 6, "#1a1430");
-    strokeArc(cx, cy, 6, ready ? C.gold : (deny ? C.red : "#5ec8ff"), ready ? 1 : f);
-    ctx.globalAlpha = ready || active || deny ? 1 : 0.55;
+  function drawAbRing(me: any) {
+    if (!heroHasAb(me)) return;
+    var H = CHARS[me.kind], dbg: any = (window as any).__dbg || {}, rs = dbg.ring || {};
+    var f = rs.f != null ? rs.f : clamp(me.abCharge / H.need, 0, 1);
+    var ready = rs.state ? rs.state === "ready" : (me.alive && me.abCharge >= H.need);
+    var active = rs.state ? rs.state === "active" : !!(me.dashT > 0 || me.wall || me.domeT > 0 || me.poundT > 0);
+    var rf = rs.refuse != null ? rs.refuse : refuseT, pp = rs.pop != null ? rs.pop : popT;
+    var SH = [1, 1, -1, -1, 1, 1, -1, -1, 0, 0];
+    var cx = 12 + (rf > 0 ? SH[Math.max(0, 10 - rf)] : 0), cy = 12;
+    addHit("ab", 0, 0, 26, 26);
+    ringPix(ctx, cx, cy, -1, 10, INK);
+    ringPix(ctx, cx, cy, -1, 7, "#1a1430");
+    ringPix(ctx, cx, cy, 7, 9, "#2c2a52");
+    if (active) ringPix(ctx, cx, cy, 7, 9, C.cream, rs.f != null ? rs.f : 1);
+    else if (ready) { ringPix(ctx, cx, cy, 7, 9, C.gold); ringPix(ctx, cx, cy, 8, 9, "#fff2a8", 0.18); }
+    else ringPix(ctx, cx, cy, 7, 9, rf > 6 ? C.cream : "#5ec8ff", f);
+    if (ready && pp >= 0 && pp < 12) {
+      if (pp < 6) ringPix(ctx, cx, cy, 10, 11, "#fff2a8");
+      var rr = 12 + (pp >> 1);
+      rect(ctx, cx + rr - 1, cy - rr + 1, 1, 1, C.gold); rect(ctx, cx - rr + 1, cy - rr + 1, 1, 1, C.gold);
+      rect(ctx, cx + rr - 1, cy + rr - 1, 1, 1, C.gold); rect(ctx, cx - rr + 1, cy + rr - 1, 1, 1, C.gold);
+    }
+    if (!ready && !active) ctx.globalAlpha = 0.45;
     drawAbIcon(H.ab, cx - 6, cy - 6);
     ctx.globalAlpha = 1;
-    if (deny && !ready) {
-      var left = H.charge === "time" ? String(Math.max(1, Math.ceil((H.need - me.abCharge) / 50))) : "!";
-      drawText(ctx, left, cx, b.y + 16, C.red, 1, "center");
-    }
   }
   function whyText(p: any) {
     var m = metersOf(p), w = p.why || "";
-    if (w === "fall") return "УПАЛ НА " + m + " М";
-    if (w === "shot") return "СБИЛ ВЫСТРЕЛ НА " + m + " М";
-    if (w === "hole") return "ЗАТЯНУЛА ДЫРА НА " + m + " М";
+    if (w === "fall") return "СОРВАЛСЯ · " + m + " М";
+    if (w === "shot") return "СБИЛ ВЫСТРЕЛ · " + m + " М";
+    if (w === "hole") return "ЗАТЯНУЛА ДЫРА · " + m + " М";
     if (w.indexOf("mob:") === 0) {
       var mk = w.slice(4);
-      if (mk === "blob") return "ТЕБЯ СБИЛ СЛИЗЕНЬ НА " + m + " М";
       var mo = MOBS[mk] || {};
       var nm = mo.name || "МОБ";
-      return ((mo.g === "f") ? "СБИЛА " : "СБИЛ ") + nm + " НА " + m + " М";
+      return ((mo.g === "f") ? "СБИЛА " : "СБИЛ ") + nm + " · " + m + " М";
     }
-    return w ? w + " " + m + " М" : "";
+    return w ? w + " · " + m + " М" : "";
   }
   function nextHeroNeed() {
     for (var i = 0; i < CHARS.length; i++) if (!heroOwned(i)) return { i: i, H: CHARS[i], left: Math.max(0, CHARS[i].price - save.coins) };
@@ -1076,6 +1087,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ui++;
       if (flashT > 0) flashT--;
       if (abDenyT > 0) abDenyT--;
+      if (refuseT > 0) refuseT--;
+      if (world && world.players && world.players[0]) {
+        var rdyNow = heroHasAb(world.players[0]) && world.players[0].alive && world.players[0].abCharge >= CHARS[world.players[0].kind].need;
+        if (rdyNow && !wasReady) popT = 0;
+        wasReady = rdyNow;
+        if (popT >= 0) popT++;
+        if (popT > 36) popT = -1;
+      }
       uiAcc -= UI_STEP;
       uSteps++;
     }
@@ -1114,6 +1133,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
       drawText(ctx, "ПОВЕРНИ ТЕЛЕФОН", LW / 2, LH / 2 - 14, C.cream, 1, "center");
       hits = [];
+    }
+    if (PHONE_INT && FIELD_OY > 0) {
+      var lb = mixHex(skyAt(world ? world.map : save.bg, 0)[0], INK, LETTERBOX_MIX);
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = lb;
+      ctx.fillRect(0, 0, DEV_W, FIELD_OY); ctx.fillRect(0, FIELD_OY + LH * pScale, DEV_W, DEV_H - FIELD_OY - LH * pScale);
+      ctx.restore();
     }
     if (netFixedLW() !== netLW) resize();
     if (running && !driving) raf = requestAnimationFrame(frame);
@@ -1189,10 +1214,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.removeEventListener("touchstart", noScroll);
     },
     getPhase: function () { return phase; },
+    dbgToast: function (s: string) { if (world) { world.toast = s; world.toastT = 70; } },
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },

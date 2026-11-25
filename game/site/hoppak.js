@@ -288,10 +288,10 @@
     for (var k in HERO_SPRITES) heroSprite(k);
   }
   var BONUS_SPRITES = {
-    bigcoin: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABqElEQVR4nJ1UO0jDUBQ9kdChlAwSHSQ4iRQnIZAhk0MnF9fQwVEci0MHhw4dikiRjh06dZDQqRQpDplK6SBmKVVCKKWU0CmIlOAgYhxinvk1TTzTfcm555773n2PggeCWLTpxRBpoL9/w7QMyl2TQBCLdrV2jQO9lkrw7lVAp1UnonSQMHnWUgkiK/iWW2lyOWYJjlnGckIOh5MViSXRAl9pQK2WAAB8pQHoTUDWII9yDslvMOywP89AEi305xkiwEt556fe9BWTRGuzw3bxDbyURxsa1GoJvJSHKms4v99GG3/7S4rIN+h4ZEKCLpEk/MYvEgDsQpXjD40GnJGZjQdQSg9gC9mwiwi4wrLyAYABm+Ns0zIoyp2/XlfB1dFTbPV1mB46+Z1W3d9y1Aye1cuA3iSOjNUeAP80FDx3YfMcek42CXwOb/tm2OEFg52TKQAaj5dfkZzCOsHyKRsiO606Yl6Ot+W1DqNIkggiFifkItVdTgKfw9HiM0QYLTKBL2GObw9n4wF6XeeGi/vB5GTodZXkDpPg2PPiUADA5jj7X0oBmJZB/QA/ZZzVyENwRwAAAABJRU5ErkJggg==", w: 20, h: 20, k: 0.8 },
-    shield: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABdElEQVR4nJ3UIWjDQBgF4JdRWddQFTUqBoPJiDLGxEQZZXKiVE5MljE1qiamKqZGxeQoVSGMioiJEVFCWE2gUMYoExUVWYmImLuJ9NK75O4S9kxz4c/Hu5SLBgBms0MgiT8daeyanV0GLjcbxiutYjY75P7hTuah23bJ/tFJumZnX20zvf7wfSBwSUUqbfMycYpGEmwbDjw2DwAALStK7/WNNffwzfM3s2og8iwY9d2dXEMWuz6rIUQNw7cfAMDG8Qrb7qkwACkmSuRZalCFlWknBf+LSUERNn+KuRnRdpUNOaw3AD6Hya8CAwT/MotRgM28N8BsvMCFfV7csG+ssXG8tNnh4y03PBsvcphR/+VBfzrSuu2WdAsUyuLZLAMXYbzS0oOvVw1Cjxl/GpKI3httRzGA2TL7ATjVv0pj2XCfJr1qkMur3dbew0YhxrbLgSIUAOxJIGyVxYQgRQH+NWQhADlMCrJwFhW1Kg2ybWlUGAD8AUwxtRHyLrL4AAAAAElFTkSuQmCC", w: 20, h: 20, k: 0.8 },
-    magnet: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAYAAACpF6WWAAABR0lEQVR4nOWVMUvDQBTHfw0ZJHSSghlCEQcHJwcJ0imjQ76AxQ/g0Nmho4OTo9/BVcShY8lYOoVODhkkQwQRKVI65RzSC9frXVDqIv6n3Mu93/vnHXnXAgh7fcFKWZrIR94+8xYWNeW4Ya8vrm+GdfDxIWQ6mVSLNBEmsCkHqPLSRDg2J9von0Pdw+eM46vLOvBRlMwXJQCZJcmUAzBflGS6073zk19x+nd6aoTG3s9rPa3OwQrdVq66eL2fEvkO46Ik9hxir8sABFT/9EXnVADcHrgmVq0WQKcdiNnRfh0cF+XGxsH7C+oeda/89NEyrwaKDop8h8jf7MrMNwOtTqXbu93u2ksTXAfqLkHrqS1Rhavu1BM3OpVuAXTHulTYaJkD6wPdONk77UCc7QSNYAk0DXHrdSFdA6gFpDPd3begtgJN95bUF+MSk1paqG+DAAAAAElFTkSuQmCC", w: 21, h: 21, k: 0.8 },
-    rocket: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAAWCAYAAAAb+hYkAAABUklEQVR4nK1TPUjDQBh9EQeRTOGQDkcGR+nSItIpZOzQQVzNGKGDg0MQ6aJTJgcHkYJrXUSkg0JnJ4ei4hCKlQ41QwnSSYqD8DnEi7n02uLPm3Lf3bv37nv5NCjgsBIBQOs9xOtbqGX351WEw+W4XBmY2AYoS5xTKc2CREqrCJQXOJjO6c9K0rX9fB7DUz9Zn2zV4o92qGZbtktBN6KgGxHTOTUGREznZNkuWbZLaYtj9qxCEUfPLwCApfU6gnZruj0B37ue+qYxpZv7O0TNKgAgalaxslpWkxxWovNRRyJe7K9h168ntWPDTFr/u3BVgU6CUJNOG5sb0qHH3gdMsVj8NiWRhmeXEqkvwgWAXqAmWYUiAKBxFWdTO9iBU/nqnpFoQgOQdEWMQDr9bE01X2A6J/JyRKNbIi9H2T8c+I95kvC097ObmM6JHmyltZnESXufOrN6Mf6iw4AAAAAASUVORK5CYII=", w: 13, h: 22, k: 0.8 }
+    bigcoin: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABqElEQVR4nJ1UO0jDUBQ9kdChlAwSHSQ4iRQnIZAhk0MnF9fQwVEci0MHhw4dikiRjh06dZDQqRQpDplK6SBmKVVCKKWU0CmIlOAgYhxinvk1TTzTfcm555773n2PggeCWLTpxRBpoL9/w7QMyl2TQBCLdrV2jQO9lkrw7lVAp1UnonSQMHnWUgkiK/iWW2lyOWYJjlnGckIOh5MViSXRAl9pQK2WAAB8pQHoTUDWII9yDslvMOywP89AEi305xkiwEt556fe9BWTRGuzw3bxDbyURxsa1GoJvJSHKms4v99GG3/7S4rIN+h4ZEKCLpEk/MYvEgDsQpXjD40GnJGZjQdQSg9gC9mwiwi4wrLyAYABm+Ns0zIoyp2/XlfB1dFTbPV1mB46+Z1W3d9y1Aye1cuA3iSOjNUeAP80FDx3YfMcek42CXwOb/tm2OEFg52TKQAaj5dfkZzCOsHyKRsiO606Yl6Ot+W1DqNIkggiFifkItVdTgKfw9HiM0QYLTKBL2GObw9n4wF6XeeGi/vB5GTodZXkDpPg2PPiUADA5jj7X0oBmJZB/QA/ZZzVyENwRwAAAABJRU5ErkJggg==", w: 20, h: 20, k: 1 },
+    shield: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABdElEQVR4nJ3UIWjDQBgF4JdRWddQFTUqBoPJiDLGxEQZZXKiVE5MljE1qiamKqZGxeQoVSGMioiJEVFCWE2gUMYoExUVWYmImLuJ9NK75O4S9kxz4c/Hu5SLBgBms0MgiT8daeyanV0GLjcbxiutYjY75P7hTuah23bJ/tFJumZnX20zvf7wfSBwSUUqbfMycYpGEmwbDjw2DwAALStK7/WNNffwzfM3s2og8iwY9d2dXEMWuz6rIUQNw7cfAMDG8Qrb7qkwACkmSuRZalCFlWknBf+LSUERNn+KuRnRdpUNOaw3AD6Hya8CAwT/MotRgM28N8BsvMCFfV7csG+ssXG8tNnh4y03PBsvcphR/+VBfzrSuu2WdAsUyuLZLAMXYbzS0oOvVw1Cjxl/GpKI3httRzGA2TL7ATjVv0pj2XCfJr1qkMur3dbew0YhxrbLgSIUAOxJIGyVxYQgRQH+NWQhADlMCrJwFhW1Kg2ybWlUGAD8AUwxtRHyLrL4AAAAAElFTkSuQmCC", w: 20, h: 20, k: 1 },
+    magnet: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAYAAACpF6WWAAABR0lEQVR4nOWVMUvDQBTHfw0ZJHSSghlCEQcHJwcJ0imjQ76AxQ/g0Nmho4OTo9/BVcShY8lYOoVODhkkQwQRKVI65RzSC9frXVDqIv6n3Mu93/vnHXnXAgh7fcFKWZrIR94+8xYWNeW4Ya8vrm+GdfDxIWQ6mVSLNBEmsCkHqPLSRDg2J9von0Pdw+eM46vLOvBRlMwXJQCZJcmUAzBflGS6073zk19x+nd6aoTG3s9rPa3OwQrdVq66eL2fEvkO46Ik9hxir8sABFT/9EXnVADcHrgmVq0WQKcdiNnRfh0cF+XGxsH7C+oeda/89NEyrwaKDop8h8jf7MrMNwOtTqXbu93u2ksTXAfqLkHrqS1Rhavu1BM3OpVuAXTHulTYaJkD6wPdONk77UCc7QSNYAk0DXHrdSFdA6gFpDPd3begtgJN95bUF+MSk1paqG+DAAAAAElFTkSuQmCC", w: 21, h: 21, k: 1 },
+    rocket: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAAWCAYAAAAb+hYkAAABUklEQVR4nK1TPUjDQBh9EQeRTOGQDkcGR+nSItIpZOzQQVzNGKGDg0MQ6aJTJgcHkYJrXUSkg0JnJ4ei4hCKlQ41QwnSSYqD8DnEi7n02uLPm3Lf3bv37nv5NCjgsBIBQOs9xOtbqGX351WEw+W4XBmY2AYoS5xTKc2CREqrCJQXOJjO6c9K0rX9fB7DUz9Zn2zV4o92qGZbtktBN6KgGxHTOTUGREznZNkuWbZLaYtj9qxCEUfPLwCApfU6gnZruj0B37ue+qYxpZv7O0TNKgAgalaxslpWkxxWovNRRyJe7K9h168ntWPDTFr/u3BVgU6CUJNOG5sb0qHH3gdMsVj8NiWRhmeXEqkvwgWAXqAmWYUiAKBxFWdTO9iBU/nqnpFoQgOQdEWMQDr9bE01X2A6J/JyRKNbIi9H2T8c+I95kvC097ObmM6JHmyltZnESXufOrN6Mf6iw4AAAAAASUVORK5CYII=", w: 13, h: 22, k: 1 }
   };
   var bonusCache = {};
   function bonusSprite(kind) {
@@ -580,9 +580,10 @@
     }
   }
   var FIRST_TOAST = {
-    break: "\u0420\u0410\u0421\u041F\u0410\u0414\u0410\u0415\u0422\u0421\u042F!",
-    goal: "\u0422\u0412\u041E\u042F \u0426\u0415\u041B\u042C",
-    record: "\u0422\u0412\u041E\u0419 \u0420\u0415\u041A\u041E\u0420\u0414"
+    break: "\u0425\u0420\u0423\u041F\u041A\u0410\u042F: 1 \u041F\u0420\u042B\u0416\u041E\u041A",
+    goal: "\u0426\u0415\u041B\u042C: \u041D\u041E\u0412\u0410\u042F \u041A\u0410\u0420\u0422\u0410",
+    record: "\u0422\u0423\u0422 \u0422\u0412\u041E\u0419 \u0420\u0415\u041A\u041E\u0420\u0414",
+    abDeny: "\u0415\u0429\u0401 \u0417\u0410\u0420\u042F\u0416\u0410\u0415\u0422\u0421\u042F"
   };
   function textWidth(s, sc) {
     return String(s).length * 6 * sc;
@@ -658,6 +659,219 @@
       } else ctx.drawImage(spr, fi * fw, 0, fw, fh, cx - SPR_AX * s, by - dh, dw, dh);
       ctx.restore();
       return;
+    }
+  }
+  var LETTERBOX_MIX = 0.5;
+  var FIELD_OX = 0;
+  var FIELD_OY = 0;
+  var DEV_W = 0;
+  var DEV_H = 0;
+  var PHONE_INT = false;
+  var THREAT = null;
+  var HUD_PAL = {
+    k: "#140c1c",
+    S: "#f4f6fc",
+    s: "#b8c0d4",
+    m: "#6a7090",
+    L: "#a4e8ff",
+    B: "#3ca4ec",
+    b: "#2a5cb4",
+    g: "#ffcc40",
+    G: "#cc7418",
+    R: "#ff8f70",
+    r: "#e8363c",
+    d: "#a81e3a",
+    W: "#ffffff",
+    w: "#d6dbea",
+    v: "#8a92b4",
+    f: "#ff7418",
+    F: "#ffd040"
+  };
+  var HUD_ICONS = {
+    shield: [".kkkkkkkk.", "kSSssssssk", "kSLLBBBbmk", "ksLBBgBbmk", "ksBBgggbmk", "ksBBBgbbmk", ".ksBBbbmk.", ".kssbbmmk.", "..kssmmk..", "...kkkk..."],
+    magnet: ["kkkk..kkkk", "kSsk..kSsk", "kmmk..kmmk", "kRrk..kRdk", "kRrk..kRdk", "kRrkkkkrdk", "kRRrrrrrdk", ".kRrrrrdk.", "..kkkkkk..", ".........."],
+    rocket: ["....kk....", "...kRrk...", "...kWwk...", "..kWBbwk..", "..kWbbvk..", "..kWwwvk..", ".kRkWvkRk.", ".kdkrdkdk.", "..kkFfkk..", "....ff...."],
+    bigcoin: [".kkkkkkkk.", "kGggggggGk", "kgFgggggGk", "kgggkkggGk", "kggkFgkgGk", "kggkFgkgGk", "kgggkkggGk", "kGggggggGk", ".kGGGGGGk.", "..kkkkkk.."]
+  };
+  function drawHudIcon(ctx, kind, x, y) {
+    var ic = HUD_ICONS[kind];
+    if (!ic) return;
+    for (var r = 0; r < ic.length; r++) for (var c = 0; c < ic[r].length; c++) {
+      var ch = ic[r][c];
+      if (ch !== ".") rect(ctx, x + c, y + r, 1, 1, HUD_PAL[ch]);
+    }
+  }
+  var BIGF = { 2: {}, 3: {} };
+  function bigGlyph(ch, k) {
+    if (BIGF[k][ch]) return BIGF[k][ch];
+    var g = FONT[ch] || FONT["?"];
+    function P(r2, c5) {
+      return r2 >= 0 && r2 < 7 && c5 >= 0 && c5 < 5 && !!(g[r2] & 1 << 4 - c5) ? 1 : 0;
+    }
+    var W = 5 * k, H = 7 * k, out = [];
+    for (var y = 0; y < H; y++) {
+      out.push([]);
+      for (var x = 0; x < W; x++) out[y].push(0);
+    }
+    for (var r = 0; r < 7; r++) for (var c = 0; c < 5; c++) {
+      var A = P(r - 1, c - 1), B = P(r - 1, c), C2 = P(r - 1, c + 1), D = P(r, c - 1), E = P(r, c), F = P(r, c + 1), G = P(r + 1, c - 1), Hh = P(r + 1, c), I = P(r + 1, c + 1);
+      var e;
+      if (k === 2) {
+        e = [D === B && D !== Hh && B !== F ? B : E, B === F && B !== D && F !== Hh ? F : E, D === Hh && D !== B && Hh !== F ? D : E, Hh === F && Hh !== D && F !== B ? F : E];
+      } else {
+        var c1 = D === B && D !== Hh && B !== F, c2 = B === F && B !== D && F !== Hh, c3 = D === Hh && D !== B && Hh !== F, c4 = Hh === F && Hh !== D && F !== B;
+        e = [
+          c1 ? D : E,
+          c1 && E !== C2 || c2 && E !== A ? B : E,
+          c2 ? F : E,
+          c1 && E !== G || c3 && E !== A ? D : E,
+          E,
+          c2 && E !== I || c4 && E !== C2 ? F : E,
+          c3 ? D : E,
+          c3 && E !== I || c4 && E !== G ? Hh : E,
+          c4 ? F : E
+        ];
+      }
+      for (var j = 0; j < k * k; j++) out[r * k + Math.floor(j / k)][c * k + j % k] = e[j];
+    }
+    BIGF[k][ch] = out;
+    return out;
+  }
+  function bigWidth(s, k) {
+    return String(s).length * 6 * k - k;
+  }
+  function drawBig(ctx, s, x, y, face, k, align, outline, shadow) {
+    s = String(s).toUpperCase();
+    var w = bigWidth(s, k);
+    var x0 = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
+    y = Math.round(y);
+    function pass(dx, dy, col) {
+      ctx.fillStyle = col;
+      var xx = x0;
+      for (var i = 0; i < s.length; i++) {
+        var m = bigGlyph(s[i], k);
+        for (var r = 0; r < m.length; r++) for (var c = 0; c < m[r].length; c++) if (m[r][c]) ctx.fillRect(xx + c + dx, y + r + dy, 1, 1);
+        xx += 6 * k;
+      }
+    }
+    if (shadow) {
+      pass(0, 2, shadow);
+      pass(1, 2, shadow);
+      pass(-1, 2, shadow);
+    }
+    if (outline) {
+      pass(-1, 0, outline);
+      pass(1, 0, outline);
+      pass(0, -1, outline);
+      pass(0, 1, outline);
+    }
+    pass(0, 0, face);
+    return w;
+  }
+  function drawTextO(ctx, s, x, y, col, align, oc) {
+    var o = oc || "#1a1030";
+    drawText(ctx, s, x - 1, y, o, 1, align);
+    drawText(ctx, s, x + 1, y, o, 1, align);
+    drawText(ctx, s, x, y - 1, o, 1, align);
+    drawText(ctx, s, x, y + 1, o, 1, align);
+    drawText(ctx, s, x, y, col, 1, align);
+  }
+  var BRK = { base: "#d46c98", dark: "#8a2e5e", light: "#f6b4d0", crack: "#4a1438" };
+  function brkSegs(w) {
+    var n = Math.max(2, Math.round(w / 12)), avail = w - (n - 1), out = [], x = 0;
+    for (var i = 0; i < n; i++) {
+      var sw = Math.floor(avail / n) + (i < avail % n ? 1 : 0);
+      out.push({ x, w: sw });
+      x += sw + 1;
+    }
+    return out;
+  }
+  function drawBrkSeg(ctx, x, y, w, i) {
+    var c = x + Math.floor(w * 0.5) - 1 + i % 2;
+    rect(ctx, x + 1, y, c - x - 1, 1, BRK.light);
+    rect(ctx, c + 2, y, x + w - 1 - c - 2, 1, BRK.light);
+    rect(ctx, x, y + 1, w, 3, BRK.base);
+    rect(ctx, x, y + 1, 1, 3, BRK.dark);
+    rect(ctx, x + w - 1, y + 1, 1, 3, BRK.dark);
+    rect(ctx, x + 1, y + 4, w - 2, 1, BRK.dark);
+    rect(ctx, c, y + 1, 1, 2, BRK.crack);
+    rect(ctx, c + 1, y + 3, 1, 2, BRK.crack);
+    if (w >= 9) rect(ctx, x + 2, y + 1, 1, 1, BRK.light);
+  }
+  function drawBreakPlat(ctx, p, x, y, tk) {
+    var segs = brkSegs(p.w), n = segs.length, i;
+    if (p.broken) {
+      if (!(p.breakT > 0)) return;
+      var fr = p.breakT > 10 ? 0 : p.breakT > 5 ? 1 : 2;
+      for (i = 0; i < n; i++) {
+        var s = segs[i], side = s.x + s.w / 2 < p.w / 2 ? -1 : 1;
+        if (fr === 0) drawBrkSeg(ctx, x + s.x + side, y + 1, s.w, i);
+        else if (fr === 1) {
+          drawBrkSeg(ctx, x + s.x + side * 2, y + 4, s.w, i);
+        } else {
+          var hw = Math.max(2, Math.floor(s.w / 2) - 1);
+          rect(ctx, x + s.x + side * 3, y + 9, hw, 3, BRK.base);
+          rect(ctx, x + s.x + side * 3, y + 11, hw, 1, BRK.dark);
+          rect(ctx, x + s.x + s.w - hw + side * 4, y + 11, hw, 3, BRK.dark);
+        }
+      }
+      return;
+    }
+    rect(ctx, x + 1, y + 6, p.w - 1, 1, "rgba(0,0,0,0.28)");
+    for (i = 0; i < n; i++) {
+      var sg = segs[i], sag = n >= 3 && i > 0 && i < n - 1 ? 1 : 0;
+      drawBrkSeg(ctx, x + sg.x, y + sag, sg.w, i);
+      if (i < n - 1) {
+        var gx = x + sg.x + sg.w;
+        var ph = (tk + p.x * 7 + i * 13) % 48;
+        if (ph < 24) rect(ctx, gx, y + 6 + (ph >> 2), 1, 1, BRK.dark);
+      }
+    }
+  }
+  function slimeAlert(m) {
+    if (!THREAT || !m.alive) return false;
+    var dy = THREAT.y - m.y;
+    var dx = THREAT.x + THREAT.w / 2 - (m.x + m.w / 2);
+    if (dx > LW / 2) dx -= LW;
+    if (dx < -LW / 2) dx += LW;
+    return dy > -6 && dy <= 96 && Math.abs(dx) <= 28;
+  }
+  function drawWalkerAlert(ctx, m, x, y, pal, t) {
+    var dbg = typeof window !== "undefined" ? window.__dbg : null;
+    var at = dbg && dbg.alertT != null ? dbg.alertT : m.alertT || 0;
+    var ol = at < 16 && (at >> 2) % 2 === 0 ? "#ff645e" : INK;
+    rect(ctx, x + 2, y, 8, 1, ol);
+    rect(ctx, x - 1, y + 3, 14, 5, ol);
+    rect(ctx, x, y + 1, 12, 3, ol);
+    rect(ctx, x - 2, y + 6, 16, 2, ol);
+    rect(ctx, x + 3, y + 1, 6, 1, pal[0]);
+    rect(ctx, x + 1, y + 2, 10, 2, pal[0]);
+    rect(ctx, x, y + 3, 12, 4, pal[0]);
+    rect(ctx, x - 1, y + 6, 14, 1, pal[0]);
+    rect(ctx, x - 1, y + 7, 14, 1, pal[1]);
+    var lk = THREAT && THREAT.x + 6 > m.x + m.w / 2 ? 1 : 0;
+    rect(ctx, x + 2, y + 2, 2, 1, INK);
+    rect(ctx, x + 4, y + 3, 1, 1, INK);
+    rect(ctx, x + 8, y + 2, 2, 1, INK);
+    rect(ctx, x + 7, y + 3, 1, 1, INK);
+    rect(ctx, x + 2, y + 4, 2, 2, "#fff6e8");
+    rect(ctx, x + 8, y + 4, 2, 2, "#fff6e8");
+    rect(ctx, x + 2 + lk, y + 5, 1, 1, INK);
+    rect(ctx, x + 8 + lk, y + 5, 1, 1, INK);
+    rect(ctx, x + 4, y + 6, 4, 1, INK);
+    rect(ctx, x + 4, y + 7, 1, 1, "#fff6e8");
+    rect(ctx, x + 7, y + 7, 1, 1, "#fff6e8");
+  }
+  function ringPix(ctx, cx, cy, r0, r1, col, frac) {
+    for (var dy = -r1; dy <= r1; dy++) for (var dx = -r1; dx <= r1; dx++) {
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (d > r1 + 0.5 || d <= r0 + 0.5) continue;
+      if (frac != null) {
+        var a = Math.atan2(dx, -dy);
+        if (a < 0) a += Math.PI * 2;
+        if (a / (Math.PI * 2) > frac) continue;
+      }
+      rect(ctx, cx + dx, cy + dy, 1, 1, col);
     }
   }
   function isPerm(t) {
@@ -2383,6 +2597,10 @@
     var tk = tick || 0;
     var x = Math.round(p.x), y = Math.round(p.y - cam), w = p.w;
     if (y < -16 || y > LH + 12) return;
+    if (p.type === "break") {
+      drawBreakPlat(ctx, p, x, y, tk);
+      return;
+    }
     if (p.type === "cloud") {
       if (p.broken) return;
       ctx.globalAlpha = p.lifeT < 60 && (p.lifeT >> 3) % 2 ? 0.5 : 1;
@@ -2417,39 +2635,7 @@
     }
     rect(ctx, x + 1, y + 6, w - 1, 1, "rgba(0,0,0,0.28)");
     var i;
-    if (p.type === "break") {
-      rect(ctx, x, y, w, 5, C.brk);
-      rect(ctx, x, y + 4, w, 2, C.brkD);
-      ctx.fillStyle = C.brkRim;
-      for (i = 0; i < w; i += 4) ctx.fillRect(x + i, y, 2, 1);
-      rect(ctx, x, y + 1, 1, 4, C.brkRim);
-      rect(ctx, x + w - 1, y + 1, 1, 4, C.brkRim);
-      ctx.fillStyle = C.brkD;
-      var c1 = x + Math.floor(w * 0.3);
-      ctx.fillRect(c1, y + 1, 1, 4);
-      ctx.fillRect(c1 + 1, y + 3, 2, 1);
-      ctx.fillRect(x + Math.floor(w * 0.68), y + 1, 1, 5);
-      ctx.fillRect(x + Math.floor(w * 0.5), y + 2, 3, 1);
-      rect(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 3, "#120a2c");
-      ctx.fillStyle = "#120a2c";
-      var zx = x + 2, zy = y + 2, step = 0;
-      while (zx < x + w - 2) {
-        ctx.fillRect(zx, zy, 2, 1);
-        step++;
-        zy = step % 2 ? y + 3 : y + 1;
-        zx += 2;
-      }
-      ctx.fillStyle = C.brkD;
-      zx = x + 3;
-      zy = y + 1;
-      step = 0;
-      while (zx < x + w - 3) {
-        ctx.fillRect(zx, zy, 1, 1);
-        step++;
-        zy = step % 2 ? y + 2 : y + 1;
-        zx += 2;
-      }
-    } else if (p.type === "move") {
+    if (p.type === "move") {
       rect(ctx, x, y, w, 5, C.mov);
       rect(ctx, x, y + 4, w, 2, C.movD);
       rect(ctx, x, y, w, 1, C.gold);
@@ -2521,8 +2707,8 @@
   function drawTrack(ctx, p, cam) {
     var y = Math.round(p.y - cam) + 2;
     if (y < -10 || y > LH + 10) return;
-    ctx.fillStyle = "rgba(255,216,80,0.34)";
-    for (var x = 3; x < LW - 3; x += 5) ctx.fillRect(x, y, 2, 1);
+    ctx.fillStyle = "rgba(20,12,40,0.30)";
+    ctx.fillRect(0, y + 1, LW, 1);
   }
   var MOBPAL = {
     blob: ["#6ad86a", "#2e9a50", "#c8ffb0"],
@@ -2569,7 +2755,9 @@
       return;
     }
     var k, b = m.b, lk = m.vx > 0 ? 1 : 0, wb = Math.floor(t / 12) % 2;
-    if (m.kind === "blob" || m.kind === "magma" || m.kind === "alien" || m.kind === "crab") {
+    if ((m.kind === "blob" || m.kind === "magma" || m.kind === "alien" || m.kind === "crab") && slimeAlert(m)) {
+      drawWalkerAlert(ctx, m, x, y, pal, t);
+    } else if (m.kind === "blob" || m.kind === "magma" || m.kind === "alien" || m.kind === "crab") {
       rect(ctx, x + 2, y - 1 + wb, 8, 1, INK);
       rect(ctx, x - 1, y + 3, 14, 5, INK);
       rect(ctx, x, y + 1 + wb, 12, 3, INK);
@@ -2885,7 +3073,10 @@
   }
   var ITEM_COL = { bigcoin: "#f0b428", shield: "#3d8ad8", magnet: "#e03848", rocket: "#ff6a3a" };
   function drawItemIcon(ctx, kind, x, y) {
-    if (drawBonusSprite(ctx, kind, x + 5, y + 5, 0.5)) return;
+    if (HUD_ICONS[kind]) {
+      drawHudIcon(ctx, kind, x, y);
+      return;
+    }
     if (kind === "bigcoin") {
       rect(ctx, x + 2, y + 1, 6, 8, C.gold);
       rect(ctx, x + 1, y + 2, 8, 6, C.gold);
@@ -3868,7 +4059,7 @@
     var hits = [];
     var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
     var fieldLocked = false, landPause = false;
-    var resumeCd = 0, resumeAt = 0, abDenyT = 0, coinT0 = -1, coinSkip = false;
+    var resumeCd = 0, resumeAt = 0, abDenyT = 0, refuseT = 0, popT = -1, wasReady = false, coinT0 = -1, coinSkip = false;
     var pressId = null;
     var confirmId = null, confirmAt = 0;
     var campCard = -1;
@@ -3949,25 +4140,34 @@
         canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
         canvas.style.borderRadius = "4px";
       } else {
-        cssScale = Math.min(availW / lw, availH / lh);
-        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
-        cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
-        cssHpx = lh * cssScale;
-        var pxW = Math.max(1, Math.round(cssWpx * dpr));
-        var pxH = Math.max(1, Math.round(cssHpx * dpr));
-        canvas.width = pxW;
-        canvas.height = pxH;
-        var worldW = lw + 2 * VIEW_PAD;
-        pScale = pxW / worldW;
-        sx = pxW / worldW;
-        sy = pxH / lh;
+        var devW = Math.max(1, Math.round(availW * dpr)), devH = Math.max(1, Math.round(availH * dpr));
+        pScale = Math.max(1, Math.min(Math.floor(devW / lw), Math.floor(devH / lh)));
+        cssScale = pScale / dpr;
+        FIELD_OX = Math.floor((devW - lw * pScale) / 2);
+        FIELD_OY = Math.floor((devH - lh * pScale) / 2);
+        DEV_W = devW;
+        DEV_H = devH;
+        PHONE_INT = true;
+        VIEW_PAD = Math.ceil(FIELD_OX / pScale);
+        canvas.width = devW;
+        canvas.height = devH;
+        cssWpx = devW / dpr;
+        cssHpx = devH / dpr;
+        sx = sy = pScale;
         canvas.style.position = "absolute";
         canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
         canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
         canvas.style.boxShadow = "none";
         canvas.style.borderRadius = "0px";
       }
-      if (isWide) VIEW_PAD = 0;
+      if (isWide) {
+        VIEW_PAD = 0;
+        FIELD_OX = 0;
+        FIELD_OY = 0;
+        PHONE_INT = false;
+        DEV_W = canvas.width;
+        DEV_H = canvas.height;
+      }
       netLW = netFixedLW();
       LW = lw;
       LH = lh;
@@ -3977,7 +4177,7 @@
       canvas.style.imageRendering = "pixelated";
       var hintEl = document.getElementById("desk-hint");
       if (hintEl) hintEl.style.display = isWide && cssH - LH * cssScale >= 34 ? "block" : "none";
-      ctx.setTransform(sx, 0, 0, sy, VIEW_PAD * sx, 0);
+      ctx.setTransform(sx, 0, 0, sy, FIELD_OX, FIELD_OY);
       ctx.imageSmoothingEnabled = false;
       ctx.webkitImageSmoothingEnabled = false;
       syncBackdrop(world ? world.map : save.bg);
@@ -4003,6 +4203,11 @@
       uiAcc = 0;
       lastT = -1;
     }
+    function heroHasAb(me) {
+      var dbg = window.__dbg;
+      if (dbg && dbg.noAb) return false;
+      return !!(me && CHARS[me.kind] && CHARS[me.kind].ab);
+    }
     function showFirstTimeToast(id, text) {
       if (!save.seen) save.seen = {};
       if (save.seen[id]) return;
@@ -4013,20 +4218,23 @@
     function requestAbility() {
       audioUnlock();
       if (!world || !world.players || !world.players[0] || !world.players[0].alive) return;
+      if (!heroHasAb(world.players[0])) return;
       if (abReady(world.players[0])) {
         abTap = true;
         return;
       }
       if (abDenyT <= 0) {
         abDenyT = 18;
+        refuseT = 10;
         hopSfx("deny");
+        showFirstTimeToast("abDeny");
       }
     }
     function toLogic(cx, cy) {
       var r = canvas.getBoundingClientRect();
       var rw = r.width || 1, rh = r.height || 1;
-      var x = (cx - r.left) / rw * (LW + 2 * VIEW_PAD) - VIEW_PAD;
-      var y = (cy - r.top) / rh * LH;
+      var x = ((cx - r.left) / rw * canvas.width - FIELD_OX) / pScale;
+      var y = ((cy - r.top) / rh * canvas.height - FIELD_OY) / pScale;
       if (phase === "play" && cy >= r.top && cy <= r.bottom && (cx < r.left || cx > r.right)) {
         x = cx < r.left ? 0 : LW;
         y = Math.max(0, Math.min(LH, y));
@@ -4121,12 +4329,7 @@
       }
     }
     function abBar() {
-      var coinW = 28;
-      try {
-        if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19;
-      } catch (_e) {
-      }
-      return { x: 4 + coinW, y: 5, w: 16, h: 16 };
+      return { x: 0, y: 0, w: 26, h: 26 };
     }
     function startSquad(seed) {
       mode = "squad";
@@ -4158,6 +4361,9 @@
       resumeCd = 0;
       landPause = false;
       abDenyT = 0;
+      refuseT = 0;
+      popT = -1;
+      wasReady = false;
       coinT0 = -1;
       coinSkip = false;
       try {
@@ -4534,6 +4740,7 @@
       }
       return inputs;
     }
+    var TITLE = { face: "#ffe9a8", outline: "#2a1840", shadow: "#6a3cb4" };
     var MENU_CAM = function() {
       return -LH + 70;
     };
@@ -4587,12 +4794,10 @@
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
       dimView(ctx, "rgba(18,14,44,0.14)");
       var x = colX();
-      box(ctx, x + 6, 10, 122, 28, C.navy, C.cream);
-      drawText(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", x + 67, 15, C.coral, 3, "center");
-      drawText(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", x + 66, 14, C.cream, 3, "center");
-      gear(x + 134, 8);
-      drawText(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 39, C.cream, 1, "center");
-      plaque();
+      drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
+      gear(LW - 22, 4);
+      drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 41, C.cream, "center");
+      coinsLabel(5, 6, save.coins);
       var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
       var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
       var by = LH - 118;
@@ -4603,12 +4808,12 @@
       rect(ctx, LW / 2 - 28, py + 2, 56, 5, C.wood);
       rect(ctx, LW / 2 - 28, py + 6, 56, 2, C.woodD);
       rect(ctx, LW / 2 - 28, py + 2, 56, 1, C.edge);
-      drawJumper(ctx, LW / 2 - 12, py + 2 - 32 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 2);
+      drawJumper(ctx, LW / 2 - 6, py + 2 - 16 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 1);
       btn("shop", x + 36, py + 16, 80, 16, "#1a1430", "\u0413\u0415\u0420\u041E\u0419 \u25B6", C.cream, 1, C.gold);
       by = Math.max(py + 40, by);
       btn("start", x, by, 152, 34, C.mint, "", INK, 2);
-      drawText(ctx, "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", LW / 2, by + 4, INK, 2, "center");
-      drawText(ctx, sub, LW / 2, by + 22, INK, 1, "center");
+      drawBig(ctx, "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", LW / 2, by + 4, INK, 2, "center");
+      drawText(ctx, sub, LW / 2, by + 23, INK, 1, "center");
       if (isPageBuild()) {
         btn("camp", x, by + 40, 152, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
         btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
@@ -4808,26 +5013,52 @@
       if (p.vy > 1.5) return "fall";
       return "idle";
     }
-    function dashLine(y, label, col, right) {
+    function goalLine(y, label) {
       if (y < -8 || y > LH + 8) return;
       var yy = Math.round(y);
-      for (var x = 0; x < LW; x += 6) rect(ctx, x, yy, 3, 1, col);
+      for (var x = viewX0(); x < LW + VIEW_PAD; x += 4) {
+        var on = (x - viewX0() >> 2) % 2 === 0;
+        rect(ctx, x, yy, 4, 1, on ? C.cream : "#162040");
+        rect(ctx, x, yy + 1, 4, 1, on ? "#162040" : C.cream);
+      }
       var tw = textWidth(label, 1) + 6;
-      var lx = right ? LW - tw - 4 : 4;
-      box(ctx, lx, yy - 6, tw, 11, "#0c0818", col);
-      drawText(ctx, label, lx + tw / 2, yy - 4, col, 1, "center");
+      rect(ctx, 3, yy - 11, tw + 2, 11, INK);
+      rect(ctx, 4, yy - 10, tw, 9, "#162040");
+      drawText(ctx, label, 4 + tw / 2, yy - 9, C.gold, 1, "center");
+    }
+    function recLine(y, label) {
+      if (y < -8 || y > LH + 8) return;
+      var yy = Math.round(y);
+      ctx.globalAlpha = 0.7;
+      for (var x = viewX0(); x < LW + VIEW_PAD; x += 2) rect(ctx, x, yy, 1, 1, C.cream);
+      ctx.globalAlpha = 1;
+      var tw = textWidth(label, 1) + 6, lx = LW - tw - 5;
+      rect(ctx, lx - 1, yy - 11, tw + 2, 11, INK);
+      rect(ctx, lx, yy - 10, tw, 9, "#162040");
+      drawText(ctx, label, lx + tw / 2, yy - 9, C.cream, 1, "center");
+    }
+    function drawReadyPip(me, sy) {
+      var dbg = window.__dbg || {};
+      var pp = dbg.ring && dbg.ring.pop != null ? dbg.ring.pop : popT;
+      if (!heroHasAb(me) || pp < 0 || pp >= 36) return;
+      var x = Math.round(me.x + PW / 2) - 2, y = Math.round(sy) - 9;
+      rect(ctx, x + 1, y, 1, 1, C.gold);
+      rect(ctx, x, y + 1, 3, 1, C.gold);
+      rect(ctx, x + 1, y + 2, 1, 1, C.gold);
+      rect(ctx, x + 1, y + 1, 1, 1, "#fff2a8");
     }
     function drawPlay() {
       hits = [];
       var w = world, cam = w.cameraY, i;
+      THREAT = w.players[0] && w.players[0].alive ? { x: w.players[0].x, y: w.players[0].y, w: PW, h: PH } : null;
       var shx = w.shake > 0 ? (w.tick % 2 ? 1 : -1) * Math.ceil(w.shake / 3) : 0;
       ctx.save();
       ctx.translate(shx, 0);
       drawBg(ctx, cam, w.tick, w.map);
       for (i = 0; i < w.platforms.length; i++) if (w.platforms[i].type === "move") drawTrack(ctx, w.platforms[i], cam);
       for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
-      if (w.goalM) dashLine(-w.goalM * PX_PER_M - cam, "\u0426\u0415\u041B\u042C " + w.goalM + " \u041C", C.gold, false);
-      if (w.recM) dashLine(-w.recM * PX_PER_M - cam, "\u0420\u0415\u041A\u041E\u0420\u0414 " + w.recM, C.cream, true);
+      if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "\u0426\u0415\u041B\u042C " + w.goalM + " \u041C");
+      if (w.recM) recLine(-w.recM * PX_PER_M - cam, "\u0420\u0415\u041A\u041E\u0420\u0414 " + w.recM);
       if (w.goalM) {
         var gy = -w.goalM * PX_PER_M - cam;
         if (gy > 8 && gy < LH - 8) showFirstTimeToast("goal");
@@ -4868,6 +5099,7 @@
         var pose = p.alive ? poseOf(p) : "fall";
         drawFxBack(p, sy, cam);
         drawJumper(ctx, p.x, sy, p.look, p.face, pose, blink, p.alive);
+        if (p.id === 0) drawReadyPip(p, sy);
         drawFxFront(p, sy);
         if (p.wallT > 0) {
         } else if (p.x < 6) drawJumper(ctx, p.x + LW, sy, p.look, p.face, pose, blink, p.alive);
@@ -4894,13 +5126,9 @@
       }
       ctx.restore();
       var me = w.players[0];
-      var label = metersOf(me) + " \u041C";
-      var hw = textWidth(label, 1) + 10;
-      box(ctx, Math.round(LW / 2 - hw / 2), 6, hw, 13, C.navy, C.cream);
-      drawText(ctx, label, LW / 2, 9, C.cream, 1, "center");
-      box(ctx, 4, 6, textWidth(String(w.runCoins), 1) + 15, 13, C.navy, C.gold);
-      coinsLabel(7, 9, w.runCoins);
       var wantPause = wantTouchPause();
+      drawTextO(ctx, metersOf(me) + " \u041C", 80, 6, C.cream, "center");
+      coinsLabel(wantPause ? 136 : 155, 6, w.runCoins, "right");
       if (w.mode === "squad") {
         var place = 1, lead = me, leadM = metersOf(me);
         for (i = 0; i < w.players.length; i++) {
@@ -4911,37 +5139,37 @@
             leadM = om;
           }
         }
-        var pl = place + "/" + w.players.length;
-        var pw2 = textWidth(pl, 1) + 8;
-        var pr = wantPause ? LW - 22 : LW - 4;
-        box(ctx, pr - pw2, 6, pw2, 13, C.navy, C.cream);
-        drawText(ctx, pl, pr - 4, 9, C.cream, 1, "right");
+        drawTextO(ctx, place + "/" + w.players.length, 80, 16, "#c8bfe0", "center");
         var leadLab = lead.id === 0 ? "\u0422\u042B \u0412\u041F\u0415\u0420\u0415\u0414\u0418" : (lead.name || "\u0411\u041E\u0422").slice(0, 8) + " " + leadM + " \u041C";
-        var lw2 = textWidth(leadLab, 1) + 8;
-        box(ctx, pr - lw2, 20, lw2, 11, C.navy, lead.id === 0 ? C.gold : C.cream);
-        drawText(ctx, leadLab, pr - 4, 22, lead.id === 0 ? C.gold : C.cream, 1, "right");
+        drawTextO(ctx, leadLab, 80, 26, lead.id === 0 ? C.gold : C.cream, "center");
       }
       if (wantPause) {
-        addHit("pause", LW - 20, 4, 16, 16);
-        box(ctx, LW - 20, 4, 16, 16, pressId === "pause" ? "#3a4a7a" : C.navy, C.cream);
-        rect(ctx, LW - 15, 8, 2, 8, C.cream);
-        rect(ctx, LW - 11, 8, 2, 8, C.cream);
+        addHit("pause", 138, 0, 22, 22);
+        rect(ctx, 141, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
+        rect(ctx, 142, 4, 13, 13, "#1a1430");
+        rect(ctx, 145, 7, 2, 7, C.cream);
+        rect(ctx, 150, 7, 2, 7, C.cream);
       }
       drawBonusHud(me);
-      drawAbBar(me);
+      drawAbRing(me);
       if (w.toastT > 0) {
         var tw2 = textWidth(w.toast, 1) + 12;
+        var tx0 = Math.round(LW / 2 - tw2 / 2);
         ctx.globalAlpha = Math.min(1, w.toastT / 15);
-        box(ctx, Math.round(LW / 2 - tw2 / 2), 38, tw2, 13, C.navy, C.gold);
-        drawText(ctx, w.toast, LW / 2, 41, C.gold, 1, "center");
+        rect(ctx, tx0 - 1, 73, tw2 + 2, 15, INK);
+        rect(ctx, tx0, 74, tw2, 13, "#162040");
+        drawText(ctx, w.toast, LW / 2, 77, C.gold, 1, "center");
         ctx.globalAlpha = 1;
       }
       if (w.tick < 170) {
         ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
-        var hx2 = colX();
-        var hint = !isPhone ? "\u2190 \u2192 \u0425\u041E\u0414 \xB7 \u2191 \u0421\u041F\u041E\u0421\u041E\u0411\u041D\u041E\u0421\u0422\u042C" : "\u0422\u0410\u041F \u2190 \u2192 \xB7 \u0421\u0412\u0410\u0419\u041F \u2191";
-        box(ctx, hx2, LH - 46, 152, 12, C.navy, C.cream);
-        drawText(ctx, hint, LW / 2, LH - 44, C.cream, 1, "center");
+        var hasAb = heroHasAb(me), Hn = CHARS[me.kind];
+        if (!isPhone) {
+          drawTextO(ctx, hasAb ? "\u2190 \u2192 \u0425\u041E\u0414 \xB7 \u2191 " + Hn.abName : "\u2190 \u2192 \u0425\u041E\u0414", LW / 2, 77, C.cream, "center");
+        } else {
+          drawTextO(ctx, "\u0422\u0410\u041F \u0421\u041B\u0415\u0412\u0410 / \u0421\u041F\u0420\u0410\u0412\u0410", LW / 2, 77, C.cream, "center");
+          if (hasAb) drawTextO(ctx, "\u0421\u0412\u0410\u0419\u041F \u2191 \xB7 " + Hn.abName, LW / 2, 88, C.cream, "center");
+        }
         ctx.globalAlpha = 1;
       }
       if ((w.fallWarn || w.liftWarn) && !paused) {
@@ -4964,7 +5192,7 @@
       if (paused) {
         dimView(ctx, "rgba(8,6,20,0.55)");
         box(ctx, colX(), LH / 2 - 48, 152, 100, C.navy, C.gold);
-        drawText(ctx, "\u041F\u0410\u0423\u0417\u0410", LW / 2, LH / 2 - 38, C.gold, 2, "center");
+        drawBig(ctx, "\u041F\u0410\u0423\u0417\u0410", LW / 2, LH / 2 - 40, C.gold, 2, "center", INK);
         if (resumeCd > 0) {
           drawText(ctx, String(resumeCd), LW / 2, LH / 2 - 14, C.gold, 3, "center");
           btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "\u041C\u0415\u041D\u042E");
@@ -5041,23 +5269,18 @@
     }
     var BON_HUD = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
     function drawBonusHud(me) {
-      var x = 4, y = 22;
+      var x = 3, y = heroHasAb(me) ? 27 : 4;
       for (var i = 0; i < BON_HUD.length; i++) {
         var b = BON_HUD[i], t = me[b[0]];
         if (!(t > 0)) continue;
-        box(ctx, x, y, 14, 18, C.navy, ITEM_COL[b[1]] || C.cream);
-        if (b[0] === "domeT") {
-          rect(ctx, x + 3, y + 3, 8, 6, "#7ad8ff");
-          rect(ctx, x + 5, y + 2, 4, 1, "#7ad8ff");
-        } else if (b[0] === "wallT") {
-          rect(ctx, x + 2, y + 2, 2, 9, "#a8a8b8");
-          rect(ctx, x + 5, y + 4, 6, 2, "#d82a2a");
-          rect(ctx, x + 6, y + 6, 4, 4, "#26305a");
-        } else drawItemIcon(ctx, b[1], x + 2, y + 1);
+        if (b[0] === "domeT" || b[0] === "wallT") continue;
+        rect(ctx, x, y, 16, 18, INK);
+        rect(ctx, x + 1, y + 1, 14, 16, "#1a1430");
+        drawHudIcon(ctx, b[1], x + 3, y + 2);
         var f = clamp(t / b[2], 0, 1);
-        rect(ctx, x + 2, y + 14, 10, 2, "#1a1430");
-        rect(ctx, x + 2, y + 14, Math.max(1, Math.round(10 * f)), 2, ITEM_COL[b[1]] || C.cream);
-        x += 16;
+        rect(ctx, x + 3, y + 14, 10, 2, "#2c2a52");
+        rect(ctx, x + 3, y + 14, Math.max(1, Math.round(10 * f)), 2, ITEM_COL[b[1]] || C.cream);
+        y += 20;
       }
     }
     function fillDisc(cx, cy, r, col) {
@@ -5145,38 +5368,48 @@
       rect(ctx, x + 2, y + 1, 1, 1, "#0c0818");
       rect(ctx, x + 4, y + 1, 1, 1, "#0c0818");
     }
-    function drawAbBar(me) {
-      var H = CHARS[me.kind], b = abBar();
-      addHit("ab", b.x, b.y, b.w, b.h);
-      var ready = me.alive && me.abCharge >= H.need, active = !!me.wall;
-      var f = clamp(me.abCharge / H.need, 0, 1);
-      var deny = abDenyT > 0;
-      var cx = b.x + 8, cy = b.y + 8;
-      var rim = deny && ui % 4 < 2 ? C.red : ready ? (ui >> 3) % 2 ? C.gold : C.cream : active ? "#d82a2a" : "#3a4a7a";
-      fillDisc(cx, cy, 8, rim);
-      fillDisc(cx, cy, 6, "#1a1430");
-      strokeArc(cx, cy, 6, ready ? C.gold : deny ? C.red : "#5ec8ff", ready ? 1 : f);
-      ctx.globalAlpha = ready || active || deny ? 1 : 0.55;
+    function drawAbRing(me) {
+      if (!heroHasAb(me)) return;
+      var H = CHARS[me.kind], dbg = window.__dbg || {}, rs = dbg.ring || {};
+      var f = rs.f != null ? rs.f : clamp(me.abCharge / H.need, 0, 1);
+      var ready = rs.state ? rs.state === "ready" : me.alive && me.abCharge >= H.need;
+      var active = rs.state ? rs.state === "active" : !!(me.dashT > 0 || me.wall || me.domeT > 0 || me.poundT > 0);
+      var rf = rs.refuse != null ? rs.refuse : refuseT, pp = rs.pop != null ? rs.pop : popT;
+      var SH = [1, 1, -1, -1, 1, 1, -1, -1, 0, 0];
+      var cx = 12 + (rf > 0 ? SH[Math.max(0, 10 - rf)] : 0), cy = 12;
+      addHit("ab", 0, 0, 26, 26);
+      ringPix(ctx, cx, cy, -1, 10, INK);
+      ringPix(ctx, cx, cy, -1, 7, "#1a1430");
+      ringPix(ctx, cx, cy, 7, 9, "#2c2a52");
+      if (active) ringPix(ctx, cx, cy, 7, 9, C.cream, rs.f != null ? rs.f : 1);
+      else if (ready) {
+        ringPix(ctx, cx, cy, 7, 9, C.gold);
+        ringPix(ctx, cx, cy, 8, 9, "#fff2a8", 0.18);
+      } else ringPix(ctx, cx, cy, 7, 9, rf > 6 ? C.cream : "#5ec8ff", f);
+      if (ready && pp >= 0 && pp < 12) {
+        if (pp < 6) ringPix(ctx, cx, cy, 10, 11, "#fff2a8");
+        var rr = 12 + (pp >> 1);
+        rect(ctx, cx + rr - 1, cy - rr + 1, 1, 1, C.gold);
+        rect(ctx, cx - rr + 1, cy - rr + 1, 1, 1, C.gold);
+        rect(ctx, cx + rr - 1, cy + rr - 1, 1, 1, C.gold);
+        rect(ctx, cx - rr + 1, cy + rr - 1, 1, 1, C.gold);
+      }
+      if (!ready && !active) ctx.globalAlpha = 0.45;
       drawAbIcon(H.ab, cx - 6, cy - 6);
       ctx.globalAlpha = 1;
-      if (deny && !ready) {
-        var left = H.charge === "time" ? String(Math.max(1, Math.ceil((H.need - me.abCharge) / 50))) : "!";
-        drawText(ctx, left, cx, b.y + 16, C.red, 1, "center");
-      }
     }
     function whyText(p) {
       var m = metersOf(p), w = p.why || "";
-      if (w === "fall") return "\u0423\u041F\u0410\u041B \u041D\u0410 " + m + " \u041C";
-      if (w === "shot") return "\u0421\u0411\u0418\u041B \u0412\u042B\u0421\u0422\u0420\u0415\u041B \u041D\u0410 " + m + " \u041C";
-      if (w === "hole") return "\u0417\u0410\u0422\u042F\u041D\u0423\u041B\u0410 \u0414\u042B\u0420\u0410 \u041D\u0410 " + m + " \u041C";
+      if (w === "fall") return "\u0421\u041E\u0420\u0412\u0410\u041B\u0421\u042F \xB7 " + m + " \u041C";
+      if (w === "shot") return "\u0421\u0411\u0418\u041B \u0412\u042B\u0421\u0422\u0420\u0415\u041B \xB7 " + m + " \u041C";
+      if (w === "hole") return "\u0417\u0410\u0422\u042F\u041D\u0423\u041B\u0410 \u0414\u042B\u0420\u0410 \xB7 " + m + " \u041C";
       if (w.indexOf("mob:") === 0) {
         var mk = w.slice(4);
-        if (mk === "blob") return "\u0422\u0415\u0411\u042F \u0421\u0411\u0418\u041B \u0421\u041B\u0418\u0417\u0415\u041D\u042C \u041D\u0410 " + m + " \u041C";
         var mo = MOBS[mk] || {};
         var nm = mo.name || "\u041C\u041E\u0411";
-        return (mo.g === "f" ? "\u0421\u0411\u0418\u041B\u0410 " : "\u0421\u0411\u0418\u041B ") + nm + " \u041D\u0410 " + m + " \u041C";
+        return (mo.g === "f" ? "\u0421\u0411\u0418\u041B\u0410 " : "\u0421\u0411\u0418\u041B ") + nm + " \xB7 " + m + " \u041C";
       }
-      return w ? w + " " + m + " \u041C" : "";
+      return w ? w + " \xB7 " + m + " \u041C" : "";
     }
     function nextHeroNeed() {
       for (var i = 0; i < CHARS.length; i++) if (!heroOwned(i)) return { i, H: CHARS[i], left: Math.max(0, CHARS[i].price - save.coins) };
@@ -5297,6 +5530,14 @@
         ui++;
         if (flashT > 0) flashT--;
         if (abDenyT > 0) abDenyT--;
+        if (refuseT > 0) refuseT--;
+        if (world && world.players && world.players[0]) {
+          var rdyNow = heroHasAb(world.players[0]) && world.players[0].alive && world.players[0].abCharge >= CHARS[world.players[0].kind].need;
+          if (rdyNow && !wasReady) popT = 0;
+          wasReady = rdyNow;
+          if (popT >= 0) popT++;
+          if (popT > 36) popT = -1;
+        }
         uiAcc -= UI_STEP;
         uSteps++;
       }
@@ -5350,6 +5591,15 @@
         box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
         drawText(ctx, "\u041F\u041E\u0412\u0415\u0420\u041D\u0418 \u0422\u0415\u041B\u0415\u0424\u041E\u041D", LW / 2, LH / 2 - 14, C.cream, 1, "center");
         hits = [];
+      }
+      if (PHONE_INT && FIELD_OY > 0) {
+        var lb = mixHex(skyAt(world ? world.map : save.bg, 0)[0], INK, LETTERBOX_MIX);
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = lb;
+        ctx.fillRect(0, 0, DEV_W, FIELD_OY);
+        ctx.fillRect(0, FIELD_OY + LH * pScale, DEV_W, DEV_H - FIELD_OY - LH * pScale);
+        ctx.restore();
       }
       if (netFixedLW() !== netLW) resize();
       if (running && !driving) raf = requestAnimationFrame(frame);
@@ -5470,6 +5720,12 @@
       getPhase: function() {
         return phase;
       },
+      dbgToast: function(s) {
+        if (world) {
+          world.toast = s;
+          world.toastT = 70;
+        }
+      },
       getWorld: function() {
         return world;
       },
@@ -5478,7 +5734,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD };
+        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
       },
       tap: function(id) {
         activate(id);
