@@ -1,4 +1,4 @@
-import { INestApplication, Injectable, Logger } from '@nestjs/common';
+import { INestApplication, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { existsSync, readFileSync } from 'fs';
 import type { IncomingMessage } from 'http';
 import { join } from 'path';
@@ -81,7 +81,7 @@ function parsePositiveMs(raw: string | undefined, fallback: number): number {
 }
 
 @Injectable()
-export class BlueGreenService {
+export class BlueGreenService implements OnModuleDestroy {
   private readonly log = new Logger('BlueGreen');
   readonly node: string;
   readonly version: string;
@@ -108,6 +108,11 @@ export class BlueGreenService {
   private peerAuthTimer: NodeJS.Timeout | null = null;
 
   private readonly clients = new Set<TrackedSocket>();
+  private readonly proxyUpstreams = new Set<WebSocket>();
+  private readonly heartbeats = new WeakMap<WebSocket, { lastPongAt: number }>();
+  private readonly wsPingMs: number;
+  private readonly wsPongTimeoutMs: number;
+  private wsPingTimer: NodeJS.Timeout | null = null;
   private roomsService: RoomsService | null = null;
   private internalWsHandler: ((ws: TrackedSocket, req: IncomingMessage) => void) | null = null;
 
@@ -127,6 +132,10 @@ export class BlueGreenService {
     this.field = loadFieldConfig();
     this.migrateGraceMs = parsePositiveMs(process.env.MIGRATE_GRACE_MS, 30_000);
     this.peerAuthTtlMs = parsePositiveMs(process.env.PEER_AUTH_TTL_MS, 3_000);
+    this.wsPingMs = parsePositiveMs(process.env.WS_PING_MS, 25_000);
+    this.wsPongTimeoutMs = parsePositiveMs(process.env.WS_PONG_TIMEOUT_MS, 60_000);
+    this.wsPingTimer = setInterval(() => this.sweepHeartbeats(), this.wsPingMs);
+    this.wsPingTimer.unref();
     if (!this.peerInternalUrl) this.peerAuth = 'none';
     else {
       const t = setTimeout(() => void this.checkPeerAuth(), 300);
@@ -222,8 +231,49 @@ export class BlueGreenService {
     this.internalWsHandler?.(ws, req);
   }
 
+  onModuleDestroy() {
+    if (this.peerAuthTimer) { clearInterval(this.peerAuthTimer); this.peerAuthTimer = null; }
+    if (this.wsPingTimer) { clearInterval(this.wsPingTimer); this.wsPingTimer = null; }
+  }
+
+  private attachHeartbeat(ws: WebSocket) {
+    if (this.heartbeats.has(ws)) return;
+    const state = { lastPongAt: Date.now() };
+    this.heartbeats.set(ws, state);
+    ws.on('pong', () => { state.lastPongAt = Date.now(); });
+    ws.on('open', () => { state.lastPongAt = Date.now(); });
+  }
+
+  private sweepHeartbeats() {
+    const now = Date.now();
+    const checkSet = <T extends WebSocket>(set: Set<T>, label: string) => {
+      for (const ws of [...set]) {
+        if (ws.readyState === 0) {
+          const hb = this.heartbeats.get(ws);
+          if (hb) hb.lastPongAt = now;
+          continue;
+        }
+        if (ws.readyState !== 1) {
+          set.delete(ws);
+          continue;
+        }
+        const hb = this.heartbeats.get(ws);
+        if (hb && now - hb.lastPongAt > this.wsPongTimeoutMs) {
+          this.log.warn(`terminating dead ${label} WS (no pong for ${now - hb.lastPongAt}ms > ${this.wsPongTimeoutMs}ms)`);
+          set.delete(ws);
+          try { ws.terminate(); } catch { /* ignore */ }
+          continue;
+        }
+        try { ws.ping(); } catch { /* ignore */ }
+      }
+    };
+    checkSet(this.clients, 'client');
+    checkSet(this.proxyUpstreams, 'proxy-upstream');
+  }
+
   registerClient(ws: TrackedSocket) {
     this.clients.add(ws);
+    this.attachHeartbeat(ws);
   }
 
   unregisterClient(ws: TrackedSocket) {
@@ -562,7 +612,7 @@ export class BlueGreenService {
       this.log.error(`error during graceful shutdown: ${(err as Error).message}`);
     } finally {
       clearTimeout(failsafe);
-      if (this.peerAuthTimer) clearInterval(this.peerAuthTimer);
+      this.onModuleDestroy();
       process.exit(0);
     }
   }
@@ -669,6 +719,8 @@ export class BlueGreenService {
       headers: this.internalHeaders(),
       handshakeTimeout: this.peerTimeoutMs,
     });
+    this.proxyUpstreams.add(upstream);
+    this.attachHeartbeat(upstream);
     ws.sess.upstream = upstream;
     let opened = false;
 
@@ -693,6 +745,7 @@ export class BlueGreenService {
     });
 
     upstream.on('close', (code, reason) => {
+      this.proxyUpstreams.delete(upstream);
       if (ws.sess.upstream !== upstream) return; // proxy torn down on purpose (BUG-44): keep the client
       ws.sess.upstream = undefined;
       if (code === 4401 || code === 1008) this.notePeerStatus(401, 'ws proxy');
