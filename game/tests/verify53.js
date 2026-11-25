@@ -1,6 +1,9 @@
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const fs = require('fs');
-const OUT = '/workspace/jumper/game/screens/v053/';
+const path = require('path');
+const GAME_DIR = path.resolve(__dirname, '..');
+const EXPECTED_LW = Number(process.env.FIELD_W || 180);
+const OUT = '/tmp/hoppak_verify53_' + EXPECTED_LW + '/';
 fs.mkdirSync(OUT, { recursive: true });
 
 (async () => {
@@ -12,7 +15,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
   async function open(w, h, dpr) {
     await pg.setViewport({ width: w, height: h, deviceScaleFactor: dpr || 1 });
-    await pg.goto('file:///workspace/jumper/game/index.html');
+    await pg.goto('file://' + path.join(GAME_DIR, 'index.html'));
     await pg.evaluate(() => localStorage.clear());
     await pg.reload();
     await new Promise(r => setTimeout(r, 400));
@@ -70,7 +73,7 @@ fs.mkdirSync(OUT, { recursive: true });
     await open(w, h, dpr);
     const sz = await H(() => window.__hoppak.getSize());
     const cssW = sz.lw * sz.cssScale, cssH = sz.lh * sz.cssScale;
-    sz.ok = sz.lw === 160 && sz.lh >= 280 && sz.lh <= 346
+    sz.ok = sz.lw === EXPECTED_LW && sz.lh >= 280 && sz.lh <= 346
       && sz.pScale === Math.floor(sz.pScale) && sz.pScale >= 1
       && sz.cw === sz.lw * sz.pScale && sz.ch === sz.lh * sz.pScale
       && Math.abs(sz.dpr - dpr) < 0.01

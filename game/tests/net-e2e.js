@@ -1,6 +1,10 @@
 /* End-to-end: real game clients (headless Chrome) play one online round through the local server.
    Usage: node game/tests/net-e2e.js [baseUrl]   (server must be running, default http://localhost:8787/) */
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
+const path = require('path');
+const fs = require('fs');
+const SHOTS = path.join(__dirname, 'net-shots');
+fs.mkdirSync(SHOTS, { recursive: true });
 const BASE = process.argv[2] || 'http://localhost:8787/';
 const SIZES = [[390, 844], [375, 667], [430, 932], [360, 640]];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -58,12 +62,12 @@ async function waitFor(pg, fn, arg, ms = 8000) {
   check(await waitFor(pages[0], () => __hoppak.net.room.players.every((p) => p.ready || p.pid === __hoppak.net.room.host)), 'all guests ready');
   await H(0, () => __hoppak.tap('net:mnext'));
   await sleep(200);
-  await pages[0].screenshot({ path: '/workspace/jumper/game/tests/net-shots/room_host.png' });
-  await pages[1].screenshot({ path: '/workspace/jumper/game/tests/net-shots/room_guest.png' });
+  await pages[0].screenshot({ path: path.join(SHOTS, 'room_host.png') });
+  await pages[1].screenshot({ path: path.join(SHOTS, 'room_guest.png') });
   await H(0, () => __hoppak.tap('net:start'));
   for (let i = 0; i < N; i++) check(await waitFor(pages[i], () => __hoppak.getPhase() === 'play' && __hoppak.getWorld() && __hoppak.getWorld().net), `p${i} entered online run`);
   await sleep(400);
-  await pages[N - 1].screenshot({ path: '/workspace/jumper/game/tests/net-shots/countdown.png' });
+  await pages[N - 1].screenshot({ path: path.join(SHOTS, 'countdown.png') });
 
   // same seed, map, width and identical generated map on every client
   const info = [];
@@ -109,8 +113,8 @@ async function waitFor(pg, fn, arg, ms = 8000) {
   check(lp.every((x) => x === lp[0]) && lm.every((x) => x === lm[0]), `map identical mid-run in shared range y ${hi}..${lo} (${JSON.parse(lp[0]).length} platforms, ${JSON.parse(lm[0]).length} mobs)`);
   const heights = await Promise.all(pages.map((pg) => pg.evaluate(() => ({ tick: __hoppak.getWorld().tick, m: __hoppak.getWorld().players.map((p) => Math.round(p.maxH / 8)) }))));
   log('heights seen by each client [me, remotes...]:', JSON.stringify(heights));
-  await pages[0].screenshot({ path: '/workspace/jumper/game/tests/net-shots/play_p0.png' });
-  await pages[3 % N].screenshot({ path: '/workspace/jumper/game/tests/net-shots/play_p3.png' });
+  await pages[0].screenshot({ path: path.join(SHOTS, 'play_p0.png') });
+  await pages[3 % N].screenshot({ path: path.join(SHOTS, 'play_p3.png') });
 
   // reconnect: p2 loses its socket mid-run and must come back within the grace window
   if (N > 2) {
@@ -140,7 +144,7 @@ async function waitFor(pg, fn, arg, ms = 8000) {
   const res = await Promise.all(pages.map((pg) => pg.evaluate(() => __hoppak.getWorld().players.map((p) => ({ pid: p.id === 0 ? __hoppak.net.you : p.pid, place: p.place, m: Math.floor(p.maxH / 8) })).sort((a, b) => a.pid - b.pid))));
   log('results per client:', JSON.stringify(res.map((r) => r.map((x) => `${x.pid}:#${x.place}`).join(' '))));
   check(res.every((r) => JSON.stringify(r.map((x) => [x.pid, x.place])) === JSON.stringify(res[0].map((x) => [x.pid, x.place]))), 'identical placing on all clients');
-  await pages[0].screenshot({ path: '/workspace/jumper/game/tests/net-shots/results_p0.png' });
+  await pages[0].screenshot({ path: path.join(SHOTS, 'results_p0.png') });
   // rematch -> back to the room lobby, ready flags reset
   await H(1, () => __hoppak.tap('rematch'));
   check(await waitFor(pages[1], () => __hoppak.getPhase() === 'net' && __hoppak.net.sub === 'room' && !__hoppak.net.mePlayer().ready), 'rematch returns to room lobby');

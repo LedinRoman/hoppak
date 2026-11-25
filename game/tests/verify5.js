@@ -1,6 +1,9 @@
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const fs = require('fs');
-const OUT = '/workspace/jumper/game/screens/v054/verify5/';
+const path = require('path');
+const GAME_DIR = path.resolve(__dirname, '..');
+const EXPECTED_LW = Number(process.env.FIELD_W || 180);
+const OUT = '/tmp/hoppak_verify5_' + EXPECTED_LW + '/';
 fs.mkdirSync(OUT, { recursive: true });
 const SIZES = [
   [360, 640, '360x640'],
@@ -16,7 +19,7 @@ const SIZES = [
   pg.on('console', m => { if (m.type() === 'error') errs.push('console ' + m.text()); });
   async function open(w, h) {
     await pg.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
-    await pg.goto('file:///workspace/jumper/game/index.html');
+    await pg.goto('file://' + path.join(GAME_DIR, 'index.html'));
     await pg.evaluate(() => localStorage.clear());
     await pg.reload();
     await new Promise(r => setTimeout(r, 500));
@@ -139,12 +142,12 @@ const SIZES = [
     sizes[name] = sz;
     /* v0.57: integer k, canvas covers the device, 160×346 field letterboxed, never cropped. */
     const k = sz.pScale, ox = sz.fieldOx || 0, oy = sz.fieldOy || 0;
-    const fieldOk = sz.lw === 160 && sz.lh === 346
+    const fieldOk = sz.lw === EXPECTED_LW && sz.lh === 346
       && Number.isInteger(k) && k >= 1
-      && k === Math.max(1, Math.min(Math.floor(sz.cw / 160), Math.floor(sz.ch / 346)))
+      && k === Math.max(1, Math.min(Math.floor(sz.cw / EXPECTED_LW), Math.floor(sz.ch / 346)))
       && ox >= 0 && oy >= 0
-      && ox + 160 * k <= sz.cw && oy + 346 * k <= sz.ch
-      && Math.abs(ox - Math.floor((sz.cw - 160 * k) / 2)) < 1
+      && ox + EXPECTED_LW * k <= sz.cw && oy + 346 * k <= sz.ch
+      && Math.abs(ox - Math.floor((sz.cw - EXPECTED_LW * k) / 2)) < 1
       && Math.abs(oy - Math.floor((sz.ch - 346 * k) / 2)) < 1;
     sizes[name].integerOk = fieldOk;
     sizes[name].fieldOk = fieldOk;

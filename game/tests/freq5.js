@@ -1,7 +1,8 @@
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
+const path = require('path');
 (async () => {
   const b = await pp.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox'], headless: 'new' });
-  const pg = await b.newPage(); await pg.goto('file:///workspace/jumper/game/index.html'); await new Promise(r => setTimeout(r, 400));
+  const pg = await b.newPage(); await pg.goto('file://' + path.resolve(__dirname, '..', 'index.html')); await new Promise(r => setTimeout(r, 400));
   const r = await pg.evaluate(() => {
     const out = {};
     for (const m of ['city', 'jungle', 'ice', 'lava', 'aqua', 'space']) {
