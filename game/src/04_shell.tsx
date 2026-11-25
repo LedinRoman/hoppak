@@ -20,7 +20,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var autoPlay = false;
   var held: any = { left: false, right: false, kl: false, kr: false };
   var pointers: any = {};
-  var acc = 0, lastT = 0, raf = 0, running = true, ui = 0;
+  var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = 0, raf = 0, running = true, driving = false, ui = 0;
   var hits: any[] = [];
   var SCALE = 1, pScale = 1, cssScale = 1, isWide = false;
   var pressId: any = null;
@@ -199,7 +199,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (id === "menu") { goMenu(); return; }
     if (id === "back") { showSet = false; campCard = -1; phase = "menu"; return; }
     if (id === "go") { startSquad(); return; }
-    if (id === "resume") { paused = false; return; }
+    if (id === "resume") { paused = false; acc = 0; uiAcc = 0; lastT = 0; return; }
     if (id === "font") { phase = "font"; return; }
     if (id === "rematch") {
       if (mode === "squad") { room.round = (room.round || 0) + 1; startSquad((((Date.now() + room.round * 40503) >>> 0))); }
@@ -303,7 +303,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!down) return;
     if (phase === "play" && paused && (k === " " || k === "Enter" || k === "Escape")) { paused = false; e.preventDefault(); return; }
     if (phase === "play" && (k === " " || k === "ArrowUp" || k === "w" || k === "W" || k === "ц" || k === "Ц" || k === "Shift")) { abTap = true; e.preventDefault(); return; }
-    if (k === "Escape" && phase === "play") { paused = true; return; }
+    if (k === "Escape" && phase === "play") { paused = true; acc = 0; uiAcc = 0; lastT = 0; return; }
     if (k === "Escape" && phase !== "menu" && phase !== "play") activate(phase === "results" ? "menu" : "back");
     if (phase === "shop" && (k === "ArrowLeft" || k === "ArrowRight")) activate(k === "ArrowLeft" ? "hero:prev" : "hero:next");
     if ((k === "Enter" || k === " ") && phase === "menu") activate("start");
@@ -337,7 +337,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawFlash() {
     if (flashT <= 0) return;
     if (phase !== flashPh) { flashT = 0; return; }
-    flashT--;
     var unlock = flash.indexOf("ОТКРЫТ") >= 0;
     var sc = 1, fy = LH - 64, fh = 13;
     if (unlock && phase === "camp") {
@@ -891,15 +890,26 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function frame(now: number) {
     if (!running) return;
     if (!lastT) lastT = now;
-    var dt = Math.min(0.05, (now - lastT) / 1000);
+    var dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000));
     lastT = now;
-    ui++;
+    uiAcc += dt;
+    var uSteps = 0;
+    while (uiAcc >= UI_STEP && uSteps < 5) {
+      ui++;
+      if (flashT > 0) flashT--;
+      uiAcc -= UI_STEP;
+      uSteps++;
+    }
     if (phase === "play" && world && world.phase === "play" && !paused) {
       acc += dt;
       var steps = 0;
-      if (world.net && NET.waiting(world)) acc = 0;
-      while (acc >= STEP && steps < 5) { tickWorld(world, collectInputs()); acc -= STEP; steps++; }
-      if (world.net) NET.frame(world);
+      if (world.net && NET.waiting && NET.waiting(world)) acc = 0;
+      while (acc >= STEP && steps < 5) {
+        tickWorld(world, collectInputs());
+        acc -= STEP;
+        steps++;
+      }
+      if (world.net && NET.frame) NET.frame(world);
       if (world.phase === "results") { payout(); phase = "results"; }
     } else acc = 0;
     ctx.imageSmoothingEnabled = false;
@@ -913,7 +923,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     else if (phase === "net") { hits = []; NET.draw(netApi); drawFlash(); }
     else { drawPlay(); if (world && world.net) NET.overlay(netApi, world); }
     if (netFixedLW() !== netLW) resize();
-    raf = requestAnimationFrame(frame);
+    if (running && !driving) raf = requestAnimationFrame(frame);
   }
 
   /* net: what the online module may use from the shell */
@@ -927,7 +937,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   };
   NET.bind(netApi);
   NET.tryResume(netApi);
-  function onVis() { if (document.hidden && phase === "play") paused = true; }
+  function onVis() {
+    acc = 0; uiAcc = 0; lastT = 0;
+    if (document.hidden && phase === "play") paused = true;
+  }
   resize();
   window.addEventListener("resize", resize);
   if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
@@ -986,7 +999,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     setHero: function (k: number) { save.char = k; },
     addCoins: function (n: number) { save.coins += n; writeSave(save); },
     forceResults: function () { if (world) { finish(world); payout(); phase = "results"; } },
-    pause: function (on: boolean) { paused = !!on; },
+    pause: function (on: boolean) { paused = !!on; acc = 0; uiAcc = 0; lastT = 0; },
     warp: function (m: number) {
       if (!world) return;
       generateUntil(world, -m * PX_PER_M - LH);
@@ -1009,6 +1022,24 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       paused = was;
       if (world.phase === "results") { payout(); phase = "results"; }
       return { phase: world.phase, tick: world.tick, players: world.players.map(function (p: any) { return { name: p.name, alive: p.alive, m: metersOf(p), why: p.why }; }) };
+    },
+    advanceTime: function (seconds: number, hz: number) {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      driving = true;
+      var t = lastT || 0;
+      var n = Math.max(0, Math.round(seconds * hz));
+      var step = 1000 / hz;
+      for (var i = 0; i < n; i++) { t += step; frame(t); }
+      driving = false;
+      if (running) raf = requestAnimationFrame(frame);
+      var me = world && world.players[0];
+      var platVx = 0;
+      if (world) for (var j = 0; j < world.platforms.length; j++) if (world.platforms[j].type === "move") { platVx = world.platforms[j].vx; break; }
+      return {
+        tick: world ? world.tick : 0, ui: ui, flashT: flashT,
+        m: me ? metersOf(me) : 0, x: me ? me.x : 0, y: me ? me.y : 0,
+        charge: me ? me.abCharge : 0, platVx: platVx, phase: phase
+      };
     },
     inspectMap: function (seed: number, toM: number, mapId?: string) {
       var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);

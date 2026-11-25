@@ -111,7 +111,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     }
   } else if (map === "jungle" || map === "lava") {
     var sunC = map === "lava" ? "#ffdc60" : "#fff4a8", sunR = map === "lava" ? "#ff9440" : "#ffd868";
-    var sx0 = LW - 24, sy0 = Math.round(14 + alt * 0.01); if (menu) sy0 = Math.max(70, sy0);
+    var sx0 = LW - 24, sy0 = Math.max(28, Math.round(14 + alt * 0.01)); if (menu) sy0 = Math.max(70, sy0);
     ctx.globalAlpha = 0.25; rect(ctx, sx0 - 3, sy0 - 3, 22, 22, sunR); ctx.globalAlpha = 1;
     rect(ctx, sx0 + 3, sy0, 10, 16, sunC); rect(ctx, sx0, sy0 + 3, 16, 10, sunC); rect(ctx, sx0 + 1, sy0 + 1, 14, 14, sunC);
   }
