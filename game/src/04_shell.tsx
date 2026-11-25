@@ -279,6 +279,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (mtr > save.best) save.best = mtr;
     world.best = save.best;
     writeSave(save);
+    if (typeof PROFILE !== "undefined" && PROFILE && mode === "solo" && !world.net && !world.netRound) {
+      PROFILE.finishRun(mtr, world.runCoins || 0, world.bonusCoins || 0, world);
+    }
   }
   function goMenu() { phase = "menu"; world = null; showSet = false; campCard = -1; paused = false; landPause = false; manualPause = false; fieldLocked = false; resize(); }
 
@@ -1176,6 +1179,23 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   };
   NET.bind(netApi);
   NET.tryResume(netApi);
+  var profileApi: any = {
+    save: function () { return save; },
+    saveNow: function () { writeSave(save); },
+    apply: function (prof: any, wRef?: any, awarded?: number) {
+      if (!prof) return;
+      if (typeof prof.coins === "number" && prof.coins >= 0) save.coins = prof.coins;
+      if (prof.purchases && typeof prof.purchases === "object") {
+        for (var k in prof.purchases) if (prof.purchases[k]) save.owned[k] = 1;
+      }
+      if (wRef && world === wRef && typeof awarded === "number" && typeof prof.coins === "number") {
+        wRef.earned = awarded;
+        wRef.coinFrom = Math.max(0, prof.coins - awarded);
+      }
+      writeSave(save);
+    }
+  };
+  if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.init(profileApi);
   function onVis() {
     acc = 0; uiAcc = 0; lastT = -1;
     if (document.hidden && phase === "play") paused = true;
@@ -1238,6 +1258,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dbgToast: function (s: string) { if (world) { world.toast = s; world.toastT = 70; } },
     getWorld: function () { return world; },
     net: NET,
+    profile: typeof PROFILE !== "undefined" ? PROFILE : null,
     getSave: function () { return save; },
     getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
