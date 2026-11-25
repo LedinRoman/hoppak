@@ -36,6 +36,7 @@ export interface Room {
   nextPid: number;
   touched: number;
   snapTimer: NodeJS.Timeout | null;
+  drainCloseAt?: number;
 }
 
 export class RoomError extends Error {
@@ -52,7 +53,9 @@ export class RoomsService implements OnModuleDestroy {
   private readonly log = new Logger('Rooms');
   readonly rooms = new Map<string, Room>();
   private readonly byToken = new Map<string, { room: Room; player: Player }>();
-  private sweeper = setInterval(() => this.sweep(), 2000);
+  onRoomFinished?: (r: Room) => void;
+  onDrainExpire?: (r: Room) => void;
+  private sweeper = setInterval(() => this.sweep(), 500);
 
   onModuleDestroy() {
     clearInterval(this.sweeper);
@@ -234,9 +237,7 @@ export class RoomsService implements OnModuleDestroy {
     stats.snaps++;
     this.broadcast(r, 'snap', { ts: Date.now(), s });
   }
-  private maybeFinish(r: Room) {
-    if (r.phase !== 'play') return;
-    if (r.players.some((p) => !p.dead)) return;
+  private finishRound(r: Room, forced = false) {
     r.phase = 'results';
     if (r.snapTimer) { clearInterval(r.snapTimer); r.snapTimer = null; }
     this.snap(r);
@@ -244,11 +245,37 @@ export class RoomsService implements OnModuleDestroy {
       .slice().sort((a, b) => b.m - a.m)
       .map((p, i) => ({ pid: p.pid, name: p.name, kind: p.kind, m: p.m, place: i + 1 }));
     this.broadcast(r, 'results', { round: r.round, ranking });
-    this.log.log(`room ${r.code}: round ${r.round} results ${ranking.map((x) => x.name + ':' + x.m).join(', ')}`);
+    this.log.log(`room ${r.code}: round ${r.round} ${forced ? 'forced ' : ''}results ${ranking.map((x) => x.name + ':' + x.m).join(', ')}`);
+    if (forced) return;
     // back to lobby for the rematch
     r.phase = 'lobby';
     for (const p of r.players) p.ready = false;
     this.pushRoom(r);
+    this.onRoomFinished?.(r);
+  }
+  private maybeFinish(r: Room) {
+    if (r.phase !== 'play') return;
+    if (r.players.some((p) => !p.dead)) return;
+    this.finishRound(r, false);
+  }
+  forceFinishAll(reasonCode = 'SERVER_SHUTDOWN', msg = 'Сервер перезагружается') {
+    for (const r of [...this.rooms.values()]) {
+      if (r.phase === 'play') {
+        this.finishRound(r, true);
+        this.broadcast(r, 'err', { code: reasonCode, msg });
+      }
+      this.destroyRoom(r);
+    }
+  }
+  destroyRoom(r: Room) {
+    for (const p of r.players) {
+      const ws: any = p.ws;
+      if (ws && ws.sess && ws.sess.room === r) {
+        ws.sess.room = undefined;
+        ws.sess.player = undefined;
+      }
+    }
+    this.destroy(r);
   }
 
   /* ---------- leaving / reconnect / cleanup ---------- */
@@ -302,6 +329,11 @@ export class RoomsService implements OnModuleDestroy {
           if (r.phase === 'play' && !p.dead) p.dead = true;
           this.remove(r, p);
         }
+      }
+      if (this.rooms.has(r.code) && r.drainCloseAt && now >= r.drainCloseAt) {
+        if (this.onDrainExpire) this.onDrainExpire(r);
+        else this.destroyRoom(r);
+        continue;
       }
       if (this.rooms.has(r.code) && now - r.touched > ROOM_IDLE_MS) this.destroy(r);
     }

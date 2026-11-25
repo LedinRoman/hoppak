@@ -29,7 +29,7 @@ function check(ok, msg) {
   if (!ok) failures++;
 }
 
-function startSlot({ name, pubPort, intPort, version, peerIntPort }) {
+function startSlot({ name, pubPort, intPort, version, peerIntPort, extraEnv = {} }) {
   const logs = [];
   const child = spawn(process.execPath, [MAIN_JS], {
     cwd: SERVER_DIR,
@@ -42,6 +42,7 @@ function startSlot({ name, pubPort, intPort, version, peerIntPort }) {
       APP_VERSION: version,
       PEER_INTERNAL_URL: `http://127.0.0.1:${peerIntPort}`,
       PEER_TIMEOUT_MS: '800',
+      ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -120,6 +121,7 @@ const blue = startSlot({
   intPort: BLUE_INT,
   version: '0.57.0',
   peerIntPort: GREEN_INT,
+  extraEnv: { DRAIN_LOBBY_TTL_MS: '3500', DRAIN_RESULTS_CLOSE_MS: '800' },
 });
 const green = startSlot({
   name: 'green',
@@ -331,13 +333,72 @@ try {
   const lobA = await a1.wait('room', (r) => r.phase === 'lobby');
   check(resA && resB && resA.ranking[0].m === 23 && !!lobA, `match on draining blue finished cleanly (winner m=23) and returned to lobby`);
 
-  // Leave all rooms -> blue stats reach 0 rooms, 0 players
-  a1.send('leave'); b1Re.send('leave'); f2Blue.send('leave'); g2.send('leave');
-  await sleep(200);
-  const statsEnd = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`)).json();
-  check(statsEnd.rooms === 0 && statsEnd.players === 0 && statsEnd.draining === true, `blue drained to 0 rooms, 0 players`);
+  // BUG-25: rematch on draining blue must be blocked (no round 2)
+  b1Re.send('ready', { ready: true });
+  await sleep(30);
+  a1.send('start', {});
+  const errRematch = await a1.wait('err');
+  check(errRematch?.code === 'DRAINING', `BUG-25: rematch start on draining blue blocked (${errRematch?.code})`);
 
-  // 8. Undrain rollback test
+  // BUG-25: drain completes to 0 rooms WITHOUT clients sending leave!
+  let statsEnd = null;
+  const tDrain = Date.now();
+  while (Date.now() - tDrain < 6000) {
+    statsEnd = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`)).json();
+    if (statsEnd.rooms === 0) break;
+    await sleep(150);
+  }
+  check(statsEnd && statsEnd.rooms === 0 && statsEnd.players === 0 && statsEnd.draining === true,
+    `BUG-25: blue auto-drained to 0 rooms/0 players without client leave (in ${Date.now() - tDrain}ms)`);
+  g2.send('leave');
+
+  // 8. BUG-25 Graceful SIGTERM tests (timeout force-finish + natural finish before timeout)
+  const sigPub1 = await freePort(), sigInt1 = await freePort();
+  const sig1 = startSlot({ name: 'blue', pubPort: sigPub1, intPort: sigInt1, version: '0.57.0', peerIntPort: GREEN_INT, extraEnv: { GRACEFUL_SHUTDOWN_MS: '1200' } });
+  const sig1Exit = new Promise((res) => sig1.child.once('exit', (code) => res(code)));
+  await waitReady(sig1);
+  const s1a = track(await openWs(`ws://127.0.0.1:${sigPub1}/ws`, 'sig1a')); await s1a.wait('hello');
+  const s1b = track(await openWs(`ws://127.0.0.1:${sigPub1}/ws`, 'sig1b')); await s1b.wait('hello');
+  s1a.send('create', { name: 'SA', kind: 0 });
+  const sr1 = await s1a.wait('room');
+  s1b.send('join', { code: sr1.code, name: 'SB', kind: 1 });
+  await s1b.wait('room');
+  s1b.send('ready', { ready: true }); await sleep(40);
+  s1a.send('start', {});
+  await Promise.all([s1a.wait('start'), s1b.wait('start')]);
+  s1a.send('st', { x: 50, y: -160, vx: 0, vy: -3, f: 1, a: 1, m: 160, ps: 0 });
+  await s1a.wait('snap');
+  const tSig1 = Date.now();
+  sig1.child.kill('SIGTERM');
+  const [sigRes1, sigCode1] = await Promise.all([s1a.wait('results', () => true, 4000), sig1Exit]);
+  const sig1Ms = Date.now() - tSig1;
+  check(sigCode1 === 0 && sigRes1?.ranking?.[0]?.m === 20 && sig1Ms >= 1000,
+    `BUG-25: SIGTERM force-finished match at timeout (${sig1Ms}ms), sent results (m=20), exited 0`);
+
+  const sigPub2 = await freePort(), sigInt2 = await freePort();
+  const sig2 = startSlot({ name: 'blue', pubPort: sigPub2, intPort: sigInt2, version: '0.57.0', peerIntPort: GREEN_INT, extraEnv: { GRACEFUL_SHUTDOWN_MS: '6000' } });
+  const sig2Exit = new Promise((res) => sig2.child.once('exit', (code) => res(code)));
+  await waitReady(sig2);
+  const s2a = track(await openWs(`ws://127.0.0.1:${sigPub2}/ws`, 'sig2a')); await s2a.wait('hello');
+  const s2b = track(await openWs(`ws://127.0.0.1:${sigPub2}/ws`, 'sig2b')); await s2b.wait('hello');
+  s2a.send('create', { name: 'S2A', kind: 0 });
+  const sr2 = await s2a.wait('room');
+  s2b.send('join', { code: sr2.code, name: 'S2B', kind: 1 });
+  await s2b.wait('room');
+  s2b.send('ready', { ready: true }); await sleep(40);
+  s2a.send('start', {});
+  await Promise.all([s2a.wait('start'), s2b.wait('start')]);
+  const tSig2 = Date.now();
+  sig2.child.kill('SIGTERM');
+  await sleep(250);
+  s2a.send('ev', { e: 'dead', m: 12 });
+  s2b.send('ev', { e: 'dead', m: 31 });
+  const [sigRes2, sigCode2] = await Promise.all([s2a.wait('results', () => true, 4000), sig2Exit]);
+  const sig2Ms = Date.now() - tSig2;
+  check(sigCode2 === 0 && sigRes2?.ranking?.[0]?.m === 31 && sig2Ms < 2500,
+    `BUG-25: SIGTERM let running match finish naturally (${sig2Ms}ms < 6000ms), sent results (m=31), exited 0`);
+
+  // 9. Undrain rollback test
   const undrainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/undrain`, { method: 'POST' })).json();
   check(undrainRes.ok && undrainRes.draining === false, `POST /internal/undrain resets draining=false on blue`);
 

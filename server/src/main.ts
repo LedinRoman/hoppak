@@ -5,6 +5,7 @@ import { WsAdapter } from '@nestjs/platform-ws';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { BlueGreenService } from './bluegreen/bluegreen.service';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: ['log', 'warn', 'error'] });
@@ -13,7 +14,9 @@ async function bootstrap() {
   // so a single HTTPS tunnel / reverse proxy is enough and the page connects to wss://<same host>/ws.
   const pub = process.env.PUBLIC_DIR || join(__dirname, '..', 'public');
   if (existsSync(pub)) app.useStaticAssets(pub, { index: 'index.html', etag: false, maxAge: 0 });
-  app.enableShutdownHooks();
+  const bg = app.get(BlueGreenService);
+  process.once('SIGTERM', () => void bg.gracefulShutdown(app, 'SIGTERM'));
+  process.once('SIGINT', () => void bg.gracefulShutdown(app, 'SIGINT'));
   const port = Number(process.env.PORT || 8787);
   await app.listen(port, '0.0.0.0');
   console.log(`Хоппак server on :${port} (static: ${existsSync(pub) ? pub : 'none'}, ws: /ws)`);

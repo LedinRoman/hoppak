@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { INestApplication, Injectable, Logger } from '@nestjs/common';
 import { existsSync, readFileSync } from 'fs';
 import type { IncomingMessage } from 'http';
 import { join } from 'path';
 import WebSocket from 'ws';
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../protocol';
-import { RoomsService, Sess } from '../rooms.service';
+import { Room, RoomsService, Sess } from '../rooms.service';
 
 export type TrackedSocket = WebSocket & {
   sess: Sess & {
@@ -20,6 +20,7 @@ export interface PeerStats {
   rooms: number;
   players: number;
   draining: boolean;
+  shuttingDown?: boolean;
   node: string;
   version: string;
 }
@@ -60,6 +61,12 @@ function readPackageVersion(): string {
   return '0.0.0';
 }
 
+function parsePositiveMs(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 @Injectable()
 export class BlueGreenService {
   private readonly log = new Logger('BlueGreen');
@@ -68,8 +75,12 @@ export class BlueGreenService {
   readonly peerInternalUrl: string;
   readonly peerNodeFallback: string;
   readonly peerTimeoutMs: number;
+  readonly drainLobbyTtlMs: number;
+  readonly drainResultsCloseMs: number;
+  readonly gracefulShutdownMs: number;
 
   draining = false;
+  shuttingDown = false;
   announcedVersion: string | null = null;
 
   private readonly clients = new Set<TrackedSocket>();
@@ -84,12 +95,22 @@ export class BlueGreenService {
       process.env.PEER_NODE_NAME ||
       (this.node === 'blue' ? 'green' : this.node === 'green' ? 'blue' : '')
     ).trim();
-    const timeout = Number(process.env.PEER_TIMEOUT_MS || 800);
-    this.peerTimeoutMs = Number.isFinite(timeout) && timeout > 0 ? timeout : 800;
+    this.peerTimeoutMs = parsePositiveMs(process.env.PEER_TIMEOUT_MS, 800);
+    this.drainLobbyTtlMs = parsePositiveMs(process.env.DRAIN_LOBBY_TTL_MS, 15_000);
+    this.drainResultsCloseMs = parsePositiveMs(process.env.DRAIN_RESULTS_CLOSE_MS, 1_500);
+    this.gracefulShutdownMs = parsePositiveMs(process.env.GRACEFUL_SHUTDOWN_MS, 25_000);
   }
 
   bindRooms(rooms: RoomsService) {
     this.roomsService = rooms;
+    rooms.onRoomFinished = (r) => {
+      if (this.draining || this.shuttingDown) {
+        r.drainCloseAt = Date.now() + (this.shuttingDown ? 150 : this.drainResultsCloseMs);
+      }
+    };
+    rooms.onDrainExpire = (r) => {
+      void this.closeDrainedRoom(r);
+    };
   }
 
   setInternalWsHandler(fn: (ws: TrackedSocket, req: IncomingMessage) => void) {
@@ -160,6 +181,7 @@ export class BlueGreenService {
       minProtocol: MIN_PROTOCOL_VERSION,
       node: this.node,
       draining: this.draining,
+      shuttingDown: this.shuttingDown,
     };
   }
 
@@ -174,6 +196,7 @@ export class BlueGreenService {
       players,
       connections: this.clients.size,
       draining: this.draining,
+      shuttingDown: this.shuttingDown,
       node: this.node,
       version: this.version,
       protocol: PROTOCOL_VERSION,
@@ -239,6 +262,14 @@ export class BlueGreenService {
 
   async drain(version?: string) {
     this.draining = true;
+    const now = Date.now();
+    if (this.roomsService) {
+      for (const r of this.roomsService.rooms.values()) {
+        if (r.phase === 'lobby' && !r.drainCloseAt) {
+          r.drainCloseAt = now + (r.round > 0 ? this.drainResultsCloseMs : this.drainLobbyTtlMs);
+        }
+      }
+    }
     let targetVersion = (version || '').trim();
     if (!targetVersion && this.peerInternalUrl) {
       const peer = await this.lookupPeerStats();
@@ -263,8 +294,90 @@ export class BlueGreenService {
   undrain() {
     this.draining = false;
     this.announcedVersion = null;
+    if (this.roomsService) {
+      for (const r of this.roomsService.rooms.values()) {
+        r.drainCloseAt = undefined;
+      }
+    }
     this.log.log(`drain disabled on node=${this.node}`);
     return { ok: true, ...this.getStats() };
+  }
+
+  private async closeDrainedRoom(r: Room) {
+    if (!this.roomsService || !this.roomsService.rooms.has(r.code)) return;
+    if (r.phase === 'play') return;
+    r.drainCloseAt = undefined;
+    const peerNode = await this.resolveActivePeerNode();
+    const live = this.roomsService.rooms.get(r.code);
+    if (!live || live.phase === 'play') return;
+
+    for (const p of [...r.players]) {
+      const ws = p.ws as TrackedSocket | null;
+      if (!ws || ws.readyState !== 1) continue;
+      const proto = ws.sess?.protocol ?? 1;
+      if (proto >= 2) {
+        if (this.announcedVersion) {
+          this.sendToSocket(ws, 'update', { version: this.announcedVersion });
+        }
+        if (peerNode) {
+          this.sendToSocket(ws, 'redirect', { node: peerNode, reason: 'draining' });
+        } else {
+          this.sendToSocket(ws, 'err', { code: 'DRAINING', msg: 'Сервер обновляется' });
+        }
+      } else {
+        this.sendToSocket(ws, 'err', { code: 'DRAINING', msg: 'Сервер обновляется' });
+        this.sendToSocket(ws, 'err', { code: 'NO_SESSION', msg: 'Сервер обновляется' });
+      }
+    }
+    this.roomsService.destroyRoom(r);
+  }
+
+  async gracefulShutdown(app: INestApplication, signal: string) {
+    if (this.shuttingDown) return;
+    this.shuttingDown = true;
+    this.draining = true;
+    this.log.log(`received ${signal}, starting graceful shutdown (timeout=${this.gracefulShutdownMs}ms)`);
+
+    const failsafe = setTimeout(() => {
+      this.log.error('graceful shutdown failsafe triggered, exiting');
+      process.exit(1);
+    }, this.gracefulShutdownMs + 5000);
+    failsafe.unref();
+
+    try {
+      if (this.roomsService) {
+        for (const r of [...this.roomsService.rooms.values()]) {
+          if (r.phase !== 'play') await this.closeDrainedRoom(r);
+        }
+        const deadline = Date.now() + this.gracefulShutdownMs;
+        while (Date.now() < deadline) {
+          const activePlay = [...this.roomsService.rooms.values()].some((r) => r.phase === 'play');
+          if (!activePlay) break;
+          await new Promise((res) => setTimeout(res, 150));
+        }
+        const remaining = [...this.roomsService.rooms.values()].filter((r) => r.phase === 'play').length;
+        if (remaining > 0) {
+          this.log.warn(`graceful timeout reached with ${remaining} active room(s); sending results and closing`);
+          this.roomsService.forceFinishAll('SERVER_SHUTDOWN', 'Сервер перезагружается');
+        } else {
+          for (const r of [...this.roomsService.rooms.values()]) {
+            await this.closeDrainedRoom(r);
+          }
+        }
+        await new Promise((res) => setTimeout(res, 150));
+      }
+      for (const ws of this.clients) {
+        if (ws.readyState === 1) {
+          try { ws.close(1001, 'server_shutdown'); } catch { /* ignore */ }
+        }
+      }
+      await app.close();
+    } catch (err) {
+      this.log.error(`error during graceful shutdown: ${(err as Error).message}`);
+    } finally {
+      clearTimeout(failsafe);
+      process.exit(0);
+    }
   }
 
   async lookupPeerRoom(code: string): Promise<PeerRoomCheck | null> {
@@ -320,7 +433,7 @@ export class BlueGreenService {
   async resolveActivePeerNode(): Promise<string | null> {
     const peer = await this.lookupPeerStats();
     if (peer) {
-      return peer.draining ? null : peer.node;
+      return peer.draining || peer.shuttingDown ? null : peer.node;
     }
     return this.peerNodeFallback || null;
   }

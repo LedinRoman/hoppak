@@ -154,6 +154,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('join')
   join(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
     return this.guardAsync(ws, async () => {
+      if (this.bg.shuttingDown) throw new RoomError('DRAINING', 'Сервер перезагружается');
       const code = String(d?.code ?? '').trim();
       if (!this.rooms.rooms.has(code)) {
         const peer = await this.bg.lookupPeerRoom(code);
@@ -205,7 +206,20 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
   @SubscribeMessage('start')
   start(@ConnectedSocket() ws: Sock) {
-    this.guard(ws, () => { const { room, player } = this.inRoom(ws); this.rooms.start(room, player); });
+    return this.guardAsync(ws, async () => {
+      const { room, player } = this.inRoom(ws);
+      if (this.bg.draining || this.bg.shuttingDown) {
+        if (player.pid !== room.host) throw new RoomError('NOT_HOST', 'Только хост');
+        if ((ws.sess.protocol ?? 1) >= 2) {
+          if (this.bg.announcedVersion) this.rooms.send(ws, 'update', { version: this.bg.announcedVersion });
+          const peerNode = await this.bg.resolveActivePeerNode();
+          if (ws.readyState !== 1) return;
+          if (peerNode) { this.rooms.send(ws, 'redirect', { node: peerNode, reason: 'draining' }); return; }
+        }
+        throw new RoomError('DRAINING', 'Сервер обновляется');
+      }
+      this.rooms.start(room, player);
+    });
   }
   @SubscribeMessage('st')
   st(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
