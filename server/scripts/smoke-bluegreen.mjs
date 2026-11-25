@@ -280,11 +280,14 @@ try {
   const [stA, stB] = await Promise.all([a1.wait('start'), b1.wait('start')]);
   check(stA && stB && stA.seed === stB.seed && stA.lw === 180, `v1 match started on blue (seed=${stA?.seed}, lw=180)`);
 
-  // 4. Drain blue -> v2 clients get {event:'update', data:{version:'0.58.0'}}, v1 clients do NOT
-  const drainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST', headers: INT_HEADERS })).json();
+  // 4. Drain blue WITH version -> v2 clients get {event:'update', data:{version:'0.58.0'}}, v1 clients do NOT
+  const drainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, {
+    method: 'POST', headers: { ...INT_HEADERS, 'content-type': 'application/json' },
+    body: JSON.stringify({ version: '0.58.0' }),
+  })).json();
   check(
     drainRes.ok === true && drainRes.draining === true && drainRes.updateVersion === '0.58.0' && drainRes.notified >= 2,
-    `POST /internal/drain on blue -> draining=true, updateVersion=0.58.0, notified=${drainRes.notified}`
+    `POST /internal/drain on blue with version -> draining=true, updateVersion=0.58.0, notified=${drainRes.notified}`
   );
 
   const [updMenu, updD2] = await Promise.all([c2Menu.wait('update'), d2.wait('update')]);
@@ -756,7 +759,7 @@ try {
       await sleep(200);
       const hh = await (await fetch(`http://127.0.0.1:${rp}/api/health`)).json();
       const rLog = r.logs.join(''), bLog = b.logs.join('');
-      check(je?.code === 'NOT_FOUND' && /rejected INTERNAL_TOKEN \(401\)/.test(rLog) && /rejected GET \/internal\/rooms\/\d+ .*unauthorized/.test(bLog) && hh.peerAuth === 'unauthorized',
+      check(je?.code === 'NOT_FOUND' && /rejected INTERNAL_TOKEN \(401\)/.test(rLog) && /rejected GET \/internal\/(stats|rooms\/\d+) .*unauthorized/.test(bLog) && hh.peerAuth === 'unauthorized',
         `BUG-48: token mismatch -> ERROR in green log (401 from peer), ERROR in blue log (rejected), health.peerAuth=${hh.peerAuth}`);
       host.ws.close(); j.ws.close();
     } finally { b.child.kill('SIGTERM'); r.child.kill('SIGTERM'); }
@@ -798,6 +801,73 @@ try {
     check(aliveAfterRepeats && ex.code === 0 && roundOk && lobbyOk && closes.every((c) => c === 1000 || c === 1001) &&
       /ignored repeated SIGTERM/.test(sl.logs.join('')) && (phase !== 'round' || ex.at - t0 >= 2400),
       `BUG-45: 3x SIGTERM in ${phase}: process kept running (${ex.at - t0}ms, exit ${ex.code}), results+SERVER_SHUTDOWN delivered, closes ${closes.join('/')}`);
+  }
+
+  // 17. Drain without version (rollback) must NOT send update; drain with version must
+  {
+    const bp = await freePort(), bi = await freePort(), gp = await freePort(), gi = await freePort();
+    const b = startSlot({ name: 'blue', pubPort: bp, intPort: bi, version: '0.57.0', peerIntPort: gi });
+    const g = startSlot({ name: 'green', pubPort: gp, intPort: gi, version: '0.58.0', peerIntPort: bi });
+    try {
+      await waitReady(b); await waitReady(g);
+      const v2 = await openWs(`ws://127.0.0.1:${bp}/ws?p=2`, 'drain_v2'); await v2.wait('hello');
+      const v1 = await openWs(`ws://127.0.0.1:${bp}/ws`, 'drain_v1'); await v1.wait('hello');
+      const noVer = await (await fetch(`http://127.0.0.1:${bi}/internal/drain`, { method: 'POST', headers: INT_HEADERS })).json();
+      await sleep(150);
+      const updNone = v2.inbox.find((m) => m.event === 'update') || v1.inbox.find((m) => m.event === 'update');
+      check(noVer.ok && noVer.draining === true && noVer.updateVersion == null && noVer.notified === 0 && !updNone,
+        `drain without version (rollback): no update (updateVersion=${noVer.updateVersion}, notified=${noVer.notified}, frame=${updNone ? updNone.data?.version : 'none'})`);
+      const withVer = await (await fetch(`http://127.0.0.1:${bi}/internal/drain`, {
+        method: 'POST', headers: { ...INT_HEADERS, 'content-type': 'application/json' },
+        body: JSON.stringify({ version: '0.58.0' }),
+      })).json();
+      const upd = await v2.wait('update');
+      await sleep(80);
+      const updV1 = v1.inbox.find((m) => m.event === 'update');
+      check(withVer.ok && withVer.updateVersion === '0.58.0' && withVer.notified >= 1 && upd?.version === '0.58.0' && !updV1,
+        `drain with version: v2 got update(0.58.0), v1 did not (notified=${withVer.notified})`);
+      v2.ws.close(); v1.ws.close();
+    } finally { b.child.kill('SIGKILL'); g.child.kill('SIGKILL'); }
+  }
+
+  // 18. peerAuth is live: same token -> ok; wrong token -> unauthorized; peer down -> unreachable; flips within a few seconds
+  {
+    const waitAuth = async (port, want, ms = 8000) => {
+      const t0 = Date.now();
+      let last = null;
+      while (Date.now() - t0 < ms) {
+        try {
+          const h = await (await fetch(`http://127.0.0.1:${port}/api/health`)).json();
+          last = h.peerAuth;
+          if (h.peerAuth === want) return h.peerAuth;
+        } catch { /* retry */ }
+        await sleep(200);
+      }
+      return last;
+    };
+    const bp = await freePort(), bi = await freePort(), gp = await freePort(), gi = await freePort();
+    const b = startSlot({ name: 'blue', pubPort: bp, intPort: bi, version: '0.57.0', peerIntPort: gi, extraEnv: { PEER_AUTH_TTL_MS: '2000', PEER_TIMEOUT_MS: '400' } });
+    const g = startSlot({ name: 'green', pubPort: gp, intPort: gi, version: '0.58.0', peerIntPort: bi, extraEnv: { PEER_AUTH_TTL_MS: '2000', PEER_TIMEOUT_MS: '400' } });
+    try {
+      await waitReady(b); await waitReady(g);
+      const okB = await waitAuth(bp, 'ok');
+      const okG = await waitAuth(gp, 'ok');
+      check(okB === 'ok' && okG === 'ok', `peerAuth live: both slots ok when peer is up and tokens match (blue=${okB}, green=${okG})`);
+      g.child.kill('SIGKILL');
+      const down = await waitAuth(bp, 'unreachable');
+      check(down === 'unreachable', `peerAuth live: blue -> unreachable within a few seconds after green is killed (got ${down})`);
+    } finally { try { b.child.kill('SIGKILL'); } catch {} try { g.child.kill('SIGKILL'); } catch {} }
+
+    const bp2 = await freePort(), bi2 = await freePort(), gp2 = await freePort(), gi2 = await freePort();
+    const b2 = startSlot({ name: 'blue', pubPort: bp2, intPort: bi2, version: '0.57.0', peerIntPort: gi2, extraEnv: { PEER_AUTH_TTL_MS: '2000', PEER_TIMEOUT_MS: '400' } });
+    const g2 = startSlot({ name: 'green', pubPort: gp2, intPort: gi2, version: '0.58.0', peerIntPort: bi2, extraEnv: { INTERNAL_TOKEN: 'other-token', PEER_AUTH_TTL_MS: '2000', PEER_TIMEOUT_MS: '400' } });
+    try {
+      await waitHealth(bp2); await waitHealth(gp2);
+      const unauth = await waitAuth(bp2, 'unauthorized');
+      const unauthG = await waitAuth(gp2, 'unauthorized');
+      check(unauth === 'unauthorized' && unauthG === 'unauthorized',
+        `peerAuth live: both slots unauthorized when tokens differ (blue=${unauth}, green=${unauthG})`);
+    } finally { b2.child.kill('SIGKILL'); g2.child.kill('SIGKILL'); }
   }
 
   console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL BLUE-GREEN SMOKE CHECKS PASSED');
