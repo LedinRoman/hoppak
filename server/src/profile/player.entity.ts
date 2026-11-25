@@ -30,6 +30,12 @@ export class Player {
   @Column({ name: 'awarded_in_window', type: 'int', default: 0 })
   awardedInWindow: number;
 
+  @Column({ name: 'telegram_id', type: 'bigint', nullable: true, unique: true })
+  telegramId: string | null;
+
+  @Column({ name: 'telegram_linked_at', type: 'timestamptz', nullable: true })
+  telegramLinkedAt: Date | null;
+
   @BeforeInsert()
   assignId() {
     if (!this.id) this.id = randomUUID();
