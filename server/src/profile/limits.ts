@@ -24,6 +24,22 @@ export const FINISH_INTERVAL_MS = 8000;
 /** Max coins granted to one player in a rolling hour. */
 export const HOUR_AWARD_MAX = 400;
 
+/** Server-authoritative item prices, matching client CHARS (01_core.tsx:44-51) and MAPS (01_core.tsx:263-270). */
+export const ITEM_PRICES: Record<string, number> = {
+  'char:0': 0,
+  'char:1': 150,
+  'char:2': 200,
+  'char:3': 240,
+  'char:4': 280,
+  'char:5': 320,
+  'map:city': 0,
+  'map:jungle': 80,
+  'map:ice': 100,
+  'map:lava': 120,
+  'map:aqua': 140,
+  'map:space': 160,
+};
+
 export function sanitizePurchases(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
@@ -34,6 +50,14 @@ export function sanitizePurchases(raw: unknown): Record<string, number> {
     if (n > 0) out[k] = 1;
   }
   return out;
+}
+
+export function sanitizeRunId(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s || s.length > 64) return null;
+  if (!/^[a-zA-Z0-9_.:-]+$/.test(s)) return null;
+  return s;
 }
 
 export function mergePurchases(a: Record<string, number>, b: Record<string, number>): Record<string, number> {

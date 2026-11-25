@@ -12,6 +12,9 @@ export class Player {
   @Column({ type: 'int', default: 0 })
   coins: number;
 
+  @Column({ type: 'int', default: 0 })
+  best: number;
+
   @Column({ type: 'jsonb', default: () => "'{}'" })
   purchases: Record<string, number>;
 
@@ -40,6 +43,7 @@ export class Player {
   assignId() {
     if (!this.id) this.id = randomUUID();
     if (this.coins == null) this.coins = 0;
+    if (this.best == null) this.best = 0;
     if (!this.purchases) this.purchases = {};
     if (this.awardedInWindow == null) this.awardedInWindow = 0;
   }
