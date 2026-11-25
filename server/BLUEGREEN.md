@@ -31,6 +31,7 @@
 | `APP_VERSION` | **обязательна** в prod/blue-green | Версия сборки для `/api/health`, `hello` (v2) и `update`. Без неё при `NODE_ENV=production` или `NODE_NAME=blue|green` сервер не стартует (BUG-34); локально — версия из `package.json`. |
 | `PEER_INTERNAL_URL` | `""` | URL внутреннего порта соседнего слота (например `http://game_green:3001` для `blue` и `http://game_blue:3001` для `green`). |
 | `PEER_TIMEOUT_MS` | `800` | Таймаут HTTP/WS запросов к соседнему слоту (мс). |
+| `PEER_AUTH_TTL_MS` | `3000` | Как часто обновлять `peerAuth` (фон и кэш `/api/health`). |
 | `ROOM_CODE_MIN` / `ROOM_CODE_MAX` | `blue`: `1000..5499`, `green`: `5500..9999` | Непересекающиеся диапазоны 4-значных кодов комнат по слотам (устраняет коллизии кодов между слотами). |
 | `DRAIN_LOBBY_TTL_MS` | `15000` | Через сколько мс закрывать неактивную лобби-комнату на слоте в режиме `drain`. |
 | `DRAIN_RESULTS_CLOSE_MS` | `1500` | Задержка после завершения раунда (`results`) перед автоматическим закрытием/переводом комнаты в `drain`. |
@@ -40,7 +41,9 @@
 ## 3. HTTP и внутренние эндпоинты
 
 ### Публичный порт (`PORT`, например `8787`)
-- `GET /api/health` — возвращает `{ ok, rooms, players, uptime, stats, version, protocol, minProtocol, node, draining, shuttingDown, peerAuth }` (`peerAuth`: `ok` | `unauthorized` | `unreachable` | `none` | `unknown`, BUG-48). Во время graceful shutdown возвращает **503** (`shutting_down`).
+- `GET /api/health` — возвращает `{ ok, rooms, players, uptime, stats, version, protocol, minProtocol, node, draining, shuttingDown, peerAuth }`.
+  `peerAuth` **живой**: если кэш старше ~3 с (`PEER_AUTH_TTL_MS`, по умолчанию 3000), слот перед ответом проверяет соседа `GET $PEER_INTERNAL_URL/internal/stats` с `INTERNAL_TOKEN` (таймаут `PEER_TIMEOUT_MS`). Параллельно тот же зонд идёт каждые ~3 с и при любом обращении к соседу.
+  Значения: `ok` — сосед ответил прикладным кодом (2xx / 404 / 409) и принял токен; `unauthorized` — 401/403, токены слотов разные; `unreachable` — сосед не отвечает, таймаут или 5xx (в том числе 502/503 от мёртвого апстрима); `none` — `PEER_INTERNAL_URL` не задан; `unknown` — ещё не было ни одного зонда. Не 401/403 больше не считается `ok`. Во время graceful shutdown эндпоинт отдаёт **503** (`shutting_down`).
 - `/internal/*` на публичном порту не зарегистрированы и всегда отдают **404**.
 
 ### Внутренний порт (`INTERNAL_PORT`, например `3001`)
@@ -50,10 +53,10 @@
   - новые комнаты (`create`) здесь не создаются: v2 получает `redirect` на живого соседа, v1 — прозрачно проксируется к соседу и создаёт комнату там (BUG-43);
   - новый раунд (`start`) на слоте в `drain` не начинается: вместо этого **вся комната переезжает** на соседа (см. ниже), и хост жмёт СТАРТ уже там;
   - текущие раунды доигрываются до результатов; через `DRAIN_RESULTS_CLOSE_MS` после `results`, а лобби — через `DRAIN_LOBBY_TTL_MS`, комната **переезжает** на соседа;
-  - всем подключённым `v2+` клиентам рассылается `update` (и запоминается для переподключившихся).
+  - `update` v2-клиентам уходит **только если в запросе передана `version`** (выкладка новой версии). Запоминается для переподключившихся. **Drain без `version` (откат) `update` не шлёт** и не подставляет `APP_VERSION` соседа.
 - `POST /internal/undrain` — снимает режим `drain`, очищает таймеры закрытия комнат и `announcedVersion` (для отката).
 - `POST /internal/announce-update` — принудительно рассылает `update` всем `v2+` клиентам.
-- `GET /internal/stats` — `{ rooms, players, connections, draining, shuttingDown, node, version, protocol, minProtocol, uptime }`.
+- `GET /internal/stats` — `{ rooms, players, connections, draining, shuttingDown, node, version, protocol, minProtocol, uptime, peerAuth }`. `peerAuth` освежается так же, как в `/api/health`.
 - `GET /internal/rooms/:code` — `200 { exists: true, code, node, phase, proto, lw, field, players }` или `404`.
 - `GET /internal/tokens/:token` — `200 { exists: true, code, node }` или `404` (используется при реконнекте).
 - `POST /internal/rooms/import` — принимает снимок комнаты от соседа при переезде (BUG-32): `{ code, host, map, proto, lw, field, round, nextPid, players: [{ pid, slot, name, kind, token }] }` → `200 { ok, code, node }` (новый код из диапазона этого слота) или `409` если этот слот сам в `drain`.
@@ -147,7 +150,7 @@
    - **Правило одного `SIGTERM`** (страховка): посылать ровно один `SIGTERM` (`docker stop`/`compose stop`) и ждать выхода процесса. Сервер сам защищён (BUG-45): повторные `SIGTERM`/`SIGINT` во время graceful shutdown **игнорируются** (в лог пишется `ignored repeated SIGTERM`), жёсткий стоп — только по таймауту `GRACEFUL_SHUTDOWN_MS` (принудительные `results` + `err SERVER_SHUTDOWN` всем) или `SIGKILL` от Docker по `stop_grace_period`. Но `docker kill -s KILL`, повторный `compose down` с маленьким таймаутом и т. п. по-прежнему рвут матч — не делать.
 6. **Шаги переключения (`release.sh` / `deploy.sh`):**
    1) Поднять неактивный слот с **явным** `APP_VERSION=<новая версия>` (без него в `NODE_ENV=production` или при `NODE_NAME=blue|green` сервер не стартует, см. ниже) и дождаться `200` от `/api/health` этого слота **и** `GET /internal/stats` с токеном (проверка, что `INTERNAL_TOKEN` у слотов совпадает — шаг 2).
-   2) **Проверка токенов (BUG-48):** с машины деплоя `curl -s -o /dev/null -w '%{http_code}' -H "x-internal-token: $INTERNAL_TOKEN" http://<new_slot>:3001/internal/stats` и то же для `<old_slot>` — оба должны вернуть `200`. Дополнительно `/api/health` каждого слота отдаёт `peerAuth`: `"ok"` — сосед принимает наш токен, `"unauthorized"` — токены разные (в логе слота `ERROR peer ... rejected INTERNAL_TOKEN (401)`), `"unreachable"` — сосед не отвечает. Переключать только при `peerAuth === "ok"` на новом слоте.
+   2) **Проверка токенов (BUG-48):** с машины деплоя `curl -s -o /dev/null -w '%{http_code}' -H "x-internal-token: $INTERNAL_TOKEN" http://<new_slot>:3001/internal/stats` и то же для `<old_slot>` — оба должны вернуть `200`. Это каноническая проверка на переключении. Дополнительно `/api/health` (и `/internal/stats`) каждого слота отдаёт **живой** `peerAuth` (кэш ~3 с, см. §3): `"ok"` — сосед принимает наш токен, `"unauthorized"` — токены разные (в логе слота `ERROR peer ... rejected INTERNAL_TOKEN (401)`), `"unreachable"` — сосед не отвечает или отвечает 5xx. После старта соседа `ok` появляется за несколько секунд, после остановки — `unreachable`. Переключать только при `peerAuth === "ok"` на новом слоте (и 200 по токену в обе стороны).
    3) Переключить маршрут `/ws` и `/api/*` Caddy на новый слот, `caddy reload`.
    4) `POST http://<old_slot>:3001/internal/drain` (заголовок `x-internal-token`, тело `{"version":"<new_ver>"}`).
       После `drain` комнаты старого слота **переезжают целиком** на новый слот (BUG-32): сразу после `results` (через `DRAIN_RESULTS_CLOSE_MS`), при попытке реванша, или по `DRAIN_LOBBY_TTL_MS` для лобби. Код комнаты меняется, состав, хост, номер раунда и токены игроков сохраняются; v2-клиенты получают `redirect {node, code, resume:true}`, v1-клиенты (v0.56/v0.57) продолжают играть через прозрачный прокси старого слота. Идущие раунды доигрываются на старом слоте.
@@ -155,10 +158,10 @@
    6) Один `docker stop` (`compose stop game_<old>`) старого слота → он получает `SIGTERM` и выходит сам.
 7. **Пошаговый откат (новый слот плохой):**
    1) Если старый слот ещё жив (шаги 4–5): `POST http://<old_slot>:3001/internal/undrain` — снимает drain и `update`; затем вернуть маршрут `/ws` и `/api/*` в Caddy на старый слот, `caddy reload`.
-   2) `POST http://<new_slot>:3001/internal/drain` (без `version`, чтобы не показывать «обновление») — комнаты нового слота переедут обратно на старый тем же механизмом; дождаться `rooms === 0` (с тем же лимитом), один `docker stop` нового слота.
+   2) `POST http://<new_slot>:3001/internal/drain` **без** `version` — комнаты нового слота переедут обратно на старый тем же механизмом, v2-клиентам **не** уходит `update` (сервер не подставляет версию соседа). Дождаться `rooms === 0` (с тем же лимитом), один `docker stop` нового слота.
    3) Если старый слот уже остановлен: поднять его заново из предыдущего образа с прежним `APP_VERSION`, дождаться `/api/health` + `peerAuth: "ok"`, дальше как в пп. 1–2.
    4) После отката клиенты v2 со свежей сборкой увидят на старом сервере `hello.version` меньше своей — плашки «обновить» не будет (плашка показывается только если версия сервера **строго больше** версии клиента).
-8. **Конфиг поля в Docker (BUG-47):** текущий `server/Dockerfile` **не копирует** `server/field.config.json` в образ, поэтому в контейнере без доп. действий работают только env/дефолты (`160×346×8`, v1 = `180`). Варианты на выбор Devops: (а) смонтировать файл `volumes: - ./server/field.config.json:/app/field.config.json:ro` (или задать `FIELD_CONFIG_PATH`), (б) добавить `COPY server/field.config.json ./` в Dockerfile, (в) задавать `FIELD_W/FIELD_H/FIELD_PX_PER_M/FIELD_W_V1` в env. При старте сервер пишет в лог источник и итоговое поле (`[Field] v2 field: {...} (file: ...)` и `[Field] v1 room width: 180`); битый файл/невалидные значения — `ERROR` в логе и дефолт для этого параметра. Допустимые границы: `w` и `FIELD_W_V1` 120..320, `h` 200..800, `pxPerM` 2..32.
+8. **Конфиг поля в Docker (BUG-47):** `server/Dockerfile` в этой ветке **не копирует** `server/field.config.json` (файл Docker — зона Devops, здесь его не меняем). Без доп. действий в контейнере работают только env/дефолты (`160×346×8`, v1 = `180`). Выбор Devops: (а) смонтировать файл, как уже сделано на staging: `volumes: - ./server/field.config.json:/app/field.config.json:ro` (или `FIELD_CONFIG_PATH`), (б) добавить `COPY server/field.config.json ./` в **свой** Dockerfile, (в) задавать `FIELD_W/FIELD_H/FIELD_PX_PER_M/FIELD_W_V1` в env. При старте сервер пишет в лог источник и итоговое поле (`[Field] v2 field: {...} (file: ...)` и `[Field] v1 room width: 180`); битый файл/невалидные значения — `ERROR` в логе и дефолт для этого параметра. Допустимые границы: `w` и `FIELD_W_V1` 120..320, `h` 200..800, `pxPerM` 2..32.
 9. **Обязательные проверки на старте (сервер откажется стартовать с понятной ошибкой в логе и `exit 1`):**
    - `APP_VERSION` пуст при `NODE_ENV=production` или `NODE_NAME=blue|green` (BUG-34: иначе версия бралась из `package.json` = `0.1.0`, и клиенты видели вечную плашку обновления);
    - включён `INTERNAL_PORT`, `INTERNAL_HOST` не loopback (например `0.0.0.0`) и пуст `INTERNAL_TOKEN` (BUG-48).
