@@ -38,12 +38,12 @@ var C: any = {
 /* Heroes: look + ability. Each ability has its own TYPE (no repeats) and its own CHARGE:
    charge: time (ticks, 50/s) | coins (coins picked) | height (metres climbed) | kills (mobs stomped) */
 var CHARS: any[] = [
-  { id: "pilot", name: "Капитан", hood: "#2c3a5c", price: 0, ab: "dash", abName: "РЫВОК", type: "ПИЛОТ", abDesc: ["КОРОТКИЙ БЫСТРЫЙ", "ВЗЛЁТ НА РАНЦЕ"], charge: "time", need: 250 },
-  { id: "pirate", name: "Пират", hood: "#a8282c", price: 150, ab: "hook", abName: "КРЮК", type: "КОРСАР", abDesc: ["КРЮК К ПЛАТФОРМЕ", "ИЛИ МОНЕТЕ, БЬЁТ МОБОВ"], charge: "time", need: 400 },
-  { id: "ninja", name: "Ниндзя", hood: "#26305a", price: 200, ab: "wall", abName: "СТЕНЫ", type: "СИНОБИ", abDesc: ["6 СЕК ЦЕПЛЯЕТСЯ ЗА КРАЙ,", "ТАП - ПРЫЖОК ОТ СТЕНЫ"], charge: "time", need: 500 },
-  { id: "robot", name: "Робот", hood: "#d8dce8", price: 240, ab: "dome", abName: "КОСМОЩИТ", type: "СТРАЖ", abDesc: ["ЩИТ 4 СЕК, СПАСЁТ", "ОТ ПАДЕНИЯ"], charge: "height", need: 200 },
-  { id: "mage", name: "Маг", hood: "#7a3ac8", price: 280, ab: "tele", abName: "ТЕЛЕПОРТ", type: "ЧАРОДЕЙ", abDesc: ["МИГОМ НА НАДЁЖНУЮ", "ПЛАТФОРМУ ВЫШЕ"], charge: "coins", need: 12 },
-  { id: "knight", name: "Рыцарь", hood: "#c02a2a", price: 320, ab: "pound", abName: "ТАРАН", type: "ВОИН", abDesc: ["ПИКЕ ЩИТОМ ВНИЗ,", "С ПЛАТФОРМЫ СУПЕРПРЫЖОК"], charge: "kills", need: 2 }
+  { id: "pilot", name: "Капитан", hood: "#2c3a5c", price: 0, ab: "dash", abName: "РЫВОК", type: "БАЗОВЫЙ", abDesc: ["КОРОТКИЙ БЫСТРЫЙ", "ВЗЛЁТ НА РАНЦЕ"], charge: "time", need: 250 },
+  { id: "pirate", name: "Пират", hood: "#a8282c", price: 150, ab: "hook", abName: "КРЮК", type: "МАНЁВР", abDesc: ["КРЮК К ПЛАТФОРМЕ", "ИЛИ МОНЕТЕ, БЬЁТ МОБОВ"], charge: "time", need: 400 },
+  { id: "ninja", name: "Ниндзя", hood: "#26305a", price: 200, ab: "wall", abName: "СТЕНЫ", type: "ПАРКУР", abDesc: ["6 СЕК ЦЕПЛЯЕТСЯ ЗА КРАЙ,", "ТАП - ПРЫЖОК ОТ СТЕНЫ"], charge: "time", need: 500 },
+  { id: "robot", name: "Робот", hood: "#d8dce8", price: 240, ab: "dome", abName: "КОСМОЩИТ", type: "ЗАЩИТА", abDesc: ["ЩИТ 4 СЕК, СПАСЁТ", "ОТ ПАДЕНИЯ"], charge: "height", need: 200 },
+  { id: "mage", name: "Маг", hood: "#7a3ac8", price: 280, ab: "tele", abName: "ТЕЛЕПОРТ", type: "ТЕЛЕПОРТ", abDesc: ["МИГОМ НА НАДЁЖНУЮ", "ПЛАТФОРМУ ВЫШЕ"], charge: "coins", need: 12 },
+  { id: "knight", name: "Рыцарь", hood: "#c02a2a", price: 320, ab: "pound", abName: "ТАРАН", type: "АТАКА", abDesc: ["ПИКЕ ЩИТОМ ВНИЗ,", "С ПЛАТФОРМЫ СУПЕРПРЫЖОК"], charge: "kills", need: 2 }
 ];
 /* Hero sprite sheets (made by /workspace/jumper/sprites_tool: make_sheet.py + unify.py).
    One row of 7 cells: idle, squash (landing), up, fall, ability, ko, blink. Facing RIGHT, hard alpha.
@@ -248,7 +248,7 @@ var FONT: any = {
   "+": [0, 4, 4, 31, 4, 4, 0], "?": [14, 17, 1, 2, 4, 0, 4], "!": [4, 4, 4, 4, 4, 0, 4],
   "<": [1, 2, 4, 8, 4, 2, 1], ">": [16, 8, 4, 2, 4, 8, 16], "/": [1, 1, 2, 4, 8, 16, 16], "(": [2, 4, 8, 8, 8, 4, 2], ")": [8, 4, 2, 2, 2, 4, 8],
   "А": [14, 17, 17, 31, 17, 17, 17], "Б": [30, 16, 16, 30, 17, 17, 30], "В": [30, 17, 17, 30, 17, 17, 30],
-  "Г": [31, 16, 16, 16, 16, 16, 16], "Д": [4, 10, 17, 17, 31, 17, 31], "Е": [31, 16, 16, 30, 16, 16, 31],
+  "Г": [31, 16, 16, 16, 16, 16, 16], "Д": [15, 9, 9, 9, 9, 31, 17], "Е": [31, 16, 16, 30, 16, 16, 31],
   "Ё": [10, 31, 16, 30, 16, 16, 31], "Ж": [21, 21, 14, 4, 14, 21, 21], "З": [14, 17, 1, 6, 1, 17, 14],
   "И": [17, 17, 19, 21, 25, 17, 17], "Й": [10, 17, 19, 21, 25, 17, 17], "К": [17, 18, 20, 24, 20, 18, 17],
   "Л": [7, 9, 9, 9, 9, 9, 17], "М": [17, 27, 21, 21, 17, 17, 17], "Н": [17, 17, 17, 31, 17, 17, 17],
@@ -259,7 +259,7 @@ var FONT: any = {
   "Ъ": [24, 8, 14, 9, 9, 9, 14], "Ы": [17, 17, 17, 29, 19, 19, 29], "Ь": [16, 16, 16, 30, 17, 17, 30],
   "Э": [14, 17, 1, 7, 1, 17, 14], "Ю": [23, 21, 21, 27, 21, 21, 23], "Я": [15, 17, 17, 15, 5, 9, 17],
   "%": [25, 21, 2, 4, 8, 21, 19], "●": [0, 14, 31, 31, 31, 14, 0], "→": [0, 4, 2, 31, 2, 4, 0],
-  "✓": [0, 1, 2, 18, 8, 4, 0], "▶": [16, 24, 28, 30, 28, 24, 16], "↑": [4, 14, 21, 4, 4, 4, 4], "·": [0, 0, 0, 12, 12, 0, 0]
+  "✓": [0, 1, 2, 18, 8, 4, 0], "▶": [16, 24, 28, 30, 28, 24, 16], "↑": [4, 14, 21, 4, 4, 4, 4], "·": [0, 0, 0, 12, 12, 0, 0], "▼": [0, 0, 31, 14, 4, 0, 0]
 };
 
 
@@ -1350,7 +1350,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   if (map === "city" || map === "space") {
     var moonA = map === "space" ? 0.95 : 1 - clamp((m - 1200) / 600, 0, 1);
     if (moonA > 0) {
-      var mx = LW - 21, my = Math.round(6 + alt * 0.015); if (menu) my = Math.max(70, my);
+      var mx = LW - 21, my = Math.max(28, Math.round(6 + alt * 0.015)); if (menu) my = Math.max(70, my);
       ctx.globalAlpha = moonA;
       var mc = map === "space" ? "#a8d8ff" : "#f8e4a8", md = map === "space" ? "#78a8e0" : "#e0c078";
       rect(ctx, mx + 3, my, 10, 16, mc); rect(ctx, mx, my + 3, 16, 10, mc); rect(ctx, mx + 1, my + 1, 14, 14, mc);
@@ -2283,6 +2283,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var HTO = ["КАПИТАНА", "ПИРАТА", "НИНДЗЯ", "РОБОТА", "МАГА", "РЫЦАРЯ"];
 
   warmHeroSprites();
+  function isPageBuild() { return typeof HOP_PAGE !== "undefined" && !!HOP_PAGE; }
   function resize() {
     var r = (wrap || canvas).getBoundingClientRect();
     var cssW = Math.max(1, r.width), cssH = Math.max(1, r.height);
@@ -2395,10 +2396,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.earned = world.earnH + world.earnC;
     var mi = mapIdx(world.map);
     world.prevMapBest = mapBest(mi);
+    world.newBest = mtr > (world.prevMapBest || 0);
     if (mtr > world.prevMapBest) save.mapBest[world.map] = mtr;
     save.coins += world.earned;
-    world.newBest = mtr > save.best;
-    if (world.newBest) save.best = mtr;
+    if (mtr > save.best) save.best = mtr;
     world.best = save.best;
     writeSave(save);
   }
@@ -2456,13 +2457,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (key === "open" || key.indexOf("open:") === 0) {
       var i2 = key.indexOf("open:") === 0 ? parseInt(key.slice(5), 10) : (campCard >= 0 ? campCard : nextClosable());
       if (i2 < 0 || isNaN(i2)) return;
-      campCard = i2;
-      unlockMap(i2);
+      /* Row buy keeps the list; only the card's own button leaves campCard as-is. */
+      if (key === "open" && campCard < 0) campCard = i2;
+      unlockMap(i2, key === "open" ? "camp:open" : ("camp:open:" + i2));
       return;
     }
     var i = parseInt(key, 10);
     if (isNaN(i) || i < 0 || i >= MAPS.length) return;
     var M = MAPS[i];
+    flashT = 0;
     if (mapOpen(i)) { campCard = i; return; }
     if (!mapOpen(i - 1)) { say("СНАЧАЛА ОТКРОЙ " + MAPS[i - 1].name); return; }
     if (!mapGoalMet(i)) { say("ДОЙДИ ДО " + MAPS[i - 1].goal + " М " + WHERE[i - 1]); return; }
@@ -2472,10 +2475,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (var i = 1; i < MAPS.length; i++) if (!mapOpen(i) && mapGoalMet(i)) return i;
     return -1;
   }
-  function unlockMap(i: number) {
+  function unlockMap(i: number, buyId?: string) {
     var M = MAPS[i];
     if (mapOpen(i) || !mapGoalMet(i)) return;
-    tryBuy("camp:open", M.price, function () {
+    tryBuy(buyId || ("camp:open:" + i), M.price, function () {
       save.coins -= M.price; save.owned["map:" + M.id] = 1; save.bg = M.id; say(mapOpened(M));
     });
   }
@@ -2578,12 +2581,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (flashT <= 0) return;
     if (phase !== flashPh) { flashT = 0; return; }
     flashT--;
-    var big = flash.indexOf("ОТКРЫТ") >= 0;
-    var sc = big ? 2 : 1;
-    var w = textWidth(flash, sc) + 16;
+    var unlock = flash.indexOf("ОТКРЫТ") >= 0;
+    var sc = 1, fy = LH - 64, fh = 13;
+    if (unlock && phase === "camp") {
+      if (campCard >= 0) { fy = Math.round(LH / 2 - 70) + 84; fh = 16; }
+      else { fy = 36; fh = 22; } /* under the title, in the tip-plaque row */
+    } else if (unlock) { fy = 36; fh = 16; }
+    var w = Math.min(LW - 8, textWidth(flash, sc) + 16);
     ctx.globalAlpha = Math.min(1, flashT / 20);
-    box(ctx, Math.round(LW / 2 - w / 2), big ? 36 : LH - 64, w, big ? 28 : 13, C.navy, C.gold);
-    drawText(ctx, flash, LW / 2, big ? 44 : LH - 61, C.gold, sc, "center");
+    box(ctx, Math.round(LW / 2 - w / 2), fy, w, fh, C.navy, C.gold);
+    drawText(ctx, flash, LW / 2, fy + 4, C.gold, sc, "center");
     ctx.globalAlpha = 1;
   }
   function plaque() {
@@ -2603,9 +2610,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
     rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.14)");
     var x = colX();
-    box(ctx, x + 10, 10, 132, 28, C.navy, C.cream);
-    drawText(ctx, "ХОППАК", LW / 2 + 1, 15, C.coral, 3, "center");
-    drawText(ctx, "ХОППАК", LW / 2, 14, C.cream, 3, "center");
+    box(ctx, x + 6, 10, 122, 28, C.navy, C.cream);
+    drawText(ctx, "ХОППАК", x + 67, 15, C.coral, 3, "center");
+    drawText(ctx, "ХОППАК", x + 66, 14, C.cream, 3, "center");
     gear(x + 134, 8);
     drawText(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 42, C.cream, 1, "center");
     plaque();
@@ -2623,10 +2630,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     btn("start", x, by, 152, 34, C.mint, "", INK, 2);
     drawText(ctx, "ИГРАТЬ ▶", LW / 2, by + 4, INK, 2, "center");
     drawText(ctx, sub, LW / 2, by + 22, INK, 1, "center");
-    btn("camp", x, by + 40, 72, 22, C.navy, "КАРТЫ");
-    btn("net:menu", x + 80, by + 40, 72, 22, C.coral, "ОНЛАЙН", C.cream);
-    btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
-    btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+    if (isPageBuild()) {
+      btn("camp", x, by + 40, 152, 22, C.navy, "КАРТЫ");
+      btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
+      btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+    } else {
+      btn("camp", x, by + 40, 72, 22, C.navy, "КАРТЫ");
+      btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "ОНЛАЙН", C.cream, 1, C.mint);
+      btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
+      btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+    }
     if (showSet) {
       box(ctx, x, 70, 152, 86, C.navy, C.cream);
       drawText(ctx, "НАСТРОЙКИ", LW / 2, 76, C.gold, 1, "center");
@@ -2670,7 +2683,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.save(); ctx.beginPath(); ctx.rect(bx + 1, by + 1, pw - 2, 20); ctx.clip();
       drawJumper(ctx, bx + 3, by + 4, makeLook(k, "base", "none"), 1, "idle", false, true, 1);
       ctx.restore();
-      if (on) { rect(ctx, bx + 2, by + 2, 5, 4, C.mint); drawText(ctx, "✓", bx + 3, by + 2, INK, 1, "left"); }
+      if (on) {
+        var qx = bx + pw - 8, qy = by + 1;
+        rect(ctx, qx, qy, 7, 7, C.mint);
+        rect(ctx, qx + 1, qy + 3, 2, 1, INK); rect(ctx, qx + 2, qy + 4, 2, 1, INK);
+        rect(ctx, qx + 4, qy + 2, 1, 1, INK); rect(ctx, qx + 5, qy + 1, 1, 1, INK);
+      }
     }
     var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
     var y0 = 64, ch = LH - y0 - 42;
@@ -2687,8 +2705,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, H2.type, LW / 2, mid + 50, C.gold, 1, "center");
     drawText(ctx, H2.abDesc[0], LW / 2, mid + 62, C.cream, 1, "center");
     drawText(ctx, H2.abDesc[1], LW / 2, mid + 72, C.cream, 1, "center");
-    var cl = H2.charge === "time" ? "ЗАРЯД  " + Math.round(H2.need / 50) + " СЕК" : H2.charge === "coins" ? "ЗАРЯД  ● " + H2.need : H2.charge === "height" ? "ЗАРЯД  ↑ " + H2.need + " М" : "ЗАРЯД  " + H2.need + " МОБА";
-    drawText(ctx, cl, LW / 2, mid + 84, "#9a8ab8", 1, "center");
+    drawChargeLine(LW / 2, mid + 84, H2, "#9a8ab8");
     var byb = y0 + ch - 28;
     if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "ВЫБРАН", C.gold, 1, C.gold);
     else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "ВЫБРАТЬ", INK);
@@ -2844,16 +2861,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     tags.sort(function (a: any, b: any) { return b.y - a.y; });
     for (i = 0; i < tags.length; i++) {
       var tg = tags[i];
-      tg.w = textWidth(tg.p.alive ? tg.p.name : "ВЫБЫЛ", 1) + 3;
+      var isMe = tg.p.id === 0;
+      var label = !tg.p.alive ? "ВЫБЫЛ" : isMe ? "▼" : (tg.p.name || "БОТ").slice(0, 3);
+      tg.w = textWidth(label, 1) + 4;
       for (var j = 0; j < i; j++) {
         var o = tags[j];
         if (Math.abs(o.x - tg.x) < (o.w + tg.w) / 2 + 1 && Math.abs(o.y - tg.y) < 10) tg.y = o.y - 10;
       }
       var lx = clamp(tg.x, tg.w / 2 + 1, LW - 12 - tg.w / 2);
-      ctx.globalAlpha = 0.72;
-      rect(ctx, Math.round(lx - tg.w / 2), tg.y, tg.w, 9, tg.p.alive ? (tg.p.id === 0 ? "#3a2a10" : C.navy) : "#4a1020");
-      ctx.globalAlpha = 0.92;
-      drawText(ctx, tg.p.alive ? tg.p.name : "ВЫБЫЛ", lx, tg.y + 1, tg.p.alive ? (tg.p.id === 0 ? C.gold : C.cream) : C.red, 1, "center");
+      ctx.globalAlpha = isMe ? 0.85 : 0.5;
+      if (!isMe) rect(ctx, Math.round(lx - tg.w / 2), tg.y, tg.w, 9, tg.p.alive ? C.navy : "#4a1020");
+      drawText(ctx, label, lx, tg.y + (isMe ? 2 : 1), tg.p.alive ? (isMe ? C.gold : C.cream) : C.red, 1, "center");
       ctx.globalAlpha = 1;
     }
     ctx.restore();
@@ -2973,7 +2991,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
   }
   function icoClock(x: number, y: number, col: string) {
-    rect(ctx, x + 1, y, 5, 7, col); rect(ctx, x + 2, y + 1, 3, 5, "#0c0818"); rect(ctx, x + 3, y + 2, 1, 3, col); rect(ctx, x + 3, y + 4, 2, 1, col);
+    rect(ctx, x + 1, y, 5, 1, col); rect(ctx, x, y + 1, 7, 5, col); rect(ctx, x + 1, y + 6, 5, 1, col);
+    rect(ctx, x + 1, y + 1, 5, 5, "#0c0818");
+    rect(ctx, x + 3, y + 2, 1, 3, col); rect(ctx, x + 3, y + 4, 2, 1, col);
+  }
+  function drawChargeLine(cx: number, y: number, H: any, col: string) {
+    var ic = H.charge, chg = ic === "time" ? Math.round(H.need / 50) + " СЕК" : ic === "coins" ? String(H.need) : ic === "height" ? H.need + " М" : H.need + " МОБА";
+    var pre = "ЗАРЯД: ", iw = 8, gap = 2, tw = textWidth(pre, 1) + iw + gap + textWidth(chg, 1);
+    var x0 = Math.round(cx - tw / 2);
+    drawText(ctx, pre, x0, y, col, 1, "left");
+    var ix = x0 + textWidth(pre, 1);
+    if (ic === "time") icoClock(ix, y, col);
+    else if (ic === "coins") drawCoin(ctx, ix, y + 1, ui);
+    else if (ic === "height") drawText(ctx, "↑", ix, y, C.mint, 1, "left");
+    else icoSkull(ix, y, col);
+    drawText(ctx, chg, ix + iw + gap, y, col, 1, "left");
   }
   function icoSkull(x: number, y: number, col: string) {
     rect(ctx, x + 1, y, 5, 4, col); rect(ctx, x + 2, y + 4, 3, 2, col); rect(ctx, x + 2, y + 1, 1, 1, "#0c0818"); rect(ctx, x + 4, y + 1, 1, 1, "#0c0818");
@@ -2993,20 +3025,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawAbIcon(H.ab, cx - 6, cy - 6);
     ctx.globalAlpha = 1;
     var lab = me.wall ? "ПРЫЖОК" : H.abName;
-    var chg = "", ic = H.charge;
-    if (ic === "time") chg = Math.round(f * 100) + "%";
-    else if (ic === "coins") chg = Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-    else if (ic === "height") chg = Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-    else chg = Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-    var tx = b.x + 28;
-    drawText(ctx, lab + ":", tx, b.y + 4, ready ? C.gold : C.cream, 1, "left");
-    var ix = tx + textWidth(lab + ": ", 1);
-    if (ic === "time") icoClock(ix, b.y + 13, C.cream);
-    else if (ic === "coins") drawCoin(ctx, ix, b.y + 14, ui);
-    else if (ic === "height") drawText(ctx, "↑", ix, b.y + 14, C.mint, 1, "left");
-    else icoSkull(ix, b.y + 13, C.cream);
-    var gap = ic === "height" ? 8 : 9;
-    drawText(ctx, chg, ix + gap, b.y + 14, ready ? C.gold : C.cream, 1, "left");
+    var ic = H.charge, chg = ic === "time" ? Math.round(f * 100) + "%" : Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
+    var tcol = ready ? C.gold : C.cream, ty = b.y + 9;
+    drawText(ctx, lab, b.x + 28, ty, tcol, 1, "left");
+    var rw = textWidth(chg, 1), rx = b.x + b.w - 6;
+    var ix = rx - rw - 9;
+    if (ic === "time") icoClock(ix, ty, tcol);
+    else if (ic === "coins") drawCoin(ctx, ix, ty + 1, ui);
+    else if (ic === "height") drawText(ctx, "↑", ix, ty, C.mint, 1, "left");
+    else icoSkull(ix, ty, tcol);
+    drawText(ctx, chg, rx, ty, tcol, 1, "right");
   }
   function whyText(p: any) {
     var m = metersOf(p), w = p.why || "";
@@ -3049,11 +3077,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
     if (M2.goal && mi2 + 1 < MAPS.length) {
       var nxt = MAPS[mi2 + 1], b = mapBest(mi2), met = b >= M2.goal;
-      box(ctx, x, y, 152, 28, C.navy, met ? C.mint : C.gold);
-      drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
-      drawText(ctx, b + "/" + M2.goal + " М", x + 146, y + 3, C.cream, 1, "right");
-      bar(x + 6, y + 16, 140, 6, b / M2.goal, met ? C.mint : C.gold);
-      y += 32;
+      if (met) {
+        addHit("camp", x, y, 152, 22);
+        box(ctx, x, y, 152, 22, C.navy, C.mint);
+        drawText(ctx, nxt.name + ": МОЖНО ОТКРЫТЬ", LW / 2, y + 7, C.mint, 1, "center");
+        y += 26;
+      } else {
+        box(ctx, x, y, 152, 28, C.navy, C.gold);
+        drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
+        drawText(ctx, b + "/" + M2.goal + " М", x + 146, y + 3, C.cream, 1, "right");
+        bar(x + 6, y + 16, 140, 6, b / M2.goal, C.gold);
+        y += 32;
+      }
     }
     var rec = save.mapBest[world.map] || world.best || 0;
     box(ctx, x, y, 152, 44, C.navy, C.gold);
@@ -3066,13 +3101,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     else { drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 2, C.cream, 1, "center"); y += 14; }
     var nh = nextHeroNeed();
     if (nh) {
-      box(ctx, x, y, 152, 22, C.navy, C.coral);
-      drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
-      var runs = nh.left <= 0 ? "МОЖНО КУПИТЬ" : ("ЕЩЁ " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " ЗАБЕГА");
-      drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
+      if (nh.left === 0) {
+        addHit("shop", x, y, 152, 22);
+        box(ctx, x, y, 152, 22, C.navy, C.mint);
+        drawText(ctx, "ХВАТАЕТ НА " + HTO[nh.i] + "!", LW / 2, y + 7, C.mint, 1, "center");
+      } else {
+        box(ctx, x, y, 152, 22, C.navy, C.coral);
+        drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
+        var runs = "ЕЩЁ " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " ЗАБЕГА";
+        drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
+      }
     }
     var lab = squad ? "РЕВАНШ ▶" : "ЕЩЁ РАЗ ▶";
-    btn("rematch", x, LH - 64, 152, 28, squad ? C.coral : C.mint, lab, squad ? C.cream : INK, 2);
+    btn("rematch", x, LH - 64, 152, 28, C.mint, lab, INK, 2);
     btn("menu", x, LH - 32, 72, 22, C.navy, "МЕНЮ");
     btn("shop", x + 80, LH - 32, 72, 22, C.navy, "МАГАЗИН");
   }

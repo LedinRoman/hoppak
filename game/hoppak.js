@@ -1,4 +1,4 @@
-/* Хоппак v0.5 — generated from hoppak.page.tsx by build.sh, do not edit */
+/* Хоппак v0.52 — generated from hoppak.page.tsx by build.sh, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;
@@ -47,12 +47,12 @@
     roof: "#342a4e"
   };
   var CHARS = [
-    { id: "pilot", name: "\u041A\u0430\u043F\u0438\u0442\u0430\u043D", hood: "#2c3a5c", price: 0, ab: "dash", abName: "\u0420\u042B\u0412\u041E\u041A", type: "\u041F\u0418\u041B\u041E\u0422", abDesc: ["\u041A\u041E\u0420\u041E\u0422\u041A\u0418\u0419 \u0411\u042B\u0421\u0422\u0420\u042B\u0419", "\u0412\u0417\u041B\u0401\u0422 \u041D\u0410 \u0420\u0410\u041D\u0426\u0415"], charge: "time", need: 250 },
-    { id: "pirate", name: "\u041F\u0438\u0440\u0430\u0442", hood: "#a8282c", price: 150, ab: "hook", abName: "\u041A\u0420\u042E\u041A", type: "\u041A\u041E\u0420\u0421\u0410\u0420", abDesc: ["\u041A\u0420\u042E\u041A \u041A \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0415", "\u0418\u041B\u0418 \u041C\u041E\u041D\u0415\u0422\u0415, \u0411\u042C\u0401\u0422 \u041C\u041E\u0411\u041E\u0412"], charge: "time", need: 400 },
-    { id: "ninja", name: "\u041D\u0438\u043D\u0434\u0437\u044F", hood: "#26305a", price: 200, ab: "wall", abName: "\u0421\u0422\u0415\u041D\u042B", type: "\u0421\u0418\u041D\u041E\u0411\u0418", abDesc: ["6 \u0421\u0415\u041A \u0426\u0415\u041F\u041B\u042F\u0415\u0422\u0421\u042F \u0417\u0410 \u041A\u0420\u0410\u0419,", "\u0422\u0410\u041F - \u041F\u0420\u042B\u0416\u041E\u041A \u041E\u0422 \u0421\u0422\u0415\u041D\u042B"], charge: "time", need: 500 },
-    { id: "robot", name: "\u0420\u043E\u0431\u043E\u0442", hood: "#d8dce8", price: 240, ab: "dome", abName: "\u041A\u041E\u0421\u041C\u041E\u0429\u0418\u0422", type: "\u0421\u0422\u0420\u0410\u0416", abDesc: ["\u0429\u0418\u0422 4 \u0421\u0415\u041A, \u0421\u041F\u0410\u0421\u0401\u0422", "\u041E\u0422 \u041F\u0410\u0414\u0415\u041D\u0418\u042F"], charge: "height", need: 200 },
-    { id: "mage", name: "\u041C\u0430\u0433", hood: "#7a3ac8", price: 280, ab: "tele", abName: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", type: "\u0427\u0410\u0420\u041E\u0414\u0415\u0419", abDesc: ["\u041C\u0418\u0413\u041E\u041C \u041D\u0410 \u041D\u0410\u0414\u0401\u0416\u041D\u0423\u042E", "\u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0423 \u0412\u042B\u0428\u0415"], charge: "coins", need: 12 },
-    { id: "knight", name: "\u0420\u044B\u0446\u0430\u0440\u044C", hood: "#c02a2a", price: 320, ab: "pound", abName: "\u0422\u0410\u0420\u0410\u041D", type: "\u0412\u041E\u0418\u041D", abDesc: ["\u041F\u0418\u041A\u0415 \u0429\u0418\u0422\u041E\u041C \u0412\u041D\u0418\u0417,", "\u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u0421\u0423\u041F\u0415\u0420\u041F\u0420\u042B\u0416\u041E\u041A"], charge: "kills", need: 2 }
+    { id: "pilot", name: "\u041A\u0430\u043F\u0438\u0442\u0430\u043D", hood: "#2c3a5c", price: 0, ab: "dash", abName: "\u0420\u042B\u0412\u041E\u041A", type: "\u0411\u0410\u0417\u041E\u0412\u042B\u0419", abDesc: ["\u041A\u041E\u0420\u041E\u0422\u041A\u0418\u0419 \u0411\u042B\u0421\u0422\u0420\u042B\u0419", "\u0412\u0417\u041B\u0401\u0422 \u041D\u0410 \u0420\u0410\u041D\u0426\u0415"], charge: "time", need: 250 },
+    { id: "pirate", name: "\u041F\u0438\u0440\u0430\u0442", hood: "#a8282c", price: 150, ab: "hook", abName: "\u041A\u0420\u042E\u041A", type: "\u041C\u0410\u041D\u0401\u0412\u0420", abDesc: ["\u041A\u0420\u042E\u041A \u041A \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0415", "\u0418\u041B\u0418 \u041C\u041E\u041D\u0415\u0422\u0415, \u0411\u042C\u0401\u0422 \u041C\u041E\u0411\u041E\u0412"], charge: "time", need: 400 },
+    { id: "ninja", name: "\u041D\u0438\u043D\u0434\u0437\u044F", hood: "#26305a", price: 200, ab: "wall", abName: "\u0421\u0422\u0415\u041D\u042B", type: "\u041F\u0410\u0420\u041A\u0423\u0420", abDesc: ["6 \u0421\u0415\u041A \u0426\u0415\u041F\u041B\u042F\u0415\u0422\u0421\u042F \u0417\u0410 \u041A\u0420\u0410\u0419,", "\u0422\u0410\u041F - \u041F\u0420\u042B\u0416\u041E\u041A \u041E\u0422 \u0421\u0422\u0415\u041D\u042B"], charge: "time", need: 500 },
+    { id: "robot", name: "\u0420\u043E\u0431\u043E\u0442", hood: "#d8dce8", price: 240, ab: "dome", abName: "\u041A\u041E\u0421\u041C\u041E\u0429\u0418\u0422", type: "\u0417\u0410\u0429\u0418\u0422\u0410", abDesc: ["\u0429\u0418\u0422 4 \u0421\u0415\u041A, \u0421\u041F\u0410\u0421\u0401\u0422", "\u041E\u0422 \u041F\u0410\u0414\u0415\u041D\u0418\u042F"], charge: "height", need: 200 },
+    { id: "mage", name: "\u041C\u0430\u0433", hood: "#7a3ac8", price: 280, ab: "tele", abName: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", type: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", abDesc: ["\u041C\u0418\u0413\u041E\u041C \u041D\u0410 \u041D\u0410\u0414\u0401\u0416\u041D\u0423\u042E", "\u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0423 \u0412\u042B\u0428\u0415"], charge: "coins", need: 12 },
+    { id: "knight", name: "\u0420\u044B\u0446\u0430\u0440\u044C", hood: "#c02a2a", price: 320, ab: "pound", abName: "\u0422\u0410\u0420\u0410\u041D", type: "\u0410\u0422\u0410\u041A\u0410", abDesc: ["\u041F\u0418\u041A\u0415 \u0429\u0418\u0422\u041E\u041C \u0412\u041D\u0418\u0417,", "\u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u0421\u0423\u041F\u0415\u0420\u041F\u0420\u042B\u0416\u041E\u041A"], charge: "kills", need: 2 }
   ];
   var SPR_CW = 36;
   var SPR_CH = 32;
@@ -325,7 +325,7 @@
     "\u0411": [30, 16, 16, 30, 17, 17, 30],
     "\u0412": [30, 17, 17, 30, 17, 17, 30],
     "\u0413": [31, 16, 16, 16, 16, 16, 16],
-    "\u0414": [4, 10, 17, 17, 31, 17, 31],
+    "\u0414": [15, 9, 9, 9, 9, 31, 17],
     "\u0415": [31, 16, 16, 30, 16, 16, 31],
     "\u0401": [10, 31, 16, 30, 16, 16, 31],
     "\u0416": [21, 21, 14, 4, 14, 21, 21],
@@ -360,7 +360,8 @@
     "\u2713": [0, 1, 2, 18, 8, 4, 0],
     "\u25B6": [16, 24, 28, 30, 28, 24, 16],
     "\u2191": [4, 14, 21, 4, 4, 4, 4],
-    "\xB7": [0, 0, 0, 12, 12, 0, 0]
+    "\xB7": [0, 0, 0, 12, 12, 0, 0],
+    "\u25BC": [0, 0, 31, 14, 4, 0, 0]
   };
   function mulberry32(a) {
     return function() {
@@ -1862,7 +1863,7 @@
     if (map === "city" || map === "space") {
       var moonA = map === "space" ? 0.95 : 1 - clamp((m - 1200) / 600, 0, 1);
       if (moonA > 0) {
-        var mx = LW - 21, my = Math.round(6 + alt * 0.015);
+        var mx = LW - 21, my = Math.max(28, Math.round(6 + alt * 0.015));
         if (menu) my = Math.max(70, my);
         ctx.globalAlpha = moonA;
         var mc = map === "space" ? "#a8d8ff" : "#f8e4a8", md = map === "space" ? "#78a8e0" : "#e0c078";
@@ -3358,6 +3359,9 @@
     var TO = ["\u0413\u041E\u0420\u041E\u0414\u0410", "\u0414\u0416\u0423\u041D\u0413\u041B\u0415\u0419", "\u041B\u0415\u0414\u041D\u0418\u041A\u0410", "\u0412\u0423\u041B\u041A\u0410\u041D\u0410", "\u041E\u041A\u0415\u0410\u041D\u0410", "\u041A\u041E\u0421\u041C\u041E\u0421\u0410"];
     var HTO = ["\u041A\u0410\u041F\u0418\u0422\u0410\u041D\u0410", "\u041F\u0418\u0420\u0410\u0422\u0410", "\u041D\u0418\u041D\u0414\u0417\u042F", "\u0420\u041E\u0411\u041E\u0422\u0410", "\u041C\u0410\u0413\u0410", "\u0420\u042B\u0426\u0410\u0420\u042F"];
     warmHeroSprites();
+    function isPageBuild() {
+      return typeof HOP_PAGE !== "undefined" && !!HOP_PAGE;
+    }
     function resize() {
       var r = (wrap || canvas).getBoundingClientRect();
       var cssW = Math.max(1, r.width), cssH = Math.max(1, r.height);
@@ -3519,10 +3523,10 @@
       world.earned = world.earnH + world.earnC;
       var mi = mapIdx(world.map);
       world.prevMapBest = mapBest(mi);
+      world.newBest = mtr > (world.prevMapBest || 0);
       if (mtr > world.prevMapBest) save.mapBest[world.map] = mtr;
       save.coins += world.earned;
-      world.newBest = mtr > save.best;
-      if (world.newBest) save.best = mtr;
+      if (mtr > save.best) save.best = mtr;
       world.best = save.best;
       writeSave(save);
     }
@@ -3657,13 +3661,14 @@
       if (key === "open" || key.indexOf("open:") === 0) {
         var i2 = key.indexOf("open:") === 0 ? parseInt(key.slice(5), 10) : campCard >= 0 ? campCard : nextClosable();
         if (i2 < 0 || isNaN(i2)) return;
-        campCard = i2;
-        unlockMap(i2);
+        if (key === "open" && campCard < 0) campCard = i2;
+        unlockMap(i2, key === "open" ? "camp:open" : "camp:open:" + i2);
         return;
       }
       var i = parseInt(key, 10);
       if (isNaN(i) || i < 0 || i >= MAPS.length) return;
       var M = MAPS[i];
+      flashT = 0;
       if (mapOpen(i)) {
         campCard = i;
         return;
@@ -3682,10 +3687,10 @@
       for (var i = 1; i < MAPS.length; i++) if (!mapOpen(i) && mapGoalMet(i)) return i;
       return -1;
     }
-    function unlockMap(i) {
+    function unlockMap(i, buyId) {
       var M = MAPS[i];
       if (mapOpen(i) || !mapGoalMet(i)) return;
-      tryBuy("camp:open", M.price, function() {
+      tryBuy(buyId || "camp:open:" + i, M.price, function() {
         save.coins -= M.price;
         save.owned["map:" + M.id] = 1;
         save.bg = M.id;
@@ -3844,12 +3849,24 @@
         return;
       }
       flashT--;
-      var big = flash.indexOf("\u041E\u0422\u041A\u0420\u042B\u0422") >= 0;
-      var sc = big ? 2 : 1;
-      var w = textWidth(flash, sc) + 16;
+      var unlock = flash.indexOf("\u041E\u0422\u041A\u0420\u042B\u0422") >= 0;
+      var sc = 1, fy = LH - 64, fh = 13;
+      if (unlock && phase === "camp") {
+        if (campCard >= 0) {
+          fy = Math.round(LH / 2 - 70) + 84;
+          fh = 16;
+        } else {
+          fy = 36;
+          fh = 22;
+        }
+      } else if (unlock) {
+        fy = 36;
+        fh = 16;
+      }
+      var w = Math.min(LW - 8, textWidth(flash, sc) + 16);
       ctx.globalAlpha = Math.min(1, flashT / 20);
-      box(ctx, Math.round(LW / 2 - w / 2), big ? 36 : LH - 64, w, big ? 28 : 13, C.navy, C.gold);
-      drawText(ctx, flash, LW / 2, big ? 44 : LH - 61, C.gold, sc, "center");
+      box(ctx, Math.round(LW / 2 - w / 2), fy, w, fh, C.navy, C.gold);
+      drawText(ctx, flash, LW / 2, fy + 4, C.gold, sc, "center");
       ctx.globalAlpha = 1;
     }
     function plaque() {
@@ -3871,9 +3888,9 @@
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
       rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.14)");
       var x = colX();
-      box(ctx, x + 10, 10, 132, 28, C.navy, C.cream);
-      drawText(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2 + 1, 15, C.coral, 3, "center");
-      drawText(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 14, C.cream, 3, "center");
+      box(ctx, x + 6, 10, 122, 28, C.navy, C.cream);
+      drawText(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", x + 67, 15, C.coral, 3, "center");
+      drawText(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", x + 66, 14, C.cream, 3, "center");
       gear(x + 134, 8);
       drawText(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 42, C.cream, 1, "center");
       plaque();
@@ -3893,10 +3910,16 @@
       btn("start", x, by, 152, 34, C.mint, "", INK, 2);
       drawText(ctx, "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", LW / 2, by + 4, INK, 2, "center");
       drawText(ctx, sub, LW / 2, by + 22, INK, 1, "center");
-      btn("camp", x, by + 40, 72, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
-      btn("net:menu", x + 80, by + 40, 72, 22, C.coral, "\u041E\u041D\u041B\u0410\u0419\u041D", C.cream);
-      btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
-      btn("mp", x + 80, by + 66, 72, 22, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
+      if (isPageBuild()) {
+        btn("camp", x, by + 40, 152, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
+        btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
+        btn("mp", x + 80, by + 66, 72, 22, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
+      } else {
+        btn("camp", x, by + 40, 72, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
+        btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "\u041E\u041D\u041B\u0410\u0419\u041D", C.cream, 1, C.mint);
+        btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
+        btn("mp", x + 80, by + 66, 72, 22, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
+      }
       if (showSet) {
         box(ctx, x, 70, 152, 86, C.navy, C.cream);
         drawText(ctx, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", LW / 2, 76, C.gold, 1, "center");
@@ -3952,8 +3975,12 @@
         drawJumper(ctx, bx + 3, by + 4, makeLook(k, "base", "none"), 1, "idle", false, true, 1);
         ctx.restore();
         if (on) {
-          rect(ctx, bx + 2, by + 2, 5, 4, C.mint);
-          drawText(ctx, "\u2713", bx + 3, by + 2, INK, 1, "left");
+          var qx = bx + pw - 8, qy = by + 1;
+          rect(ctx, qx, qy, 7, 7, C.mint);
+          rect(ctx, qx + 1, qy + 3, 2, 1, INK);
+          rect(ctx, qx + 2, qy + 4, 2, 1, INK);
+          rect(ctx, qx + 4, qy + 2, 1, 1, INK);
+          rect(ctx, qx + 5, qy + 1, 1, 1, INK);
         }
       }
       var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
@@ -3972,8 +3999,7 @@
       drawText(ctx, H2.type, LW / 2, mid + 50, C.gold, 1, "center");
       drawText(ctx, H2.abDesc[0], LW / 2, mid + 62, C.cream, 1, "center");
       drawText(ctx, H2.abDesc[1], LW / 2, mid + 72, C.cream, 1, "center");
-      var cl = H2.charge === "time" ? "\u0417\u0410\u0420\u042F\u0414  " + Math.round(H2.need / 50) + " \u0421\u0415\u041A" : H2.charge === "coins" ? "\u0417\u0410\u0420\u042F\u0414  \u25CF " + H2.need : H2.charge === "height" ? "\u0417\u0410\u0420\u042F\u0414  \u2191 " + H2.need + " \u041C" : "\u0417\u0410\u0420\u042F\u0414  " + H2.need + " \u041C\u041E\u0411\u0410";
-      drawText(ctx, cl, LW / 2, mid + 84, "#9a8ab8", 1, "center");
+      drawChargeLine(LW / 2, mid + 84, H2, "#9a8ab8");
       var byb = y0 + ch - 28;
       if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "\u0412\u042B\u0411\u0420\u0410\u041D", C.gold, 1, C.gold);
       else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "\u0412\u042B\u0411\u0420\u0410\u0422\u042C", INK);
@@ -4135,16 +4161,17 @@
       });
       for (i = 0; i < tags.length; i++) {
         var tg = tags[i];
-        tg.w = textWidth(tg.p.alive ? tg.p.name : "\u0412\u042B\u0411\u042B\u041B", 1) + 3;
+        var isMe = tg.p.id === 0;
+        var label = !tg.p.alive ? "\u0412\u042B\u0411\u042B\u041B" : isMe ? "\u25BC" : (tg.p.name || "\u0411\u041E\u0422").slice(0, 3);
+        tg.w = textWidth(label, 1) + 4;
         for (var j = 0; j < i; j++) {
           var o = tags[j];
           if (Math.abs(o.x - tg.x) < (o.w + tg.w) / 2 + 1 && Math.abs(o.y - tg.y) < 10) tg.y = o.y - 10;
         }
         var lx = clamp(tg.x, tg.w / 2 + 1, LW - 12 - tg.w / 2);
-        ctx.globalAlpha = 0.72;
-        rect(ctx, Math.round(lx - tg.w / 2), tg.y, tg.w, 9, tg.p.alive ? tg.p.id === 0 ? "#3a2a10" : C.navy : "#4a1020");
-        ctx.globalAlpha = 0.92;
-        drawText(ctx, tg.p.alive ? tg.p.name : "\u0412\u042B\u0411\u042B\u041B", lx, tg.y + 1, tg.p.alive ? tg.p.id === 0 ? C.gold : C.cream : C.red, 1, "center");
+        ctx.globalAlpha = isMe ? 0.85 : 0.5;
+        if (!isMe) rect(ctx, Math.round(lx - tg.w / 2), tg.y, tg.w, 9, tg.p.alive ? C.navy : "#4a1020");
+        drawText(ctx, label, lx, tg.y + (isMe ? 2 : 1), tg.p.alive ? isMe ? C.gold : C.cream : C.red, 1, "center");
         ctx.globalAlpha = 1;
       }
       ctx.restore();
@@ -4331,10 +4358,24 @@
       }
     }
     function icoClock(x, y, col) {
-      rect(ctx, x + 1, y, 5, 7, col);
-      rect(ctx, x + 2, y + 1, 3, 5, "#0c0818");
+      rect(ctx, x + 1, y, 5, 1, col);
+      rect(ctx, x, y + 1, 7, 5, col);
+      rect(ctx, x + 1, y + 6, 5, 1, col);
+      rect(ctx, x + 1, y + 1, 5, 5, "#0c0818");
       rect(ctx, x + 3, y + 2, 1, 3, col);
       rect(ctx, x + 3, y + 4, 2, 1, col);
+    }
+    function drawChargeLine(cx, y, H, col) {
+      var ic = H.charge, chg = ic === "time" ? Math.round(H.need / 50) + " \u0421\u0415\u041A" : ic === "coins" ? String(H.need) : ic === "height" ? H.need + " \u041C" : H.need + " \u041C\u041E\u0411\u0410";
+      var pre = "\u0417\u0410\u0420\u042F\u0414: ", iw = 8, gap = 2, tw = textWidth(pre, 1) + iw + gap + textWidth(chg, 1);
+      var x0 = Math.round(cx - tw / 2);
+      drawText(ctx, pre, x0, y, col, 1, "left");
+      var ix = x0 + textWidth(pre, 1);
+      if (ic === "time") icoClock(ix, y, col);
+      else if (ic === "coins") drawCoin(ctx, ix, y + 1, ui);
+      else if (ic === "height") drawText(ctx, "\u2191", ix, y, C.mint, 1, "left");
+      else icoSkull(ix, y, col);
+      drawText(ctx, chg, ix + iw + gap, y, col, 1, "left");
     }
     function icoSkull(x, y, col) {
       rect(ctx, x + 1, y, 5, 4, col);
@@ -4357,20 +4398,16 @@
       drawAbIcon(H.ab, cx - 6, cy - 6);
       ctx.globalAlpha = 1;
       var lab = me.wall ? "\u041F\u0420\u042B\u0416\u041E\u041A" : H.abName;
-      var chg = "", ic = H.charge;
-      if (ic === "time") chg = Math.round(f * 100) + "%";
-      else if (ic === "coins") chg = Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-      else if (ic === "height") chg = Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-      else chg = Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-      var tx = b.x + 28;
-      drawText(ctx, lab + ":", tx, b.y + 4, ready ? C.gold : C.cream, 1, "left");
-      var ix = tx + textWidth(lab + ": ", 1);
-      if (ic === "time") icoClock(ix, b.y + 13, C.cream);
-      else if (ic === "coins") drawCoin(ctx, ix, b.y + 14, ui);
-      else if (ic === "height") drawText(ctx, "\u2191", ix, b.y + 14, C.mint, 1, "left");
-      else icoSkull(ix, b.y + 13, C.cream);
-      var gap = ic === "height" ? 8 : 9;
-      drawText(ctx, chg, ix + gap, b.y + 14, ready ? C.gold : C.cream, 1, "left");
+      var ic = H.charge, chg = ic === "time" ? Math.round(f * 100) + "%" : Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
+      var tcol = ready ? C.gold : C.cream, ty = b.y + 9;
+      drawText(ctx, lab, b.x + 28, ty, tcol, 1, "left");
+      var rw = textWidth(chg, 1), rx = b.x + b.w - 6;
+      var ix = rx - rw - 9;
+      if (ic === "time") icoClock(ix, ty, tcol);
+      else if (ic === "coins") drawCoin(ctx, ix, ty + 1, ui);
+      else if (ic === "height") drawText(ctx, "\u2191", ix, ty, C.mint, 1, "left");
+      else icoSkull(ix, ty, tcol);
+      drawText(ctx, chg, rx, ty, tcol, 1, "right");
     }
     function whyText(p) {
       var m = metersOf(p), w = p.why || "";
@@ -4419,11 +4456,18 @@
       var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
       if (M2.goal && mi2 + 1 < MAPS.length) {
         var nxt = MAPS[mi2 + 1], b = mapBest(mi2), met = b >= M2.goal;
-        box(ctx, x, y, 152, 28, C.navy, met ? C.mint : C.gold);
-        drawText(ctx, "\u0414\u041E " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
-        drawText(ctx, b + "/" + M2.goal + " \u041C", x + 146, y + 3, C.cream, 1, "right");
-        bar(x + 6, y + 16, 140, 6, b / M2.goal, met ? C.mint : C.gold);
-        y += 32;
+        if (met) {
+          addHit("camp", x, y, 152, 22);
+          box(ctx, x, y, 152, 22, C.navy, C.mint);
+          drawText(ctx, nxt.name + ": \u041C\u041E\u0416\u041D\u041E \u041E\u0422\u041A\u0420\u042B\u0422\u042C", LW / 2, y + 7, C.mint, 1, "center");
+          y += 26;
+        } else {
+          box(ctx, x, y, 152, 28, C.navy, C.gold);
+          drawText(ctx, "\u0414\u041E " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
+          drawText(ctx, b + "/" + M2.goal + " \u041C", x + 146, y + 3, C.cream, 1, "right");
+          bar(x + 6, y + 16, 140, 6, b / M2.goal, C.gold);
+          y += 32;
+        }
       }
       var rec = save.mapBest[world.map] || world.best || 0;
       box(ctx, x, y, 152, 44, C.navy, C.gold);
@@ -4445,13 +4489,19 @@
       }
       var nh = nextHeroNeed();
       if (nh) {
-        box(ctx, x, y, 152, 22, C.navy, C.coral);
-        drawText(ctx, "\u0414\u041E " + HTO[nh.i] + " \u041E\u0421\u0422\u0410\u041B\u041E\u0421\u042C \u25CF " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
-        var runs = nh.left <= 0 ? "\u041C\u041E\u0416\u041D\u041E \u041A\u0423\u041F\u0418\u0422\u042C" : "\u0415\u0429\u0401 " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " \u0417\u0410\u0411\u0415\u0413\u0410";
-        drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
+        if (nh.left === 0) {
+          addHit("shop", x, y, 152, 22);
+          box(ctx, x, y, 152, 22, C.navy, C.mint);
+          drawText(ctx, "\u0425\u0412\u0410\u0422\u0410\u0415\u0422 \u041D\u0410 " + HTO[nh.i] + "!", LW / 2, y + 7, C.mint, 1, "center");
+        } else {
+          box(ctx, x, y, 152, 22, C.navy, C.coral);
+          drawText(ctx, "\u0414\u041E " + HTO[nh.i] + " \u041E\u0421\u0422\u0410\u041B\u041E\u0421\u042C \u25CF " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
+          var runs = "\u0415\u0429\u0401 " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " \u0417\u0410\u0411\u0415\u0413\u0410";
+          drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
+        }
       }
       var lab = squad ? "\u0420\u0415\u0412\u0410\u041D\u0428 \u25B6" : "\u0415\u0429\u0401 \u0420\u0410\u0417 \u25B6";
-      btn("rematch", x, LH - 64, 152, 28, squad ? C.coral : C.mint, lab, squad ? C.cream : INK, 2);
+      btn("rematch", x, LH - 64, 152, 28, C.mint, lab, INK, 2);
       btn("menu", x, LH - 32, 72, 22, C.navy, "\u041C\u0415\u041D\u042E");
       btn("shop", x + 80, LH - 32, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
     }

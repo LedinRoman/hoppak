@@ -1,6 +1,6 @@
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const fs = require('fs');
-const OUT = '/workspace/jumper/game/screens/v051/';
+const OUT = '/workspace/jumper/game/screens/v052/';
 fs.mkdirSync(OUT, { recursive: true });
 const SIZES = [
   [360, 640, '360x640'],
@@ -56,10 +56,16 @@ const SIZES = [
   await H(() => window.__hoppak.tap('camp:2')); await shot('03_campaign_locked_card');
   await H(() => window.__hoppak.tap('back')); // dismiss? back hits overlay
   await H(() => { window.__hoppak.tap('back'); window.__hoppak.tap('camp'); });
+  // Row buy: two taps on КУПИТЬ, no modal, toast under the header
+  await H(() => window.__hoppak.tap('camp:open:1'));
+  await shot('03_campaign_row_confirm');
+  await H(() => window.__hoppak.tap('camp:open:1'));
+  await shot('04_campaign_toast');
+  await H(() => { const s = window.__hoppak.getSave(); s.owned['map:jungle'] = 0; s.coins = 500; s.mapBest.city = 620; });
   await H(() => window.__hoppak.tap('camp:1')); await shot('03_campaign_can_open');
-  await H(() => window.__hoppak.tap('camp:open')); // first tap = confirm
+  await H(() => window.__hoppak.tap('camp:open'));
   await shot('03_campaign_confirm');
-  await H(() => window.__hoppak.tap('camp:open')); // buy
+  await H(() => window.__hoppak.tap('camp:open'));
   await shot('04_campaign_opened');
   await H(() => window.__hoppak.tap('camp:1')); await shot('04_campaign_card');
   await H(() => { window.__hoppak.tap('back'); window.__hoppak.tap('shop'); });
@@ -108,6 +114,22 @@ const SIZES = [
   await shot('09_results');
   await H(() => { const g = window.__hoppak; g.setHero(0); g.start('solo', 99, 'city'); g.simTicks(40); g.warp(355); const w = g.getWorld(); w.players[0].why = 'fall'; w.bonusCoins = 10; g.forceResults(); });
   await shot('09_results_solo');
+  await H(() => {
+    const g = window.__hoppak;
+    const s = g.getSave();
+    s.coins = 150; s.owned = { 'hero:pilot': 1 }; s.mapBest = { city: 200 }; s.best = 200; s.bg = 'city';
+    g.setHero(0); g.start('solo', 77, 'city'); g.simTicks(20); g.warp(120);
+    const w = g.getWorld(); w.players[0].why = 'fall'; w.bonusCoins = 8; g.forceResults();
+  });
+  await shot('09_results_afford');
+  await H(() => {
+    const g = window.__hoppak;
+    const s = g.getSave();
+    s.coins = 80; s.owned = { 'hero:pilot': 1 }; s.mapBest = { city: 500 }; s.best = 500; s.bg = 'city';
+    g.setHero(0); g.start('solo', 88, 'city'); g.simTicks(20); g.warp(520);
+    const w = g.getWorld(); w.players[0].why = 'fall'; w.bonusCoins = 4; g.forceResults();
+  });
+  await shot('09_results_mapready');
 
   // four viewports of key screens
   const sizes = {};
