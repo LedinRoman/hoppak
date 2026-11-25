@@ -3512,6 +3512,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var x = Math.round(me.x + PW / 2) - 2, y = Math.round(sy) - 9;
     rect(ctx, x + 1, y, 1, 1, C.gold); rect(ctx, x, y + 1, 3, 1, C.gold); rect(ctx, x + 1, y + 2, 1, 1, C.gold); rect(ctx, x + 1, y + 1, 1, 1, "#fff2a8");
   }
+  function withWrapX(x: number, wdt: number, fn: any) {
+    fn(x);
+    if (x < 12) fn(x + LW);
+    if (x + wdt > LW - 12) fn(x - LW);
+  }
   function drawPlay() {
     hits = [];
     var w = world, cam = w.cameraY, i;
@@ -3520,6 +3525,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.save();
     ctx.translate(shx, 0);
     drawBg(ctx, cam, w.tick, w.map);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-shx, 0, LW, LH);
+    ctx.clip();
     for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
     if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "ЦЕЛЬ " + w.goalM + " М");
     if (w.recM) recLine(-w.recM * PX_PER_M - cam, "РЕКОРД " + w.recM);
@@ -3534,15 +3543,33 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     for (i = 0; i < w.coins.length; i++) {
       var cn = w.coins[i];
-      if (!cn.taken && cn.y - cam > -8 && cn.y - cam < LH + 4) drawCoin(ctx, cn.x, Math.round(cn.y - cam), w.tick + i * 3);
+      if (!cn.taken && cn.y - cam > -8 && cn.y - cam < LH + 4) {
+        withWrapX(cn.x, 6, function (xx: number) { drawCoin(ctx, xx, Math.round(cn.y - cam), w.tick + i * 3); });
+      }
     }
-    for (i = 0; i < w.items.length; i++) drawItem(ctx, w.items[i], cam, w.tick);
-    for (i = 0; i < w.monsters.length; i++) drawMob(ctx, w.monsters[i], cam, w.map, w.freezeMobT > 0);
-    for (i = 0; i < w.bullets.length; i++) drawBullet(ctx, w.bullets[i], cam);
+    for (i = 0; i < w.items.length; i++) {
+      var it = w.items[i];
+      withWrapX(it.x, 14, function (xx: number) {
+        var ox = it.x; it.x = xx; drawItem(ctx, it, cam, w.tick); it.x = ox;
+      });
+    }
+    for (i = 0; i < w.monsters.length; i++) {
+      var mo = w.monsters[i];
+      var mw = (MOBS[mo.kind] && MOBS[mo.kind].w) || 12;
+      withWrapX(mo.x, mw, function (xx: number) {
+        var ox = mo.x; mo.x = xx; drawMob(ctx, mo, cam, w.map, w.freezeMobT > 0); mo.x = ox;
+      });
+    }
+    for (i = 0; i < w.bullets.length; i++) {
+      var bu = w.bullets[i];
+      withWrapX(bu.x - 2, 5, function (xx: number) {
+        var ox = bu.x; bu.x = xx + 2; drawBullet(ctx, bu, cam); bu.x = ox;
+      });
+    }
     for (i = 0; i < w.particles.length; i++) {
       var pt = w.particles[i];
       ctx.globalAlpha = clamp(pt.life / pt.max, 0, 1);
-      rect(ctx, pt.x, pt.y - cam, pt.s, pt.s, pt.col);
+      withWrapX(pt.x, pt.s, function (xx: number) { rect(ctx, xx, pt.y - cam, pt.s, pt.s, pt.col); });
     }
     ctx.globalAlpha = 1;
     var tags: any[] = [];
@@ -3552,12 +3579,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (sy < -22 || sy > LH + 10) continue;
       var blink = (w.tick + p.id * 41) % 170 < 6;
       var pose = p.alive ? poseOf(p) : "fall";
-      drawFxBack(p, sy, cam);
-      drawJumper(ctx, p.x, sy, p.look, p.face, pose, blink, p.alive);
-      if (p.id === 0) drawReadyPip(p, sy);
-      drawFxFront(p, sy);
-      if (p.wallT > 0) {} else if (p.x < 6) drawJumper(ctx, p.x + LW, sy, p.look, p.face, pose, blink, p.alive);
-      if (p.wallT <= 0 && p.x > LW - PW - 6) drawJumper(ctx, p.x - LW, sy, p.look, p.face, pose, blink, p.alive);
+      var drawHeroAt = function (xx: number) {
+        var ox = p.x; p.x = xx;
+        drawFxBack(p, sy, cam);
+        drawJumper(ctx, p.x, sy, p.look, p.face, pose, blink, p.alive);
+        if (p.id === 0) drawReadyPip(p, sy);
+        drawFxFront(p, sy);
+        p.x = ox;
+      };
+      drawHeroAt(p.x);
+      if (p.wallT <= 0 && p.x < 6) drawHeroAt(p.x + LW);
+      if (p.wallT <= 0 && p.x > LW - PW - 6) drawHeroAt(p.x - LW);
       if (w.mode === "squad") tags.push({ p: p, x: p.x + 6, y: Math.round(sy) - 13 });
     }
     tags.sort(function (a: any, b: any) { return b.y - a.y; });
@@ -3576,6 +3608,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       drawText(ctx, label, lx, tg.y + (isMe ? 2 : 1), tg.p.alive ? (isMe ? C.gold : C.cream) : C.red, 1, "center");
       ctx.globalAlpha = 1;
     }
+    ctx.restore();
     ctx.restore();
 
     var me = w.players[0];
