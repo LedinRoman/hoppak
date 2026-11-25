@@ -7,22 +7,28 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "dev": "tsc -p tsconfig.json && node dist/main.js",
-    "client": "bash scripts/build-client.sh"
+    "client": "bash scripts/build-client.sh",
+    "migration:run": "typeorm -d dist/db/data-source.js migration:run",
+    "migration:revert": "typeorm -d dist/db/data-source.js migration:revert",
+    "migration:generate": "typeorm -d dist/db/data-source.js migration:generate"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.0",
     "@nestjs/core": "^11.1.0",
     "@nestjs/platform-express": "^11.1.0",
     "@nestjs/platform-ws": "^11.1.0",
+    "@nestjs/typeorm": "^11.0.3",
     "@nestjs/websockets": "^11.1.0",
+    "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "typeorm": "^0.3.31",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.12",
-    "@types/express": "^5.0.0",
     "typescript": "^5.6.0"
   }
 }

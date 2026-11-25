@@ -17,9 +17,12 @@ RUN npx tsc -p tsconfig.json && npm prune --omit=dev
 FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production PORT=8787
+COPY --from=server /app/package.json ./
 COPY --from=server /app/node_modules ./node_modules
 COPY --from=server /app/dist ./dist
 COPY --from=client /repo/game/index.html /repo/game/hoppak.js ./public/
+# Migrations (needs DATABASE_URL): npm run migration:run
+#   or: node ./node_modules/typeorm/cli.js -d dist/db/data-source.js migration:run
 EXPOSE 8787
 HEALTHCHECK CMD node -e "fetch('http://localhost:8787/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "dist/main.js"]

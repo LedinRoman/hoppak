@@ -36,3 +36,26 @@ server {
 ```
 Needed from Roman: SSH access, a (sub)domain pointed at the server, Docker or Node 22 installed.
 Rooms live in memory: one instance only (for several instances add Redis + sticky sessions).
+
+## Database and migrations (TypeORM)
+
+`DATABASE_URL` is optional. Without it the process starts as today: in-memory rooms and `/api/health` work, the DB module is not loaded.
+
+When Postgres is available, set `DATABASE_URL` (for example `postgres://user:pass@host:5432/hoppak`) in the environment. `synchronize` is off; schema changes go through migrations.
+
+Run migrations against the compiled image, *before* the new server starts, in a one-off container from the same image:
+
+```bash
+docker compose -f server/docker-compose.yml run --rm --no-deps \
+  -e DATABASE_URL="$DATABASE_URL" \
+  hoppak npm run migration:run
+```
+
+Equivalent without npm:
+
+```bash
+node ./node_modules/typeorm/cli.js -d dist/db/data-source.js migration:run
+```
+
+Revert the last migration: `npm run migration:revert`. Generate a new one locally after `npm run build`: `npm run migration:generate -- src/db/migrations/Name`.
+
