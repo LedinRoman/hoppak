@@ -1,0 +1,612 @@
+{
+  "metrics": {
+    "390x650_dpr3": {
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 23.799999999999997,
+      "pScale": 5.635838150289017,
+      "cssScale": 1.8786127167630058,
+      "cssW": 390,
+      "cssH": 650,
+      "cw": 1170,
+      "ch": 1950,
+      "widthShare": 100,
+      "heightShare": 100,
+      "areaShare": 100
+    },
+    "390x844_dpr3": {
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "pScale": 7.3125,
+      "cssScale": 2.4375,
+      "cssW": 390,
+      "cssH": 843.375,
+      "cw": 1170,
+      "ch": 2530,
+      "widthShare": 100,
+      "heightShare": 99.9,
+      "areaShare": 99.9
+    },
+    "360x640_dpr2": {
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "pScale": 3.699421965317919,
+      "cssScale": 1.8497109826589595,
+      "cssW": 360,
+      "cssH": 640,
+      "cw": 720,
+      "ch": 1280,
+      "widthShare": 100,
+      "heightShare": 100,
+      "areaShare": 100
+    }
+  },
+  "t12": [
+    {
+      "dev": "360x640",
+      "hz": 30,
+      "tick": 600,
+      "m": 105,
+      "x": 53.74,
+      "vx": 117.76
+    },
+    {
+      "dev": "1280x800",
+      "hz": 30,
+      "tick": 600,
+      "m": 105,
+      "x": 53.74,
+      "vx": 117.76
+    },
+    {
+      "dev": "360x640",
+      "hz": 60,
+      "tick": 600,
+      "m": 105,
+      "x": 51.04,
+      "vx": 115.86
+    },
+    {
+      "dev": "1280x800",
+      "hz": 60,
+      "tick": 600,
+      "m": 105,
+      "x": 51.04,
+      "vx": 115.86
+    },
+    {
+      "dev": "360x640",
+      "hz": 120,
+      "tick": 600,
+      "m": 105,
+      "x": 51.04,
+      "vx": 115.86
+    },
+    {
+      "dev": "1280x800",
+      "hz": 120,
+      "tick": 600,
+      "m": 105,
+      "x": 51.04,
+      "vx": 115.86
+    },
+    {
+      "dev": "360x640",
+      "hz": 144,
+      "tick": 600,
+      "m": 105,
+      "x": 51.04,
+      "vx": 113.56
+    },
+    {
+      "dev": "1280x800",
+      "hz": 144,
+      "tick": 600,
+      "m": 105,
+      "x": 51.04,
+      "vx": 113.56
+    },
+    {
+      "dev": "360x640",
+      "hz": 240,
+      "tick": 600,
+      "m": 105,
+      "x": 51.04,
+      "vx": 115.86
+    },
+    {
+      "dev": "1280x800",
+      "hz": 240,
+      "tick": 600,
+      "m": 105,
+      "x": 51.04,
+      "vx": 115.86
+    }
+  ],
+  "fallAfter": [
+    {
+      "i": 0,
+      "map": "city",
+      "seed": 1000,
+      "m": 766,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 1,
+      "map": "jungle",
+      "seed": 1017,
+      "m": 749,
+      "why": "mob:parrot",
+      "alive": false,
+      "tick": 3864
+    },
+    {
+      "i": 2,
+      "map": "ice",
+      "seed": 1034,
+      "m": 751,
+      "why": "mob:owl",
+      "alive": false,
+      "tick": 4500
+    },
+    {
+      "i": 3,
+      "map": "lava",
+      "seed": 1051,
+      "m": 157,
+      "why": "mob:magma",
+      "alive": false,
+      "tick": 716
+    },
+    {
+      "i": 4,
+      "map": "aqua",
+      "seed": 1068,
+      "m": 506,
+      "why": "mob:ray",
+      "alive": false,
+      "tick": 2770
+    },
+    {
+      "i": 5,
+      "map": "space",
+      "seed": 1085,
+      "m": 393,
+      "why": "shot",
+      "alive": false,
+      "tick": 1901
+    },
+    {
+      "i": 6,
+      "map": "city",
+      "seed": 1102,
+      "m": 783,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 7,
+      "map": "jungle",
+      "seed": 1119,
+      "m": 913,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 8,
+      "map": "ice",
+      "seed": 1136,
+      "m": 684,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 9,
+      "map": "lava",
+      "seed": 1153,
+      "m": 581,
+      "why": "mob:magma",
+      "alive": false,
+      "tick": 2984
+    },
+    {
+      "i": 10,
+      "map": "aqua",
+      "seed": 1170,
+      "m": 418,
+      "why": "mob:crab",
+      "alive": false,
+      "tick": 2166
+    },
+    {
+      "i": 11,
+      "map": "space",
+      "seed": 1187,
+      "m": 815,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 12,
+      "map": "city",
+      "seed": 1204,
+      "m": 555,
+      "why": "mob:blob",
+      "alive": false,
+      "tick": 2430
+    },
+    {
+      "i": 13,
+      "map": "jungle",
+      "seed": 1221,
+      "m": 737,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 14,
+      "map": "ice",
+      "seed": 1238,
+      "m": 414,
+      "why": "mob:owl",
+      "alive": false,
+      "tick": 2029
+    },
+    {
+      "i": 15,
+      "map": "lava",
+      "seed": 1255,
+      "m": 431,
+      "why": "mob:spitter",
+      "alive": false,
+      "tick": 2339
+    },
+    {
+      "i": 16,
+      "map": "aqua",
+      "seed": 1272,
+      "m": 565,
+      "why": "mob:ray",
+      "alive": false,
+      "tick": 2915
+    },
+    {
+      "i": 17,
+      "map": "space",
+      "seed": 1289,
+      "m": 368,
+      "why": "mob:alien",
+      "alive": false,
+      "tick": 1939
+    },
+    {
+      "i": 18,
+      "map": "city",
+      "seed": 1306,
+      "m": 531,
+      "why": "mob:bat",
+      "alive": false,
+      "tick": 3043
+    },
+    {
+      "i": 19,
+      "map": "jungle",
+      "seed": 1323,
+      "m": 381,
+      "why": "mob:parrot",
+      "alive": false,
+      "tick": 1763
+    },
+    {
+      "i": 20,
+      "map": "ice",
+      "seed": 1340,
+      "m": 744,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 21,
+      "map": "lava",
+      "seed": 1357,
+      "m": 435,
+      "why": "mob:magma",
+      "alive": false,
+      "tick": 2078
+    },
+    {
+      "i": 22,
+      "map": "aqua",
+      "seed": 1374,
+      "m": 786,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 23,
+      "map": "space",
+      "seed": 1391,
+      "m": 462,
+      "why": "shot",
+      "alive": false,
+      "tick": 2397
+    },
+    {
+      "i": 24,
+      "map": "city",
+      "seed": 1408,
+      "m": 725,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 25,
+      "map": "jungle",
+      "seed": 1425,
+      "m": 432,
+      "why": "mob:frog",
+      "alive": false,
+      "tick": 2109
+    },
+    {
+      "i": 26,
+      "map": "ice",
+      "seed": 1442,
+      "m": 407,
+      "why": "mob:owl",
+      "alive": false,
+      "tick": 1603
+    },
+    {
+      "i": 27,
+      "map": "lava",
+      "seed": 1459,
+      "m": 260,
+      "why": "mob:magma",
+      "alive": false,
+      "tick": 1279
+    },
+    {
+      "i": 28,
+      "map": "aqua",
+      "seed": 1476,
+      "m": 611,
+      "why": "mob:crab",
+      "alive": false,
+      "tick": 3072
+    },
+    {
+      "i": 29,
+      "map": "space",
+      "seed": 1493,
+      "m": 533,
+      "why": "mob:ufo",
+      "alive": false,
+      "tick": 2854
+    },
+    {
+      "i": 30,
+      "map": "city",
+      "seed": 1510,
+      "m": 475,
+      "why": "mob:blob",
+      "alive": false,
+      "tick": 2499
+    },
+    {
+      "i": 31,
+      "map": "jungle",
+      "seed": 1527,
+      "m": 875,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 32,
+      "map": "ice",
+      "seed": 1544,
+      "m": 194,
+      "why": "mob:penguin",
+      "alive": false,
+      "tick": 1013
+    },
+    {
+      "i": 33,
+      "map": "lava",
+      "seed": 1561,
+      "m": 448,
+      "why": "mob:spitter",
+      "alive": false,
+      "tick": 2657
+    },
+    {
+      "i": 34,
+      "map": "aqua",
+      "seed": 1578,
+      "m": 801,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 35,
+      "map": "space",
+      "seed": 1595,
+      "m": 788,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 36,
+      "map": "city",
+      "seed": 1612,
+      "m": 220,
+      "why": "mob:blob",
+      "alive": false,
+      "tick": 1038
+    },
+    {
+      "i": 37,
+      "map": "jungle",
+      "seed": 1629,
+      "m": 519,
+      "why": "mob:frog",
+      "alive": false,
+      "tick": 2584
+    },
+    {
+      "i": 38,
+      "map": "ice",
+      "seed": 1646,
+      "m": 677,
+      "why": "mob:owl",
+      "alive": false,
+      "tick": 3448
+    },
+    {
+      "i": 39,
+      "map": "lava",
+      "seed": 1663,
+      "m": 712,
+      "why": "mob:spitter",
+      "alive": false,
+      "tick": 4048
+    },
+    {
+      "i": 40,
+      "map": "aqua",
+      "seed": 1680,
+      "m": 399,
+      "why": "mob:ray",
+      "alive": false,
+      "tick": 1902
+    },
+    {
+      "i": 41,
+      "map": "space",
+      "seed": 1697,
+      "m": 457,
+      "why": "shot",
+      "alive": false,
+      "tick": 2375
+    },
+    {
+      "i": 42,
+      "map": "city",
+      "seed": 1714,
+      "m": 743,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 43,
+      "map": "jungle",
+      "seed": 1731,
+      "m": 421,
+      "why": "mob:parrot",
+      "alive": false,
+      "tick": 2247
+    },
+    {
+      "i": 44,
+      "map": "ice",
+      "seed": 1748,
+      "m": 653,
+      "why": "mob:owl",
+      "alive": false,
+      "tick": 3565
+    },
+    {
+      "i": 45,
+      "map": "lava",
+      "seed": 1765,
+      "m": 511,
+      "why": "shot",
+      "alive": false,
+      "tick": 2502
+    },
+    {
+      "i": 46,
+      "map": "aqua",
+      "seed": 1782,
+      "m": 684,
+      "why": "mob:ray",
+      "alive": false,
+      "tick": 3970
+    },
+    {
+      "i": 47,
+      "map": "space",
+      "seed": 1799,
+      "m": 779,
+      "why": "alive",
+      "alive": true,
+      "tick": 4500
+    },
+    {
+      "i": 48,
+      "map": "city",
+      "seed": 1816,
+      "m": 169,
+      "why": "mob:blob",
+      "alive": false,
+      "tick": 873
+    },
+    {
+      "i": 49,
+      "map": "jungle",
+      "seed": 1833,
+      "m": 671,
+      "why": "mob:parrot",
+      "alive": false,
+      "tick": 2837
+    }
+  ],
+  "tallies": {
+    "alive": 14,
+    "mob-like": 36
+  },
+  "whyMap": {
+    "alive": 14,
+    "mob:parrot": 4,
+    "mob:owl": 5,
+    "mob:magma": 4,
+    "mob:ray": 4,
+    "shot": 4,
+    "mob:crab": 2,
+    "mob:blob": 4,
+    "mob:spitter": 3,
+    "mob:alien": 1,
+    "mob:bat": 1,
+    "mob:frog": 2,
+    "mob:ufo": 1,
+    "mob:penguin": 1
+  },
+  "meanM": 561.78,
+  "cityReach500": "6/9",
+  "vine": {
+    "platY": -7000,
+    "platW": 40,
+    "platX": 79,
+    "topY": -6995,
+    "gap": 5,
+    "hangLen": 38,
+    "x": 98,
+    "y": -6993
+  }
+}

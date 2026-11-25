@@ -1,0 +1,44 @@
+{
+  "390x650_dpr3": {
+    "lw": 160,
+    "lh": 346,
+    "viewPad": 23.799999999999997,
+    "pScale": 5.635838150289017,
+    "cssScale": 1.8786127167630058,
+    "cssW": 390,
+    "cssH": 650,
+    "cw": 1170,
+    "ch": 1950,
+    "widthShare": 100,
+    "heightShare": 100,
+    "areaShare": 100
+  },
+  "390x844_dpr3": {
+    "lw": 160,
+    "lh": 346,
+    "viewPad": 0,
+    "pScale": 7.3125,
+    "cssScale": 2.4375,
+    "cssW": 390,
+    "cssH": 843.375,
+    "cw": 1170,
+    "ch": 2530,
+    "widthShare": 100,
+    "heightShare": 99.9,
+    "areaShare": 99.9
+  },
+  "360x640_dpr2": {
+    "lw": 160,
+    "lh": 346,
+    "viewPad": 17.3125,
+    "pScale": 3.699421965317919,
+    "cssScale": 1.8497109826589595,
+    "cssW": 360,
+    "cssH": 640,
+    "cw": 720,
+    "ch": 1280,
+    "widthShare": 100,
+    "heightShare": 100,
+    "areaShare": 100
+  }
+}

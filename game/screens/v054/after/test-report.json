@@ -1,0 +1,1207 @@
+{
+  "after": {
+    "390x650_dpr3": {
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 23.799999999999997,
+      "pScale": 5.635838150289017,
+      "cssScale": 1.8786127167630058,
+      "dpr": 3,
+      "cssW": 390,
+      "cssH": 650,
+      "cw": 1170,
+      "ch": 1950,
+      "left": 0,
+      "top": 0,
+      "widthShare": 100,
+      "heightShare": 100,
+      "areaShare": 100,
+      "wrapBg": "linear-gradient(rgb(42, 24, 104) 0%, rgb(98, 44, 154) 50%, rgb(230, 110, 154) 100%)"
+    },
+    "390x844_dpr3": {
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "pScale": 7.3125,
+      "cssScale": 2.4375,
+      "dpr": 3,
+      "cssW": 390,
+      "cssH": 843.375,
+      "cw": 1170,
+      "ch": 2530,
+      "left": 0,
+      "top": 0,
+      "widthShare": 100,
+      "heightShare": 99.9,
+      "areaShare": 99.9,
+      "wrapBg": "linear-gradient(rgb(42, 24, 104) 0%, rgb(98, 44, 154) 50%, rgb(230, 110, 154) 100%)"
+    },
+    "360x640_dpr2": {
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "pScale": 3.699421965317919,
+      "cssScale": 1.8497109826589595,
+      "dpr": 2,
+      "cssW": 360,
+      "cssH": 640,
+      "cw": 720,
+      "ch": 1280,
+      "left": 0,
+      "top": 0,
+      "widthShare": 100,
+      "heightShare": 100,
+      "areaShare": 100,
+      "wrapBg": "linear-gradient(rgb(42, 24, 104) 0%, rgb(98, 44, 154) 50%, rgb(230, 110, 154) 100%)"
+    },
+    "360x640_dpr3": {
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "pScale": 5.5491329479768785,
+      "cssScale": 1.8497109826589595,
+      "dpr": 3,
+      "cssW": 360,
+      "cssH": 640,
+      "cw": 1080,
+      "ch": 1920,
+      "left": 0,
+      "top": 0,
+      "widthShare": 100,
+      "heightShare": 100,
+      "areaShare": 100,
+      "wrapBg": "linear-gradient(rgb(42, 24, 104) 0%, rgb(98, 44, 154) 50%, rgb(230, 110, 154) 100%)"
+    },
+    "375x667_dpr2": {
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.263868065967017,
+      "pScale": 3.8554913294797686,
+      "cssScale": 1.9277456647398843,
+      "dpr": 2,
+      "cssW": 375,
+      "cssH": 667,
+      "cw": 750,
+      "ch": 1334,
+      "left": 0,
+      "top": 0,
+      "widthShare": 100,
+      "heightShare": 100,
+      "areaShare": 100,
+      "wrapBg": "linear-gradient(rgb(42, 24, 104) 0%, rgb(98, 44, 154) 50%, rgb(230, 110, 154) 100%)"
+    },
+    "1280x800": {
+      "lw": 160,
+      "lh": 346,
+      "scale": 2,
+      "pScale": 2,
+      "cssScale": 2,
+      "dpr": 1,
+      "isWide": true,
+      "cw": 320,
+      "ch": 692,
+      "viewPad": 0
+    }
+  },
+  "t12": [
+    {
+      "dev": "360x640_dpr2",
+      "hz": 30,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 600,
+      "m": 79,
+      "maxH": 635.3,
+      "meters": 79,
+      "x": 53.74,
+      "vxAvg": 118.08,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "360x640_dpr2",
+      "hz": 30,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 600,
+      "m": 79,
+      "maxH": 635.3,
+      "meters": 79,
+      "x": 53.74,
+      "vxAvg": 118.08,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "360x640_dpr2",
+      "hz": 60,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "360x640_dpr2",
+      "hz": 60,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "360x640_dpr2",
+      "hz": 120,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 116.02,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "360x640_dpr2",
+      "hz": 120,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 116.02,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "360x640_dpr2",
+      "hz": 144,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 113.56,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "360x640_dpr2",
+      "hz": 144,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 113.56,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "360x640_dpr2",
+      "hz": 240,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "360x640_dpr2",
+      "hz": 240,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 17.3125,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 30,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 79,
+      "maxH": 635.3,
+      "meters": 79,
+      "x": 53.74,
+      "vxAvg": 118.08,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 30,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 79,
+      "maxH": 635.3,
+      "meters": 79,
+      "x": 53.74,
+      "vxAvg": 118.08,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 60,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 60,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 120,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 116.02,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 120,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 116.02,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 144,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 113.56,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 144,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 113.56,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 240,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "390x844_dpr3",
+      "hz": 240,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 30,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 79,
+      "maxH": 635.3,
+      "meters": 79,
+      "x": 53.74,
+      "vxAvg": 118.08,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 30,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 79,
+      "maxH": 635.3,
+      "meters": 79,
+      "x": 53.74,
+      "vxAvg": 118.08,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 60,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 60,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 120,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 116.02,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 120,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 116.02,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 144,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 113.56,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 144,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 600,
+      "m": 74,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 51.04,
+      "vxAvg": 113.56,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 240,
+      "mode": "touch",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    },
+    {
+      "dev": "1280x800_dpr1",
+      "hz": 240,
+      "mode": "keyboard",
+      "lw": 160,
+      "lh": 346,
+      "viewPad": 0,
+      "tick": 599,
+      "m": 75,
+      "maxH": 631.2999999999998,
+      "meters": 78,
+      "x": 48.34,
+      "vxAvg": 113.4,
+      "alive": true,
+      "why": ""
+    }
+  ],
+  "touch": [
+    {
+      "name": "390x844_dpr3",
+      "edge": {
+        "L": {
+          "x": 145.44,
+          "vx": -2.7,
+          "m": 27,
+          "tick": 100
+        },
+        "R": {
+          "x": 2.5599999999998317,
+          "vx": 2.7,
+          "m": 27,
+          "tick": 100
+        },
+        "dxL": 145.44
+      },
+      "mid": {
+        "L": {
+          "x": 145.44,
+          "vx": -2.7,
+          "tick": 100
+        },
+        "R": {
+          "x": 2.56,
+          "vx": 2.7,
+          "tick": 100
+        }
+      }
+    },
+    {
+      "name": "390x650_dpr3",
+      "edge": {
+        "L": {
+          "x": 145.44,
+          "vx": -2.7,
+          "m": 27,
+          "tick": 100
+        },
+        "R": {
+          "x": 2.5599999999998317,
+          "vx": 2.7,
+          "m": 27,
+          "tick": 100
+        },
+        "dxL": 145.44
+      },
+      "mid": {
+        "L": {
+          "x": 145.44,
+          "vx": -2.7,
+          "tick": 100
+        },
+        "R": {
+          "x": 2.56,
+          "vx": 2.7,
+          "tick": 100
+        }
+      }
+    },
+    {
+      "name": "360x640_dpr2",
+      "edge": {
+        "L": {
+          "x": 145.44,
+          "vx": -2.7,
+          "m": 27,
+          "tick": 100
+        },
+        "R": {
+          "x": 2.5599999999998317,
+          "vx": 2.7,
+          "m": 27,
+          "tick": 100
+        },
+        "dxL": 145.44
+      },
+      "mid": {
+        "L": {
+          "x": 145.44,
+          "vx": -2.7,
+          "tick": 100
+        },
+        "R": {
+          "x": 2.56,
+          "vx": 2.7,
+          "tick": 100
+        }
+      }
+    },
+    {
+      "name": "430x932_dpr3",
+      "edge": {
+        "L": {
+          "x": 145.44,
+          "vx": -2.7,
+          "m": 27,
+          "tick": 100
+        },
+        "R": {
+          "x": 2.5599999999998317,
+          "vx": 2.7,
+          "m": 27,
+          "tick": 100
+        },
+        "dxL": 145.44
+      },
+      "mid": {
+        "L": {
+          "x": 145.44,
+          "vx": -2.7,
+          "tick": 100
+        },
+        "R": {
+          "x": 2.56,
+          "vx": 2.7,
+          "tick": 100
+        }
+      }
+    }
+  ],
+  "fallBefore": {
+    "tallies": {
+      "mob-like": 34,
+      "mob": 33,
+      "alive": 16
+    },
+    "meanM": 714.4,
+    "cityReach500": "9/9",
+    "runs": [
+      {
+        "i": 0,
+        "map": "city",
+        "seed": 1000,
+        "m": 847,
+        "why": "mob:blob",
+        "alive": false,
+        "tick": 4483
+      },
+      {
+        "i": 1,
+        "map": "jungle",
+        "seed": 1017,
+        "m": 668,
+        "why": "mob:parrot",
+        "alive": false,
+        "tick": 2619
+      },
+      {
+        "i": 2,
+        "map": "ice",
+        "seed": 1034,
+        "m": 921,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 3,
+        "map": "lava",
+        "seed": 1051,
+        "m": 950,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 4,
+        "map": "aqua",
+        "seed": 1068,
+        "m": 173,
+        "why": "mob:crab",
+        "alive": false,
+        "tick": 1018
+      },
+      {
+        "i": 5,
+        "map": "space",
+        "seed": 1085,
+        "m": 445,
+        "why": "mob:alien",
+        "alive": false,
+        "tick": 2063
+      },
+      {
+        "i": 6,
+        "map": "city",
+        "seed": 1102,
+        "m": 784,
+        "why": "mob:bat",
+        "alive": false,
+        "tick": 4170
+      },
+      {
+        "i": 7,
+        "map": "jungle",
+        "seed": 1119,
+        "m": 926,
+        "why": "mob:parrot",
+        "alive": false,
+        "tick": 4447
+      },
+      {
+        "i": 8,
+        "map": "ice",
+        "seed": 1136,
+        "m": 406,
+        "why": "mob:owl",
+        "alive": false,
+        "tick": 2046
+      },
+      {
+        "i": 9,
+        "map": "lava",
+        "seed": 1153,
+        "m": 799,
+        "why": "mob:spitter",
+        "alive": false,
+        "tick": 3561
+      },
+      {
+        "i": 10,
+        "map": "aqua",
+        "seed": 1170,
+        "m": 470,
+        "why": "mob:ray",
+        "alive": false,
+        "tick": 2240
+      },
+      {
+        "i": 11,
+        "map": "space",
+        "seed": 1187,
+        "m": 424,
+        "why": "mob:alien",
+        "alive": false,
+        "tick": 1963
+      },
+      {
+        "i": 12,
+        "map": "city",
+        "seed": 1204,
+        "m": 909,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 13,
+        "map": "jungle",
+        "seed": 1221,
+        "m": 566,
+        "why": "mob:frog",
+        "alive": false,
+        "tick": 2588
+      },
+      {
+        "i": 14,
+        "map": "ice",
+        "seed": 1238,
+        "m": 920,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 15,
+        "map": "lava",
+        "seed": 1255,
+        "m": 254,
+        "why": "mob:magma",
+        "alive": false,
+        "tick": 1325
+      },
+      {
+        "i": 16,
+        "map": "aqua",
+        "seed": 1272,
+        "m": 432,
+        "why": "mob:crab",
+        "alive": false,
+        "tick": 2106
+      },
+      {
+        "i": 17,
+        "map": "space",
+        "seed": 1289,
+        "m": 608,
+        "why": "mob:alien",
+        "alive": false,
+        "tick": 2659
+      },
+      {
+        "i": 18,
+        "map": "city",
+        "seed": 1306,
+        "m": 886,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 19,
+        "map": "jungle",
+        "seed": 1323,
+        "m": 957,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 20,
+        "map": "ice",
+        "seed": 1340,
+        "m": 936,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 21,
+        "map": "lava",
+        "seed": 1357,
+        "m": 570,
+        "why": "mob:spitter",
+        "alive": false,
+        "tick": 2693
+      },
+      {
+        "i": 22,
+        "map": "aqua",
+        "seed": 1374,
+        "m": 926,
+        "why": "mob:crab",
+        "alive": false,
+        "tick": 4500
+      },
+      {
+        "i": 23,
+        "map": "space",
+        "seed": 1391,
+        "m": 773,
+        "why": "mob:alien",
+        "alive": false,
+        "tick": 3515
+      },
+      {
+        "i": 24,
+        "map": "city",
+        "seed": 1408,
+        "m": 730,
+        "why": "mob:bat",
+        "alive": false,
+        "tick": 3562
+      },
+      {
+        "i": 25,
+        "map": "jungle",
+        "seed": 1425,
+        "m": 351,
+        "why": "mob:frog",
+        "alive": false,
+        "tick": 1616
+      },
+      {
+        "i": 26,
+        "map": "ice",
+        "seed": 1442,
+        "m": 922,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 27,
+        "map": "lava",
+        "seed": 1459,
+        "m": 895,
+        "why": "shot",
+        "alive": false,
+        "tick": 4449
+      },
+      {
+        "i": 28,
+        "map": "aqua",
+        "seed": 1476,
+        "m": 929,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 29,
+        "map": "space",
+        "seed": 1493,
+        "m": 254,
+        "why": "mob:alien",
+        "alive": false,
+        "tick": 1223
+      },
+      {
+        "i": 30,
+        "map": "city",
+        "seed": 1510,
+        "m": 624,
+        "why": "mob:bat",
+        "alive": false,
+        "tick": 3017
+      },
+      {
+        "i": 31,
+        "map": "jungle",
+        "seed": 1527,
+        "m": 831,
+        "why": "mob:parrot",
+        "alive": false,
+        "tick": 3856
+      },
+      {
+        "i": 32,
+        "map": "ice",
+        "seed": 1544,
+        "m": 872,
+        "why": "mob:penguin",
+        "alive": false,
+        "tick": 4182
+      },
+      {
+        "i": 33,
+        "map": "lava",
+        "seed": 1561,
+        "m": 175,
+        "why": "mob:magma",
+        "alive": false,
+        "tick": 966
+      },
+      {
+        "i": 34,
+        "map": "aqua",
+        "seed": 1578,
+        "m": 631,
+        "why": "mob:ray",
+        "alive": false,
+        "tick": 2934
+      },
+      {
+        "i": 35,
+        "map": "space",
+        "seed": 1595,
+        "m": 207,
+        "why": "mob:alien",
+        "alive": false,
+        "tick": 1129
+      },
+      {
+        "i": 36,
+        "map": "city",
+        "seed": 1612,
+        "m": 596,
+        "why": "mob:bat",
+        "alive": false,
+        "tick": 2904
+      },
+      {
+        "i": 37,
+        "map": "jungle",
+        "seed": 1629,
+        "m": 492,
+        "why": "mob:frog",
+        "alive": false,
+        "tick": 2186
+      },
+      {
+        "i": 38,
+        "map": "ice",
+        "seed": 1646,
+        "m": 972,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 39,
+        "map": "lava",
+        "seed": 1663,
+        "m": 894,
+        "why": "mob:spitter",
+        "alive": false,
+        "tick": 4453
+      },
+      {
+        "i": 40,
+        "map": "aqua",
+        "seed": 1680,
+        "m": 896,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 41,
+        "map": "space",
+        "seed": 1697,
+        "m": 972,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 42,
+        "map": "city",
+        "seed": 1714,
+        "m": 634,
+        "why": "mob:blob",
+        "alive": false,
+        "tick": 3041
+      },
+      {
+        "i": 43,
+        "map": "jungle",
+        "seed": 1731,
+        "m": 939,
+        "why": "mob:frog",
+        "alive": false,
+        "tick": 4469
+      },
+      {
+        "i": 44,
+        "map": "ice",
+        "seed": 1748,
+        "m": 923,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 45,
+        "map": "lava",
+        "seed": 1765,
+        "m": 1041,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 46,
+        "map": "aqua",
+        "seed": 1782,
+        "m": 899,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      },
+      {
+        "i": 47,
+        "map": "space",
+        "seed": 1799,
+        "m": 953,
+        "why": "mob:comet",
+        "alive": false,
+        "tick": 3915
+      },
+      {
+        "i": 48,
+        "map": "city",
+        "seed": 1816,
+        "m": 532,
+        "why": "mob:bat",
+        "alive": false,
+        "tick": 2659
+      },
+      {
+        "i": 49,
+        "map": "jungle",
+        "seed": 1833,
+        "m": 1005,
+        "why": "alive",
+        "alive": true,
+        "tick": 4500
+      }
+    ]
+  },
+  "vine": {
+    "n": 8,
+    "unsupported": [],
+    "sample": [
+      {
+        "x": 43,
+        "y": -4838,
+        "topY": -4840,
+        "home": true
+      },
+      {
+        "x": 101,
+        "y": -6881,
+        "topY": -6883,
+        "home": true
+      },
+      {
+        "x": 38,
+        "y": -7598,
+        "topY": -7600,
+        "home": true
+      },
+      {
+        "x": 75,
+        "y": -8151,
+        "topY": -8153,
+        "home": true
+      },
+      {
+        "x": 35,
+        "y": -8393,
+        "topY": -8395,
+        "home": true
+      }
+    ]
+  }
+}

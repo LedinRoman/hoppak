@@ -2,6 +2,16 @@
 (() => {
   var LW = 160;
   var LH = 346;
+  var VIEW_PAD = 0;
+  function viewX0() {
+    return -VIEW_PAD;
+  }
+  function viewW() {
+    return LW + VIEW_PAD * 2;
+  }
+  function dimView(ctx, col) {
+    rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col);
+  }
   var PX_PER_M = 8;
   var PW = 12;
   var PH = 16;
@@ -16,8 +26,8 @@
   var AIR_FRIC = 0.91;
   var ICE_FRIC = 0.975;
   var STEP = 1 / 50;
-  var ROW_SEP = 22;
-  var GAP_CAP = Math.floor(JUMP_H - 18);
+  var ROW_SEP = 28;
+  var GAP_CAP = Math.floor(JUMP_H - 6);
   var X_SEP = 10;
   var INK = "#0c0818";
   var C = {
@@ -273,29 +283,29 @@
     { id: "space", name: "\u041A\u041E\u0421\u041C\u041E\u0421", price: 160, goal: 0, special: "grav", mobs: [["alien", 120], ["ufo", 400], ["comet", 800], ["hole", 1300]] }
   ];
   var MOBS = {
-    blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.22, name: "\u0421\u041B\u0418\u0417\u0415\u041D\u042C" },
-    magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, name: "\u041B\u0410\u0412\u041E\u0421\u041B\u0418\u0417\u042C" },
-    penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, name: "\u041F\u0418\u041D\u0413\u0412\u0418\u041D" },
-    crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, name: "\u041A\u0420\u0410\u0411" },
-    alien: { b: "walk", w: 12, h: 9, gap: 0, plat: true, sp: 0.3, name: "\u041F\u0420\u0418\u0428\u0415\u041B\u0415\u0426" },
-    frog: { b: "hop", w: 12, h: 8, gap: 31, plat: true, name: "\u041B\u042F\u0413\u0423\u0428\u041A\u0410" },
-    monkey: { b: "throw", w: 12, h: 11, gap: 0, plat: true, name: "\u041E\u0411\u0415\u0417\u042C\u042F\u041D\u0410" },
-    spitter: { b: "spit", w: 12, h: 10, gap: 0, plat: true, name: "\u041F\u041B\u0415\u0412\u0423\u041D" },
-    bat: { b: "fly", w: 14, h: 10, gap: 34, name: "\u041C\u042B\u0428\u042C" },
-    parrot: { b: "fly", w: 14, h: 10, gap: 38, dive: true, name: "\u041F\u041E\u041F\u0423\u0413\u0410\u0419" },
-    owl: { b: "fly", w: 14, h: 10, gap: 34, name: "\u0421\u041E\u0412\u0410" },
-    firebat: { b: "fly", w: 14, h: 10, gap: 34, name: "\u041E\u0413\u041D\u0415\u041C\u042B\u0428\u042C" },
-    ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, name: "\u0421\u041A\u0410\u0422" },
-    bob: { b: "sway", w: 12, h: 12, gap: 34, name: "\u041C\u0415\u0414\u0423\u0417\u0410" },
-    ember: { b: "sway", w: 12, h: 12, gap: 34, name: "\u041E\u0413\u041D\u0415\u0428\u0410\u0420" },
-    snake: { b: "snake", w: 10, h: 8, gap: 38, name: "\u0417\u041C\u0415\u042F-\u041B\u0418\u0410\u041D\u0410" },
-    puffer: { b: "puff", w: 12, h: 12, gap: 40, name: "\u0420\u042B\u0411\u0410-\u0401\u0416" },
-    hole: { b: "pull", w: 14, h: 14, gap: 44, name: "\u0427\u0401\u0420\u041D\u0410\u042F \u0414\u042B\u0420\u0410" },
-    whirl: { b: "pull", w: 14, h: 14, gap: 44, name: "\u0412\u041E\u0414\u041E\u0412\u041E\u0420\u041E\u0422" },
-    wind: { b: "wind", w: 24, h: 10, gap: 40, name: "\u0412\u042C\u042E\u0413\u0410" },
-    ufo: { b: "shoot", w: 14, h: 8, gap: 34, name: "\u041D\u041B\u041E" },
-    frost: { b: "shoot", w: 12, h: 12, gap: 38, freeze: true, name: "\u041B\u0415\u0414\u042F\u041D\u041E\u0419 \u0414\u0423\u0425" },
-    comet: { b: "comet", w: 12, h: 8, gap: 34, name: "\u041A\u041E\u041C\u0415\u0422\u0410" }
+    blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.22, name: "\u0421\u041B\u0418\u0417\u0415\u041D\u042C", g: "m" },
+    magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, name: "\u041B\u0410\u0412\u041E\u0421\u041B\u0418\u0417\u042C", g: "f" },
+    penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, name: "\u041F\u0418\u041D\u0413\u0412\u0418\u041D", g: "m" },
+    crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, name: "\u041A\u0420\u0410\u0411", g: "m" },
+    alien: { b: "walk", w: 12, h: 9, gap: 0, plat: true, sp: 0.3, name: "\u041F\u0420\u0418\u0428\u0415\u041B\u0415\u0426", g: "m" },
+    frog: { b: "hop", w: 12, h: 8, gap: 31, plat: true, name: "\u041B\u042F\u0413\u0423\u0428\u041A\u0410", g: "f" },
+    monkey: { b: "throw", w: 12, h: 11, gap: 0, plat: true, name: "\u041E\u0411\u0415\u0417\u042C\u042F\u041D\u0410", g: "f" },
+    spitter: { b: "spit", w: 12, h: 10, gap: 0, plat: true, name: "\u041F\u041B\u0415\u0412\u0423\u041D", g: "m" },
+    bat: { b: "fly", w: 14, h: 10, gap: 34, name: "\u041C\u042B\u0428\u042C", g: "f" },
+    parrot: { b: "fly", w: 14, h: 10, gap: 38, dive: true, name: "\u041F\u041E\u041F\u0423\u0413\u0410\u0419", g: "m" },
+    owl: { b: "fly", w: 14, h: 10, gap: 34, name: "\u0421\u041E\u0412\u0410", g: "f" },
+    firebat: { b: "fly", w: 14, h: 10, gap: 34, name: "\u041E\u0413\u041D\u0415\u041C\u042B\u0428\u042C", g: "f" },
+    ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, name: "\u0421\u041A\u0410\u0422", g: "m" },
+    bob: { b: "sway", w: 12, h: 12, gap: 34, name: "\u041C\u0415\u0414\u0423\u0417\u0410", g: "f" },
+    ember: { b: "sway", w: 12, h: 12, gap: 34, name: "\u041E\u0413\u041D\u0415\u0428\u0410\u0420", g: "m" },
+    snake: { b: "snake", w: 10, h: 8, gap: 38, name: "\u0417\u041C\u0415\u042F-\u041B\u0418\u0410\u041D\u0410", g: "f" },
+    puffer: { b: "puff", w: 12, h: 12, gap: 40, name: "\u0420\u042B\u0411\u0410-\u0401\u0416", g: "f" },
+    hole: { b: "pull", w: 14, h: 14, gap: 44, name: "\u0427\u0401\u0420\u041D\u0410\u042F \u0414\u042B\u0420\u0410", g: "f" },
+    whirl: { b: "pull", w: 14, h: 14, gap: 44, name: "\u0412\u041E\u0414\u041E\u0412\u041E\u0420\u041E\u0422", g: "m" },
+    wind: { b: "wind", w: 24, h: 10, gap: 40, name: "\u0412\u042C\u042E\u0413\u0410", g: "f" },
+    ufo: { b: "shoot", w: 14, h: 8, gap: 34, name: "\u041D\u041B\u041E", g: "m" },
+    frost: { b: "shoot", w: 12, h: 12, gap: 38, freeze: true, name: "\u041B\u0415\u0414\u042F\u041D\u041E\u0419 \u0414\u0423\u0425", g: "m" },
+    comet: { b: "comet", w: 12, h: 8, gap: 34, name: "\u041A\u041E\u041C\u0415\u0422\u0410", g: "f" }
   };
   var FONT = {
     "0": [14, 17, 19, 21, 25, 17, 14],
@@ -585,7 +595,7 @@
     return !!(pl && !pl.broken && w.platforms.indexOf(pl) >= 0);
   }
   function hangTop(pl) {
-    return pl.y + 6;
+    return pl.y + 5;
   }
   function spaceBelow(w, pl, x, ww) {
     var best = 1e9;
@@ -799,7 +809,7 @@
     var spec = mapInfo(w.map).special;
     var row = [];
     var rowId = w.rowN++;
-    var moveP = m > 80 ? lerp(0.08, 0.34, d) : 0;
+    var moveP = m > 40 ? lerp(0.14, 0.45, d) : 0;
     var isMove = w.lastKind !== "move" && r() < moveP;
     if (isMove) {
       var mw = Math.round(lerp(40, 26, d));
@@ -809,13 +819,14 @@
       row.push(mp);
     } else {
       var n;
-      if (m < 600) n = r() < 0.4 ? 3 : 2;
+      if (m < 250) n = r() < 0.18 ? 3 : r() < 0.22 ? 1 : 2;
+      else if (m < 600) n = r() < 0.08 ? 3 : r() < 0.45 ? 1 : 2;
       else {
-        n = r() < lerp(0.95, 0.15, (d - 0.28) / 0.72) ? 2 : 1;
-        if (n === 2 && m < 1200 && r() < 0.15) n = 3;
+        n = r() < lerp(0.62, 0.12, (d - 0.28) / 0.72) ? 2 : 1;
+        if (n === 2 && m < 900 && r() < 0.06) n = 3;
       }
       var wmin = Math.round(lerp(42, 24, d)), wmax = Math.round(lerp(54, 32, d));
-      var breakP = m > 200 ? lerp(0.04, 0.5, d) : 0;
+      var breakP = m > 80 ? lerp(0.1, 0.58, d) : 0;
       for (var i = 0; i < n; i++) {
         var pw = randInt(r, wmin, wmax);
         var x = findX(r, pw, row);
@@ -864,8 +875,9 @@
     }
     w.lastKind = isMove ? "move" : "static";
     for (var j = 0; j < row.length; j++) w.platforms.push(row[j]);
-    var minG = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.28, 0.56, d)));
-    var maxG = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.44, 0.77, d)));
+    var gT = clamp(m / 700, 0, 1);
+    var minG = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
+    var maxG = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
     if (minG > maxG) minG = maxG;
     var gap = randInt(r, minG, maxG);
     var pMon = m < 120 ? 0 : m < 400 ? 0.065 : lerp(0.08, 0.28, d);
@@ -1646,13 +1658,20 @@
       if (p.freezeT > 0) {
         dir = 0;
         p.vx *= 0.9;
-      } else if (inp.ax) {
-        p.vx = lerp(p.vx, MAX_VX * clamp(inp.ax, -1, 1), 0.22);
-        dir = inp.ax < -0.12 ? -1 : inp.ax > 0.12 ? 1 : 0;
-      } else if (dir) {
-        var acc = dir * p.vx < 0 ? TURN_ACCEL : ACCEL;
+      } else if (inp.ax || dir) {
         var cap = p.iceT > 0 ? MAX_VX * 1.15 : MAX_VX;
-        p.vx = clamp(p.vx + dir * acc, -cap, cap);
+        var target;
+        if (inp.ax) {
+          target = cap * clamp(inp.ax, -1, 1);
+          dir = inp.ax < -0.12 ? -1 : inp.ax > 0.12 ? 1 : 0;
+        } else {
+          target = dir * cap;
+        }
+        var want = target - p.vx;
+        var acc = target * p.vx < 0 ? TURN_ACCEL : ACCEL;
+        if (Math.abs(want) <= acc) p.vx = target;
+        else p.vx += (want < 0 ? -1 : 1) * acc;
+        p.vx = clamp(p.vx, -cap, cap);
       } else {
         p.vx *= p.iceT > 0 ? ICE_FRIC : AIR_FRIC;
         if (Math.abs(p.vx) < 0.04) p.vx = 0;
@@ -1815,7 +1834,7 @@
     if (minCam < 1e9) generateUntil(w, minCam - 80);
     for (i = 0; i < w.players.length; i++) {
       var ep = w.players[i];
-      if (ep.alive && !ep.remote && w.tick > 150 && ep.y > ep.camY + LH + 6) {
+      if (ep.alive && !ep.remote && w.tick > 80 && ep.y > ep.camY + LH) {
         if (ep.domeT > 0 && ep.domeSave) {
           ep.domeSave = false;
           ep.y = ep.camY + LH - PH - 12;
@@ -1913,8 +1932,8 @@
     rect(ctx, x + 2 * s, y + 7 * s, 22 * s, s, sh);
   }
   function drawBuildings(ctx, baseY, seed, far, tick) {
-    var x = -4, i = 0;
-    while (x < LW) {
+    var x = viewX0() - 4, i = 0;
+    while (x < LW + VIEW_PAD) {
       var bw = (far ? 10 : 14) + Math.floor(hash(seed + i) * (far ? 8 : 10));
       var bh = (far ? 22 : 30) + Math.floor(hash(seed + i * 3.1) * (far ? 30 : 34));
       var top = Math.round(baseY - bh);
@@ -1941,8 +1960,8 @@
     }
   }
   function drawPeaks(ctx, baseY, seed, col, capCol, far) {
-    var x = -8, i = 0;
-    while (x < LW + 8) {
+    var x = viewX0() - 8, i = 0;
+    while (x < LW + VIEW_PAD + 8) {
       var w = (far ? 22 : 28) + Math.floor(hash(seed + i) * 14);
       var h = (far ? 26 : 36) + Math.floor(hash(seed + i * 2.3) * 26);
       for (var r = 0; r < h; r += 2) {
@@ -1964,17 +1983,17 @@
       var t = i / (bands - 1);
       var col = t < 0.5 ? mixHex(sky[0], sky[1], t / 0.5) : mixHex(sky[1], sky[2], (t - 0.5) / 0.5);
       var y0 = Math.round(LH * i / bands), y1 = Math.round(LH * (i + 1) / bands);
-      rect(ctx, 0, y0, LW, y1 - y0, col);
+      rect(ctx, viewX0(), y0, viewW(), y1 - y0, col);
       if (i > 0) {
         ctx.fillStyle = col;
-        for (var dx = i % 2 * 2; dx < LW; dx += 4) ctx.fillRect(dx, y0 - 1, 2, 1);
+        for (var dx = viewX0() + i % 2 * 2; dx < LW + VIEW_PAD; dx += 4) ctx.fillRect(dx, y0 - 1, 2, 1);
       }
     }
     if (map === "city" || map === "space" || map === "ice" || map === "jungle" && m > 500) {
       var starA = map === "space" ? 0.9 : clamp(0.55 + m / 2200, 0.55, 1);
       var nStars = map === "space" ? 68 : Math.round(lerp(28, 72, clamp(m / 2500, 0, 1)));
       for (i = 0; i < nStars; i++) {
-        var sx = Math.floor(hash(i) * LW);
+        var sx = Math.floor(hash(i) * viewW()) + viewX0();
         var sy = mod(Math.floor(hash(i + 50) * (LH + 40)) + alt * (0.04 + hash(i + 90) * 0.05), LH + 40) - 20;
         if (map !== "space" && m < 300 && sy > LH * 0.65) continue;
         var tw = (Math.floor(tick / 14) + i) % 9 === 0;
@@ -2020,7 +2039,7 @@
       var acs = map === "ice" ? ["#72ffdc", "#7cd8ff", "#f288ff"] : ["#6af8c0", "#6ed4ff", "#f080e8"];
       for (k = 0; k < 3; k++) {
         ctx.globalAlpha = 0.42 * aur;
-        for (var ax = 0; ax < LW; ax += 2) {
+        for (var ax = viewX0(); ax < LW + VIEW_PAD; ax += 2) {
           var ay = 46 + k * 16 + Math.sin(ax * 0.045 + tick * 0.012 + k * 1.7) * 9 + Math.sin(ax * 0.11 + k) * 3;
           rect(ctx, ax, ay, 2, 7 - k, acs[k]);
         }
@@ -2134,36 +2153,36 @@
     var roofY = Math.round(-camY);
     if (roofY < LH && roofY > -40) {
       if (map === "jungle") {
-        rect(ctx, 0, roofY + 3, LW, LH, "#2a4e36");
-        rect(ctx, 0, roofY + 3, LW, 2, "#62d458");
+        rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#2a4e36");
+        rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#62d458");
         for (var tx = 6; tx < LW; tx += 22) {
           rect(ctx, tx, roofY + 8, 12, 8, "#3a6848");
           rect(ctx, tx + 2, roofY + 10, 4, 2, "#80e870");
         }
       } else if (map === "ice") {
-        rect(ctx, 0, roofY + 3, LW, LH, "#6eb8e8");
-        rect(ctx, 0, roofY + 3, LW, 3, "#e8fbff");
+        rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#6eb8e8");
+        rect(ctx, viewX0(), roofY + 3, viewW(), 3, "#e8fbff");
         for (tx = 8; tx < LW; tx += 18) rect(ctx, tx, roofY + 10, 8, 4, "#9cd8fa");
       } else if (map === "lava") {
-        rect(ctx, 0, roofY + 3, LW, LH, "#3a202c");
-        rect(ctx, 0, roofY + 3, LW, 2, "#ff7c30");
+        rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#3a202c");
+        rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#ff7c30");
         for (tx = 10; tx < LW; tx += 26) rect(ctx, tx, roofY + 11, 10, 2, "#ff5820");
       } else if (map === "aqua") {
-        rect(ctx, 0, roofY + 3, LW, LH, "#d8b46c");
-        rect(ctx, 0, roofY + 3, LW, 2, "#ffe49c");
+        rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#d8b46c");
+        rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#ffe49c");
         for (tx = 10; tx < LW; tx += 28) {
           rect(ctx, tx, roofY - 4, 2, 7, "#ff70a0");
           rect(ctx, tx - 2, roofY - 2, 2, 3, "#ff70a0");
           rect(ctx, tx + 8, roofY - 5, 2, 8, "#48e090");
         }
       } else if (map === "space") {
-        rect(ctx, 0, roofY + 3, LW, LH, "#343264");
-        rect(ctx, 0, roofY + 3, LW, 2, "#78f0ff");
+        rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#343264");
+        rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#78f0ff");
         for (tx = 12; tx < LW; tx += 24) rect(ctx, tx, roofY + 10, 8, 3, "#6058a4");
       } else {
-        rect(ctx, 0, roofY + 3, LW, LH, C.brick);
-        for (var ty = roofY + 7; ty < LH; ty += 6) for (tx = 0; tx < LW; tx += 8) rect(ctx, tx + ((ty - roofY) / 6 % 2 ? 4 : 0), ty, 3, 1, C.brickL);
-        rect(ctx, 0, roofY + 3, LW, 2, C.roof);
+        rect(ctx, viewX0(), roofY + 3, viewW(), LH, C.brick);
+        for (var ty = roofY + 7; ty < LH; ty += 6) for (tx = viewX0(); tx < LW + VIEW_PAD; tx += 8) rect(ctx, tx + ((ty - roofY) / 6 % 2 ? 4 : 0), ty, 3, 1, C.brickL);
+        rect(ctx, viewX0(), roofY + 3, viewW(), 2, C.roof);
         rect(ctx, 6, roofY + 12, 18, 10, "#342a52");
         rect(ctx, 8, roofY + 14, 14, 1, "#706498");
         rect(ctx, 8, roofY + 17, 14, 1, "#706498");
@@ -3477,6 +3496,7 @@
     var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
     var hits = [];
     var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, lastBackdropMap = "";
+    var fieldLocked = false, landPause = false;
     var pressId = null;
     var confirmId = null, confirmAt = 0;
     var campCard = -1;
@@ -3498,50 +3518,94 @@
       if (mapId === lastBackdropMap) return;
       lastBackdropMap = mapId || "";
       var cols = skyAt(mapId, 0);
-      wrap.style.background = "radial-gradient(circle at 50% 42%, " + mixHex(cols[1], "#0c0818", 0.55) + " 0%, " + mixHex(cols[0], "#080614", 0.72) + " 62%, #070510 100%)";
+      wrap.style.background = "linear-gradient(" + cols[0] + " 0%, " + cols[1] + " 50%, " + cols[2] + " 100%)";
+    }
+    function viewSize() {
+      var vv = window.visualViewport;
+      if (vv && vv.width > 0 && vv.height > 0) return { w: vv.width, h: vv.height, x: vv.offsetLeft || 0, y: vv.offsetTop || 0 };
+      var r = (wrap || canvas).getBoundingClientRect();
+      return { w: Math.max(1, r.width), h: Math.max(1, r.height), x: 0, y: 0 };
     }
     function resize() {
-      var r = (wrap || canvas).getBoundingClientRect();
-      var cssW = Math.max(1, r.width), cssH = Math.max(1, r.height);
+      var vs = viewSize();
+      var cssW = Math.max(1, vs.w), cssH = Math.max(1, vs.h);
       var dpr = Math.max(1, window.devicePixelRatio || 1);
       isWide = cssW >= 540;
-      var padX = isWide ? 24 : 0;
-      var padY = isWide ? cssH >= 740 ? 16 : 4 : 0;
-      var availW = Math.max(160, cssW - padX * 2);
-      var availH = Math.max(240, cssH - padY * 2);
+      var frameX = isWide ? 24 : 0;
+      var frameY = isWide ? cssH >= 740 ? 16 : 4 : 0;
+      var availW = Math.max(160, cssW - frameX * 2);
+      var availH = Math.max(240, cssH - frameY * 2);
       var lw = netFixedLW() || 160;
       var lh = 346;
-      pScale = Math.max(1, Math.min(Math.floor(availW * dpr / lw), Math.floor(availH * dpr / lh)));
-      if (!isWide && lh * pScale / dpr < availH * 0.85) {
-        pScale = Math.max(1, Math.floor(availW * dpr / lw));
-        lh = Math.max(280, Math.min(346, Math.floor(availH * dpr / pScale)));
+      if (fieldLocked) {
+        lw = LW;
+        lh = LH;
       }
-      cssScale = pScale / dpr;
+      var sx, sy, cssWpx, cssHpx;
+      if (isWide) {
+        pScale = Math.max(1, Math.min(Math.floor(availW * dpr / lw), Math.floor(availH * dpr / lh)));
+        cssScale = pScale / dpr;
+        sx = sy = pScale;
+        canvas.width = lw * pScale;
+        canvas.height = lh * pScale;
+        cssWpx = lw * cssScale;
+        cssHpx = lh * cssScale;
+        canvas.style.position = "";
+        canvas.style.left = "";
+        canvas.style.top = "";
+        canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
+        canvas.style.borderRadius = "4px";
+      } else {
+        cssScale = Math.min(availW / lw, availH / lh);
+        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+        cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+        cssHpx = lh * cssScale;
+        var pxW = Math.max(1, Math.round(cssWpx * dpr));
+        var pxH = Math.max(1, Math.round(cssHpx * dpr));
+        canvas.width = pxW;
+        canvas.height = pxH;
+        var worldW = lw + 2 * VIEW_PAD;
+        pScale = pxW / worldW;
+        sx = pxW / worldW;
+        sy = pxH / lh;
+        canvas.style.position = "absolute";
+        canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
+        canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
+        canvas.style.boxShadow = "none";
+        canvas.style.borderRadius = "0px";
+      }
+      if (isWide) VIEW_PAD = 0;
       netLW = netFixedLW();
       LW = lw;
       LH = lh;
       SCALE = cssScale;
-      canvas.width = LW * pScale;
-      canvas.height = LH * pScale;
-      canvas.style.width = LW * cssScale + "px";
-      canvas.style.height = LH * cssScale + "px";
+      canvas.style.width = cssWpx + "px";
+      canvas.style.height = cssHpx + "px";
       canvas.style.imageRendering = "pixelated";
-      if (isWide) {
-        canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
-        canvas.style.borderRadius = "4px";
-      } else {
-        canvas.style.boxShadow = "none";
-        canvas.style.borderRadius = "0px";
-      }
       var hintEl = document.getElementById("desk-hint");
       if (hintEl) hintEl.style.display = isWide && cssH - LH * cssScale >= 34 ? "block" : "none";
-      ctx.setTransform(pScale, 0, 0, pScale, 0, 0);
+      ctx.setTransform(sx, 0, 0, sy, VIEW_PAD * sx, 0);
       ctx.imageSmoothingEnabled = false;
+      ctx.webkitImageSmoothingEnabled = false;
       syncBackdrop(world ? world.map : save.bg);
+      if (fieldLocked && phase === "play" && !paused && !isWide && cssW > cssH) {
+        paused = true;
+        landPause = true;
+        acc = 0;
+        uiAcc = 0;
+        lastT = -1;
+      }
     }
     function toLogic(cx, cy) {
       var r = canvas.getBoundingClientRect();
-      return { x: (cx - r.left) / r.width * LW, y: (cy - r.top) / r.height * LH };
+      var rw = r.width || 1, rh = r.height || 1;
+      var x = (cx - r.left) / rw * (LW + 2 * VIEW_PAD) - VIEW_PAD;
+      var y = (cy - r.top) / rh * LH;
+      if (phase === "play" && cy >= r.top && cy <= r.bottom && (cx < r.left || cx > r.right)) {
+        x = cx < r.left ? 0 : LW;
+        y = Math.max(0, Math.min(LH, y));
+      }
+      return { x, y };
     }
     function colX() {
       return Math.round((LW - 152) / 2);
@@ -3651,7 +3715,11 @@
       world.goalM = MAPS[mi].goal || 0;
       phase = "play";
       paused = false;
+      landPause = false;
+      fieldLocked = true;
       acc = 0;
+      uiAcc = 0;
+      lastT = -1;
       held.left = held.right = false;
       pointers = {};
       abTap = false;
@@ -3684,6 +3752,9 @@
       showSet = false;
       campCard = -1;
       paused = false;
+      landPause = false;
+      fieldLocked = false;
+      resize();
     }
     function shopTap(key) {
       if (key.indexOf("char:") !== 0) return;
@@ -3781,8 +3852,18 @@
         startSquad();
         return;
       }
+      if (id === "pause") {
+        if (phase === "play" && !paused) {
+          paused = true;
+          acc = 0;
+          uiAcc = 0;
+          lastT = -1;
+        }
+        return;
+      }
       if (id === "resume") {
         paused = false;
+        landPause = false;
         acc = 0;
         uiAcc = 0;
         lastT = -1;
@@ -3898,12 +3979,16 @@
         canvas.focus();
       } catch (_e) {
       }
+      try {
+        if (e.pointerId != null) (e.currentTarget || ptrRoot).setPointerCapture(e.pointerId);
+      } catch (_e) {
+      }
       var loc = toLogic(e.clientX, e.clientY);
       var id = hitAt(loc.x, loc.y);
       pressId = id;
       if (phase !== "play") return;
       if (paused) return;
-      if (id === "ab") return;
+      if (id === "ab" || id === "pause") return;
       pointers[e.pointerId != null ? e.pointerId : 1] = { x: loc.x, y: loc.y, sx: loc.x, sy: loc.y };
       recomputeHold();
     }
@@ -3927,7 +4012,8 @@
       if (phase === "play") {
         if (paused) {
           if (id === "resume" || id === "menu") activate(id);
-        } else if (id === "ab" && pressId === "ab") abTap = true;
+        } else if (id === "pause" && pressId === "pause") activate("pause");
+        else if (id === "ab" && pressId === "ab") abTap = true;
         delete pointers[e.pointerId != null ? e.pointerId : 1];
         recomputeHold();
       } else if (id && id === pressId) activate(id);
@@ -4039,13 +4125,13 @@
     }
     function drawMenu() {
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
-      rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.14)");
+      dimView(ctx, "rgba(18,14,44,0.14)");
       var x = colX();
       box(ctx, x + 6, 10, 122, 28, C.navy, C.cream);
       drawText(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", x + 67, 15, C.coral, 3, "center");
       drawText(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", x + 66, 14, C.cream, 3, "center");
       gear(x + 134, 8);
-      drawText(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 42, C.cream, 1, "center");
+      drawText(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 39, C.cream, 1, "center");
       plaque();
       var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
       var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
@@ -4112,7 +4198,7 @@
     }
     function drawShop() {
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
-      rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.32)");
+      dimView(ctx, "rgba(18,14,44,0.32)");
       var x = colX();
       header("\u041C\u0410\u0413\u0410\u0417\u0418\u041D", 2);
       coinsLabel(LW - 6, 12, save.coins, "right");
@@ -4166,7 +4252,7 @@
     }
     function drawCamp() {
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
-      rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.34)");
+      dimView(ctx, "rgba(18,14,44,0.34)");
       var x = colX();
       header("\u041A\u0410\u041C\u041F\u0410\u041D\u0418\u042F", 2);
       coinsLabel(LW - 6, 12, save.coins, "right");
@@ -4207,7 +4293,7 @@
     function drawCampCard() {
       var i = campCard, M = MAPS[i], open = mapOpen(i), can = !open && mapGoalMet(i);
       var x = colX(), y = Math.round(LH / 2 - 70);
-      rect(ctx, 0, 0, LW, LH, "rgba(8,6,20,0.55)");
+      dimView(ctx, "rgba(8,6,20,0.55)");
       box(ctx, x, y, 152, 140, C.navy, open ? C.gold : can ? C.mint : C.cream);
       drawBgSwatch(x + 8, y + 8, 36, 28, M.id);
       drawText(ctx, M.name, x + 50, y + 10, C.cream, 2, "left");
@@ -4228,7 +4314,7 @@
     }
     function drawLobby() {
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
-      rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.32)");
+      dimView(ctx, "rgba(18,14,44,0.32)");
       var x = colX();
       header("\u0417\u0410\u0411\u0415\u0413 \u0421 \u0411\u041E\u0422\u0410\u041C\u0418", 1);
       var ps = lobbyNames();
@@ -4335,13 +4421,21 @@
       drawText(ctx, label, LW / 2, 9, C.cream, 1, "center");
       box(ctx, 4, 6, textWidth(String(w.runCoins), 1) + 15, 13, C.navy, C.gold);
       coinsLabel(7, 9, w.runCoins);
+      var wantPause = wantTouchPause();
       if (w.mode === "squad") {
         var place = 1;
         for (i = 0; i < w.players.length; i++) if (w.players[i] !== me && metersOf(w.players[i]) > metersOf(me)) place++;
         var pl = place + "/" + w.players.length;
         var pw2 = textWidth(pl, 1) + 8;
-        box(ctx, LW - pw2 - 4, 6, pw2, 13, C.navy, C.cream);
-        drawText(ctx, pl, LW - 8, 9, C.cream, 1, "right");
+        var pr = wantPause ? LW - 22 : LW - 4;
+        box(ctx, pr - pw2, 6, pw2, 13, C.navy, C.cream);
+        drawText(ctx, pl, pr - 4, 9, C.cream, 1, "right");
+      }
+      if (wantPause) {
+        addHit("pause", LW - 20, 4, 16, 16);
+        box(ctx, LW - 20, 4, 16, 16, pressId === "pause" ? "#3a4a7a" : C.navy, C.cream);
+        rect(ctx, LW - 15, 8, 2, 8, C.cream);
+        rect(ctx, LW - 11, 8, 2, 8, C.cream);
       }
       drawBonusHud(me);
       drawAbBar(me);
@@ -4360,10 +4454,12 @@
         ctx.globalAlpha = 1;
       }
       if (paused) {
-        rect(ctx, 0, 0, LW, LH, "rgba(8,6,20,0.55)");
-        box(ctx, colX(), LH / 2 - 36, 152, 72, C.navy, C.gold);
-        drawText(ctx, "\u041F\u0410\u0423\u0417\u0410", LW / 2, LH / 2 - 24, C.gold, 2, "center");
-        btn("resume", colX() + 10, LH / 2 + 2, 132, 24, C.mint, "\u041F\u0420\u041E\u0414\u041E\u041B\u0416\u0418\u0422\u042C", INK);
+        dimView(ctx, "rgba(8,6,20,0.55)");
+        box(ctx, colX(), LH / 2 - 48, 152, 100, C.navy, C.gold);
+        drawText(ctx, "\u041F\u0410\u0423\u0417\u0410", LW / 2, LH / 2 - 38, C.gold, 2, "center");
+        if (landPause) drawText(ctx, "\u041F\u041E\u0412\u0415\u0420\u041D\u0418 \u0422\u0415\u041B\u0415\u0424\u041E\u041D", LW / 2, LH / 2 - 16, C.cream, 1, "center");
+        btn("resume", colX() + 10, LH / 2 - (landPause ? 4 : 8), 132, 22, C.mint, "\u041F\u0420\u041E\u0414\u041E\u041B\u0416\u0418\u0422\u042C", INK);
+        btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "\u041C\u0415\u041D\u042E");
       }
     }
     function drawFxBack(p, sy, cam) {
@@ -4568,9 +4664,9 @@
       if (w === "shot") return "\u0421\u0411\u0418\u041B \u0412\u042B\u0421\u0422\u0420\u0415\u041B \u041D\u0410 " + m + " \u041C";
       if (w === "hole") return "\u0417\u0410\u0422\u042F\u041D\u0423\u041B\u0410 \u0414\u042B\u0420\u0410 \u041D\u0410 " + m + " \u041C";
       if (w.indexOf("mob:") === 0) {
-        var nm = (MOBS[w.slice(4)] || {}).name || "\u041C\u041E\u0411";
-        var fem = /А$|Я$|Ь$|ЛЬ$/.test(nm) && nm !== "\u041A\u0420\u0410\u0411";
-        return (fem ? "\u0421\u0411\u0418\u041B\u0410 " : "\u0421\u0411\u0418\u041B ") + nm + " \u041D\u0410 " + m + " \u041C";
+        var mo = MOBS[w.slice(4)] || {};
+        var nm = mo.name || "\u041C\u041E\u0411";
+        return (mo.g === "f" ? "\u0421\u0411\u0418\u041B\u0410 " : "\u0421\u0411\u0418\u041B ") + nm + " \u041D\u0410 " + m + " \u041C";
       }
       return w ? w + " " + m + " \u041C" : "";
     }
@@ -4581,7 +4677,7 @@
     function drawResults() {
       hits = [];
       drawBg(ctx, world.cameraY, ui, world.map);
-      rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.36)");
+      dimView(ctx, "rgba(18,14,44,0.36)");
       var x = colX();
       header("\u0418\u0422\u041E\u0413\u0418", 2);
       var list = world.players.slice().sort(function(a, b2) {
@@ -4660,7 +4756,7 @@
     }
     function drawFontSheet() {
       hits = [];
-      rect(ctx, 0, 0, LW, LH, "#120c28");
+      dimView(ctx, "#120c28");
       drawText(ctx, "\u0428\u0420\u0418\u0424\u0422", LW / 2, 6, C.gold, 2, "center");
       var words = ["\u041D\u0418\u041D\u0414\u0417\u042F", "\u041C\u0415\u041D\u042E", "\u041A\u041E\u0421\u041C\u041E\u0429\u0418\u0422", "\u0417\u0410\u0420\u042F\u0414 40%", "\u041A\u0423\u041F\u0418\u0422\u042C \u25CF 80", "\u0414\u041E\u0419\u0414\u0418 \u0414\u041E \u0426\u0415\u041B\u0418 \u2192", "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", "\u0415\u0429\u0401 \u0420\u0410\u0417 \u25B6", "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418", "\u2713 \u0426\u0415\u041B\u042C 500 \u041C"];
       for (var i = 0; i < words.length; i++) drawText(ctx, words[i], 6, 28 + i * 12, C.cream, 1, "left");
@@ -4682,7 +4778,7 @@
       lastT = now;
       uiAcc += dt;
       var uSteps = 0;
-      while (uiAcc >= UI_STEP && uSteps < 5) {
+      while (uiAcc + 1e-9 >= UI_STEP && uSteps < 5) {
         ui++;
         if (flashT > 0) flashT--;
         uiAcc -= UI_STEP;
@@ -4693,7 +4789,7 @@
         acc += dt;
         var steps = 0;
         if (world.net && NET.waiting && NET.waiting(world)) acc = 0;
-        while (acc >= STEP && steps < 5) {
+        while (acc + 1e-9 >= STEP && steps < 5) {
           tickWorld(world, collectInputs());
           acc -= STEP;
           steps++;
@@ -4733,7 +4829,7 @@
       heroOwned,
       bg: function() {
         drawBg(ctx, MENU_CAM(), ui, save.bg, true);
-        rect(ctx, 0, 0, LW, LH, "rgba(18,14,44,0.32)");
+        dimView(ctx, "rgba(18,14,44,0.32)");
       },
       ui: function() {
         return ui;
@@ -4767,8 +4863,18 @@
       lastT = -1;
       if (document.hidden && phase === "play") paused = true;
     }
+    function wantTouchPause() {
+      if (!isWide) return true;
+      try {
+        return !!(navigator && navigator.maxTouchPoints);
+      } catch (_e) {
+        return false;
+      }
+    }
+    var ptrRoot = wrap || canvas;
     resize();
     window.addEventListener("resize", resize);
+    window.addEventListener("orientationchange", resize);
     if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
     var onCtx = function(e) {
       e.preventDefault();
@@ -4782,10 +4888,10 @@
     var noScroll = function(e) {
       e.preventDefault();
     };
-    canvas.addEventListener("pointerdown", onPtrDown);
-    canvas.addEventListener("pointermove", onPtrMove);
-    canvas.addEventListener("pointerup", onPtrUp);
-    canvas.addEventListener("pointercancel", onPtrUp);
+    ptrRoot.addEventListener("pointerdown", onPtrDown);
+    ptrRoot.addEventListener("pointermove", onPtrMove);
+    ptrRoot.addEventListener("pointerup", onPtrUp);
+    ptrRoot.addEventListener("pointercancel", onPtrUp);
     canvas.addEventListener("contextmenu", onCtx);
     window.addEventListener("keydown", onKD);
     window.addEventListener("keyup", onKU);
@@ -4796,17 +4902,20 @@
     document.addEventListener("selectstart", noScroll);
     document.addEventListener("dragstart", noScroll);
     canvas.addEventListener("touchstart", noScroll, { passive: false });
+    if (ptrRoot !== canvas) ptrRoot.addEventListener("touchstart", noScroll, { passive: false });
     raf = requestAnimationFrame(frame);
     return {
       destroy: function() {
         running = false;
         cancelAnimationFrame(raf);
         window.removeEventListener("resize", resize);
+        window.removeEventListener("orientationchange", resize);
         if (window.visualViewport) window.visualViewport.removeEventListener("resize", resize);
-        canvas.removeEventListener("pointerdown", onPtrDown);
-        canvas.removeEventListener("pointermove", onPtrMove);
-        canvas.removeEventListener("pointerup", onPtrUp);
-        canvas.removeEventListener("pointercancel", onPtrUp);
+        ptrRoot.removeEventListener("pointerdown", onPtrDown);
+        ptrRoot.removeEventListener("pointermove", onPtrMove);
+        ptrRoot.removeEventListener("pointerup", onPtrUp);
+        ptrRoot.removeEventListener("pointercancel", onPtrUp);
+        if (ptrRoot !== canvas) ptrRoot.removeEventListener("touchstart", noScroll);
         canvas.removeEventListener("contextmenu", onCtx);
         window.removeEventListener("keydown", onKD);
         window.removeEventListener("keyup", onKU);
@@ -4829,7 +4938,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, cw: canvas.width, ch: canvas.height };
+        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD };
       },
       tap: function(id) {
         activate(id);

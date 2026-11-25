@@ -1,0 +1,50 @@
+{
+  "390x650_dpr3": {
+    "lw": 160,
+    "lh": 346,
+    "pScale": 5,
+    "cssScale": 1.6666666666666667,
+    "dpr": 3,
+    "cssW": 266.65625,
+    "cssH": 576.65625,
+    "cw": 800,
+    "ch": 1730,
+    "viewW": 390,
+    "viewH": 650,
+    "widthShare": 68.4,
+    "heightShare": 88.7,
+    "areaShare": 60.7
+  },
+  "390x844_dpr3": {
+    "lw": 160,
+    "lh": 346,
+    "pScale": 7,
+    "cssScale": 2.3333333333333335,
+    "dpr": 3,
+    "cssW": 373.328125,
+    "cssH": 807.328125,
+    "cw": 1120,
+    "ch": 2422,
+    "viewW": 390,
+    "viewH": 844,
+    "widthShare": 95.7,
+    "heightShare": 95.7,
+    "areaShare": 91.6
+  },
+  "360x640_dpr2": {
+    "lw": 160,
+    "lh": 320,
+    "pScale": 4,
+    "cssScale": 2,
+    "dpr": 2,
+    "cssW": 320,
+    "cssH": 640,
+    "cw": 640,
+    "ch": 1280,
+    "viewW": 360,
+    "viewH": 640,
+    "widthShare": 88.9,
+    "heightShare": 100,
+    "areaShare": 88.9
+  }
+}
