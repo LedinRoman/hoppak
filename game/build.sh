@@ -1,5 +1,15 @@
 #!/bin/bash
-# Builds hoppak.page.tsx (Page source), hoppak.js (local) and dist-page/hop.canvas.tsx (minified Page upload)
+# Builds hoppak.page.tsx (Page source), hoppak.js (local), page-build/hop.canvas.tsx
+# (minified Page upload) and, with `site`, the deploy folder game/site/.
+#
+#   ./build.sh
+#       Local hoppak.js (no baked server) + page-build. On file:// or localhost
+#       without a server, ОНЛАЙН shows «НЕТ СВЯЗИ» and never opens a WebSocket.
+#
+#   HOP_SERVER=https://76-13-250-251.sslip.io ./build.sh site
+#       Also writes game/site/ (index.html + hoppak.js) with that origin baked in:
+#       wss://<host>/ws and https://<host>/api/health.
+#       Default HOP_SERVER for the site target is https://76-13-250-251.sslip.io
 set -e
 cd "$(dirname "$0")"
 ESB=/tmp/esb/node_modules/.bin/esbuild
@@ -11,7 +21,7 @@ game = game.split("\n", 1)[1]  # drop grok/canvas import
 open("/tmp/hoppak.game.ts", "w").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
 PY
 $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --outfile=hoppak.js --log-level=warning
-sed -i '1i /* Хоппак v0.53 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
+sed -i '1i /* Хоппак v0.55 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
 $ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --outfile=/tmp/hop.min.tsx --log-level=warning
 python3 - << 'PY'
@@ -40,3 +50,26 @@ open("page-build/hop.canvas.tsx", "w").write("// @ts-nocheck\n" + t + "\n")
 print("page bytes", len(t.encode()))
 PY
 node --check hoppak.js && echo "js ok $(wc -c < hoppak.js) bytes"
+
+if [ "${1:-}" = "site" ]; then
+  SITE_ORIGIN="${HOP_SERVER:-https://76-13-250-251.sslip.io}"
+  mkdir -p site
+  $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
+    --define:HOP_SERVER="\"${SITE_ORIGIN}\"" \
+    --outfile=site/hoppak.js --log-level=warning
+  sed -i '1i /* Хоппак v0.55 site — HOP_SERVER baked in, do not edit */' site/hoppak.js
+  python3 - << PY
+from pathlib import Path
+html = Path("index.html").read_text()
+html = html.replace("Хоппак v0.54", "Хоппак v0.55").replace("Хоппак v0.55", "Хоппак v0.55")
+# if source title already bumped, leave it
+Path("site/index.html").write_text(html.replace("<title>Хоппак v0.54</title>", "<title>Хоппак v0.55</title>") if "v0.54" in html else html)
+print("site origin ${SITE_ORIGIN}")
+print("site js", Path("site/hoppak.js").stat().st_size, "bytes")
+PY
+  # fix the printed origin (the heredoc was unquoted wrongly for the env var)
+  echo "site origin ${SITE_ORIGIN}"
+  node --check site/hoppak.js && echo "site js ok $(wc -c < site/hoppak.js) bytes"
+  # confirm the origin string is baked in
+  grep -o "${SITE_ORIGIN}" site/hoppak.js | head -1 | sed "s/^/baked: /"
+fi

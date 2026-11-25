@@ -22,7 +22,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var pointers: any = {};
   var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
   var hits: any[] = [];
-  var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, lastBackdropMap = "";
+  var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
   var fieldLocked = false, landPause = false;
   var pressId: any = null;
   var confirmId: any = null, confirmAt = 0;
@@ -35,6 +35,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var HTO = ["КАПИТАНА", "ПИРАТА", "НИНДЗЯ", "РОБОТА", "МАГА", "РЫЦАРЯ"];
 
   warmHeroSprites();
+  warmBonusSprites();
   function isPageBuild() { return typeof HOP_PAGE !== "undefined" && !!HOP_PAGE; }
   function netFixedLW() {
     return (typeof NET !== "undefined" && NET && typeof NET.fixedLW === "function") ? (NET.fixedLW() || 0) : 0;
@@ -52,11 +53,26 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var r = (wrap || canvas).getBoundingClientRect();
     return { w: Math.max(1, r.width), h: Math.max(1, r.height), x: 0, y: 0 };
   }
+  function isCoarsePointer() {
+    try {
+      if (window.matchMedia) {
+        if (window.matchMedia("(pointer: coarse)").matches) return true;
+        if (window.matchMedia("(any-pointer: coarse)").matches) return true;
+      }
+    } catch (_e) {}
+    try { if (navigator && (navigator.maxTouchPoints || 0) > 0) return true; } catch (_e2) {}
+    try { if ("ontouchstart" in window) return true; } catch (_e3) {}
+    return false;
+  }
   function resize() {
     var vs = viewSize();
     var cssW = Math.max(1, vs.w), cssH = Math.max(1, vs.h);
     var dpr = Math.max(1, window.devicePixelRatio || 1);
-    isWide = cssW >= 540;
+    /* Phone = coarse/touch AND the short side is below ~540. Width alone
+       would treat a landscape phone (844×390) as a desktop. */
+    isPhone = isCoarsePointer() && Math.min(cssW, cssH) < 540;
+    isWide = cssW >= 540 && !isPhone;
+    phoneLand = isPhone && cssW > cssH;
     var frameX = isWide ? 24 : 0;
     var frameY = isWide ? (cssH >= 740 ? 16 : 4) : 0;
     var availW = Math.max(160, cssW - frameX * 2);
@@ -110,7 +126,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.imageSmoothingEnabled = false;
     (ctx as any).webkitImageSmoothingEnabled = false;
     syncBackdrop(world ? world.map : save.bg);
-    if (fieldLocked && phase === "play" && !paused && !isWide && cssW > cssH) {
+    if (fieldLocked && phase === "play" && !paused && phoneLand) {
       paused = true; landPause = true; acc = 0; uiAcc = 0; lastT = -1;
     }
   }
@@ -768,7 +784,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (p.rocketT > 0) { rect(ctx, cx - 2, sy + PH, 4, 3 + (ui % 3), "#ffd046"); rect(ctx, cx - 1, sy + PH + 3, 2, 3, "#ff7830"); }
     if (p.wallT > 0 && p.id === 0 && !p.wall) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(ui * 0.3); rect(ctx, 0, 0, 1, LH, "#d82a2a"); rect(ctx, LW - 1, 0, 1, LH, "#d82a2a"); ctx.globalAlpha = 1; }
   }
-  var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["x2T", "x2", 500], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
+  var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
     var x = 4, y = 22;
     for (var i = 0; i < BON_HUD.length; i++) {
@@ -995,6 +1011,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     else if (phase === "font") drawFontSheet();
     else if (phase === "net") { hits = []; NET.draw(netApi); drawFlash(); }
     else { drawPlay(); if (world && world.net) NET.overlay(netApi, world); }
+    if (phoneLand && phase !== "play") {
+      dimView(ctx, "rgba(8,6,20,0.55)");
+      box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
+      drawText(ctx, "ПОВЕРНИ ТЕЛЕФОН", LW / 2, LH / 2 - 14, C.cream, 1, "center");
+      hits = [];
+    }
     if (netFixedLW() !== netLW) resize();
     if (running && !driving) raf = requestAnimationFrame(frame);
   }
@@ -1015,7 +1037,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (document.hidden && phase === "play") paused = true;
   }
   function wantTouchPause() {
-    if (!isWide) return true;
+    if (isPhone || !isWide) return true;
     try { return !!(navigator && navigator.maxTouchPoints); } catch (_e) { return false; }
   }
   var ptrRoot: any = wrap || canvas;
@@ -1071,7 +1093,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },

@@ -548,18 +548,20 @@ function drawBullet(ctx: Ctx, b: any, cam: number) {
   else if (b.kind === "fire") { rect(ctx, x - 2, y - 1, 4, 5, "#ff4818"); rect(ctx, x - 1, y, 2, 3, "#ffd040"); if ((b.life >> 2) % 2) rect(ctx, x - 1, y + 4, 2, 2, "#ff8030"); }
   else { rect(ctx, x - 1, y, 3, 5, "#ff6a2a"); rect(ctx, x, y + 1, 1, 3, "#fff0a0"); }
 }
-var ITEM_COL: any = { bigcoin: "#ffd046", shield: "#5ec8ff", magnet: "#ff5a62", x2: "#62e6be", rocket: "#ff9a3a" };
+var ITEM_COL: any = { bigcoin: "#f0b428", shield: "#3d8ad8", magnet: "#e03848", rocket: "#ff6a3a" };
 function drawItemIcon(ctx: Ctx, kind: string, x: number, y: number) {
+  if (drawBonusSprite(ctx, kind, x + 5, y + 5, 0.5)) return;
   if (kind === "bigcoin") { rect(ctx, x + 2, y + 1, 6, 8, C.gold); rect(ctx, x + 1, y + 2, 8, 6, C.gold); rect(ctx, x + 3, y + 2, 2, 2, "#fff4c0"); rect(ctx, x + 4, y + 4, 2, 3, C.goldD); }
   else if (kind === "shield") { rect(ctx, x + 2, y + 1, 6, 5, "#5ec8ff"); rect(ctx, x + 3, y + 6, 4, 2, "#5ec8ff"); rect(ctx, x + 4, y + 8, 2, 1, "#5ec8ff"); rect(ctx, x + 3, y + 2, 2, 3, "#e8fcff"); }
   else if (kind === "magnet") { rect(ctx, x + 1, y + 1, 3, 7, "#ff5a62"); rect(ctx, x + 6, y + 1, 3, 7, "#ff5a62"); rect(ctx, x + 1, y + 6, 8, 3, "#ff5a62"); rect(ctx, x + 1, y + 1, 3, 2, "#e8ecf4"); rect(ctx, x + 6, y + 1, 3, 2, "#e8ecf4"); rect(ctx, x + 4, y + 6, 2, 1, "#a82a38"); }
-  else if (kind === "x2") { rect(ctx, x, y + 3, 1, 1, "#ffffff"); rect(ctx, x + 2, y + 3, 1, 1, "#ffffff"); rect(ctx, x + 1, y + 4, 1, 1, "#ffffff"); rect(ctx, x, y + 5, 1, 1, "#ffffff"); rect(ctx, x + 2, y + 5, 1, 1, "#ffffff"); drawText(ctx, "2", x + 4, y + 1, C.gold, 1, "left"); }
   else if (kind === "rocket") { rect(ctx, x + 4, y, 2, 1, "#ff5a62"); rect(ctx, x + 3, y + 1, 4, 6, "#e8ecf4"); rect(ctx, x + 4, y + 2, 2, 2, "#5ec8ff"); rect(ctx, x + 2, y + 5, 1, 3, "#ff5a62"); rect(ctx, x + 7, y + 5, 1, 3, "#ff5a62"); rect(ctx, x + 4, y + 7, 2, 2, "#ffd046"); }
 }
 function drawItem(ctx: Ctx, it: any, cam: number, tick: number) {
   if (it.taken) return;
-  var y = Math.round(it.y - cam + Math.sin((tick + it.x) * 0.08) * 1.5), x = it.x;
-  if (y < -14 || y > LH + 4) return;
+  var by = (((tick + it.x) >> 4) & 1) ? -1 : 0;
+  var y = Math.round(it.y - cam) + by, x = it.x;
+  if (y < -24 || y > LH + 8) return;
+  if (drawBonusSprite(ctx, it.kind, x + 5, y + 5)) return;
   var col = ITEM_COL[it.kind] || C.gold;
   ctx.globalAlpha = 0.3 + 0.15 * Math.sin(tick * 0.15); rect(ctx, x - 2, y - 2, 14, 14, col); ctx.globalAlpha = 1;
   rect(ctx, x, y - 1, 10, 12, INK); rect(ctx, x - 1, y, 12, 10, INK);

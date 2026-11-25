@@ -16,24 +16,57 @@ var NET: any = (function () {
   var N: any = {
     ws: null, st: "off", /* off | connecting | online | reconnecting | error */
     room: null, you: -1, token: "", err: "", sub: "home", code: "", startInfo: null, results: null,
-    off: 0, rtt: 0, pingT: 0, lastSend: 0, reconUntil: 0, reconTimer: 0, onOpen: null as any,
+    off: 0, rtt: 0, pingT: 0, lastSend: 0, reconUntil: 0, reconTimer: 0, onOpen: null as any, probing: false,
     stats: { sent: 0, recv: 0, snaps: 0, startedAt: 0 },
     buf: {} as any, /* pid -> samples [{t,x,y,vx,vy,f,a,m,ps}] */
     events: [] as any[], api: null as any
   };
   function now() { return Date.now(); }
   function serverNow() { return now() + N.off; }
+  /* Build-time origin, e.g. --define:HOP_SERVER="https://76-13-250-251.sslip.io".
+     From it we derive wss://host/ws and https://host/api/health. */
+  function builtinOrigin() {
+    try { if (typeof HOP_SERVER !== "undefined" && HOP_SERVER) return String(HOP_SERVER).replace(/\/$/, ""); } catch (_e) {}
+    return "";
+  }
+  function toWs(origin: string) {
+    var o = String(origin || "").trim();
+    if (!o) return "";
+    if (o.indexOf("ws://") === 0 || o.indexOf("wss://") === 0) {
+      return /\/ws\/?$/.test(o) ? o.replace(/\/$/, "") : o.replace(/\/$/, "") + "/ws";
+    }
+    if (o.indexOf("https://") === 0) return "wss://" + o.slice(8).replace(/\/$/, "") + "/ws";
+    if (o.indexOf("http://") === 0) return "ws://" + o.slice(7).replace(/\/$/, "") + "/ws";
+    return "";
+  }
+  function toHealth(wsUrl: string) {
+    try {
+      var s = String(wsUrl || "");
+      if (s.indexOf("wss://") === 0) s = "https://" + s.slice(6);
+      else if (s.indexOf("ws://") === 0) s = "http://" + s.slice(5);
+      var u = new URL(s);
+      var path = u.pathname || "";
+      if (path.lastIndexOf("/ws") === path.length - 3) path = path.slice(0, -3);
+      if (path.charAt(path.length - 1) === "/") path = path.slice(0, -1);
+      u.pathname = path + "/api/health";
+      u.search = ""; u.hash = "";
+      return u.toString();
+    } catch (_e) { return ""; }
+  }
   function url() {
     var w: any = typeof window !== "undefined" ? window : null;
     if (!w) return "";
     try {
       var q = new URLSearchParams(w.location.search).get("server");
-      if (q) return q;
-      if (w.HOPPAK_SERVER) return w.HOPPAK_SERVER;
+      if (q) return toWs(q);
+      if (w.HOPPAK_SERVER) return toWs(w.HOPPAK_SERVER);
       var ls = w.localStorage && w.localStorage.getItem("hoppak.server");
-      if (ls) return ls;
+      if (ls) return toWs(ls);
     } catch (_e) {}
+    var built = builtinOrigin();
+    if (built) return toWs(built);
     var pr = w.location && w.location.protocol;
+    /* file:// (and anything that isn't http/https) has no same-host server. */
     if (pr !== "http:" && pr !== "https:") return "";
     return (pr === "https:" ? "wss://" : "ws://") + w.location.host + "/ws";
   }
@@ -60,15 +93,26 @@ var NET: any = (function () {
   N.serverNow = serverNow;
 
   /* ---------- connection ---------- */
-  N.connect = function (cb?: any) {
-    if (N.ws && N.ws.readyState === 1) { if (cb) cb(true); return; }
-    var u = url();
-    if (!u || typeof WebSocket === "undefined") { N.st = "error"; N.err = "НЕТ СЕРВЕРА"; if (cb) cb(false); return; }
-    if (N.ws && N.ws.readyState === 0) { N.onOpen = cb || N.onOpen; return; }
-    N.st = N.st === "reconnecting" ? "reconnecting" : "connecting";
-    N.onOpen = cb || null;
+  function failLink(cb?: any) {
+    N.st = "error"; N.err = "НЕТ СВЯЗИ";
+    var f = cb || N.onOpen; N.onOpen = null; if (f) f(false);
+  }
+  function probeHealth(hu: string, cb: any) {
+    if (!hu || typeof fetch === "undefined") { cb(false); return; }
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var to = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, 1500);
+    var done = false;
+    function finish(ok: boolean) {
+      if (done) return;
+      done = true; clearTimeout(to); cb(!!ok);
+    }
+    var opts: any = { method: "GET", cache: "no-store", mode: "cors" };
+    if (ctrl) opts.signal = ctrl.signal;
+    fetch(hu, opts).then(function (r: any) { finish(!!r && r.ok); }).catch(function () { finish(false); });
+  }
+  function openSocket(u: string) {
     var ws: any;
-    try { ws = new WebSocket(u); } catch (_e) { N.st = "error"; N.err = "НЕТ СВЯЗИ"; if (cb) cb(false); return; }
+    try { ws = new WebSocket(u); } catch (_e) { failLink(); return; }
     N.ws = ws;
     var opened = false;
     var to = setTimeout(function () { if (!opened) { try { ws.close(); } catch (_e) {} } }, 5000);
@@ -80,15 +124,31 @@ var NET: any = (function () {
       if (N.st === "reconnecting" && tok) send("resume", { token: tok });
       else { N.st = "online"; var f = N.onOpen; N.onOpen = null; if (f) f(true); }
     };
-    ws.onmessage = function (e: any) { N.stats.recv++; var m: any; try { m = JSON.parse(e.data); } catch (_e) { return; } onMsg(m.event, m.data || {}); };
+    ws.onmessage = function (e: any) { N.stats.recv++; var m: any; try { m = JSON.parse(e.data); } catch (_e2) { return; } onMsg(m.event, m.data || {}); };
     ws.onclose = function () {
       clearTimeout(to);
       if (N.ws !== ws) return;
       N.ws = null;
-      if (!opened && N.st !== "reconnecting") { N.st = "error"; N.err = "НЕТ СВЯЗИ"; var f = N.onOpen; N.onOpen = null; if (f) f(false); return; }
+      if (!opened && N.st !== "reconnecting") { failLink(); return; }
       if (N.room) startReconnect(); else N.st = "off";
     };
     ws.onerror = function () {};
+  }
+  N.connect = function (cb?: any) {
+    if (N.ws && N.ws.readyState === 1) { if (cb) cb(true); return; }
+    var u = url();
+    if (!u || typeof WebSocket === "undefined") { failLink(cb); return; }
+    if (N.ws && N.ws.readyState === 0) { N.onOpen = cb || N.onOpen; return; }
+    if (N.probing) { N.onOpen = cb || N.onOpen; return; }
+    N.st = N.st === "reconnecting" ? "reconnecting" : "connecting";
+    N.onOpen = cb || null;
+    N.probing = true;
+    probeHealth(toHealth(u), function (ok: boolean) {
+      N.probing = false;
+      if (N.st !== "connecting" && N.st !== "reconnecting") return;
+      if (!ok) { failLink(); return; }
+      openSocket(u);
+    });
   };
   function startReconnect() {
     if (N.st !== "reconnecting") { N.st = "reconnecting"; N.reconUntil = now() + NET_GRACE_MS; }

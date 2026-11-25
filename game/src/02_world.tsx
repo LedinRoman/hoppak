@@ -265,7 +265,7 @@ function genRow(w: any) {
     for (bi = 0; bi < BONUSES.length; bi++) tw += BONUSES[bi].wt;
     var bp = r() * tw, bk = BONUSES[0].id;
     for (bi = 0; bi < BONUSES.length; bi++) { bp -= BONUSES[bi].wt; if (bp <= 0) { bk = BONUSES[bi].id; break; } }
-    w.items.push({ kind: bk, x: randInt(r, 8, LW - 18), y: Math.round(y - gap / 2 - 5), taken: false });
+    w.items.push({ kind: bk, x: randInt(r, 10, LW - 20), y: Math.round(y - gap / 2 - 5), taken: false });
     w.nextBonusM = m + randInt(r, 200, 300);
     bonus = true;
   }
@@ -297,7 +297,7 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     face: 1, squash: 0, iceT: 0, gravT: 0, camY: -LH + 70, place: 0, why: "",
     bias: [0, -14, 14, 6][i], react: [1, 3, 4, 5][i], tgt: null, botDir: 0,
     abCharge: CHARS[kind].need, abFx: 0, hookT: 0, hookN: 0, hx0: 0, hy0: 0, htx: 0, hty: 0, hookPl: null, hookCoin: null,
-    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, x2T: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0
+    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0
   };
 }
 function createWorld(seed: number, mode: string, humanKind: number, humanLook: any, mapId?: string) {
@@ -599,7 +599,6 @@ function pickItem(w: any, p: any, it: any) {
   if (B.id === "bigcoin") w.bonusCoins += BIGCOIN;
   else if (B.id === "shield") p.shieldT = B.t;
   else if (B.id === "magnet") p.magnetT = Math.max(p.magnetT, B.t);
-  else if (B.id === "x2") p.x2T = B.t;
   else if (B.id === "rocket") { p.rocketT = B.t; p.grabT = 0; p.poundT = 0; p.invT = Math.max(p.invT, B.t + 40); }
   toast(w, B.id === "bigcoin" ? "КЛАД +" + BIGCOIN : B.name + "!");
   if (p.id === 0) w.shake = 3;
@@ -731,7 +730,6 @@ function tickWorld(w: any, inputs: any) {
     if (p.abFx > 0) p.abFx--;
     if (p.shieldT > 0) p.shieldT--;
     if (p.magnetT > 0) p.magnetT--;
-    if (p.x2T > 0) p.x2T--;
     if (p.invT > 0) p.invT--;
     if (p.freezeT > 0) p.freezeT--;
     if (p.dashT > 0) p.dashT--;
@@ -769,7 +767,7 @@ function tickWorld(w: any, inputs: any) {
       if (hmh > p.maxH) { addCharge(p, "height", (hmh - p.maxH) / PX_PER_M); p.maxH = hmh; }
       if (!p.isBot) for (k = 0; k < w.coins.length; k++) {
         var hc = w.coins[k];
-        if (!hc.taken && overlapsX(p.x - 2, PW + 4, hc.x, 6) && hc.y + 6 > p.y - 2 && hc.y < p.y + PH + 2) { hc.taken = true; w.runCoins += p.x2T > 0 ? 2 : 1; addCharge(p, "coins", 1); spawnParts(w, hc.x + 3, hc.y + 3, 6, "#ffe07a", 1.8, 0, 1); }
+        if (!hc.taken && overlapsX(p.x - 2, PW + 4, hc.x, 6) && hc.y + 6 > p.y - 2 && hc.y < p.y + PH + 2) { hc.taken = true; w.runCoins += 1; addCharge(p, "coins", 1); spawnParts(w, hc.x + 3, hc.y + 3, 6, "#ffe07a", 1.8, 0, 1); }
       }
       continue;
     }
@@ -890,14 +888,14 @@ function tickWorld(w: any, inputs: any) {
         }
         if (overlapsX(p.x, PW, cn.x, 6) && cn.y + 6 > p.y && cn.y < p.y + PH) {
           cn.taken = true;
-          w.runCoins += p.x2T > 0 ? 2 : 1;
+          w.runCoins += 1;
           addCharge(p, "coins", 1);
           spawnParts(w, cn.x + 3, cn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
         }
       }
       for (k = 0; k < w.items.length; k++) {
         var it = w.items[k];
-        if (!it.taken && overlapsX(p.x, PW, it.x, 10) && it.y + 10 > p.y && it.y < p.y + PH) pickItem(w, p, it);
+        if (!it.taken && overlapsX(p.x, PW, it.x - 2, 14) && it.y + 12 > p.y && it.y - 2 < p.y + PH) pickItem(w, p, it);
       }
     }
     var mh = Math.max(0, -(p.y + PH));

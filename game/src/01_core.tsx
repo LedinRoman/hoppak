@@ -151,33 +151,47 @@ function pngToCanvas(b64: string) {
     var bin = atob(raw), u = new Uint8Array(bin.length), i: number;
     for (i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
     if (u[0] !== 0x89 || u[1] !== 0x50) return null;
-    var p = 8, w = 0, h = 0, pal: Uint8Array | null = null, tr: Uint8Array | null = null, idat = new Uint8Array(0);
+    var p = 8, w = 0, h = 0, pal: Uint8Array | null = null, tr: Uint8Array | null = null, idat = new Uint8Array(0), ctype = 0;
     while (p < u.length) {
       var len = u32be(u, p), typ = String.fromCharCode(u[p + 4], u[p + 5], u[p + 6], u[p + 7]), d = u.subarray(p + 8, p + 8 + len);
-      if (typ === "IHDR") { w = u32be(d, 0); h = u32be(d, 4); if (d[8] !== 8 || d[9] !== 3) return null; }
+      if (typ === "IHDR") { w = u32be(d, 0); h = u32be(d, 4); ctype = d[9]; if (d[8] !== 8 || (ctype !== 3 && ctype !== 2 && ctype !== 6)) return null; }
       else if (typ === "PLTE") pal = d;
       else if (typ === "tRNS") tr = d;
       else if (typ === "IDAT") { var n = new Uint8Array(idat.length + d.length); n.set(idat); n.set(d, idat.length); idat = n; }
       else if (typ === "IEND") break;
       p += 12 + len;
     }
-    if (!w || !h || !pal) return null;
-    var data = pngInflate(idat), stride = w + 1, pix = new Uint8ClampedArray(w * h * 4);
-    var prev = new Uint8Array(w), cur = new Uint8Array(w);
+    if (!w || !h) return null;
+    if (ctype === 3 && !pal) return null;
+    var data = pngInflate(idat);
+    var bpp = ctype === 6 ? 4 : ctype === 2 ? 3 : 1;
+    var stride = 1 + w * bpp, pix = new Uint8ClampedArray(w * h * 4);
+    var prev = new Uint8Array(w * bpp), cur = new Uint8Array(w * bpp);
     function paeth(a: number, b: number, c: number) { var q = a + b - c, pa = Math.abs(q - a), pb = Math.abs(q - b), pc = Math.abs(q - c); return pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
     var y: number, x: number;
     for (y = 0; y < h; y++) {
       var f = data[y * stride], off = y * stride + 1;
-      for (x = 0; x < w; x++) {
-        var v = data[off + x], a = x ? cur[x - 1] : 0, b = prev[x], c = x ? prev[x - 1] : 0;
+      for (x = 0; x < w * bpp; x++) {
+        var v = data[off + x], a = x >= bpp ? cur[x - bpp] : 0, b = prev[x], c = x >= bpp ? prev[x - bpp] : 0;
         if (f === 1) v = (v + a) & 255;
         else if (f === 2) v = (v + b) & 255;
         else if (f === 3) v = (v + ((a + b) >> 1)) & 255;
         else if (f === 4) v = (v + paeth(a, b, c)) & 255;
         cur[x] = v;
-        var o = (y * w + x) * 4, ci = v * 3;
-        pix[o] = pal[ci]; pix[o + 1] = pal[ci + 1]; pix[o + 2] = pal[ci + 2];
-        pix[o + 3] = tr && v < tr.length ? tr[v] : 255;
+      }
+      for (x = 0; x < w; x++) {
+        var o = (y * w + x) * 4;
+        if (ctype === 3) {
+          var idx = cur[x], ci = idx * 3;
+          pix[o] = pal![ci]; pix[o + 1] = pal![ci + 1]; pix[o + 2] = pal![ci + 2];
+          pix[o + 3] = tr && idx < tr.length ? tr[idx] : 255;
+        } else if (ctype === 6) {
+          var s6 = x * 4;
+          pix[o] = cur[s6]; pix[o + 1] = cur[s6 + 1]; pix[o + 2] = cur[s6 + 2]; pix[o + 3] = cur[s6 + 3];
+        } else {
+          var s2 = x * 3;
+          pix[o] = cur[s2]; pix[o + 1] = cur[s2 + 1]; pix[o + 2] = cur[s2 + 2]; pix[o + 3] = 255;
+        }
       }
       prev.set(cur);
     }
@@ -198,11 +212,35 @@ function heroSprite(id: string) {
   return cv;
 }
 function warmHeroSprites() { for (var k in HERO_SPRITES) heroSprite(k); }
+var BONUS_SPRITES: any = {
+  bigcoin: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABqElEQVR4nJ1UO0jDUBQ9kdChlAwSHSQ4iRQnIZAhk0MnF9fQwVEci0MHhw4dikiRjh06dZDQqRQpDplK6SBmKVVCKKWU0CmIlOAgYhxinvk1TTzTfcm555773n2PggeCWLTpxRBpoL9/w7QMyl2TQBCLdrV2jQO9lkrw7lVAp1UnonSQMHnWUgkiK/iWW2lyOWYJjlnGckIOh5MViSXRAl9pQK2WAAB8pQHoTUDWII9yDslvMOywP89AEi305xkiwEt556fe9BWTRGuzw3bxDbyURxsa1GoJvJSHKms4v99GG3/7S4rIN+h4ZEKCLpEk/MYvEgDsQpXjD40GnJGZjQdQSg9gC9mwiwi4wrLyAYABm+Ns0zIoyp2/XlfB1dFTbPV1mB46+Z1W3d9y1Aye1cuA3iSOjNUeAP80FDx3YfMcek42CXwOb/tm2OEFg52TKQAaj5dfkZzCOsHyKRsiO606Yl6Ot+W1DqNIkggiFifkItVdTgKfw9HiM0QYLTKBL2GObw9n4wF6XeeGi/vB5GTodZXkDpPg2PPiUADA5jj7X0oBmJZB/QA/ZZzVyENwRwAAAABJRU5ErkJggg==", w: 20, h: 20, k: 0.8 },
+  shield: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABdElEQVR4nJ3UIWjDQBgF4JdRWddQFTUqBoPJiDLGxEQZZXKiVE5MljE1qiamKqZGxeQoVSGMioiJEVFCWE2gUMYoExUVWYmImLuJ9NK75O4S9kxz4c/Hu5SLBgBms0MgiT8daeyanV0GLjcbxiutYjY75P7hTuah23bJ/tFJumZnX20zvf7wfSBwSUUqbfMycYpGEmwbDjw2DwAALStK7/WNNffwzfM3s2og8iwY9d2dXEMWuz6rIUQNw7cfAMDG8Qrb7qkwACkmSuRZalCFlWknBf+LSUERNn+KuRnRdpUNOaw3AD6Hya8CAwT/MotRgM28N8BsvMCFfV7csG+ssXG8tNnh4y03PBsvcphR/+VBfzrSuu2WdAsUyuLZLAMXYbzS0oOvVw1Cjxl/GpKI3httRzGA2TL7ATjVv0pj2XCfJr1qkMur3dbew0YhxrbLgSIUAOxJIGyVxYQgRQH+NWQhADlMCrJwFhW1Kg2ybWlUGAD8AUwxtRHyLrL4AAAAAElFTkSuQmCC", w: 20, h: 20, k: 0.8 },
+  magnet: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAYAAACpF6WWAAABR0lEQVR4nOWVMUvDQBTHfw0ZJHSSghlCEQcHJwcJ0imjQ76AxQ/g0Nmho4OTo9/BVcShY8lYOoVODhkkQwQRKVI65RzSC9frXVDqIv6n3Mu93/vnHXnXAgh7fcFKWZrIR94+8xYWNeW4Ya8vrm+GdfDxIWQ6mVSLNBEmsCkHqPLSRDg2J9von0Pdw+eM46vLOvBRlMwXJQCZJcmUAzBflGS6073zk19x+nd6aoTG3s9rPa3OwQrdVq66eL2fEvkO46Ik9hxir8sABFT/9EXnVADcHrgmVq0WQKcdiNnRfh0cF+XGxsH7C+oeda/89NEyrwaKDop8h8jf7MrMNwOtTqXbu93u2ksTXAfqLkHrqS1Rhavu1BM3OpVuAXTHulTYaJkD6wPdONk77UCc7QSNYAk0DXHrdSFdA6gFpDPd3begtgJN95bUF+MSk1paqG+DAAAAAElFTkSuQmCC", w: 21, h: 21, k: 0.8 },
+  rocket: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA0AAAAWCAYAAAAb+hYkAAABUklEQVR4nK1TPUjDQBh9EQeRTOGQDkcGR+nSItIpZOzQQVzNGKGDg0MQ6aJTJgcHkYJrXUSkg0JnJ4ei4hCKlQ41QwnSSYqD8DnEi7n02uLPm3Lf3bv37nv5NCjgsBIBQOs9xOtbqGX351WEw+W4XBmY2AYoS5xTKc2CREqrCJQXOJjO6c9K0rX9fB7DUz9Zn2zV4o92qGZbtktBN6KgGxHTOTUGREznZNkuWbZLaYtj9qxCEUfPLwCApfU6gnZruj0B37ue+qYxpZv7O0TNKgAgalaxslpWkxxWovNRRyJe7K9h168ntWPDTFr/u3BVgU6CUJNOG5sb0qHH3gdMsVj8NiWRhmeXEqkvwgWAXqAmWYUiAKBxFWdTO9iBU/nqnpFoQgOQdEWMQDr9bE01X2A6J/JyRKNbIi9H2T8c+I95kvC097ObmM6JHmyltZnESXufOrN6Mf6iw4AAAAAASUVORK5CYII=", w: 13, h: 22, k: 0.8 },
+};
+var bonusCache: any = {};
+function bonusSprite(kind: string) {
+  if (bonusCache[kind]) return bonusCache[kind];
+  var m = BONUS_SPRITES[kind];
+  if (!m) return null;
+  var cv = pngToCanvas(m.src);
+  if (cv) bonusCache[kind] = cv;
+  return cv;
+}
+function warmBonusSprites() { for (var k in BONUS_SPRITES) bonusSprite(k); }
+function drawBonusSprite(ctx: Ctx, kind: string, cx: number, cy: number, k?: number) {
+  var m = BONUS_SPRITES[kind], cv = bonusSprite(kind);
+  if (!m || !cv) return false;
+  var kk = k != null ? k : m.k;
+  var dw = Math.round(m.w * kk), dh = Math.round(m.h * kk);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(cv, 0, 0, m.w, m.h, Math.round(cx - dw / 2), Math.round(cy - dh / 2), dw, dh);
+  return true;
+}
 var BONUSES: any[] = [
   { id: "bigcoin", name: "КЛАД", wt: 25 },
   { id: "shield", name: "ЩИТ", wt: 22, t: 500 },
   { id: "magnet", name: "МАГНИТ", wt: 20, t: 450 },
-  { id: "x2", name: "Х2", wt: 18, t: 500 },
   { id: "rocket", name: "РАКЕТА", wt: 15, t: 85 }
 ];
 var BIGCOIN = 25;
