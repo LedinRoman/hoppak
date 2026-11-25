@@ -1,0 +1,117 @@
+name: Deploy Hopper Server
+
+on:
+  push:
+    branches:
+      - main
+      - net
+    paths:
+      - 'server/**'
+  workflow_dispatch:
+
+env:
+  # Space-separated branch names allowed to auto-deploy on push.
+  # Currently only `net` deploys (where the multiplayer server lives) so `main`
+  # and `net` do not overwrite each other. Once `net` is merged into `main`,
+  # change this to `main` (or `main net`). Manual workflow_dispatch always deploys
+  # the selected ref.
+  DEPLOY_BRANCHES: 'net'
+  HEALTH_URL: 'https://76-13-250-251.sslip.io/api/health'
+
+concurrency:
+  group: deploy-hoppak-server
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.gate.outputs.should_deploy }}
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build server
+        run: npm run build
+
+      - name: Run tests (if present)
+        run: npm test --if-present
+
+      - name: Decide deploy gate
+        id: gate
+        working-directory: .
+        run: |
+          should_deploy="false"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            should_deploy="true"
+          else
+            for b in $DEPLOY_BRANCHES; do
+              if [ "$b" = "${{ github.ref_name }}" ]; then
+                should_deploy="true"
+                break
+              fi
+            done
+          fi
+          echo "should_deploy=$should_deploy" >> "$GITHUB_OUTPUT"
+          echo "Branch=${{ github.ref_name }} event=${{ github.event_name }} DEPLOY_BRANCHES='$DEPLOY_BRANCHES' -> should_deploy=$should_deploy"
+
+  deploy:
+    needs: ci
+    if: needs.ci.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Deploy game container on VPS
+        env:
+          DEPLOY_REF: ${{ github.ref_name }}
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "set -euo pipefail
+             cd /srv/hopper/app
+             git fetch origin --prune
+             git checkout '${DEPLOY_REF}'
+             git reset --hard 'origin/${DEPLOY_REF}'
+             cd /srv/hopper
+             docker compose up -d --build game
+             docker compose ps game"
+
+      - name: Verify health endpoint
+        run: |
+          for i in $(seq 1 12); do
+            if body=$(curl -fsS --max-time 10 "$HEALTH_URL"); then
+              echo "Health OK: $body"
+              exit 0
+            fi
+            echo "Attempt $i/12 failed, waiting 5s..."
+            sleep 5
+          done
+          echo "Health check failed at $HEALTH_URL"
+          exit 1
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/known_hosts
