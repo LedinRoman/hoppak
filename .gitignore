@@ -30,3 +30,6 @@ Desktop.ini
 *.tmp
 tmp/
 .cache/
+server/dist/
+server/public/
+
