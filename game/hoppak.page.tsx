@@ -4,13 +4,16 @@ import { useEffect, useRef } from "grok/canvas";
    Single source of truth: this file. hoppak.js is generated from it (build.sh). */
 type Ctx = CanvasRenderingContext2D;
 
-var LW = 160;
-var LH = 346;
+var DEFAULT_LW = 160;
+var DEFAULT_LH = 346;
+var DEFAULT_PX_PER_M = 8;
+var LW = DEFAULT_LW;
+var LH = DEFAULT_LH;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
 function viewX0() { return -VIEW_PAD; }
 function viewW() { return LW + VIEW_PAD * 2; }
 function dimView(ctx: Ctx, col: string) { rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col); }
-var PX_PER_M = 8;
+var PX_PER_M = DEFAULT_PX_PER_M;
 var PW = 12;
 var PH = 16;
 var GRAVITY = 0.19;
@@ -2307,7 +2310,7 @@ var NET: any = (function () {
   var N: any = {
     ws: null, st: "off", /* off | connecting | online | reconnecting | error | unsupported */
     proto: NET_PROTO, clientVersion: CLIENT_VERSION, serverProto: 0,
-    node: "", targetNode: "", serverVersion: "",
+    node: "", targetNode: "", serverVersion: "", field: null as any,
     updateAvail: false, updateVersion: "", updateDismissed: "",
     pendingAction: null as any, redirCount: 0, redirecting: false,
     pollTimer: 0, healthMs: NET_HEALTH_MS, probeSeq: 0,
@@ -2465,6 +2468,7 @@ var NET: any = (function () {
   }
   function failLink(cb?: any) {
     N.st = "error"; N.err = "НЕТ СВЯЗИ";
+    if (!N.room) N.field = null;
     N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
     var f = cb || N.onOpen; N.onOpen = null; if (f) f(false);
   }
@@ -2513,7 +2517,7 @@ var NET: any = (function () {
       if (N.st === "unsupported") return;
       if (e && e.code === 4002) { rejectVersion(); return; }
       if (!opened && N.st !== "reconnecting") { failLink(); return; }
-      if (N.room) startReconnect(); else if (N.st !== "error") N.st = "off";
+      if (N.room) startReconnect(); else { N.field = null; if (N.st !== "error") N.st = "off"; }
     };
     ws.onerror = function () {};
   }
@@ -2555,7 +2559,7 @@ var NET: any = (function () {
     if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
     N.st = "unsupported";
     N.err = "ОНЛАЙН НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ";
-    N.room = null;
+    N.room = null; N.field = null;
     N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
     var ws = N.ws;
     N.ws = null;
@@ -2564,7 +2568,7 @@ var NET: any = (function () {
     if (N.api && N.api.phase() === "net") N.sub = "home";
   }
   function giveUp(msg: string) {
-    N.st = "error"; N.err = msg; N.room = null; N.token = ""; N.node = ""; N.targetNode = "";
+    N.st = "error"; N.err = msg; N.room = null; N.field = null; N.token = ""; N.node = ""; N.targetNode = "";
     N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
     store("hoppak.net.token", null); store("hoppak.net.node", null);
     var w = N.api && N.api.world();
@@ -2588,6 +2592,7 @@ var NET: any = (function () {
       if (d.supported === false || (d.v !== 1 && d.v !== NET_PROTO)) { rejectVersion(); return; }
       N.serverProto = d.v;
       N.node = d.node ? String(d.node) : "";
+      N.field = parseField(d.field);
       if (N.room) store("hoppak.net.node", N.node || null);
       if (d.version) noteServerVersion(d.version);
       ping();
@@ -2615,6 +2620,10 @@ var NET: any = (function () {
         if (N.api) N.api.say(N.err);
         return;
       }
+      if (act.type === "create" && N.room) {
+        N.room = null; N.token = "";
+        store("hoppak.net.token", null); store("hoppak.net.node", null);
+      }
       N.pendingAction = act;
       N.redirecting = true;
       N.targetNode = nextNode;
@@ -2637,6 +2646,7 @@ var NET: any = (function () {
     } else if (ev === "room") {
       var wasRecon = N.st === "reconnecting";
       N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
+      var rf = parseField(d.field, d.lw); if (rf) d.field = rf;
       N.room = d; N.you = d.you; N.token = d.token;
       store("hoppak.net.token", d.token);
       if (N.node) store("hoppak.net.node", N.node);
@@ -2645,6 +2655,8 @@ var NET: any = (function () {
       if (wasRecon) { var f = N.onOpen; N.onOpen = null; if (f) f(true); }
       if (N.api && N.api.phase() === "net" && N.sub !== "room") N.sub = "room";
     } else if (ev === "start") {
+      var sf = parseField(d.field, d.lw); if (sf) d.field = sf;
+      if (N.room && sf) { N.room.field = sf; N.room.lw = sf.w; }
       N.startInfo = d; N.results = null; N.buf = {};
       var w0 = N.api && N.api.world();
       if (d.resumed && w0 && w0.net && w0.netRound === d.round) return; /* our run survived the blink */
@@ -2671,6 +2683,10 @@ var NET: any = (function () {
       if (d.code === "UNSUPPORTED_PROTOCOL") { rejectVersion(); return; }
       N.err = d.msg || d.code;
       if (d.code === "NO_SESSION") giveUp("КОМНАТА ЗАКРЫТА");
+      else if (d.code === "ROOM_CLOSED" || d.code === "SERVER_SHUTDOWN") {
+        N.room = null; N.token = "";
+        store("hoppak.net.token", null); store("hoppak.net.node", null);
+      }
       if (N.api) N.api.say(cleanText(N.err, 24) || "ОШИБКА");
     }
   }
@@ -2696,10 +2712,30 @@ var NET: any = (function () {
   N.inRoom = function () { return !!N.room; };
   N.isHost = function () { return !!N.room && N.room.host === N.you; };
   N.mePlayer = function () { if (!N.room) return null; for (var i = 0; i < N.room.players.length; i++) if (N.room.players[i].pid === N.you) return N.room.players[i]; return null; };
-  /** Online rooms pin the logical width: the map generator depends on LW. */
-  N.fixedLW = function () { return N.room ? N.room.lw : 0; };
+  function parseField(f: any, fallbackW?: number) {
+    var base = N.field || { w: DEFAULT_LW, h: DEFAULT_LH, pxPerM: DEFAULT_PX_PER_M };
+    if (!f || typeof f !== "object") {
+      if (typeof fallbackW === "number" && fallbackW > 0) {
+        return { w: Math.round(fallbackW), h: base.h || DEFAULT_LH, pxPerM: base.pxPerM || DEFAULT_PX_PER_M };
+      }
+      return null;
+    }
+    var w = Number(f.w), h = Number(f.h), pxPerM = Number(f.pxPerM);
+    return {
+      w: (w > 0 && isFinite(w)) ? Math.round(w) : (typeof fallbackW === "number" && fallbackW > 0 ? Math.round(fallbackW) : base.w),
+      h: (h > 0 && isFinite(h)) ? Math.round(h) : base.h,
+      pxPerM: (pxPerM > 0 && isFinite(pxPerM)) ? pxPerM : base.pxPerM,
+    };
+  }
+  /** Online sessions use the server-provided field config (hello.field / room.field / start.field). */
+  N.fixedField = function () {
+    if (N.room) return N.room.field || parseField(null, N.room.lw) || N.field;
+    if (N.api && (N.api.phase() === "net" || (N.api.world() && N.api.world().net))) return N.field;
+    return null;
+  };
+  N.fixedLW = function () { var f = N.fixedField(); return f ? f.w : 0; };
   /* Evening score is client-side from `results` broadcasts (same session, same room).
-     Server NET_LW is 180; width parity with solo (160) needs a one-line server change via Devops. */
+     Server NET_LW is 160 on protocol v2 (matching solo) and 180 on legacy protocol v1. */
   function emptySession(code: string) { return { code: code || "", rounds: [], wins: {}, best: {}, names: {} }; }
   N.session = emptySession("");
   function sessionFor(code: string) {
@@ -2752,11 +2788,15 @@ var NET: any = (function () {
     w.net = true; w.mode = "squad"; w.netRound = info.round; w.netAt = info.at; w.netDead = false;
     var mine: any = null, others: any[] = [];
     for (var i = 0; i < info.players.length; i++) { if (info.players[i].pid === N.you) mine = info.players[i]; else others.push(info.players[i]); }
+    function slotSpawnX(slot: number) {
+      var base = NET_XS[slot % 4];
+      return (LW === 160 || LW === 180) ? base : Math.round((base * LW) / 160);
+    }
     var me0 = w.players[0];
-    if (mine) { me0.x = NET_XS[mine.slot % 4]; me0.name = mine.name; me0.pid = mine.pid; }
+    if (mine) { me0.x = slotSpawnX(mine.slot); me0.name = mine.name; me0.pid = mine.pid; }
     for (var k = 0; k < others.length; k++) {
       var o = others[k];
-      var p: any = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], false);
+      var p: any = newPlayer(k + 1, o.kind, lookOf(o.kind), slotSpawnX(o.slot), false);
       p.remote = true; p.pid = o.pid; p.name = o.name; p.react = 1; p.bias = 0;
       w.players.push(p);
     }
@@ -3048,7 +3088,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var campCard = -1;
   var showSet = false;
   var paused = false;
-  var netLW = 0;
+  var netFieldSig = "";
   var WHERE = ["В ГОРОДЕ", "В ДЖУНГЛЯХ", "В ЛЕДНИКЕ", "НА ВУЛКАНЕ", "В ОКЕАНЕ", "В КОСМОСЕ"];
   var TO = ["ГОРОДА", "ДЖУНГЛЕЙ", "ЛЕДНИКА", "ВУЛКАНА", "ОКЕАНА", "КОСМОСА"];
   var HTO = ["КАПИТАНА", "ПИРАТА", "НИНДЗЯ", "РОБОТА", "МАГА", "РЫЦАРЯ"];
@@ -3058,6 +3098,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function isPageBuild() { return typeof HOP_PAGE !== "undefined" && !!HOP_PAGE; }
   function netFixedLW() {
     return (typeof NET !== "undefined" && NET && typeof NET.fixedLW === "function") ? (NET.fixedLW() || 0) : 0;
+  }
+  function netFixedField() {
+    if (typeof NET !== "undefined" && NET && typeof NET.fixedField === "function") return NET.fixedField() || null;
+    var w = netFixedLW();
+    return w ? { w: w, h: DEFAULT_LH, pxPerM: DEFAULT_PX_PER_M } : null;
+  }
+  function netFieldKey(f: any) {
+    return f ? (f.w + ":" + f.h + ":" + f.pxPerM) : "";
   }
   function syncBackdrop(mapId: string) {
     if (!wrap) return;
@@ -3103,9 +3151,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var frameY = isWide ? (cssH >= 740 ? 16 : 4) : 0;
     var availW = Math.max(160, cssW - frameX * 2);
     var availH = Math.max(240, cssH - frameY * 2);
-    var lw = netFixedLW() || 160;
-    var lh = 346;
-    if (fieldLocked) { lw = LW; lh = LH; }
+    var nf = netFixedField();
+    var lw = (nf && nf.w) || DEFAULT_LW;
+    var lh = (nf && nf.h) || DEFAULT_LH;
+    var ppm = (nf && nf.pxPerM) || DEFAULT_PX_PER_M;
+    if (fieldLocked) { lw = LW; lh = LH; ppm = PX_PER_M; }
     var sx: number, sy: number, cssWpx: number, cssHpx: number;
     if (isWide) {
       pScale = Math.max(1, Math.min(Math.floor((availW * dpr) / lw), Math.floor((availH * dpr) / lh)));
@@ -3148,8 +3198,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.style.borderRadius = "0px";
     }
     if (isWide) { VIEW_PAD = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
-    netLW = netFixedLW();
-    LW = lw; LH = lh; SCALE = cssScale;
+    netFieldSig = netFieldKey(nf);
+    LW = lw; LH = lh; PX_PER_M = ppm; SCALE = cssScale;
     canvas.style.width = cssWpx + "px";
     canvas.style.height = cssHpx + "px";
     canvas.style.imageRendering = "pixelated";
@@ -3269,7 +3319,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     startRun(seed != null ? seed : (((Date.now() + ((room && room.round) || 0) * 40503) >>> 0)));
   }
   function startNet(info: any) { /* net: synchronized online run, seed + map come from the server */
-    mode = "solo"; resize();
+    mode = "solo"; fieldLocked = false; resize();
     startRun(info.seed, info.map);
     NET.attachWorld(world, info);
   }
@@ -4255,7 +4305,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.fillRect(0, 0, DEV_W, FIELD_OY); ctx.fillRect(0, FIELD_OY + LH * pScale, DEV_W, DEV_H - FIELD_OY - LH * pScale);
       ctx.restore();
     }
-    if (netFixedLW() !== netLW) resize();
+    if (netFieldKey(netFixedField()) !== netFieldSig) resize();
     if (running && !driving) raf = requestAnimationFrame(frame);
   }
 
@@ -4265,7 +4315,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
-    setPhase: function (p: string) { phase = p; }, goMenu: goMenu,
+    setPhase: function (p: string) { phase = p; if (p === "net") { fieldLocked = false; resize(); } }, goMenu: goMenu,
     bots: function () { activate("mp"); }, startNet: startNet
   };
   NET.bind(netApi);
@@ -4334,7 +4384,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    getSize: function () { return { lw: LW, lh: LH, pxPerM: PX_PER_M, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },

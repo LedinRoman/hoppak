@@ -30,7 +30,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var campCard = -1;
   var showSet = false;
   var paused = false;
-  var netLW = 0;
+  var netFieldSig = "";
   var WHERE = ["В ГОРОДЕ", "В ДЖУНГЛЯХ", "В ЛЕДНИКЕ", "НА ВУЛКАНЕ", "В ОКЕАНЕ", "В КОСМОСЕ"];
   var TO = ["ГОРОДА", "ДЖУНГЛЕЙ", "ЛЕДНИКА", "ВУЛКАНА", "ОКЕАНА", "КОСМОСА"];
   var HTO = ["КАПИТАНА", "ПИРАТА", "НИНДЗЯ", "РОБОТА", "МАГА", "РЫЦАРЯ"];
@@ -40,6 +40,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function isPageBuild() { return typeof HOP_PAGE !== "undefined" && !!HOP_PAGE; }
   function netFixedLW() {
     return (typeof NET !== "undefined" && NET && typeof NET.fixedLW === "function") ? (NET.fixedLW() || 0) : 0;
+  }
+  function netFixedField() {
+    if (typeof NET !== "undefined" && NET && typeof NET.fixedField === "function") return NET.fixedField() || null;
+    var w = netFixedLW();
+    return w ? { w: w, h: DEFAULT_LH, pxPerM: DEFAULT_PX_PER_M } : null;
+  }
+  function netFieldKey(f: any) {
+    return f ? (f.w + ":" + f.h + ":" + f.pxPerM) : "";
   }
   function syncBackdrop(mapId: string) {
     if (!wrap) return;
@@ -85,9 +93,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var frameY = isWide ? (cssH >= 740 ? 16 : 4) : 0;
     var availW = Math.max(160, cssW - frameX * 2);
     var availH = Math.max(240, cssH - frameY * 2);
-    var lw = netFixedLW() || 160;
-    var lh = 346;
-    if (fieldLocked) { lw = LW; lh = LH; }
+    var nf = netFixedField();
+    var lw = (nf && nf.w) || DEFAULT_LW;
+    var lh = (nf && nf.h) || DEFAULT_LH;
+    var ppm = (nf && nf.pxPerM) || DEFAULT_PX_PER_M;
+    if (fieldLocked) { lw = LW; lh = LH; ppm = PX_PER_M; }
     var sx: number, sy: number, cssWpx: number, cssHpx: number;
     if (isWide) {
       pScale = Math.max(1, Math.min(Math.floor((availW * dpr) / lw), Math.floor((availH * dpr) / lh)));
@@ -130,8 +140,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.style.borderRadius = "0px";
     }
     if (isWide) { VIEW_PAD = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
-    netLW = netFixedLW();
-    LW = lw; LH = lh; SCALE = cssScale;
+    netFieldSig = netFieldKey(nf);
+    LW = lw; LH = lh; PX_PER_M = ppm; SCALE = cssScale;
     canvas.style.width = cssWpx + "px";
     canvas.style.height = cssHpx + "px";
     canvas.style.imageRendering = "pixelated";
@@ -251,7 +261,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     startRun(seed != null ? seed : (((Date.now() + ((room && room.round) || 0) * 40503) >>> 0)));
   }
   function startNet(info: any) { /* net: synchronized online run, seed + map come from the server */
-    mode = "solo"; resize();
+    mode = "solo"; fieldLocked = false; resize();
     startRun(info.seed, info.map);
     NET.attachWorld(world, info);
   }
@@ -1237,7 +1247,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.fillRect(0, 0, DEV_W, FIELD_OY); ctx.fillRect(0, FIELD_OY + LH * pScale, DEV_W, DEV_H - FIELD_OY - LH * pScale);
       ctx.restore();
     }
-    if (netFixedLW() !== netLW) resize();
+    if (netFieldKey(netFixedField()) !== netFieldSig) resize();
     if (running && !driving) raf = requestAnimationFrame(frame);
   }
 
@@ -1247,7 +1257,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
-    setPhase: function (p: string) { phase = p; }, goMenu: goMenu,
+    setPhase: function (p: string) { phase = p; if (p === "net") { fieldLocked = false; resize(); } }, goMenu: goMenu,
     bots: function () { activate("mp"); }, startNet: startNet
   };
   NET.bind(netApi);
@@ -1316,7 +1326,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    getSize: function () { return { lw: LW, lh: LH, pxPerM: PX_PER_M, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },

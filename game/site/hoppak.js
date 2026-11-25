@@ -1,7 +1,10 @@
 /* Хоппак v0.58 site — HOP_SERVER baked in, do not edit */
 (() => {
-  var LW = 160;
-  var LH = 346;
+  var DEFAULT_LW = 160;
+  var DEFAULT_LH = 346;
+  var DEFAULT_PX_PER_M = 8;
+  var LW = DEFAULT_LW;
+  var LH = DEFAULT_LH;
   var VIEW_PAD = 0;
   function viewX0() {
     return -VIEW_PAD;
@@ -12,7 +15,7 @@
   function dimView(ctx, col) {
     rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col);
   }
-  var PX_PER_M = 8;
+  var PX_PER_M = DEFAULT_PX_PER_M;
   var PW = 12;
   var PH = 16;
   var GRAVITY = 0.19;
@@ -3159,6 +3162,7 @@
       node: "",
       targetNode: "",
       serverVersion: "",
+      field: null,
       updateAvail: false,
       updateVersion: "",
       updateDismissed: "",
@@ -3386,6 +3390,7 @@
     function failLink(cb) {
       N.st = "error";
       N.err = "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418";
+      if (!N.room) N.field = null;
       N.pendingAction = null;
       N.redirCount = 0;
       N.redirecting = false;
@@ -3485,7 +3490,10 @@
           return;
         }
         if (N.room) startReconnect();
-        else if (N.st !== "error") N.st = "off";
+        else {
+          N.field = null;
+          if (N.st !== "error") N.st = "off";
+        }
       };
       ws.onerror = function() {
       };
@@ -3552,6 +3560,7 @@
       N.st = "unsupported";
       N.err = "\u041E\u041D\u041B\u0410\u0419\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418";
       N.room = null;
+      N.field = null;
       N.pendingAction = null;
       N.redirCount = 0;
       N.redirecting = false;
@@ -3570,6 +3579,7 @@
       N.st = "error";
       N.err = msg;
       N.room = null;
+      N.field = null;
       N.token = "";
       N.node = "";
       N.targetNode = "";
@@ -3613,6 +3623,7 @@
         }
         N.serverProto = d.v;
         N.node = d.node ? String(d.node) : "";
+        N.field = parseField(d.field);
         if (N.room) store("hoppak.net.node", N.node || null);
         if (d.version) noteServerVersion(d.version);
         ping();
@@ -3644,6 +3655,12 @@
           N.err = "\u0421\u0415\u0420\u0412\u0415\u0420 \u041F\u0415\u0420\u0415\u0413\u0420\u0423\u0416\u0415\u041D";
           if (N.api) N.api.say(N.err);
           return;
+        }
+        if (act.type === "create" && N.room) {
+          N.room = null;
+          N.token = "";
+          store("hoppak.net.token", null);
+          store("hoppak.net.node", null);
         }
         N.pendingAction = act;
         N.redirecting = true;
@@ -3684,6 +3701,8 @@
         N.pendingAction = null;
         N.redirCount = 0;
         N.redirecting = false;
+        var rf = parseField(d.field, d.lw);
+        if (rf) d.field = rf;
         N.room = d;
         N.you = d.you;
         N.token = d.token;
@@ -3698,6 +3717,12 @@
         }
         if (N.api && N.api.phase() === "net" && N.sub !== "room") N.sub = "room";
       } else if (ev === "start") {
+        var sf = parseField(d.field, d.lw);
+        if (sf) d.field = sf;
+        if (N.room && sf) {
+          N.room.field = sf;
+          N.room.lw = sf.w;
+        }
         N.startInfo = d;
         N.results = null;
         N.buf = {};
@@ -3732,6 +3757,12 @@
         }
         N.err = d.msg || d.code;
         if (d.code === "NO_SESSION") giveUp("\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410");
+        else if (d.code === "ROOM_CLOSED" || d.code === "SERVER_SHUTDOWN") {
+          N.room = null;
+          N.token = "";
+          store("hoppak.net.token", null);
+          store("hoppak.net.node", null);
+        }
         if (N.api) N.api.say(cleanText(N.err, 24) || "\u041E\u0428\u0418\u0411\u041A\u0410");
       }
     }
@@ -3789,8 +3820,29 @@
       for (var i = 0; i < N.room.players.length; i++) if (N.room.players[i].pid === N.you) return N.room.players[i];
       return null;
     };
+    function parseField(f, fallbackW) {
+      var base = N.field || { w: DEFAULT_LW, h: DEFAULT_LH, pxPerM: DEFAULT_PX_PER_M };
+      if (!f || typeof f !== "object") {
+        if (typeof fallbackW === "number" && fallbackW > 0) {
+          return { w: Math.round(fallbackW), h: base.h || DEFAULT_LH, pxPerM: base.pxPerM || DEFAULT_PX_PER_M };
+        }
+        return null;
+      }
+      var w = Number(f.w), h = Number(f.h), pxPerM = Number(f.pxPerM);
+      return {
+        w: w > 0 && isFinite(w) ? Math.round(w) : typeof fallbackW === "number" && fallbackW > 0 ? Math.round(fallbackW) : base.w,
+        h: h > 0 && isFinite(h) ? Math.round(h) : base.h,
+        pxPerM: pxPerM > 0 && isFinite(pxPerM) ? pxPerM : base.pxPerM
+      };
+    }
+    N.fixedField = function() {
+      if (N.room) return N.room.field || parseField(null, N.room.lw) || N.field;
+      if (N.api && (N.api.phase() === "net" || N.api.world() && N.api.world().net)) return N.field;
+      return null;
+    };
     N.fixedLW = function() {
-      return N.room ? N.room.lw : 0;
+      var f = N.fixedField();
+      return f ? f.w : 0;
     };
     function emptySession(code) {
       return { code: code || "", rounds: [], wins: {}, best: {}, names: {} };
@@ -3854,15 +3906,19 @@
         if (info.players[i].pid === N.you) mine = info.players[i];
         else others.push(info.players[i]);
       }
+      function slotSpawnX(slot) {
+        var base = NET_XS[slot % 4];
+        return LW === 160 || LW === 180 ? base : Math.round(base * LW / 160);
+      }
       var me0 = w.players[0];
       if (mine) {
-        me0.x = NET_XS[mine.slot % 4];
+        me0.x = slotSpawnX(mine.slot);
         me0.name = mine.name;
         me0.pid = mine.pid;
       }
       for (var k = 0; k < others.length; k++) {
         var o = others[k];
-        var p = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], false);
+        var p = newPlayer(k + 1, o.kind, lookOf(o.kind), slotSpawnX(o.slot), false);
         p.remote = true;
         p.pid = o.pid;
         p.name = o.name;
@@ -4312,7 +4368,7 @@
     var campCard = -1;
     var showSet = false;
     var paused = false;
-    var netLW = 0;
+    var netFieldSig = "";
     var WHERE = ["\u0412 \u0413\u041E\u0420\u041E\u0414\u0415", "\u0412 \u0414\u0416\u0423\u041D\u0413\u041B\u042F\u0425", "\u0412 \u041B\u0415\u0414\u041D\u0418\u041A\u0415", "\u041D\u0410 \u0412\u0423\u041B\u041A\u0410\u041D\u0415", "\u0412 \u041E\u041A\u0415\u0410\u041D\u0415", "\u0412 \u041A\u041E\u0421\u041C\u041E\u0421\u0415"];
     var TO = ["\u0413\u041E\u0420\u041E\u0414\u0410", "\u0414\u0416\u0423\u041D\u0413\u041B\u0415\u0419", "\u041B\u0415\u0414\u041D\u0418\u041A\u0410", "\u0412\u0423\u041B\u041A\u0410\u041D\u0410", "\u041E\u041A\u0415\u0410\u041D\u0410", "\u041A\u041E\u0421\u041C\u041E\u0421\u0410"];
     var HTO = ["\u041A\u0410\u041F\u0418\u0422\u0410\u041D\u0410", "\u041F\u0418\u0420\u0410\u0422\u0410", "\u041D\u0418\u041D\u0414\u0417\u042F", "\u0420\u041E\u0411\u041E\u0422\u0410", "\u041C\u0410\u0413\u0410", "\u0420\u042B\u0426\u0410\u0420\u042F"];
@@ -4323,6 +4379,14 @@
     }
     function netFixedLW() {
       return typeof NET !== "undefined" && NET && typeof NET.fixedLW === "function" ? NET.fixedLW() || 0 : 0;
+    }
+    function netFixedField() {
+      if (typeof NET !== "undefined" && NET && typeof NET.fixedField === "function") return NET.fixedField() || null;
+      var w = netFixedLW();
+      return w ? { w, h: DEFAULT_LH, pxPerM: DEFAULT_PX_PER_M } : null;
+    }
+    function netFieldKey(f) {
+      return f ? f.w + ":" + f.h + ":" + f.pxPerM : "";
     }
     function syncBackdrop(mapId) {
       if (!wrap) return;
@@ -4372,11 +4436,14 @@
       var frameY = isWide ? cssH >= 740 ? 16 : 4 : 0;
       var availW = Math.max(160, cssW - frameX * 2);
       var availH = Math.max(240, cssH - frameY * 2);
-      var lw = netFixedLW() || 160;
-      var lh = 346;
+      var nf = netFixedField();
+      var lw = nf && nf.w || DEFAULT_LW;
+      var lh = nf && nf.h || DEFAULT_LH;
+      var ppm = nf && nf.pxPerM || DEFAULT_PX_PER_M;
       if (fieldLocked) {
         lw = LW;
         lh = LH;
+        ppm = PX_PER_M;
       }
       var sx, sy, cssWpx, cssHpx;
       if (isWide) {
@@ -4426,9 +4493,10 @@
         DEV_W = canvas.width;
         DEV_H = canvas.height;
       }
-      netLW = netFixedLW();
+      netFieldSig = netFieldKey(nf);
       LW = lw;
       LH = lh;
+      PX_PER_M = ppm;
       SCALE = cssScale;
       canvas.style.width = cssWpx + "px";
       canvas.style.height = cssHpx + "px";
@@ -4613,6 +4681,7 @@
     }
     function startNet(info) {
       mode = "solo";
+      fieldLocked = false;
       resize();
       startRun(info.seed, info.map);
       NET.attachWorld(world, info);
@@ -5965,7 +6034,7 @@
         ctx.fillRect(0, FIELD_OY + LH * pScale, DEV_W, DEV_H - FIELD_OY - LH * pScale);
         ctx.restore();
       }
-      if (netFixedLW() !== netLW) resize();
+      if (netFieldKey(netFixedField()) !== netFieldSig) resize();
       if (running && !driving) raf = requestAnimationFrame(frame);
     }
     var netApi = {
@@ -5997,6 +6066,10 @@
       },
       setPhase: function(p) {
         phase = p;
+        if (p === "net") {
+          fieldLocked = false;
+          resize();
+        }
       },
       goMenu,
       bots: function() {
@@ -6099,7 +6172,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
+        return { lw: LW, lh: LH, pxPerM: PX_PER_M, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
       },
       tap: function(id) {
         activate(id);

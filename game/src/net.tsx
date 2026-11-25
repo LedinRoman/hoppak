@@ -26,7 +26,7 @@ var NET: any = (function () {
   var N: any = {
     ws: null, st: "off", /* off | connecting | online | reconnecting | error | unsupported */
     proto: NET_PROTO, clientVersion: CLIENT_VERSION, serverProto: 0,
-    node: "", targetNode: "", serverVersion: "",
+    node: "", targetNode: "", serverVersion: "", field: null as any,
     updateAvail: false, updateVersion: "", updateDismissed: "",
     pendingAction: null as any, redirCount: 0, redirecting: false,
     pollTimer: 0, healthMs: NET_HEALTH_MS, probeSeq: 0,
@@ -184,6 +184,7 @@ var NET: any = (function () {
   }
   function failLink(cb?: any) {
     N.st = "error"; N.err = "НЕТ СВЯЗИ";
+    if (!N.room) N.field = null;
     N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
     var f = cb || N.onOpen; N.onOpen = null; if (f) f(false);
   }
@@ -232,7 +233,7 @@ var NET: any = (function () {
       if (N.st === "unsupported") return;
       if (e && e.code === 4002) { rejectVersion(); return; }
       if (!opened && N.st !== "reconnecting") { failLink(); return; }
-      if (N.room) startReconnect(); else if (N.st !== "error") N.st = "off";
+      if (N.room) startReconnect(); else { N.field = null; if (N.st !== "error") N.st = "off"; }
     };
     ws.onerror = function () {};
   }
@@ -274,7 +275,7 @@ var NET: any = (function () {
     if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
     N.st = "unsupported";
     N.err = "ОНЛАЙН НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ";
-    N.room = null;
+    N.room = null; N.field = null;
     N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
     var ws = N.ws;
     N.ws = null;
@@ -283,7 +284,7 @@ var NET: any = (function () {
     if (N.api && N.api.phase() === "net") N.sub = "home";
   }
   function giveUp(msg: string) {
-    N.st = "error"; N.err = msg; N.room = null; N.token = ""; N.node = ""; N.targetNode = "";
+    N.st = "error"; N.err = msg; N.room = null; N.field = null; N.token = ""; N.node = ""; N.targetNode = "";
     N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
     store("hoppak.net.token", null); store("hoppak.net.node", null);
     var w = N.api && N.api.world();
@@ -307,6 +308,7 @@ var NET: any = (function () {
       if (d.supported === false || (d.v !== 1 && d.v !== NET_PROTO)) { rejectVersion(); return; }
       N.serverProto = d.v;
       N.node = d.node ? String(d.node) : "";
+      N.field = parseField(d.field);
       if (N.room) store("hoppak.net.node", N.node || null);
       if (d.version) noteServerVersion(d.version);
       ping();
@@ -334,6 +336,10 @@ var NET: any = (function () {
         if (N.api) N.api.say(N.err);
         return;
       }
+      if (act.type === "create" && N.room) {
+        N.room = null; N.token = "";
+        store("hoppak.net.token", null); store("hoppak.net.node", null);
+      }
       N.pendingAction = act;
       N.redirecting = true;
       N.targetNode = nextNode;
@@ -356,6 +362,7 @@ var NET: any = (function () {
     } else if (ev === "room") {
       var wasRecon = N.st === "reconnecting";
       N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
+      var rf = parseField(d.field, d.lw); if (rf) d.field = rf;
       N.room = d; N.you = d.you; N.token = d.token;
       store("hoppak.net.token", d.token);
       if (N.node) store("hoppak.net.node", N.node);
@@ -364,6 +371,8 @@ var NET: any = (function () {
       if (wasRecon) { var f = N.onOpen; N.onOpen = null; if (f) f(true); }
       if (N.api && N.api.phase() === "net" && N.sub !== "room") N.sub = "room";
     } else if (ev === "start") {
+      var sf = parseField(d.field, d.lw); if (sf) d.field = sf;
+      if (N.room && sf) { N.room.field = sf; N.room.lw = sf.w; }
       N.startInfo = d; N.results = null; N.buf = {};
       var w0 = N.api && N.api.world();
       if (d.resumed && w0 && w0.net && w0.netRound === d.round) return; /* our run survived the blink */
@@ -390,6 +399,10 @@ var NET: any = (function () {
       if (d.code === "UNSUPPORTED_PROTOCOL") { rejectVersion(); return; }
       N.err = d.msg || d.code;
       if (d.code === "NO_SESSION") giveUp("КОМНАТА ЗАКРЫТА");
+      else if (d.code === "ROOM_CLOSED" || d.code === "SERVER_SHUTDOWN") {
+        N.room = null; N.token = "";
+        store("hoppak.net.token", null); store("hoppak.net.node", null);
+      }
       if (N.api) N.api.say(cleanText(N.err, 24) || "ОШИБКА");
     }
   }
@@ -415,10 +428,30 @@ var NET: any = (function () {
   N.inRoom = function () { return !!N.room; };
   N.isHost = function () { return !!N.room && N.room.host === N.you; };
   N.mePlayer = function () { if (!N.room) return null; for (var i = 0; i < N.room.players.length; i++) if (N.room.players[i].pid === N.you) return N.room.players[i]; return null; };
-  /** Online rooms pin the logical width: the map generator depends on LW. */
-  N.fixedLW = function () { return N.room ? N.room.lw : 0; };
+  function parseField(f: any, fallbackW?: number) {
+    var base = N.field || { w: DEFAULT_LW, h: DEFAULT_LH, pxPerM: DEFAULT_PX_PER_M };
+    if (!f || typeof f !== "object") {
+      if (typeof fallbackW === "number" && fallbackW > 0) {
+        return { w: Math.round(fallbackW), h: base.h || DEFAULT_LH, pxPerM: base.pxPerM || DEFAULT_PX_PER_M };
+      }
+      return null;
+    }
+    var w = Number(f.w), h = Number(f.h), pxPerM = Number(f.pxPerM);
+    return {
+      w: (w > 0 && isFinite(w)) ? Math.round(w) : (typeof fallbackW === "number" && fallbackW > 0 ? Math.round(fallbackW) : base.w),
+      h: (h > 0 && isFinite(h)) ? Math.round(h) : base.h,
+      pxPerM: (pxPerM > 0 && isFinite(pxPerM)) ? pxPerM : base.pxPerM,
+    };
+  }
+  /** Online sessions use the server-provided field config (hello.field / room.field / start.field). */
+  N.fixedField = function () {
+    if (N.room) return N.room.field || parseField(null, N.room.lw) || N.field;
+    if (N.api && (N.api.phase() === "net" || (N.api.world() && N.api.world().net))) return N.field;
+    return null;
+  };
+  N.fixedLW = function () { var f = N.fixedField(); return f ? f.w : 0; };
   /* Evening score is client-side from `results` broadcasts (same session, same room).
-     Server NET_LW is 180; width parity with solo (160) needs a one-line server change via Devops. */
+     Server NET_LW is 160 on protocol v2 (matching solo) and 180 on legacy protocol v1. */
   function emptySession(code: string) { return { code: code || "", rounds: [], wins: {}, best: {}, names: {} }; }
   N.session = emptySession("");
   function sessionFor(code: string) {
@@ -471,11 +504,15 @@ var NET: any = (function () {
     w.net = true; w.mode = "squad"; w.netRound = info.round; w.netAt = info.at; w.netDead = false;
     var mine: any = null, others: any[] = [];
     for (var i = 0; i < info.players.length; i++) { if (info.players[i].pid === N.you) mine = info.players[i]; else others.push(info.players[i]); }
+    function slotSpawnX(slot: number) {
+      var base = NET_XS[slot % 4];
+      return (LW === 160 || LW === 180) ? base : Math.round((base * LW) / 160);
+    }
     var me0 = w.players[0];
-    if (mine) { me0.x = NET_XS[mine.slot % 4]; me0.name = mine.name; me0.pid = mine.pid; }
+    if (mine) { me0.x = slotSpawnX(mine.slot); me0.name = mine.name; me0.pid = mine.pid; }
     for (var k = 0; k < others.length; k++) {
       var o = others[k];
-      var p: any = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], false);
+      var p: any = newPlayer(k + 1, o.kind, lookOf(o.kind), slotSpawnX(o.slot), false);
       p.remote = true; p.pid = o.pid; p.name = o.name; p.react = 1; p.bias = 0;
       w.players.push(p);
     }

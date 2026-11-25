@@ -4,13 +4,16 @@ import { useEffect, useRef } from "grok/canvas";
    Single source of truth: this file. hoppak.js is generated from it (build.sh). */
 type Ctx = CanvasRenderingContext2D;
 
-var LW = 160;
-var LH = 346;
+var DEFAULT_LW = 160;
+var DEFAULT_LH = 346;
+var DEFAULT_PX_PER_M = 8;
+var LW = DEFAULT_LW;
+var LH = DEFAULT_LH;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
 function viewX0() { return -VIEW_PAD; }
 function viewW() { return LW + VIEW_PAD * 2; }
 function dimView(ctx: Ctx, col: string) { rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col); }
-var PX_PER_M = 8;
+var PX_PER_M = DEFAULT_PX_PER_M;
 var PW = 12;
 var PH = 16;
 var GRAVITY = 0.19;

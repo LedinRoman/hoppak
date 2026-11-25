@@ -37,6 +37,7 @@ const GREEN_INT = 3922;
 const PROXY_PORT = 8920;
 const V1_PORT = 8923;
 const FAULT_PORT = 8924;
+const INTERNAL_TOKEN = 'e2e-internal-secret';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 23), ...a);
@@ -69,10 +70,13 @@ function startSlot({ name, pubPort, intPort, version, peerIntPort }) {
       NODE_ENV: 'production',
       PORT: String(pubPort),
       INTERNAL_PORT: String(intPort),
+      INTERNAL_HOST: '127.0.0.1',
+      INTERNAL_TOKEN,
       NODE_NAME: name,
       APP_VERSION: version,
       PEER_INTERNAL_URL: `http://127.0.0.1:${peerIntPort}`,
       PEER_TIMEOUT_MS: '800',
+      DRAIN_RESULTS_CLOSE_MS: '5000',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -87,7 +91,9 @@ async function waitSlotReady(slot) {
     try {
       const [h, s] = await Promise.all([
         fetch(`http://127.0.0.1:${slot.pubPort}/api/health`),
-        fetch(`http://127.0.0.1:${slot.intPort}/internal/stats`),
+        fetch(`http://127.0.0.1:${slot.intPort}/internal/stats`, {
+          headers: { 'x-internal-token': INTERNAL_TOKEN },
+        }),
       ]);
       if (h.ok && s.ok) return;
     } catch {
@@ -102,7 +108,7 @@ function createCaddyProxy({ bluePort, greenPort, gameDir }) {
   let active = 'blue';
   const httpLog = [];
   const wsLog = [];
-  const slots = { blue: bluePort, green: greenPort };
+  const slots = { blue: bluePort, green: greenPort, custom: 8925 };
   const activeConns = new Set();
 
   const indexHtml = readFileSync(join(gameDir, 'index.html'));
@@ -403,6 +409,13 @@ async function run() {
     check(await waitFor(p1, () => __hoppak.getPhase() === 'play' && __hoppak.getWorld()?.net) &&
           await waitFor(p2, () => __hoppak.getPhase() === 'play' && __hoppak.getWorld()?.net),
       'match started on blue with both browser clients');
+    const unauthStats = await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`);
+    check(unauthStats.status === 401, `internal port rejects missing INTERNAL_TOKEN (${unauthStats.status})`);
+    const lws = await Promise.all([
+      p1.evaluate(() => __hoppak.getSize().lw),
+      p2.evaluate(() => __hoppak.getSize().lw),
+    ]);
+    check(lws[0] === 160 && lws[1] === 160, `v2 online match runs at NET_LW=160 (p1=${lws[0]}, p2=${lws[1]})`);
 
     await sleep(1600);
     await p1.evaluate(() => __hoppak.setAutoPlay(true));
@@ -412,7 +425,7 @@ async function run() {
     proxy.setActive('green');
     const drainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
       body: JSON.stringify({ version: '0.58.0' }),
     })).json();
     check(drainRes.ok && drainRes.draining === true, `blue drained (notified=${drainRes.notified})`);
@@ -443,6 +456,19 @@ async function run() {
     const reconWs = proxy.wsLog.slice(wsLogBeforeRecon).find((w) => w.pathname === '/ws/blue');
     check(!!reconWs && reconWs.search.includes('p=2'),
       `p2 reconnected specifically via /ws/blue?p=2 while green is active (${JSON.stringify(reconWs)})`);
+
+    // 4b. BUG-24 E2E: even if reconnect lands on active green (/ws without /blue), green proxies resume to blue!
+    const wsBeforeBlindRecon = proxy.wsLog.length;
+    await p2.evaluate(() => {
+      sessionStorage.removeItem('hoppak.net.node');
+      __hoppak.net.node = '';
+      __hoppak.net.targetNode = '';
+      __hoppak.net.dropSocket();
+    });
+    check(await waitFor(p2, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net && __hoppak.getSize().lw === 160, null, 8000),
+      'BUG-24: p2 blind reconnect via active green recovered running blue match at lw=160');
+    const blindWs = proxy.wsLog.slice(wsBeforeBlindRecon).find((w) => w.pathname === '/ws' && w.targetSlot === 'green');
+    check(!!blindWs, `proxy routed blind reconnect to active green (${JSON.stringify(blindWs)})`);
 
     // 5. While blue is draining and green is active, p3 (green) joins blueCode -> redirects to /ws/blue!
     const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
@@ -500,6 +526,21 @@ async function run() {
       'create via stale draining blue connection redirected to green and created room');
     const redirCreateWs = proxy.wsLog.slice(wsBeforeCreate).find((w) => w.pathname === '/ws/green');
     check(!!redirCreateWs, `proxy saw create redirect to /ws/green (${JSON.stringify(redirCreateWs)})`);
+    check(await p1.evaluate(() => __hoppak.net.room?.lw === 160), 'new room on green also has lw=160');
+
+    // BUG-25 E2E: host remaining on draining blue room tapping rematch/start gets redirected to green instead of starting on blue!
+    await p2.evaluate(() => __hoppak.tap('rematch'));
+    if (await waitFor(p2, () => __hoppak.getPhase() === 'net' && __hoppak.net.sub === 'room' && __hoppak.net.node === 'blue', null, 3000)) {
+      const wsBeforeRematchStart = proxy.wsLog.length;
+      await p2.evaluate(() => __hoppak.tap('net:start'));
+      check(await waitFor(p2, () => __hoppak.net.room && __hoppak.net.node === 'green', null, 8000),
+        'BUG-25: rematch start on draining blue redirected host to green');
+      const rematchWs = proxy.wsLog.slice(wsBeforeRematchStart).find((w) => w.pathname === '/ws/green');
+      check(!!rematchWs, `proxy saw rematch redirect to /ws/green (${JSON.stringify(rematchWs)})`);
+    } else {
+      check(await waitFor(p2, () => __hoppak.net.room && __hoppak.net.node === 'green', null, 6000),
+        'BUG-25: draining blue auto-closed post-results room and redirected p2 to green');
+    }
 
     // Return to menu -> verify banner visible, dismiss works, and new version re-shows or health poll works
     await p1.evaluate(() => __hoppak.tap('net:back'));
@@ -544,6 +585,7 @@ async function run() {
     check(await waitFor(p5, () => __hoppak.net.room && __hoppak.net.room.code === '7777'), 'v1 server room created');
     await p5.evaluate(() => __hoppak.tap('net:start'));
     check(await waitFor(p5, () => __hoppak.getPhase() === 'play' && __hoppak.getWorld()?.net), 'v1 server match started');
+    check(await p5.evaluate(() => __hoppak.getSize().lw === 180), 'v1 legacy server keeps lw=180 compatibility');
     await p5.evaluate(() => __hoppak.net.send('ev', { e: 'dead', m: 42 }));
     check(await waitFor(p5, () => __hoppak.getPhase() === 'results'), 'v1 server match reached results cleanly');
 
@@ -564,6 +606,55 @@ async function run() {
     await waitFor(p6, () => __hoppak.net.err === 'СЕРВЕР ПЕРЕГРУЖЕН', null, 5000);
     check(faultSrv.getRedirectCount() === 3 && (await p6.evaluate(() => __hoppak.net.redirCount === 0 && __hoppak.net.err === 'СЕРВЕР ПЕРЕГРУЖЕН')),
       `redirect loop stopped after max 2 redirects (3rd blocked, server saw ${faultSrv.getRedirectCount()} create attempts)`);
+
+    // 9. Test server-provided custom field config (FIELD_W=208, FIELD_H=416, FIELD_PX_PER_M=10) without hardcoding!
+    const customPort = 8925;
+    const customSrv = spawn(process.execPath, [MAIN_JS], {
+      cwd: BG_SERVER_DIR,
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        PORT: String(customPort),
+        INTERNAL_PORT: 'off',
+        NODE_NAME: 'blue',
+        APP_VERSION: '0.57.0',
+        FIELD_W: '208',
+        FIELD_H: '416',
+        FIELD_PX_PER_M: '10',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    try {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 8000) {
+        try { if ((await fetch(`http://127.0.0.1:${customPort}/api/health`)).ok) break; } catch {}
+        await sleep(80);
+      }
+      const ctx7 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+      const p7 = await ctx7.newPage();
+      proxy.setActive('custom');
+      await p7.goto(`http://127.0.0.1:${PROXY_PORT}/v/0.57.0/`);
+      await p7.evaluate(() => __hoppak.tap('net:menu'));
+      await waitFor(p7, () => __hoppak.net.st === 'online');
+      await p7.evaluate(() => __hoppak.tap('net:create'));
+      await waitFor(p7, () => !!__hoppak.net.room);
+      await p7.evaluate(() => __hoppak.tap('net:start'));
+      await waitFor(p7, () => __hoppak.getPhase() === 'play' && __hoppak.getWorld()?.net);
+      const customSz = await p7.evaluate(() => ({ sz: __hoppak.getSize(), helloField: __hoppak.net.field, roomField: __hoppak.net.room?.field }));
+      check(
+        customSz.sz.lw === 208 && customSz.sz.lh === 416 && customSz.sz.pxPerM === 10 &&
+        customSz.helloField?.w === 208 && customSz.roomField?.w === 208,
+        `client dynamically uses server hello.field/room.field (lw=${customSz.sz.lw}, lh=${customSz.sz.lh}, pxPerM=${customSz.sz.pxPerM})`,
+      );
+      await p7.evaluate(() => __hoppak.tap('net:leave'));
+      await p7.evaluate(() => __hoppak.tap('net:back'));
+      await waitFor(p7, () => __hoppak.getPhase() === 'menu');
+      const soloSz = await p7.evaluate(() => __hoppak.getSize());
+      check(soloSz.lw === 160 && soloSz.lh === 346 && soloSz.pxPerM === 8,
+        `returning to solo menu restores default field (lw=${soloSz.lw}, lh=${soloSz.lh}, pxPerM=${soloSz.pxPerM})`);
+    } finally {
+      customSrv.kill('SIGTERM');
+    }
 
     // Check web-root and relative assets in source via grep check summary
     check(p1Errors.length === 0 && p2Errors.length === 0,
