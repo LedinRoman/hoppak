@@ -289,6 +289,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (mtr > save.best) save.best = mtr;
     world.best = save.best;
     writeSave(save);
+    if (typeof PROFILE !== "undefined" && PROFILE && (mtr > 0 || (world.runCoins || 0) > 0 || (world.bonusCoins || 0) > 0)) {
+      PROFILE.finishRun(mtr, world.runCoins || 0, world.bonusCoins || 0, world, {
+        mode: world.net ? "online" : mode,
+        map: world.map,
+        ver: "0.6"
+      });
+    }
   }
   function goMenu() { phase = "menu"; world = null; showSet = false; campCard = -1; paused = false; landPause = false; manualPause = false; fieldLocked = false; resize(); }
 
@@ -297,7 +304,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var i = parseInt(key.slice(5), 10);
     if (isNaN(i) || i < 0 || i >= CHARS.length) return;
     if (heroOwned(i)) { save.char = i; writeSave(save); say("ВЫБРАН"); }
-    else tryBuy("hero:act", CHARS[i].price, function () { save.coins -= CHARS[i].price; save.owned["char:" + i] = 1; save.char = i; say("КУПЛЕНО!"); });
+    else tryBuy("hero:act", CHARS[i].price, function () {
+      save.coins -= CHARS[i].price; save.owned["char:" + i] = 1; save.char = i; say("КУПЛЕНО!");
+      if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("char:" + i, CHARS[i].price);
+    });
   }
 
   function activate(id: string | null) {
@@ -370,6 +380,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (mapOpen(i) || !mapGoalMet(i)) return;
     tryBuy(buyId || ("camp:open:" + i), M.price, function () {
       save.coins -= M.price; save.owned["map:" + M.id] = 1; save.bg = M.id; say(mapOpened(M));
+      if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("map:" + M.id, M.price);
     });
   }
   function toggleTilt() {
@@ -1229,6 +1240,26 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   };
   NET.bind(netApi);
   NET.tryResume(netApi);
+  var profileApi: any = {
+    save: function () { return save; },
+    saveNow: function () { writeSave(save); },
+    apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number) {
+      if (!prof) return;
+      if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
+      else if (typeof prof.coins === "number" && prof.coins >= 0) save.coins = prof.coins;
+      if (typeof prof.best === "number" && prof.best > (save.best || 0)) save.best = prof.best;
+      if (prof.purchases && typeof prof.purchases === "object") {
+        for (var k in prof.purchases) if (prof.purchases[k]) save.owned[k] = 1;
+      }
+      if (wRef && world === wRef && typeof awarded === "number") {
+        wRef.earned = awarded;
+        wRef.coinFrom = Math.max(0, save.coins - awarded);
+        wRef.best = save.best;
+      }
+      writeSave(save);
+    }
+  };
+  if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.init(profileApi);
   function onVis() {
     acc = 0; uiAcc = 0; lastT = -1;
     if (document.hidden && phase === "play") paused = true;
@@ -1291,6 +1322,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dbgToast: function (s: string) { if (world) { world.toast = s; world.toastT = 70; } },
     getWorld: function () { return world; },
     net: NET,
+    profile: typeof PROFILE !== "undefined" ? PROFILE : null,
     getSave: function () { return save; },
     getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },

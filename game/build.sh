@@ -13,7 +13,7 @@
 set -e
 cd "$(dirname "$0")"
 ESB=/tmp/esb/node_modules/.bin/esbuild
-cat src/01_core.tsx src/02_world.tsx src/03_draw.tsx src/net.tsx src/04_shell.tsx > hoppak.page.tsx
+cat src/01_core.tsx src/02_world.tsx src/03_draw.tsx src/net.tsx src/profile.tsx src/04_shell.tsx > hoppak.page.tsx
 python3 - << 'PY'
 src = open("hoppak.page.tsx").read()
 game = src.split("/* @@APP */")[0]
@@ -54,8 +54,10 @@ node --check hoppak.js && echo "js ok $(wc -c < hoppak.js) bytes"
 if [ "${1:-}" = "site" ]; then
   SITE_ORIGIN="${HOP_SERVER:-https://76-13-250-251.sslip.io}"
   mkdir -p site
+  API_DEF=""
+  if [ -n "${HOP_API:-}" ]; then API_DEF="--define:HOP_API=\"${HOP_API}\""; fi
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
-    --define:HOP_SERVER="\"${SITE_ORIGIN}\"" \
+    --define:HOP_SERVER="\"${SITE_ORIGIN}\"" ${API_DEF} \
     --outfile=site/hoppak.js --log-level=warning
   sed -i '1i /* Хоппак v0.58 site — HOP_SERVER baked in, do not edit */' site/hoppak.js
   python3 - << PY
