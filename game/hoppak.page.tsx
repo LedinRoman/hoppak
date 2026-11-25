@@ -2109,6 +2109,8 @@ function drawItem(ctx: Ctx, it: any, cam: number, tick: number) {
    Model: every client simulates the same seeded map and only its own hero; remote heroes are
    drawn from server-relayed snapshots (20 Hz) with ~150 ms interpolation. Stomped mobs and
    deaths are relayed as events; the server decides when the round ends (everybody fell). */
+/* Must match server PROTOCOL_VERSION in net @ 2e6bfc0 (hello { v, s }). */
+var NET_PROTO = 1;
 var NET_SEND_MS = 66; /* own state ~15 Hz */
 var NET_DELAY_MS = 150; /* interpolation buffer */
 var NET_GRACE_MS = 10000;
@@ -2117,7 +2119,7 @@ var NET_TAGS: any = { host: "ХОСТ", ready: "ГОТОВ", wait: "ЖДЁМ", o
 
 var NET: any = (function () {
   var N: any = {
-    ws: null, st: "off", /* off | connecting | online | reconnecting | error */
+    ws: null, st: "off", /* off | connecting | online | reconnecting | error | unsupported */
     room: null, you: -1, token: "", err: "", sub: "home", code: "", startInfo: null, results: null,
     off: 0, rtt: 0, pingT: 0, lastSend: 0, reconUntil: 0, reconTimer: 0, onOpen: null as any, probing: false,
     stats: { sent: 0, recv: 0, snaps: 0, startedAt: 0 },
@@ -2221,19 +2223,23 @@ var NET: any = (function () {
     var to = setTimeout(function () { if (!opened) { try { ws.close(); } catch (_e) {} } }, 5000);
     ws.onopen = function () {
       opened = true; clearTimeout(to);
-      if (N.st !== "reconnecting") N.st = "online";
-      ping();
-      var tok = N.token || load("hoppak.net.token");
-      if (N.st === "reconnecting" && tok) send("resume", { token: tok });
-      else { N.st = "online"; var f = N.onOpen; N.onOpen = null; if (f) f(true); }
+      /* Stay in connecting until hello confirms the protocol version.
+         Old site builds at /v/<ver>/ share the same /ws; a mismatch must not crash. */
+      if (N.helloTimer) clearTimeout(N.helloTimer);
+      N.helloTimer = setTimeout(function () {
+        N.helloTimer = 0;
+        if (N.ws === ws && N.st !== "online" && N.st !== "unsupported") rejectVersion();
+      }, 2000);
     };
     ws.onmessage = function (e: any) { N.stats.recv++; var m: any; try { m = JSON.parse(e.data); } catch (_e2) { return; } onMsg(m.event, m.data || {}); };
     ws.onclose = function () {
       clearTimeout(to);
+      if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
       if (N.ws !== ws) return;
       N.ws = null;
+      if (N.st === "unsupported") return;
       if (!opened && N.st !== "reconnecting") { failLink(); return; }
-      if (N.room) startReconnect(); else N.st = "off";
+      if (N.room) startReconnect(); else if (N.st !== "error") N.st = "off";
     };
     ws.onerror = function () {};
   }
@@ -2264,6 +2270,17 @@ var NET: any = (function () {
       setTimeout(function () { if (N.st === "reconnecting" && !N.ws) startReconnect(); }, 1200);
     }, 800);
   }
+  function rejectVersion() {
+    if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+    N.st = "unsupported";
+    N.err = "ОНЛАЙН НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ";
+    N.room = null;
+    var ws = N.ws;
+    N.ws = null;
+    try { if (ws) ws.close(); } catch (_e) {}
+    var f = N.onOpen; N.onOpen = null; if (f) f(false);
+    if (N.api && N.api.phase() === "net") N.sub = "home";
+  }
   function giveUp(msg: string) {
     N.st = "error"; N.err = msg; N.room = null; N.token = ""; store("hoppak.net.token", null);
     var w = N.api && N.api.world();
@@ -2283,7 +2300,13 @@ var NET: any = (function () {
       if (!N.rtt || rtt < N.rtt * 1.5) N.off = N.rtt ? N.off * 0.7 + off * 0.3 : off;
       N.rtt = N.rtt ? N.rtt * 0.8 + rtt * 0.2 : rtt;
     } else if (ev === "hello") {
-      if (!N.rtt) N.off = d.s - now();
+      if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+      if (d.v !== NET_PROTO) { rejectVersion(); return; }
+      ping();
+      var tok = N.token || load("hoppak.net.token");
+      if (N.st === "reconnecting" && tok) send("resume", { token: tok });
+      else { N.st = "online"; var f = N.onOpen; N.onOpen = null; if (f) f(true); }
+      if (d.s && !N.rtt) N.off = d.s - now();
     } else if (ev === "room") {
       var wasRecon = N.st === "reconnecting";
       N.room = d; N.you = d.you; N.token = d.token; store("hoppak.net.token", d.token); N.st = "online";
@@ -2515,6 +2538,7 @@ var NET: any = (function () {
     if (N.st === "online") return { t: "СЕРВЕР НА СВЯЗИ", c: C.mint };
     if (N.st === "connecting") return { t: "ПОДКЛЮЧАЕМСЯ...", c: C.gold };
     if (N.st === "reconnecting") return { t: "ПЕРЕПОДКЛЮЧАЕМСЯ...", c: C.gold };
+    if (N.st === "unsupported") return { t: N.err || "ОНЛАЙН НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ", c: C.red, two: true };
     return { t: N.err || "НЕТ СВЯЗИ", c: C.red };
   }
   N.draw = function (api: any) {
@@ -2525,9 +2549,15 @@ var NET: any = (function () {
     if (N.sub === "code") return drawCode(api, x);
     api.header("ОНЛАЙН С ДРУЗЬЯМИ", 1);
     drawText(ctx, "ДО 4 ИГРОКОВ НА ОДНОЙ КАРТЕ", LW / 2, 34, C.cream, 1, "center");
-    box(ctx, x, 48, 152, 13, C.navy, sl.c);
-    drawText(ctx, sl.t, LW / 2, 51, sl.c, 1, "center");
-    var y = 72;
+    if (sl.two) {
+      box(ctx, x, 48, 152, 24, C.navy, sl.c);
+      drawText(ctx, "ОНЛАЙН НЕДОСТУПЕН", LW / 2, 51, sl.c, 1, "center");
+      drawText(ctx, "В ЭТОЙ ВЕРСИИ", LW / 2, 61, sl.c, 1, "center");
+    } else {
+      box(ctx, x, 48, 152, 13, C.navy, sl.c);
+      drawText(ctx, sl.t, LW / 2, 51, sl.c, 1, "center");
+    }
+    var y = sl.two ? 82 : 72;
     api.btn("net:name", x, y, 152, 20, "#1a1430", "ИМЯ: " + (cleanNick(nick()) || CHARS[api.save().char].name.toUpperCase()), C.cream, 1, C.gold);
     y += 28;
     var ok = N.st === "online";
