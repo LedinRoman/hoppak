@@ -208,13 +208,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (key === "open" || key.indexOf("open:") === 0) {
       var i2 = key.indexOf("open:") === 0 ? parseInt(key.slice(5), 10) : (campCard >= 0 ? campCard : nextClosable());
       if (i2 < 0 || isNaN(i2)) return;
-      campCard = i2;
-      unlockMap(i2);
+      /* Row buy keeps the list; only the card's own button leaves campCard as-is. */
+      if (key === "open" && campCard < 0) campCard = i2;
+      unlockMap(i2, key === "open" ? "camp:open" : ("camp:open:" + i2));
       return;
     }
     var i = parseInt(key, 10);
     if (isNaN(i) || i < 0 || i >= MAPS.length) return;
     var M = MAPS[i];
+    flashT = 0;
     if (mapOpen(i)) { campCard = i; return; }
     if (!mapOpen(i - 1)) { say("СНАЧАЛА ОТКРОЙ " + MAPS[i - 1].name); return; }
     if (!mapGoalMet(i)) { say("ДОЙДИ ДО " + MAPS[i - 1].goal + " М " + WHERE[i - 1]); return; }
@@ -224,10 +226,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (var i = 1; i < MAPS.length; i++) if (!mapOpen(i) && mapGoalMet(i)) return i;
     return -1;
   }
-  function unlockMap(i: number) {
+  function unlockMap(i: number, buyId?: string) {
     var M = MAPS[i];
     if (mapOpen(i) || !mapGoalMet(i)) return;
-    tryBuy("camp:open", M.price, function () {
+    tryBuy(buyId || ("camp:open:" + i), M.price, function () {
       save.coins -= M.price; save.owned["map:" + M.id] = 1; save.bg = M.id; say(mapOpened(M));
     });
   }
@@ -330,12 +332,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (flashT <= 0) return;
     if (phase !== flashPh) { flashT = 0; return; }
     flashT--;
-    var big = flash.indexOf("ОТКРЫТ") >= 0;
-    var sc = big ? 2 : 1;
-    var w = textWidth(flash, sc) + 16;
+    var unlock = flash.indexOf("ОТКРЫТ") >= 0;
+    var sc = 1, fy = LH - 64, fh = 13;
+    if (unlock && phase === "camp") {
+      if (campCard >= 0) { fy = Math.round(LH / 2 - 70) + 84; fh = 16; }
+      else { fy = 36; fh = 22; } /* under the title, in the tip-plaque row */
+    } else if (unlock) { fy = 36; fh = 16; }
+    var w = Math.min(LW - 8, textWidth(flash, sc) + 16);
     ctx.globalAlpha = Math.min(1, flashT / 20);
-    box(ctx, Math.round(LW / 2 - w / 2), big ? 36 : LH - 64, w, big ? 28 : 13, C.navy, C.gold);
-    drawText(ctx, flash, LW / 2, big ? 44 : LH - 61, C.gold, sc, "center");
+    box(ctx, Math.round(LW / 2 - w / 2), fy, w, fh, C.navy, C.gold);
+    drawText(ctx, flash, LW / 2, fy + 4, C.gold, sc, "center");
     ctx.globalAlpha = 1;
   }
   function plaque() {
