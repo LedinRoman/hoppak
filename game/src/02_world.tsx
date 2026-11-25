@@ -189,31 +189,34 @@ function genRow(w: any) {
   var spec = mapInfo(w.map).special;
   var row: any[] = [];
   var rowId = w.rowN++;
-  /* Moving plats: v0.54 started at 40 m. Soften the first stretch; from 70 m the
-     chance is the same formula as v0.54, so past ~300 m nothing changes. */
-  var moveP = m > 70 ? lerp(0.14, 0.45, d) : 0;
+  /* v0.59: +7% difficulty ramp past 100 m; first 100 m stay identical to v0.58. */
+  var h059 = clamp((m - 100) / 200, 0, 1);
+  /* Moving plats: v0.54 started at 40 m. Soften the first stretch; past 100 m ramp up move share and speed. */
+  var moveP = m > 70 ? lerp(0.14, 0.45, d) + 0.06 * h059 : 0;
   var isMove = w.lastKind !== "move" && r() < moveP;
   if (isMove) {
-    var mw = Math.round(lerp(40, 26, d));
-    var sp = lerp(0.35, 1.15, d) * (0.85 + r() * 0.3);
+    var mw = Math.round(lerp(40, 26, clamp(d + 0.08 * h059, 0, 1)));
+    var sp = lerp(0.35, 1.15, d) * (0.85 + r() * 0.3) * (1 + 0.10 * h059);
     var mp = mkPlat(randInt(r, 4, LW - mw - 4), y, mw, "move", rowId);
     mp.vx = r() < 0.5 ? -sp : sp;
     row.push(mp);
   } else {
     var n: number;
-    /* Singles start later than in v0.54 (which allowed them from 0 m). After 300 m
-       the branches match v0.54 exactly (250–600 was already 45% singles). */
-    if (m < 190) n = r() < 0.22 ? 3 : 2;
-    else if (m < 300) n = r() < 0.16 ? 3 : (r() < 0.18 ? 1 : 2);
-    else if (m < 600) n = r() < 0.08 ? 3 : (r() < 0.45 ? 1 : 2);
-    else {
-      n = r() < lerp(0.62, 0.12, (d - 0.28) / 0.72) ? 2 : 1;
-      if (n === 2 && m < 900 && r() < 0.06) n = 3;
+    if (m < 160) n = r() < 0.22 ? 3 : 2;
+    else if (m < 300) {
+      var u1 = (m - 160) / 140;
+      n = r() < lerp(0.20, 0.07, u1) ? 3 : (r() < lerp(0.12, 0.46, u1) ? 1 : 2);
     }
-    if (spec === "ice" && m < 300 && n === 1) n = 2;
-    var wmin = Math.round(lerp(42, 24, d)), wmax = Math.round(lerp(54, 32, d));
+    else if (m < 600) n = r() < 0.07 ? 3 : (r() < 0.50 ? 1 : 2);
+    else {
+      n = r() < lerp(0.56, 0.11, (d - 0.28) / 0.72) ? 2 : 1;
+      if (n === 2 && m < 900 && r() < 0.05) n = 3;
+    }
+    if (spec === "ice" && m < 260 && n === 1) n = 2;
+    var dW = clamp(d + 0.08 * h059, 0, 1);
+    var wmin = Math.round(lerp(42, 24, dW)), wmax = Math.round(lerp(54, 32, dW));
     var breakP054 = m > 80 ? lerp(0.10, 0.58, d) : 0;
-    var breakP = m < 200 ? 0 : m < 300 ? breakP054 * ((m - 200) / 100) : breakP054;
+    var breakP = m < 160 ? 0 : m < 290 ? breakP054 * ((m - 160) / 130) : Math.min(0.64, breakP054 + 0.05);
     for (var i = 0; i < n; i++) {
       var pw = randInt(r, wmin, wmax);
       var x = findX(r, pw, row);
@@ -259,7 +262,7 @@ function genRow(w: any) {
 
   /* Gap vs height. Soften the opening (min ~0.34 JUMP_H); from 300 m the values
      are identical to v0.54 (gT = m/700, 0.42–0.78 / 0.58–0.94). */
-  var gT = clamp(m / 700, 0, 1);
+  var gT = clamp((m + 90 * h059) / 700, 0, 1);
   var minG054 = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
   var maxG054 = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
   var minG: number, maxG: number;
@@ -270,6 +273,8 @@ function genRow(w: any) {
   } else {
     minG = minG054; maxG = maxG054;
   }
+  minG = Math.min(GAP_CAP, minG + Math.round(2 * h059));
+  maxG = Math.min(GAP_CAP, maxG + Math.round(2 * h059));
   if (minG > maxG) minG = maxG;
   var gap = randInt(r, minG, maxG);
 
@@ -994,7 +999,7 @@ function tickWorld(w: any, inputs: any) {
     }
     if (!any) cut = w.cameraY + LH + 80;
     w.platforms = w.platforms.filter(function (a: any) { return a.y < cut; });
-    w.monsters = w.monsters.filter(function (a: any) { return a.y < cut; });
+    w.monsters = w.monsters.filter(function (a: any) { return (a.home ? a.home.y : a.y) < cut; });
     w.coins = w.coins.filter(function (a: any) { return a.y < cut && !a.taken; });
     w.items = w.items.filter(function (a: any) { return a.y < cut && (!a.taken || a.popT > 0); });
     w.bullets = w.bullets.filter(function (a: any) { return a.y < cut; });

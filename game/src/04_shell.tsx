@@ -822,12 +822,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         drawFxBack(p, sy, cam);
         drawJumper(ctx, p.x, sy, p.look, p.face, pose, blink, p.alive);
         if (p.id === 0) drawReadyPip(p, sy);
-        drawFxFront(p, sy);
+        drawFxFront(p, sy, w.tick);
         p.x = ox;
       };
       drawHeroAt(p.x);
-      if (p.wallT <= 0 && p.x < 6) drawHeroAt(p.x + LW);
-      if (p.wallT <= 0 && p.x > LW - PW - 6) drawHeroAt(p.x - LW);
+      if (p.wallT <= 0 && p.x < 12) drawHeroAt(p.x + LW);
+      if (p.wallT <= 0 && p.x > LW - PW - 12) drawHeroAt(p.x - LW);
       if (w.mode === "squad") tags.push({ p: p, x: p.x + 6, y: Math.round(sy) - 13 });
     }
     tags.sort(function (a: any, b: any) { return b.y - a.y; });
@@ -941,11 +941,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (var k = 0; k < 28; k++) { var a = (k / 28) * Math.PI * 2; rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col); }
     ctx.globalAlpha = 1;
   }
-  function drawFxFront(p: any, sy: number) {
+  function drawFxFront(p: any, sy: number, tick: number) {
     if (!p.alive) return;
     var cx = Math.round(p.x + 6), cy = Math.round(sy + 6);
+    if (p.shieldT > 0) drawShieldAura(ctx, p, sy, tick);
     if (p.domeT > 0 && (p.domeT > 50 || (p.domeT >> 2) % 2)) { ring(cx, cy, 15, "#7ad8ff", 0.9); ring(cx, cy, 14, "#c8f4ff", 0.35); ctx.globalAlpha = 0.12; rect(ctx, cx - 10, cy - 10, 20, 20, "#7ad8ff"); ctx.globalAlpha = 1; }
-    else if (p.shieldT > 0 && (p.shieldT > 80 || (p.shieldT >> 2) % 2)) ring(cx, cy, 13, "#5ec8ff", 0.7);
     if (p.freezeT > 0) { ctx.globalAlpha = 0.45; rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff"); ctx.globalAlpha = 1; }
     if (p.rocketT > 0) { rect(ctx, cx - 2, sy + PH, 4, 3 + (ui % 3), "#ffd046"); rect(ctx, cx - 1, sy + PH + 3, 2, 3, "#ff7830"); }
     if (p.wallT > 0 && p.id === 0 && !p.wall) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(ui * 0.3); rect(ctx, 0, 0, 1, LH, "#d82a2a"); rect(ctx, LW - 1, 0, 1, LH, "#d82a2a"); ctx.globalAlpha = 1; }

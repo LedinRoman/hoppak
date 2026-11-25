@@ -624,3 +624,73 @@ function drawItem(ctx: Ctx, it: any, cam: number, tick: number) {
   if (drawBonusSprite(ctx, it.kind, cx, cy)) return;
   drawItemIcon(ctx, it.kind, x, y);
 }
+
+var SHIELD_BLINK_T = 90; /* last 1.8 s at 50 ticks/s */
+var SHIELD_FRAMES: any = null;
+function buildShieldFrames() {
+  var frames: any[] = [];
+  /* Four pulsing frames: alternating radius, ring thickness, palette tones, and crest glints.
+     Colours come strictly from the game's shield/hero palette; alpha is always 0 or 1. */
+  var specs = [
+    { r0: 12.1, r1: 13.7, cHi: "#ffffff", cMid: "#a4e8ff", cLow: "#3ca4ec", sparks: [[0, -15, "#a4e8ff"], [0, 15, "#3ca4ec"], [-15, 0, "#a4e8ff"], [15, 0, "#3ca4ec"]] },
+    { r0: 12.7, r1: 14.5, cHi: "#ffffff", cMid: "#a4e8ff", cLow: "#5ec8ff", sparks: [[-11, -11, "#ffffff"], [11, -11, "#a4e8ff"], [-11, 11, "#a4e8ff"], [11, 11, "#3ca4ec"]] },
+    { r0: 13.4, r1: 15.2, cHi: "#ffffff", cMid: "#c8f4ff", cLow: "#5ec8ff", sparks: [[0, -16, "#ffffff"], [0, 16, "#a4e8ff"], [-16, 0, "#ffffff"], [16, 0, "#a4e8ff"]] },
+    { r0: 12.7, r1: 14.3, cHi: "#a4e8ff", cMid: "#5ec8ff", cLow: "#3ca4ec", sparks: [[-10, -12, "#a4e8ff"], [12, -10, "#a4e8ff"], [-12, 10, "#3ca4ec"], [10, 12, "#3ca4ec"]] }
+  ];
+  var N = 37, H = 18;
+  for (var fi = 0; fi < specs.length; fi++) {
+    var sp = specs[fi];
+    var grid: any[] = [];
+    for (var i = 0; i < N * N; i++) grid.push(null);
+    function idx(dx: number, dy: number) { return (dy + H) * N + (dx + H); }
+    for (var dy = -16; dy <= 16; dy++) {
+      for (var dx = -16; dx <= 16; dx++) {
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d >= sp.r0 && d <= sp.r1) {
+          var diag = dx + dy;
+          grid[idx(dx, dy)] = diag < -7 ? sp.cHi : diag < 7 ? sp.cMid : sp.cLow;
+        }
+      }
+    }
+    for (var si = 0; si < sp.sparks.length; si++) {
+      var sx = sp.sparks[si][0] as number, sy2 = sp.sparks[si][1] as number;
+      grid[idx(sx, sy2)] = sp.sparks[si][2];
+    }
+    /* 1-px dark outline (#140c1c, hero sprite outline) around the outside of the bright aura */
+    var out: any[] = [];
+    var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (dy = -17; dy <= 17; dy++) {
+      for (dx = -17; dx <= 17; dx++) {
+        var c = grid[idx(dx, dy)];
+        if (c) { out.push([dx, dy, c]); continue; }
+        var d2 = Math.sqrt(dx * dx + dy * dy);
+        if (d2 <= sp.r0) continue;
+        for (var di = 0; di < 4; di++) {
+          var nx = dx + dirs[di][0], ny = dy + dirs[di][1];
+          if (nx >= -H && nx <= H && ny >= -H && ny <= H && grid[idx(nx, ny)]) {
+            out.push([dx, dy, "#140c1c"]);
+            break;
+          }
+        }
+      }
+    }
+    frames.push(out);
+  }
+  return frames;
+}
+function drawShieldAura(ctx: Ctx, p: any, sy: number, tick: number) {
+  if (!(p.shieldT > 0)) return;
+  if (p.shieldT <= SHIELD_BLINK_T) {
+    var bt = p.remote ? tick : p.shieldT;
+    if (((bt >> 2) % 2) === 0) return;
+  }
+  if (!SHIELD_FRAMES) SHIELD_FRAMES = buildShieldFrames();
+  var ph = Math.floor(tick / 6) % SHIELD_FRAMES.length;
+  var pts = SHIELD_FRAMES[ph];
+  var cx = Math.round(p.x + 6), cy = Math.round(sy + 5);
+  ctx.globalAlpha = 1;
+  for (var i = 0; i < pts.length; i++) {
+    var pt = pts[i];
+    rect(ctx, cx + pt[0], cy + pt[1], 1, 1, pt[2]);
+  }
+}
