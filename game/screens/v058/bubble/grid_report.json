@@ -1,0 +1,56 @@
+[
+ {
+  "shot": "desk_menu",
+  "calls": 11117,
+  "offGrid": 1,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawJumper<drawMenu": 1
+  }
+ },
+ {
+  "shot": "desk_play",
+  "calls": 2235,
+  "offGrid": 1,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawJumper<drawHeroAt": 1
+  }
+ },
+ {
+  "shot": "desk_pop",
+  "calls": 2025,
+  "offGrid": 1,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawJumper<drawHeroAt": 1
+  }
+ },
+ {
+  "shot": "phone_menu",
+  "calls": 11170,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawMenu": 1
+  }
+ },
+ {
+  "shot": "phone_play",
+  "calls": 2280,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawHeroAt": 1
+  }
+ },
+ {
+  "shot": "phone_pop",
+  "calls": 2070,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawHeroAt": 1
+  }
+ }
+]

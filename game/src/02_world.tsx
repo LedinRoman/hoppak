@@ -621,7 +621,7 @@ function botWantsAb(w: any, p: any) {
 }
 function pickItem(w: any, p: any, it: any) {
   it.taken = true;
-  spawnParts(w, it.x + 5, it.y + 5, 12, "#fff4c0", 2.4, 0, 1);
+  it.popT = BUBBLE.popTicks;
   var B: any = null;
   for (var i = 0; i < BONUSES.length; i++) if (BONUSES[i].id === it.kind) B = BONUSES[i];
   if (!B) return;
@@ -981,6 +981,10 @@ function tickWorld(w: any, inputs: any) {
     pt.x += pt.vx; pt.y += pt.vy; pt.vy += pt.g; pt.vx *= 0.97;
     if (--pt.life <= 0) w.particles.splice(i, 1);
   }
+  for (i = w.items.length - 1; i >= 0; i--) {
+    if (w.items[i].popT > 0) w.items[i].popT--;
+    if (w.items[i].taken && !(w.items[i].popT > 0)) w.items.splice(i, 1);
+  }
   if (w.tick % 30 === 0) {
     var cut = -1e9, any = false;
     for (i = 0; i < w.players.length; i++) {
@@ -992,7 +996,7 @@ function tickWorld(w: any, inputs: any) {
     w.platforms = w.platforms.filter(function (a: any) { return a.y < cut; });
     w.monsters = w.monsters.filter(function (a: any) { return a.y < cut; });
     w.coins = w.coins.filter(function (a: any) { return a.y < cut && !a.taken; });
-    w.items = w.items.filter(function (a: any) { return a.y < cut && !a.taken; });
+    w.items = w.items.filter(function (a: any) { return a.y < cut && (!a.taken || a.popT > 0); });
     w.bullets = w.bullets.filter(function (a: any) { return a.y < cut; });
   }
   var alive = 0;

@@ -244,6 +244,18 @@ var BONUSES: any[] = [
   { id: "rocket", name: "РАКЕТА", wt: 15, t: 85 }
 ];
 var BIGCOIN = 25;
+/* Visual-only bubble around floating pickups. Pickup hitbox stays it.x-2 / 14 × it.y-2 / 14.
+   Sizes live here so 2.0 can restyle without touching draw or overlap. */
+var BUBBLE = {
+  r: 14,
+  bobAmp: 1,
+  bobShift: 4,
+  popTicks: 10,
+  fillA: 0.22,
+  fill: "#e8fcff",
+  rim: "#e8ecf4",
+  hi: "#ffffff"
+};
 /* Campaign maps: open the next one by reaching `goal` m here AND paying its price.
    mobs: [kind, from metres] */
 var MAPS: any[] = [

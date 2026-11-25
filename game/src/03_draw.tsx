@@ -560,16 +560,67 @@ function drawItemIcon(ctx: Ctx, kind: string, x: number, y: number) {
   else if (kind === "magnet") { rect(ctx, x + 1, y + 1, 3, 7, "#ff5a62"); rect(ctx, x + 6, y + 1, 3, 7, "#ff5a62"); rect(ctx, x + 1, y + 6, 8, 3, "#ff5a62"); rect(ctx, x + 1, y + 1, 3, 2, "#e8ecf4"); rect(ctx, x + 6, y + 1, 3, 2, "#e8ecf4"); rect(ctx, x + 4, y + 6, 2, 1, "#a82a38"); }
   else if (kind === "rocket") { rect(ctx, x + 4, y, 2, 1, "#ff5a62"); rect(ctx, x + 3, y + 1, 4, 6, "#e8ecf4"); rect(ctx, x + 4, y + 2, 2, 2, "#5ec8ff"); rect(ctx, x + 2, y + 5, 1, 3, "#ff5a62"); rect(ctx, x + 7, y + 5, 1, 3, "#ff5a62"); rect(ctx, x + 4, y + 7, 2, 2, "#ffd046"); }
 }
+function fillDisk(ctx: Ctx, cx: number, cy: number, r: number, col: string) {
+  for (var dy = -r; dy <= r; dy++) {
+    var hw = Math.floor(Math.sqrt(r * r - dy * dy));
+    rect(ctx, cx - hw, cy + dy, hw * 2 + 1, 1, col);
+  }
+}
+function strokeDisk(ctx: Ctx, cx: number, cy: number, r: number, col: string) {
+  var r2 = (r - 1) * (r - 1);
+  for (var dy = -r; dy <= r; dy++) {
+    var hw = Math.floor(Math.sqrt(r * r - dy * dy));
+    var inner = (dy * dy >= r2) ? -1 : Math.floor(Math.sqrt(r2 - dy * dy));
+    if (inner < 0) rect(ctx, cx - hw, cy + dy, hw * 2 + 1, 1, col);
+    else {
+      rect(ctx, cx - hw, cy + dy, hw - inner, 1, col);
+      rect(ctx, cx + inner + 1, cy + dy, hw - inner, 1, col);
+    }
+  }
+}
+function drawBubble(ctx: Ctx, cx: number, cy: number) {
+  ctx.globalAlpha = BUBBLE.fillA;
+  fillDisk(ctx, cx, cy, BUBBLE.r - 1, BUBBLE.fill);
+  ctx.globalAlpha = 1;
+  strokeDisk(ctx, cx, cy, BUBBLE.r, BUBBLE.rim);
+  rect(ctx, cx - 4, cy - 6, 2, 1, BUBBLE.hi);
+}
+function drawBubblePop(ctx: Ctx, cx: number, cy: number, t: number) {
+  var max = BUBBLE.popTicks;
+  var frame = Math.max(0, Math.min(3, Math.floor((max - t) * 4 / max)));
+  var col = BUBBLE.rim, r = BUBBLE.r, i, ox, oy;
+  if (frame === 0) {
+    strokeDisk(ctx, cx, cy, r, col);
+    rect(ctx, cx - r - 1, cy, 2, 1, col);
+    rect(ctx, cx + r, cy, 2, 1, col);
+    rect(ctx, cx, cy - r - 1, 1, 2, col);
+    rect(ctx, cx, cy + r, 1, 2, col);
+  } else if (frame === 1) {
+    strokeDisk(ctx, cx, cy, r + 1, col);
+    ctx.globalAlpha = 0.12;
+    fillDisk(ctx, cx, cy, r, BUBBLE.fill);
+    ctx.globalAlpha = 1;
+  } else {
+    var d = frame === 2 ? 4 : 7;
+    var pts = [
+      [-r - d, 0], [r + d, 0], [0, -r - d], [0, r + d],
+      [-r, -r], [r, -r], [-r, r], [r, r]
+    ];
+    for (i = 0; i < (frame === 2 ? 8 : 6); i++) {
+      ox = cx + pts[i][0]; oy = cy + pts[i][1];
+      if (frame === 2) { rect(ctx, ox, oy, 2, 2, col); rect(ctx, ox + 1, oy - 1, 1, 1, BUBBLE.hi); }
+      else rect(ctx, ox, oy, 1, 1, col);
+    }
+  }
+}
 function drawItem(ctx: Ctx, it: any, cam: number, tick: number) {
-  if (it.taken) return;
-  var by = (((tick + it.x) >> 4) & 1) ? -1 : 0;
-  var y = Math.round(it.y - cam) + by, x = it.x;
-  if (y < -24 || y > LH + 8) return;
-  if (drawBonusSprite(ctx, it.kind, x + 5, y + 5)) return;
-  var col = ITEM_COL[it.kind] || C.gold;
-  ctx.globalAlpha = 0.3 + 0.15 * Math.sin(tick * 0.15); rect(ctx, x - 2, y - 2, 14, 14, col); ctx.globalAlpha = 1;
-  rect(ctx, x, y - 1, 10, 12, INK); rect(ctx, x - 1, y, 12, 10, INK);
-  rect(ctx, x, y, 10, 10, "#20244a"); rect(ctx, x, y, 10, 1, col); rect(ctx, x, y + 9, 10, 1, col); rect(ctx, x, y, 1, 10, col); rect(ctx, x + 9, y, 1, 10, col);
+  if (it.taken && !(it.popT > 0)) return;
+  var by = (it.popT > 0) ? 0 : ((((tick + it.x) >> BUBBLE.bobShift) & 1) ? -BUBBLE.bobAmp : 0);
+  var y = Math.round(it.y - cam) + by, x = Math.round(it.x);
+  if (y < -28 || y > LH + 12) return;
+  var cx = x + 5, cy = y + 5;
+  if (it.popT > 0) { drawBubblePop(ctx, cx, cy, it.popT); return; }
+  drawBubble(ctx, cx, cy);
+  if (drawBonusSprite(ctx, it.kind, cx, cy)) return;
   drawItemIcon(ctx, it.kind, x, y);
-  if ((tick >> 3) % 6 === 0) rect(ctx, x + 2, y + 1, 2, 1, "#ffffff");
 }
