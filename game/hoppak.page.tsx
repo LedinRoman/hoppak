@@ -2308,7 +2308,7 @@ var NET: any = (function () {
   function probeHealth(hu: string, cb: any) {
     if (!hu || typeof fetch === "undefined") { cb(false); return; }
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    var to = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, 1500);
+    var to = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, 5000);
     var done = false;
     function finish(ok: boolean) {
       if (done) return;

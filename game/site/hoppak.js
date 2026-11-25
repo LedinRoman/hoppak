@@ -3257,7 +3257,7 @@
           if (ctrl) ctrl.abort();
         } catch (_e) {
         }
-      }, 1500);
+      }, 5e3);
       var done = false;
       function finish2(ok) {
         if (done) return;
