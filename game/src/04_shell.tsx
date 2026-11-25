@@ -20,7 +20,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var autoPlay = false;
   var held: any = { left: false, right: false, kl: false, kr: false };
   var pointers: any = {};
-  var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = 0, raf = 0, running = true, driving = false, ui = 0;
+  var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
   var hits: any[] = [];
   var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, lastBackdropMap = "";
   var pressId: any = null;
@@ -217,7 +217,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (id === "menu") { goMenu(); return; }
     if (id === "back") { showSet = false; campCard = -1; phase = "menu"; return; }
     if (id === "go") { startSquad(); return; }
-    if (id === "resume") { paused = false; acc = 0; uiAcc = 0; lastT = 0; return; }
+    if (id === "resume") { paused = false; acc = 0; uiAcc = 0; lastT = -1; return; }
     if (id === "font") { phase = "font"; return; }
     if (id === "rematch") {
       if (mode === "squad") { room.round = (room.round || 0) + 1; startSquad((((Date.now() + room.round * 40503) >>> 0))); }
@@ -321,7 +321,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!down) return;
     if (phase === "play" && paused && (k === " " || k === "Enter" || k === "Escape")) { paused = false; e.preventDefault(); return; }
     if (phase === "play" && (k === " " || k === "ArrowUp" || k === "w" || k === "W" || k === "ц" || k === "Ц" || k === "Shift")) { abTap = true; e.preventDefault(); return; }
-    if (k === "Escape" && phase === "play") { paused = true; acc = 0; uiAcc = 0; lastT = 0; return; }
+    if (k === "Escape" && phase === "play") { paused = true; acc = 0; uiAcc = 0; lastT = -1; return; }
     if (k === "Escape" && phase !== "menu" && phase !== "play") activate(phase === "results" ? "menu" : "back");
     if (phase === "shop" && (k === "ArrowLeft" || k === "ArrowRight")) activate(k === "ArrowLeft" ? "hero:prev" : "hero:next");
     if ((k === "Enter" || k === " ") && phase === "menu") activate("start");
@@ -907,7 +907,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
   function frame(now: number) {
     if (!running) return;
-    if (!lastT) lastT = now;
+    if (lastT < 0) lastT = now;
     var dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000));
     lastT = now;
     uiAcc += dt;
@@ -957,7 +957,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   NET.bind(netApi);
   NET.tryResume(netApi);
   function onVis() {
-    acc = 0; uiAcc = 0; lastT = 0;
+    acc = 0; uiAcc = 0; lastT = -1;
     if (document.hidden && phase === "play") paused = true;
   }
   resize();
@@ -1018,7 +1018,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     setHero: function (k: number) { save.char = k; },
     addCoins: function (n: number) { save.coins += n; writeSave(save); },
     forceResults: function () { if (world) { finish(world); payout(); phase = "results"; } },
-    pause: function (on: boolean) { paused = !!on; acc = 0; uiAcc = 0; lastT = 0; },
+    pause: function (on: boolean) { paused = !!on; acc = 0; uiAcc = 0; lastT = -1; },
     warp: function (m: number) {
       if (!world) return;
       generateUntil(world, -m * PX_PER_M - LH);
@@ -1045,17 +1045,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     advanceTime: function (seconds: number, hz: number) {
       if (raf) { cancelAnimationFrame(raf); raf = 0; }
       driving = true;
-      var t = lastT || 0;
+      acc = 0; uiAcc = 0; lastT = 0;
+      var ui0 = ui;
       var n = Math.max(0, Math.round(seconds * hz));
       var step = 1000 / hz;
-      for (var i = 0; i < n; i++) { t += step; frame(t); }
+      for (var i = 0; i < n; i++) frame((i + 1) * step);
       driving = false;
       if (running) raf = requestAnimationFrame(frame);
+      ui0 = ui - ui0;
       var me = world && world.players[0];
       var platVx = 0;
       if (world) for (var j = 0; j < world.platforms.length; j++) if (world.platforms[j].type === "move") { platVx = world.platforms[j].vx; break; }
       return {
-        tick: world ? world.tick : 0, ui: ui, flashT: flashT,
+        tick: world ? world.tick : 0, ui: ui0, flashT: flashT,
         m: me ? metersOf(me) : 0, x: me ? me.x : 0, y: me ? me.y : 0,
         charge: me ? me.abCharge : 0, platVx: platVx, phase: phase
       };
