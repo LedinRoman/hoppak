@@ -580,10 +580,9 @@
     }
   }
   var FIRST_TOAST = {
-    break: "\u0425\u0420\u0423\u041F\u041A\u0410\u042F: 1 \u041F\u0420\u042B\u0416\u041E\u041A",
-    goal: "\u0426\u0415\u041B\u042C: \u041D\u041E\u0412\u0410\u042F \u041A\u0410\u0420\u0422\u0410",
-    record: "\u0422\u0423\u0422 \u0422\u0412\u041E\u0419 \u0420\u0415\u041A\u041E\u0420\u0414",
-    abDeny: "\u0415\u0429\u0401 \u0417\u0410\u0420\u042F\u0416\u0410\u0415\u0422\u0421\u042F"
+    break: "\u041B\u041E\u041C\u0410\u0415\u0422\u0421\u042F \u041F\u041E\u0421\u041B\u0415 \u041F\u0420\u042B\u0416\u041A\u0410",
+    goal: "\u0414\u041E\u041F\u0420\u042B\u0413\u041D\u0418 \u0414\u041E \u0426\u0415\u041B\u0418",
+    record: "\u0422\u0412\u041E\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 - \u041F\u041E\u0411\u0415\u0419!"
   };
   function textWidth(s, sc) {
     return String(s).length * 6 * sc;
@@ -861,18 +860,6 @@
     rect(ctx, x + 4, y + 6, 4, 1, INK);
     rect(ctx, x + 4, y + 7, 1, 1, "#fff6e8");
     rect(ctx, x + 7, y + 7, 1, 1, "#fff6e8");
-  }
-  function ringPix(ctx, cx, cy, r0, r1, col, frac) {
-    for (var dy = -r1; dy <= r1; dy++) for (var dx = -r1; dx <= r1; dx++) {
-      var d = Math.sqrt(dx * dx + dy * dy);
-      if (d > r1 + 0.5 || d <= r0 + 0.5) continue;
-      if (frac != null) {
-        var a = Math.atan2(dx, -dy);
-        if (a < 0) a += Math.PI * 2;
-        if (a / (Math.PI * 2) > frac) continue;
-      }
-      rect(ctx, cx + dx, cy + dy, 1, 1, col);
-    }
   }
   function isPerm(t) {
     return t === "normal" || t === "move" || t === "ice" || t === "bounce" || t === "grav";
@@ -4176,7 +4163,11 @@
       canvas.style.height = cssHpx + "px";
       canvas.style.imageRendering = "pixelated";
       var hintEl = document.getElementById("desk-hint");
-      if (hintEl) hintEl.style.display = isWide && cssH - LH * cssScale >= 34 ? "block" : "none";
+      if (hintEl) {
+        var deskHasAb = !!(CHARS[save.char] && CHARS[save.char].ab);
+        hintEl.textContent = deskHasAb ? "\u2190 \u2192 / A D \u2014 \u0434\u0432\u0438\u0436\u0435\u043D\u0438\u0435 \xB7 \u2191 / \u041F\u0440\u043E\u0431\u0435\u043B \u2014 \u0441\u043F\u043E\u0441\u043E\u0431\u043D\u043E\u0441\u0442\u044C \xB7 Esc \u2014 \u043F\u0430\u0443\u0437\u0430" : "\u2190 \u2192 / A D \u2014 \u0434\u0432\u0438\u0436\u0435\u043D\u0438\u0435 \xB7 Esc \u2014 \u043F\u0430\u0443\u0437\u0430";
+        hintEl.style.display = isWide && cssH - LH * cssScale >= 34 ? "block" : "none";
+      }
       ctx.setTransform(sx, 0, 0, sy, FIELD_OX, FIELD_OY);
       ctx.imageSmoothingEnabled = false;
       ctx.webkitImageSmoothingEnabled = false;
@@ -4213,7 +4204,10 @@
       if (save.seen[id]) return;
       save.seen[id] = 1;
       writeSave(save);
-      if (world) toast(world, text || FIRST_TOAST[id] || id);
+      if (world) {
+        toast(world, text || FIRST_TOAST[id] || id);
+        world.toastT = 150;
+      }
     }
     function requestAbility() {
       audioUnlock();
@@ -4225,9 +4219,7 @@
       }
       if (abDenyT <= 0) {
         abDenyT = 18;
-        refuseT = 10;
         hopSfx("deny");
-        showFirstTimeToast("abDeny");
       }
     }
     function toLogic(cx, cy) {
@@ -4329,7 +4321,12 @@
       }
     }
     function abBar() {
-      return { x: 0, y: 0, w: 26, h: 26 };
+      var coinW = 28;
+      try {
+        if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19;
+      } catch (_e) {
+      }
+      return { x: 4 + coinW, y: 5, w: 16, h: 16 };
     }
     function startSquad(seed) {
       mode = "squad";
@@ -5128,7 +5125,7 @@
       var me = w.players[0];
       var wantPause = wantTouchPause();
       drawTextO(ctx, metersOf(me) + " \u041C", 80, 6, C.cream, "center");
-      coinsLabel(wantPause ? 136 : 155, 6, w.runCoins, "right");
+      coinsLabel(5, 6, w.runCoins);
       if (w.mode === "squad") {
         var place = 1, lead = me, leadM = metersOf(me);
         for (i = 0; i < w.players.length; i++) {
@@ -5154,22 +5151,22 @@
       drawAbRing(me);
       if (w.toastT > 0) {
         var tw2 = textWidth(w.toast, 1) + 12;
-        var tx0 = Math.round(LW / 2 - tw2 / 2);
         ctx.globalAlpha = Math.min(1, w.toastT / 15);
-        rect(ctx, tx0 - 1, 73, tw2 + 2, 15, INK);
-        rect(ctx, tx0, 74, tw2, 13, "#162040");
-        drawText(ctx, w.toast, LW / 2, 77, C.gold, 1, "center");
+        box(ctx, Math.round(LW / 2 - tw2 / 2), 38, tw2, 13, C.navy, C.gold);
+        drawText(ctx, w.toast, LW / 2, 41, C.gold, 1, "center");
         ctx.globalAlpha = 1;
       }
-      if (w.tick < 170) {
+      if (w.tick < 170 && !(w.toastT > 0)) {
         ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
         var hasAb = heroHasAb(me), Hn = CHARS[me.kind];
-        if (!isPhone) {
-          drawTextO(ctx, hasAb ? "\u2190 \u2192 \u0425\u041E\u0414 \xB7 \u2191 " + Hn.abName : "\u2190 \u2192 \u0425\u041E\u0414", LW / 2, 77, C.cream, "center");
-        } else {
-          drawTextO(ctx, "\u0422\u0410\u041F \u0421\u041B\u0415\u0412\u0410 / \u0421\u041F\u0420\u0410\u0412\u0410", LW / 2, 77, C.cream, "center");
-          if (hasAb) drawTextO(ctx, "\u0421\u0412\u0410\u0419\u041F \u2191 \xB7 " + Hn.abName, LW / 2, 88, C.cream, "center");
-        }
+        var line1 = !isPhone ? hasAb ? "\u2190 \u2192 \u0425\u041E\u0414 \xB7 \u2191 " + Hn.abName : "\u2190 \u2192 \u0425\u041E\u0414" : "\u0422\u0410\u041F \u0421\u041B\u0415\u0412\u0410 / \u0421\u041F\u0420\u0410\u0412\u0410";
+        var line2 = isPhone && hasAb ? "\u0421\u0412\u0410\u0419\u041F \u2191 - " + Hn.abName : "";
+        var htw = textWidth(line1, 1);
+        if (line2) htw = Math.max(htw, textWidth(line2, 1));
+        var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
+        box(ctx, hx, 56, hw, hh, C.navy, C.cream);
+        drawText(ctx, line1, LW / 2, 58, C.cream, 1, "center");
+        if (line2) drawText(ctx, line2, LW / 2, 68, C.cream, 1, "center");
         ctx.globalAlpha = 1;
       }
       if ((w.fallWarn || w.liftWarn) && !paused) {
@@ -5269,7 +5266,7 @@
     }
     var BON_HUD = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
     function drawBonusHud(me) {
-      var x = 3, y = heroHasAb(me) ? 27 : 4;
+      var x = 3, y = 22;
       for (var i = 0; i < BON_HUD.length; i++) {
         var b = BON_HUD[i], t = me[b[0]];
         if (!(t > 0)) continue;
@@ -5374,27 +5371,18 @@
       var f = rs.f != null ? rs.f : clamp(me.abCharge / H.need, 0, 1);
       var ready = rs.state ? rs.state === "ready" : me.alive && me.abCharge >= H.need;
       var active = rs.state ? rs.state === "active" : !!(me.dashT > 0 || me.wall || me.domeT > 0 || me.poundT > 0);
-      var rf = rs.refuse != null ? rs.refuse : refuseT, pp = rs.pop != null ? rs.pop : popT;
-      var SH = [1, 1, -1, -1, 1, 1, -1, -1, 0, 0];
-      var cx = 12 + (rf > 0 ? SH[Math.max(0, 10 - rf)] : 0), cy = 12;
-      addHit("ab", 0, 0, 26, 26);
-      ringPix(ctx, cx, cy, -1, 10, INK);
-      ringPix(ctx, cx, cy, -1, 7, "#1a1430");
-      ringPix(ctx, cx, cy, 7, 9, "#2c2a52");
-      if (active) ringPix(ctx, cx, cy, 7, 9, C.cream, rs.f != null ? rs.f : 1);
-      else if (ready) {
-        ringPix(ctx, cx, cy, 7, 9, C.gold);
-        ringPix(ctx, cx, cy, 8, 9, "#fff2a8", 0.18);
-      } else ringPix(ctx, cx, cy, 7, 9, rf > 6 ? C.cream : "#5ec8ff", f);
-      if (ready && pp >= 0 && pp < 12) {
-        if (pp < 6) ringPix(ctx, cx, cy, 10, 11, "#fff2a8");
-        var rr = 12 + (pp >> 1);
-        rect(ctx, cx + rr - 1, cy - rr + 1, 1, 1, C.gold);
-        rect(ctx, cx - rr + 1, cy - rr + 1, 1, 1, C.gold);
-        rect(ctx, cx + rr - 1, cy + rr - 1, 1, 1, C.gold);
-        rect(ctx, cx - rr + 1, cy + rr - 1, 1, 1, C.gold);
-      }
-      if (!ready && !active) ctx.globalAlpha = 0.45;
+      var rf = rs.refuse != null ? rs.refuse : abDenyT;
+      var b = abBar();
+      var shx = rf > 0 ? rf % 4 < 2 ? 1 : -1 : 0;
+      var cx = b.x + 8 + shx, cy = b.y + 8;
+      addHit("ab", b.x, b.y, b.w, b.h);
+      fillDisc(cx, cy, 8, INK);
+      fillDisc(cx, cy, 7, ready ? C.gold : "#3a4a7a");
+      fillDisc(cx, cy, 6, "#1a1430");
+      if (active) strokeArc(cx, cy, 6, C.cream, rs.f != null ? rs.f : 1);
+      else if (ready) strokeArc(cx, cy, 6, C.gold, 1);
+      else strokeArc(cx, cy, 6, "#5ec8ff", f);
+      ctx.globalAlpha = ready || active || rf > 0 ? 1 : 0.55;
       drawAbIcon(H.ab, cx - 6, cy - 6);
       ctx.globalAlpha = 1;
     }
@@ -5403,10 +5391,16 @@
       if (w === "fall") return "\u0421\u041E\u0420\u0412\u0410\u041B\u0421\u042F \xB7 " + m + " \u041C";
       if (w === "shot") return "\u0421\u0411\u0418\u041B \u0412\u042B\u0421\u0422\u0420\u0415\u041B \xB7 " + m + " \u041C";
       if (w === "hole") return "\u0417\u0410\u0422\u042F\u041D\u0423\u041B\u0410 \u0414\u042B\u0420\u0410 \xB7 " + m + " \u041C";
+      if (w === "left") return "\u0412\u042B\u0428\u0415\u041B \xB7 " + m + " \u041C";
       if (w.indexOf("mob:") === 0) {
         var mk = w.slice(4);
         var mo = MOBS[mk] || {};
         var nm = mo.name || "\u041C\u041E\u0411";
+        if (mk === "hole") nm = "\u0414\u042B\u0420\u0410";
+        if (m >= 1e4) {
+          if (mk === "snake") nm = "\u041B\u0418\u0410\u041D\u0410";
+          if (mk === "frost") nm = "\u0414\u0423\u0425";
+        }
         return (mo.g === "f" ? "\u0421\u0411\u0418\u041B\u0410 " : "\u0421\u0411\u0418\u041B ") + nm + " \xB7 " + m + " \u041C";
       }
       return w ? w + " \xB7 " + m + " \u041C" : "";

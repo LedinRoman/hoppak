@@ -1,0 +1,38 @@
+[
+ {
+  "shot": "desk_menu",
+  "calls": 11117,
+  "offGrid": 1,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawJumper<drawMenu": 1
+  }
+ },
+ {
+  "shot": "desk_play",
+  "calls": 1771,
+  "offGrid": 1,
+  "k": 2,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  }
+ },
+ {
+  "shot": "phone_menu",
+  "calls": 11170,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawMenu": 1
+  }
+ },
+ {
+  "shot": "phone_play",
+  "calls": 1818,
+  "offGrid": 1,
+  "k": 7,
+  "byCaller": {
+   "drawImage ← drawJumper<drawPlay": 1
+  }
+ }
+]

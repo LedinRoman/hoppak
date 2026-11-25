@@ -420,10 +420,9 @@ function hopSfx(kind: string) {
 }
 
 var FIRST_TOAST: any = {
-  break: "ХРУПКАЯ: 1 ПРЫЖОК",
-  goal: "ЦЕЛЬ: НОВАЯ КАРТА",
-  record: "ТУТ ТВОЙ РЕКОРД",
-  abDeny: "ЕЩЁ ЗАРЯЖАЕТСЯ"
+  break: "ЛОМАЕТСЯ ПОСЛЕ ПРЫЖКА",
+  goal: "ДОПРЫГНИ ДО ЦЕЛИ",
+  record: "ТВОЙ РЕКОРД - ПОБЕЙ!"
 };
 
 
