@@ -275,7 +275,6 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
   var tk = tick || 0;
   var x = Math.round(p.x), y = Math.round(p.y - cam), w = p.w;
   if (y < -16 || y > LH + 12) return;
-  if (p.type === "break") { drawBreakPlat(ctx, p, x, y, tk); return; }
   if (p.type === "cloud") {
     if (p.broken) return;
     ctx.globalAlpha = p.lifeT < 60 && (p.lifeT >> 3) % 2 ? 0.5 : 1;
@@ -305,9 +304,19 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
     }
     return;
   }
-  rect(ctx, x + 1, y + 6, w - 1, 1, "rgba(0,0,0,0.28)");
+  if (p.type !== "break") rect(ctx, x + 1, y + 6, w - 1, 1, "rgba(0,0,0,0.28)");
   var i;
-  if (p.type === "move") {
+  if (p.type === "break") {
+    rect(ctx, x, y, w, 5, C.brk); rect(ctx, x, y + 4, w, 2, C.brkD);
+    ctx.fillStyle = C.brkRim;
+    for (i = 0; i < w; i += 4) ctx.fillRect(x + i, y, 2, 1);
+    rect(ctx, x, y + 1, 1, 4, C.brkRim); rect(ctx, x + w - 1, y + 1, 1, 4, C.brkRim);
+    ctx.fillStyle = C.brkD;
+    var c1 = x + Math.floor(w * 0.3);
+    ctx.fillRect(c1, y + 1, 1, 4); ctx.fillRect(c1 + 1, y + 3, 2, 1);
+    ctx.fillRect(x + Math.floor(w * 0.68), y + 1, 1, 5); ctx.fillRect(x + Math.floor(w * 0.5), y + 2, 3, 1);
+    rect(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 3, "#120a2c");
+  } else if (p.type === "move") {
     rect(ctx, x, y, w, 5, C.mov); rect(ctx, x, y + 4, w, 2, C.movD);
     rect(ctx, x, y, w, 1, C.gold); rect(ctx, x, y + 1, 1, 4, C.gold); rect(ctx, x + w - 1, y + 1, 1, 4, C.gold);
     rect(ctx, x + 2, y + 2, 1, 1, "#9ad0f0"); rect(ctx, x + w - 3, y + 2, 1, 1, "#9ad0f0");
@@ -365,10 +374,7 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
   }
 }
 function drawTrack(ctx: Ctx, p: any, cam: number) {
-  var y = Math.round(p.y - cam) + 2;
-  if (y < -10 || y > LH + 10) return;
-  ctx.fillStyle = "rgba(20,12,40,0.30)";
-  ctx.fillRect(0, y + 1, LW, 1);
+  /* v0.58: no track line under moving platforms (Roman, prod feedback). */
 }
 
 var MOBPAL: any = {

@@ -775,58 +775,6 @@
     drawText(ctx, s, x, y + 1, o, 1, align);
     drawText(ctx, s, x, y, col, 1, align);
   }
-  var BRK = { base: "#d46c98", dark: "#8a2e5e", light: "#f6b4d0", crack: "#4a1438" };
-  function brkSegs(w) {
-    var n = Math.max(2, Math.round(w / 12)), avail = w - (n - 1), out = [], x = 0;
-    for (var i = 0; i < n; i++) {
-      var sw = Math.floor(avail / n) + (i < avail % n ? 1 : 0);
-      out.push({ x, w: sw });
-      x += sw + 1;
-    }
-    return out;
-  }
-  function drawBrkSeg(ctx, x, y, w, i) {
-    var c = x + Math.floor(w * 0.5) - 1 + i % 2;
-    rect(ctx, x + 1, y, c - x - 1, 1, BRK.light);
-    rect(ctx, c + 2, y, x + w - 1 - c - 2, 1, BRK.light);
-    rect(ctx, x, y + 1, w, 3, BRK.base);
-    rect(ctx, x, y + 1, 1, 3, BRK.dark);
-    rect(ctx, x + w - 1, y + 1, 1, 3, BRK.dark);
-    rect(ctx, x + 1, y + 4, w - 2, 1, BRK.dark);
-    rect(ctx, c, y + 1, 1, 2, BRK.crack);
-    rect(ctx, c + 1, y + 3, 1, 2, BRK.crack);
-    if (w >= 9) rect(ctx, x + 2, y + 1, 1, 1, BRK.light);
-  }
-  function drawBreakPlat(ctx, p, x, y, tk) {
-    var segs = brkSegs(p.w), n = segs.length, i;
-    if (p.broken) {
-      if (!(p.breakT > 0)) return;
-      var fr = p.breakT > 10 ? 0 : p.breakT > 5 ? 1 : 2;
-      for (i = 0; i < n; i++) {
-        var s = segs[i], side = s.x + s.w / 2 < p.w / 2 ? -1 : 1;
-        if (fr === 0) drawBrkSeg(ctx, x + s.x + side, y + 1, s.w, i);
-        else if (fr === 1) {
-          drawBrkSeg(ctx, x + s.x + side * 2, y + 4, s.w, i);
-        } else {
-          var hw = Math.max(2, Math.floor(s.w / 2) - 1);
-          rect(ctx, x + s.x + side * 3, y + 9, hw, 3, BRK.base);
-          rect(ctx, x + s.x + side * 3, y + 11, hw, 1, BRK.dark);
-          rect(ctx, x + s.x + s.w - hw + side * 4, y + 11, hw, 3, BRK.dark);
-        }
-      }
-      return;
-    }
-    rect(ctx, x + 1, y + 6, p.w - 1, 1, "rgba(0,0,0,0.28)");
-    for (i = 0; i < n; i++) {
-      var sg = segs[i], sag = n >= 3 && i > 0 && i < n - 1 ? 1 : 0;
-      drawBrkSeg(ctx, x + sg.x, y + sag, sg.w, i);
-      if (i < n - 1) {
-        var gx = x + sg.x + sg.w;
-        var ph = (tk + p.x * 7 + i * 13) % 48;
-        if (ph < 24) rect(ctx, gx, y + 6 + (ph >> 2), 1, 1, BRK.dark);
-      }
-    }
-  }
   function slimeAlert(m) {
     if (!THREAT || !m.alive) return false;
     var dy = THREAT.y - m.y;
@@ -2584,10 +2532,6 @@
     var tk = tick || 0;
     var x = Math.round(p.x), y = Math.round(p.y - cam), w = p.w;
     if (y < -16 || y > LH + 12) return;
-    if (p.type === "break") {
-      drawBreakPlat(ctx, p, x, y, tk);
-      return;
-    }
     if (p.type === "cloud") {
       if (p.broken) return;
       ctx.globalAlpha = p.lifeT < 60 && (p.lifeT >> 3) % 2 ? 0.5 : 1;
@@ -2620,9 +2564,23 @@
       }
       return;
     }
-    rect(ctx, x + 1, y + 6, w - 1, 1, "rgba(0,0,0,0.28)");
+    if (p.type !== "break") rect(ctx, x + 1, y + 6, w - 1, 1, "rgba(0,0,0,0.28)");
     var i;
-    if (p.type === "move") {
+    if (p.type === "break") {
+      rect(ctx, x, y, w, 5, C.brk);
+      rect(ctx, x, y + 4, w, 2, C.brkD);
+      ctx.fillStyle = C.brkRim;
+      for (i = 0; i < w; i += 4) ctx.fillRect(x + i, y, 2, 1);
+      rect(ctx, x, y + 1, 1, 4, C.brkRim);
+      rect(ctx, x + w - 1, y + 1, 1, 4, C.brkRim);
+      ctx.fillStyle = C.brkD;
+      var c1 = x + Math.floor(w * 0.3);
+      ctx.fillRect(c1, y + 1, 1, 4);
+      ctx.fillRect(c1 + 1, y + 3, 2, 1);
+      ctx.fillRect(x + Math.floor(w * 0.68), y + 1, 1, 5);
+      ctx.fillRect(x + Math.floor(w * 0.5), y + 2, 3, 1);
+      rect(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 3, "#120a2c");
+    } else if (p.type === "move") {
       rect(ctx, x, y, w, 5, C.mov);
       rect(ctx, x, y + 4, w, 2, C.movD);
       rect(ctx, x, y, w, 1, C.gold);
@@ -2690,12 +2648,6 @@
       rect(ctx, sx - 1, y - h - 1, 8, 1, C.coral);
       rect(ctx, sx, y - h - 2, 6, 1, "#ff8a80");
     }
-  }
-  function drawTrack(ctx, p, cam) {
-    var y = Math.round(p.y - cam) + 2;
-    if (y < -10 || y > LH + 10) return;
-    ctx.fillStyle = "rgba(20,12,40,0.30)";
-    ctx.fillRect(0, y + 1, LW, 1);
   }
   var MOBPAL = {
     blob: ["#6ad86a", "#2e9a50", "#c8ffb0"],
@@ -4816,7 +4768,7 @@
       drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
       gear(LW - 22, 4);
       drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 41, C.cream, "center");
-      coinsLabel(5, 6, save.coins);
+      coinsLabel(x, 52, save.coins);
       var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
       var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
       var by = LH - 118;
@@ -4827,7 +4779,7 @@
       rect(ctx, LW / 2 - 28, py + 2, 56, 5, C.wood);
       rect(ctx, LW / 2 - 28, py + 6, 56, 2, C.woodD);
       rect(ctx, LW / 2 - 28, py + 2, 56, 1, C.edge);
-      drawJumper(ctx, LW / 2 - 6, py + 2 - 16 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 1);
+      drawJumper(ctx, LW / 2 - 12, py + 2 - 32 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 2);
       btn("shop", x + 36, py + 16, 80, 16, "#1a1430", "\u0413\u0415\u0420\u041E\u0419 \u25B6", C.cream, 1, C.gold);
       by = Math.max(py + 40, by);
       btn("start", x, by, 152, 34, C.mint, "", INK, 2);
@@ -5074,7 +5026,6 @@
       ctx.save();
       ctx.translate(shx, 0);
       drawBg(ctx, cam, w.tick, w.map);
-      for (i = 0; i < w.platforms.length; i++) if (w.platforms[i].type === "move") drawTrack(ctx, w.platforms[i], cam);
       for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
       if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "\u0426\u0415\u041B\u042C " + w.goalM + " \u041C");
       if (w.recM) recLine(-w.recM * PX_PER_M - cam, "\u0420\u0415\u041A\u041E\u0420\u0414 " + w.recM);

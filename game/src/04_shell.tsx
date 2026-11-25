@@ -509,7 +509,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBig(ctx, "ХОППАК", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
     gear(LW - 22, 4);
     drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 41, C.cream, "center");
-    coinsLabel(5, 6, save.coins);
+    coinsLabel(x, 52, save.coins);
     var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + b + "/" + M.goal + " М") : (M.name + " · " + b + " М");
     var by = LH - 118;
@@ -518,7 +518,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var hop = Math.round(Math.sin(ph * Math.PI) * 10);
     var pose = ph < 0.08 || ph > 0.95 ? "squash" : ph < 0.5 ? "up" : "fall";
     rect(ctx, LW / 2 - 28, py + 2, 56, 5, C.wood); rect(ctx, LW / 2 - 28, py + 6, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, py + 2, 56, 1, C.edge);
-    drawJumper(ctx, LW / 2 - 6, py + 2 - 16 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 1);
+    drawJumper(ctx, LW / 2 - 12, py + 2 - 32 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 2);
     btn("shop", x + 36, py + 16, 80, 16, "#1a1430", "ГЕРОЙ ▶", C.cream, 1, C.gold);
     by = Math.max(py + 40, by);
     btn("start", x, by, 152, 34, C.mint, "", INK, 2);
@@ -738,7 +738,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.save();
     ctx.translate(shx, 0);
     drawBg(ctx, cam, w.tick, w.map);
-    for (i = 0; i < w.platforms.length; i++) if (w.platforms[i].type === "move") drawTrack(ctx, w.platforms[i], cam);
     for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
     if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "ЦЕЛЬ " + w.goalM + " М");
     if (w.recM) recLine(-w.recM * PX_PER_M - cam, "РЕКОРД " + w.recM);

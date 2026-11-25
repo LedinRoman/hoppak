@@ -1912,7 +1912,6 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
   var tk = tick || 0;
   var x = Math.round(p.x), y = Math.round(p.y - cam), w = p.w;
   if (y < -16 || y > LH + 12) return;
-  if (p.type === "break") { drawBreakPlat(ctx, p, x, y, tk); return; }
   if (p.type === "cloud") {
     if (p.broken) return;
     ctx.globalAlpha = p.lifeT < 60 && (p.lifeT >> 3) % 2 ? 0.5 : 1;
@@ -1942,9 +1941,19 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
     }
     return;
   }
-  rect(ctx, x + 1, y + 6, w - 1, 1, "rgba(0,0,0,0.28)");
+  if (p.type !== "break") rect(ctx, x + 1, y + 6, w - 1, 1, "rgba(0,0,0,0.28)");
   var i;
-  if (p.type === "move") {
+  if (p.type === "break") {
+    rect(ctx, x, y, w, 5, C.brk); rect(ctx, x, y + 4, w, 2, C.brkD);
+    ctx.fillStyle = C.brkRim;
+    for (i = 0; i < w; i += 4) ctx.fillRect(x + i, y, 2, 1);
+    rect(ctx, x, y + 1, 1, 4, C.brkRim); rect(ctx, x + w - 1, y + 1, 1, 4, C.brkRim);
+    ctx.fillStyle = C.brkD;
+    var c1 = x + Math.floor(w * 0.3);
+    ctx.fillRect(c1, y + 1, 1, 4); ctx.fillRect(c1 + 1, y + 3, 2, 1);
+    ctx.fillRect(x + Math.floor(w * 0.68), y + 1, 1, 5); ctx.fillRect(x + Math.floor(w * 0.5), y + 2, 3, 1);
+    rect(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 3, "#120a2c");
+  } else if (p.type === "move") {
     rect(ctx, x, y, w, 5, C.mov); rect(ctx, x, y + 4, w, 2, C.movD);
     rect(ctx, x, y, w, 1, C.gold); rect(ctx, x, y + 1, 1, 4, C.gold); rect(ctx, x + w - 1, y + 1, 1, 4, C.gold);
     rect(ctx, x + 2, y + 2, 1, 1, "#9ad0f0"); rect(ctx, x + w - 3, y + 2, 1, 1, "#9ad0f0");
@@ -2002,10 +2011,7 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
   }
 }
 function drawTrack(ctx: Ctx, p: any, cam: number) {
-  var y = Math.round(p.y - cam) + 2;
-  if (y < -10 || y > LH + 10) return;
-  ctx.fillStyle = "rgba(20,12,40,0.30)";
-  ctx.fillRect(0, y + 1, LW, 1);
+  /* v0.58: no track line under moving platforms (Roman, prod feedback). */
 }
 
 var MOBPAL: any = {
@@ -3285,7 +3291,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBig(ctx, "ХОППАК", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
     gear(LW - 22, 4);
     drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 41, C.cream, "center");
-    coinsLabel(5, 6, save.coins);
+    coinsLabel(x, 52, save.coins);
     var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + b + "/" + M.goal + " М") : (M.name + " · " + b + " М");
     var by = LH - 118;
@@ -3294,7 +3300,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var hop = Math.round(Math.sin(ph * Math.PI) * 10);
     var pose = ph < 0.08 || ph > 0.95 ? "squash" : ph < 0.5 ? "up" : "fall";
     rect(ctx, LW / 2 - 28, py + 2, 56, 5, C.wood); rect(ctx, LW / 2 - 28, py + 6, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, py + 2, 56, 1, C.edge);
-    drawJumper(ctx, LW / 2 - 6, py + 2 - 16 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 1);
+    drawJumper(ctx, LW / 2 - 12, py + 2 - 32 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 2);
     btn("shop", x + 36, py + 16, 80, 16, "#1a1430", "ГЕРОЙ ▶", C.cream, 1, C.gold);
     by = Math.max(py + 40, by);
     btn("start", x, by, 152, 34, C.mint, "", INK, 2);
@@ -3514,7 +3520,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.save();
     ctx.translate(shx, 0);
     drawBg(ctx, cam, w.tick, w.map);
-    for (i = 0; i < w.platforms.length; i++) if (w.platforms[i].type === "move") drawTrack(ctx, w.platforms[i], cam);
     for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
     if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "ЦЕЛЬ " + w.goalM + " М");
     if (w.recM) recLine(-w.recM * PX_PER_M - cam, "РЕКОРД " + w.recM);
