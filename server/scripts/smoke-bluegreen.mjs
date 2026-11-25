@@ -396,9 +396,14 @@ try {
   await a1.wait('room', (r) => r.players.some((p) => !p.on));
   const b1Re = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws`, 'B_v1_re'));
   await b1Re.wait('hello');
+  // the old client keeps sending its 15 Hz state while the blind resume is still in flight (BUG-36)
+  b1Re.send('st', { x: 81, y: -180, vx: 0, vy: -3, f: 1, a: 1, m: 180, ps: 0 });
   b1Re.send('resume', { token: b1Token });
+  b1Re.send('st', { x: 81, y: -181, vx: 0, vy: -3, f: 1, a: 1, m: 181, ps: 0 });
   const b1ReRoom = await b1Re.wait('room');
   const b1ReStart = await b1Re.wait('start');
+  await sleep(150);
+  check(!b1Re.all.some((m) => m.event === 'err'), `BUG-36: no err (NO_ROOM «Ты не в комнате») for state frames around a blind v1 resume`);
   check(b1ReRoom?.code === code1 && b1ReStart?.resumed === true && b1ReStart?.seed === stA.seed, `BUG-24: v1 resume via green recovered seat and running match on draining blue`);
   b1Re.send('st', { x: 82, y: -180, vx: 0, vy: -3, f: 1, a: 1, m: 180, ps: 0 });
   await a1.wait('snap');
