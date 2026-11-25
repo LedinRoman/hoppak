@@ -3,11 +3,15 @@
   var LW = 160;
   var LH = 346;
   var VIEW_PAD = 0;
+  var VIEW_CROP = 0;
   function viewX0() {
     return -VIEW_PAD;
   }
   function viewW() {
     return LW + VIEW_PAD * 2;
+  }
+  function hudY(y) {
+    return y + VIEW_CROP;
   }
   function dimView(ctx, col) {
     rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col);
@@ -3138,7 +3142,7 @@
   var NET_GRACE_MS = 1e4;
   var NET_XS = [74, 22, 124, 48];
   var NET_TAGS = { host: "\u0425\u041E\u0421\u0422", ready: "\u0413\u041E\u0422\u041E\u0412", wait: "\u0416\u0414\u0401\u041C", off: "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418" };
-  var NET = function() {
+  var NET = (function() {
     var N = {
       ws: null,
       st: "off",
@@ -4042,7 +4046,7 @@
       N.connect();
     };
     return N;
-  }();
+  })();
   function startHoppak(canvas) {
     var raw = canvas.getContext("2d");
     var noop = function() {
@@ -4156,32 +4160,44 @@
         canvas.style.borderRadius = "4px";
         pScaleY = pScale;
       } else {
-        cssScale = Math.min(availW / lw, availH / lh);
-        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
-        cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
-        cssHpx = lh * cssScale;
+        var fillWidth = fieldLocked;
+        if (fillWidth) {
+          cssScale = availW / lw;
+          VIEW_PAD = 0;
+          VIEW_CROP = Math.max(0, lh - availH / cssScale);
+          cssWpx = lw * cssScale;
+          cssHpx = (lh - VIEW_CROP) * cssScale;
+        } else {
+          cssScale = Math.min(availW / lw, availH / lh);
+          VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+          VIEW_CROP = 0;
+          cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+          cssHpx = lh * cssScale;
+        }
         var pxW = Math.max(1, Math.round(cssWpx * dpr));
         var pxH = Math.max(1, Math.round(cssHpx * dpr));
         canvas.width = pxW;
         canvas.height = pxH;
         var worldW = lw + 2 * VIEW_PAD;
+        var worldH = lh - VIEW_CROP;
         pScale = pxW / worldW;
-        pScaleY = pxH / lh;
+        pScaleY = pxH / Math.max(1e-6, worldH);
         sx = pScale;
         sy = pScaleY;
         FIELD_OX = Math.round(VIEW_PAD * sx);
-        FIELD_OY = 0;
+        FIELD_OY = Math.round(-VIEW_CROP * sy);
         PHONE_INT = false;
         DEV_W = pxW;
         DEV_H = pxH;
         canvas.style.position = "absolute";
         canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
-        canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
+        canvas.style.top = Math.round(vs.y + (cssH - cssHpx)) + "px";
         canvas.style.boxShadow = "none";
         canvas.style.borderRadius = "0px";
       }
       if (isWide) {
         VIEW_PAD = 0;
+        VIEW_CROP = 0;
         FIELD_OX = 0;
         FIELD_OY = 0;
         PHONE_INT = false;
@@ -4367,7 +4383,7 @@
         if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19;
       } catch (_e) {
       }
-      return { x: 4 + coinW, y: 5, w: 16, h: 16 };
+      return { x: 4 + coinW, y: hudY(5), w: 16, h: 16 };
     }
     function startSquad(seed) {
       mode = "squad";
@@ -4409,6 +4425,7 @@
         canvas.focus();
       } catch (_e) {
       }
+      resize();
     }
     function payout() {
       if (!world || world.paid) return;
@@ -5226,8 +5243,8 @@
       ctx.restore();
       var me = w.players[0];
       var wantPause = wantTouchPause();
-      drawTextO(ctx, metersOf(me) + " \u041C", 80, 6, C.cream, "center");
-      coinsLabel(5, 6, w.runCoins);
+      drawTextO(ctx, metersOf(me) + " \u041C", 80, hudY(6), C.cream, "center");
+      coinsLabel(5, hudY(6), w.runCoins);
       if (w.mode === "squad") {
         var place = 1, lead = me, leadM = metersOf(me);
         for (i = 0; i < w.players.length; i++) {
@@ -5238,24 +5255,24 @@
             leadM = om;
           }
         }
-        drawTextO(ctx, place + "/" + w.players.length, 80, 16, "#c8bfe0", "center");
+        drawTextO(ctx, place + "/" + w.players.length, 80, hudY(16), "#c8bfe0", "center");
         var leadLab = lead.id === 0 ? "\u0422\u042B \u0412\u041F\u0415\u0420\u0415\u0414\u0418" : (lead.name || "\u0411\u041E\u0422").slice(0, 8) + " " + leadM + " \u041C";
-        drawTextO(ctx, leadLab, 80, 26, lead.id === 0 ? C.gold : C.cream, "center");
+        drawTextO(ctx, leadLab, 80, hudY(26), lead.id === 0 ? C.gold : C.cream, "center");
       }
       if (wantPause) {
-        addHit("pause", 138, 0, 22, 22);
-        rect(ctx, 141, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
-        rect(ctx, 142, 4, 13, 13, "#1a1430");
-        rect(ctx, 145, 7, 2, 7, C.cream);
-        rect(ctx, 150, 7, 2, 7, C.cream);
+        addHit("pause", 138, hudY(0), 22, 22);
+        rect(ctx, 141, hudY(3), 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
+        rect(ctx, 142, hudY(4), 13, 13, "#1a1430");
+        rect(ctx, 145, hudY(7), 2, 7, C.cream);
+        rect(ctx, 150, hudY(7), 2, 7, C.cream);
       }
       drawBonusHud(me);
       drawAbRing(me);
       if (w.toastT > 0) {
         var tw2 = textWidth(w.toast, 1) + 12;
         ctx.globalAlpha = Math.min(1, w.toastT / 15);
-        box(ctx, Math.round(LW / 2 - tw2 / 2), 38, tw2, 13, C.navy, C.gold);
-        drawText(ctx, w.toast, LW / 2, 41, C.gold, 1, "center");
+        box(ctx, Math.round(LW / 2 - tw2 / 2), hudY(38), tw2, 13, C.navy, C.gold);
+        drawText(ctx, w.toast, LW / 2, hudY(41), C.gold, 1, "center");
         ctx.globalAlpha = 1;
       }
       if (w.tick < 170 && !(w.toastT > 0)) {
@@ -5266,9 +5283,9 @@
         var htw = textWidth(line1, 1);
         if (line2) htw = Math.max(htw, textWidth(line2, 1));
         var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
-        box(ctx, hx, 56, hw, hh, C.navy, C.cream);
-        drawText(ctx, line1, LW / 2, 58, C.cream, 1, "center");
-        if (line2) drawText(ctx, line2, LW / 2, 68, C.cream, 1, "center");
+        box(ctx, hx, hudY(56), hw, hh, C.navy, C.cream);
+        drawText(ctx, line1, LW / 2, hudY(58), C.cream, 1, "center");
+        if (line2) drawText(ctx, line2, LW / 2, hudY(68), C.cream, 1, "center");
         ctx.globalAlpha = 1;
       }
       if ((w.fallWarn || w.liftWarn) && !paused) {
@@ -5368,7 +5385,7 @@
     }
     var BON_HUD = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
     function drawBonusHud(me) {
-      var x = 3, y = 22;
+      var x = 3, y = hudY(22);
       for (var i = 0; i < BON_HUD.length; i++) {
         var b = BON_HUD[i], t = me[b[0]];
         if (!(t > 0)) continue;
@@ -5831,7 +5848,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
+        return { lw: LW, lh: LH, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
       },
       tap: function(id) {
         activate(id);

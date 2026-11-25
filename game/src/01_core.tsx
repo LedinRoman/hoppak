@@ -7,8 +7,10 @@ type Ctx = CanvasRenderingContext2D;
 var LW = 160;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
+var VIEW_CROP = 0; /* world px cropped from the top when play fills the phone width; render-only */
 function viewX0() { return -VIEW_PAD; }
 function viewW() { return LW + VIEW_PAD * 2; }
+function hudY(y: number) { return y + VIEW_CROP; }
 function dimView(ctx: Ctx, col: string) { rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col); }
 var PX_PER_M = 8;
 var PW = 12;

@@ -1,0 +1,421 @@
+{
+  "results": [
+    {
+      "label": "v056-428x745",
+      "error": "Error: Unsupported media feature: pointer\n    at assert (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/util/assert.js:15:15)\n    at EmulationManager.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/EmulationManager.js:409:21)\n    at CdpPage.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/Page.js:968:45)\n    at shot (/tmp/hotfix-width-shots.cjs:36:16)\n    at async /tmp/hotfix-width-shots.cjs:131:17"
+    },
+    {
+      "label": "v058-428x745-before",
+      "error": "Error: Unsupported media feature: pointer\n    at assert (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/util/assert.js:15:15)\n    at EmulationManager.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/EmulationManager.js:409:21)\n    at CdpPage.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/Page.js:968:45)\n    at shot (/tmp/hotfix-width-shots.cjs:36:16)\n    at async /tmp/hotfix-width-shots.cjs:131:17"
+    },
+    {
+      "label": "fix-428x745-after",
+      "error": "Error: Unsupported media feature: pointer\n    at assert (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/util/assert.js:15:15)\n    at EmulationManager.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/EmulationManager.js:409:21)\n    at CdpPage.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/Page.js:968:45)\n    at shot (/tmp/hotfix-width-shots.cjs:36:16)\n    at async /tmp/hotfix-width-shots.cjs:131:17"
+    },
+    {
+      "label": "v056-390x720-tg",
+      "error": "Error: Unsupported media feature: pointer\n    at assert (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/util/assert.js:15:15)\n    at EmulationManager.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/EmulationManager.js:409:21)\n    at CdpPage.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/Page.js:968:45)\n    at shot (/tmp/hotfix-width-shots.cjs:36:16)\n    at async /tmp/hotfix-width-shots.cjs:131:17"
+    },
+    {
+      "label": "v058-390x720-tg-before",
+      "error": "Error: Unsupported media feature: pointer\n    at assert (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/util/assert.js:15:15)\n    at EmulationManager.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/EmulationManager.js:409:21)\n    at CdpPage.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/Page.js:968:45)\n    at shot (/tmp/hotfix-width-shots.cjs:36:16)\n    at async /tmp/hotfix-width-shots.cjs:131:17"
+    },
+    {
+      "label": "fix-390x720-tg-after",
+      "error": "Error: Unsupported media feature: pointer\n    at assert (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/util/assert.js:15:15)\n    at EmulationManager.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/EmulationManager.js:409:21)\n    at CdpPage.emulateMediaFeatures (file:///tmp/pp/node_modules/puppeteer-core/lib/puppeteer/cdp/Page.js:968:45)\n    at shot (/tmp/hotfix-width-shots.cjs:36:16)\n    at async /tmp/hotfix-width-shots.cjs:131:17"
+    },
+    {
+      "label": "v058-1280x800-desktop",
+      "file": "/workspace/jumper-hotfix/game/screens/hotfix-width/v058-1280x800-desktop.png",
+      "size": {
+        "lw": 160,
+        "lh": 346,
+        "scale": 2,
+        "pScale": 2,
+        "pScaleY": 2,
+        "cssScale": 2,
+        "dpr": 1,
+        "isWide": true,
+        "isPhone": false,
+        "phoneLand": false,
+        "paused": true,
+        "landPause": false,
+        "manualPause": true,
+        "resumeCd": 0,
+        "cw": 320,
+        "ch": 692,
+        "viewPad": 0,
+        "fieldOx": 0,
+        "fieldOy": 0,
+        "phoneInt": false,
+        "devW": 320,
+        "devH": 692
+      },
+      "canvas": {
+        "cssW": 320,
+        "cssH": 692,
+        "left": 480,
+        "top": 54,
+        "devW": 320,
+        "devH": 692
+      },
+      "hero": {
+        "x": 0,
+        "y": -187.43,
+        "m": 21
+      },
+      "plats": {
+        "n": 18,
+        "xMin": 4,
+        "xMax": 156,
+        "vis": [
+          {
+            "x": 8,
+            "y": 0,
+            "w": 144,
+            "type": "normal"
+          },
+          {
+            "x": 57,
+            "y": -24,
+            "w": 51,
+            "type": "normal"
+          },
+          {
+            "x": 42,
+            "y": -60,
+            "w": 44,
+            "type": "normal"
+          },
+          {
+            "x": 109,
+            "y": -60,
+            "w": 42,
+            "type": "normal"
+          },
+          {
+            "x": 82,
+            "y": -95,
+            "w": 49,
+            "type": "normal"
+          },
+          {
+            "x": 4,
+            "y": -95,
+            "w": 49,
+            "type": "normal"
+          },
+          {
+            "x": 31,
+            "y": -133,
+            "w": 54,
+            "type": "normal"
+          },
+          {
+            "x": 106,
+            "y": -133,
+            "w": 50,
+            "type": "normal"
+          },
+          {
+            "x": 105,
+            "y": -163,
+            "w": 50,
+            "type": "normal"
+          },
+          {
+            "x": 27,
+            "y": -163,
+            "w": 51,
+            "type": "normal"
+          },
+          {
+            "x": 51,
+            "y": -202,
+            "w": 45,
+            "type": "normal"
+          },
+          {
+            "x": 111,
+            "y": -202,
+            "w": 44,
+            "type": "normal"
+          },
+          {
+            "x": 61,
+            "y": -237,
+            "w": 46,
+            "type": "normal"
+          },
+          {
+            "x": 45,
+            "y": -276,
+            "w": 48,
+            "type": "normal"
+          },
+          {
+            "x": 4,
+            "y": -317,
+            "w": 52,
+            "type": "normal"
+          },
+          {
+            "x": 97,
+            "y": -317,
+            "w": 51,
+            "type": "normal"
+          },
+          {
+            "x": 45,
+            "y": -349,
+            "w": 43,
+            "type": "normal"
+          },
+          {
+            "x": 105,
+            "y": -349,
+            "w": 50,
+            "type": "normal"
+          }
+        ]
+      }
+    },
+    {
+      "label": "fix-1280x800-desktop",
+      "file": "/workspace/jumper-hotfix/game/screens/hotfix-width/fix-1280x800-desktop.png",
+      "size": {
+        "lw": 160,
+        "lh": 346,
+        "scale": 2,
+        "pScale": 2,
+        "pScaleY": 2,
+        "cssScale": 2,
+        "dpr": 1,
+        "isWide": true,
+        "isPhone": false,
+        "phoneLand": false,
+        "paused": true,
+        "landPause": false,
+        "manualPause": true,
+        "resumeCd": 0,
+        "cw": 320,
+        "ch": 692,
+        "viewPad": 0,
+        "viewCrop": 0,
+        "fieldOx": 0,
+        "fieldOy": 0,
+        "phoneInt": false,
+        "devW": 320,
+        "devH": 692
+      },
+      "canvas": {
+        "cssW": 320,
+        "cssH": 692,
+        "left": 480,
+        "top": 54,
+        "devW": 320,
+        "devH": 692
+      },
+      "hero": {
+        "x": 0,
+        "y": -187.43,
+        "m": 21
+      },
+      "plats": {
+        "n": 18,
+        "xMin": 4,
+        "xMax": 156,
+        "vis": [
+          {
+            "x": 8,
+            "y": 0,
+            "w": 144,
+            "type": "normal"
+          },
+          {
+            "x": 57,
+            "y": -24,
+            "w": 51,
+            "type": "normal"
+          },
+          {
+            "x": 42,
+            "y": -60,
+            "w": 44,
+            "type": "normal"
+          },
+          {
+            "x": 109,
+            "y": -60,
+            "w": 42,
+            "type": "normal"
+          },
+          {
+            "x": 82,
+            "y": -95,
+            "w": 49,
+            "type": "normal"
+          },
+          {
+            "x": 4,
+            "y": -95,
+            "w": 49,
+            "type": "normal"
+          },
+          {
+            "x": 31,
+            "y": -133,
+            "w": 54,
+            "type": "normal"
+          },
+          {
+            "x": 106,
+            "y": -133,
+            "w": 50,
+            "type": "normal"
+          },
+          {
+            "x": 105,
+            "y": -163,
+            "w": 50,
+            "type": "normal"
+          },
+          {
+            "x": 27,
+            "y": -163,
+            "w": 51,
+            "type": "normal"
+          },
+          {
+            "x": 51,
+            "y": -202,
+            "w": 45,
+            "type": "normal"
+          },
+          {
+            "x": 111,
+            "y": -202,
+            "w": 44,
+            "type": "normal"
+          },
+          {
+            "x": 61,
+            "y": -237,
+            "w": 46,
+            "type": "normal"
+          },
+          {
+            "x": 45,
+            "y": -276,
+            "w": 48,
+            "type": "normal"
+          },
+          {
+            "x": 4,
+            "y": -317,
+            "w": 52,
+            "type": "normal"
+          },
+          {
+            "x": 97,
+            "y": -317,
+            "w": 51,
+            "type": "normal"
+          },
+          {
+            "x": 45,
+            "y": -349,
+            "w": 43,
+            "type": "normal"
+          },
+          {
+            "x": 105,
+            "y": -349,
+            "w": 50,
+            "type": "normal"
+          }
+        ]
+      }
+    }
+  ],
+  "inspectSeed7": {
+    "v056": {
+      "jumpH": 81.05921052631578,
+      "gapCap": 75,
+      "to200": {
+        "n": 79,
+        "xMin": 4,
+        "xMax": 156,
+        "spread": 152,
+        "wMin": 39,
+        "wMax": 144,
+        "wAvg": 47.9114,
+        "wallLeft": 4,
+        "wallRight": 4
+      },
+      "to20": {
+        "n": 8,
+        "xMin": 4,
+        "xMax": 156,
+        "spread": 152,
+        "wMin": 42,
+        "wMax": 144,
+        "wAvg": 60.375,
+        "wallLeft": 4,
+        "wallRight": 4
+      }
+    },
+    "v058": {
+      "jumpH": 81.05921052631578,
+      "gapCap": 75,
+      "to200": {
+        "n": 79,
+        "xMin": 4,
+        "xMax": 156,
+        "spread": 152,
+        "wMin": 39,
+        "wMax": 144,
+        "wAvg": 47.9114,
+        "wallLeft": 4,
+        "wallRight": 4
+      },
+      "to20": {
+        "n": 8,
+        "xMin": 4,
+        "xMax": 156,
+        "spread": 152,
+        "wMin": 42,
+        "wMax": 144,
+        "wAvg": 60.375,
+        "wallLeft": 4,
+        "wallRight": 4
+      }
+    },
+    "fix": {
+      "jumpH": 81.05921052631578,
+      "gapCap": 75,
+      "to200": {
+        "n": 79,
+        "xMin": 4,
+        "xMax": 156,
+        "spread": 152,
+        "wMin": 39,
+        "wMax": 144,
+        "wAvg": 47.9114,
+        "wallLeft": 4,
+        "wallRight": 4
+      },
+      "to20": {
+        "n": 8,
+        "xMin": 4,
+        "xMax": 156,
+        "spread": 152,
+        "wMin": 42,
+        "wMax": 144,
+        "wAvg": 60.375,
+        "wallLeft": 4,
+        "wallRight": 4
+      }
+    }
+  }
+}

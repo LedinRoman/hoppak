@@ -104,32 +104,48 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.style.borderRadius = "4px";
       pScaleY = pScale;
     } else {
-      /* 0.56 fractional nearest-neighbor: 160×346 fills the short side. Side pads (if height-limited) continue the map sky. */
-      cssScale = Math.min(availW / lw, availH / lh);
-      VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
-      cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
-      cssHpx = lh * cssScale;
+      /* Phone / narrow, 0.56 fractional nearest-neighbor. Menu/shop still fit
+         the whole 346-tall UI (pads on the sides if the viewport is short and
+         wide). During play (fieldLocked) the field fills the width so platforms
+         reach the screen edges; any leftover height crops the top of the 346
+         view (HUD uses hudY). Sim stays LW×LH; death and camera still use LH. */
+      var fillWidth = fieldLocked;
+      if (fillWidth) {
+        cssScale = availW / lw;
+        VIEW_PAD = 0;
+        VIEW_CROP = Math.max(0, lh - availH / cssScale);
+        cssWpx = lw * cssScale;
+        cssHpx = (lh - VIEW_CROP) * cssScale;
+      } else {
+        cssScale = Math.min(availW / lw, availH / lh);
+        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+        VIEW_CROP = 0;
+        cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+        cssHpx = lh * cssScale;
+      }
       var pxW = Math.max(1, Math.round(cssWpx * dpr));
       var pxH = Math.max(1, Math.round(cssHpx * dpr));
       canvas.width = pxW;
       canvas.height = pxH;
       var worldW = lw + 2 * VIEW_PAD;
+      var worldH = lh - VIEW_CROP;
       pScale = pxW / worldW;
-      pScaleY = pxH / lh;
+      pScaleY = pxH / Math.max(1e-6, worldH);
       sx = pScale;
       sy = pScaleY;
       /* Snap the field origin to a device pixel so the clip has no 1 px sliver. */
       FIELD_OX = Math.round(VIEW_PAD * sx);
-      FIELD_OY = 0;
+      FIELD_OY = Math.round(-VIEW_CROP * sy);
       PHONE_INT = false;
       DEV_W = pxW; DEV_H = pxH;
       canvas.style.position = "absolute";
       canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
-      canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
+      /* Bottom-align so a short viewport keeps the death line on screen. */
+      canvas.style.top = Math.round(vs.y + (cssH - cssHpx)) + "px";
       canvas.style.boxShadow = "none";
       canvas.style.borderRadius = "0px";
     }
-    if (isWide) { VIEW_PAD = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
+    if (isWide) { VIEW_PAD = 0; VIEW_CROP = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
     netLW = netFixedLW();
     LW = lw; LH = lh; SCALE = cssScale;
     canvas.style.width = cssWpx + "px";
@@ -243,7 +259,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function abBar() {
     var coinW = 28;
     try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19; } catch (_e) {}
-    return { x: 4 + coinW, y: 5, w: 16, h: 16 };
+    return { x: 4 + coinW, y: hudY(5), w: 16, h: 16 };
   }
   function startSquad(seed?: number) {
     /* Bot-only run. Online rooms will call a net start later; keep this off the lobby draw path. */
@@ -270,6 +286,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     pointers = {}; abTap = false; pressId = null;
     resumeCd = 0; landPause = false; manualPause = false; abDenyT = 0; refuseT = 0; popT = -1; wasReady = false; coinT0 = -1; coinSkip = false;
     try { canvas.focus(); } catch (_e) {}
+    resize();
   }
   function payout() {
     if (!world || world.paid) return;
@@ -851,8 +868,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
     var me = w.players[0];
     var wantPause = wantTouchPause();
-    drawTextO(ctx, metersOf(me) + " М", 80, 6, C.cream, "center");
-    coinsLabel(5, 6, w.runCoins);
+    drawTextO(ctx, metersOf(me) + " М", 80, hudY(6), C.cream, "center");
+    coinsLabel(5, hudY(6), w.runCoins);
     if (w.mode === "squad") {
       var place = 1, lead = me, leadM = metersOf(me);
       for (i = 0; i < w.players.length; i++) {
@@ -860,24 +877,24 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (w.players[i] !== me && om > metersOf(me)) place++;
         if (om > leadM) { lead = w.players[i]; leadM = om; }
       }
-      drawTextO(ctx, place + "/" + w.players.length, 80, 16, "#c8bfe0", "center");
+      drawTextO(ctx, place + "/" + w.players.length, 80, hudY(16), "#c8bfe0", "center");
       var leadLab = lead.id === 0 ? "ТЫ ВПЕРЕДИ" : ((lead.name || "БОТ").slice(0, 8) + " " + leadM + " М");
-      drawTextO(ctx, leadLab, 80, 26, lead.id === 0 ? C.gold : C.cream, "center");
+      drawTextO(ctx, leadLab, 80, hudY(26), lead.id === 0 ? C.gold : C.cream, "center");
     }
     if (wantPause) {
-      addHit("pause", 138, 0, 22, 22);
-      rect(ctx, 141, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
-      rect(ctx, 142, 4, 13, 13, "#1a1430");
-      rect(ctx, 145, 7, 2, 7, C.cream);
-      rect(ctx, 150, 7, 2, 7, C.cream);
+      addHit("pause", 138, hudY(0), 22, 22);
+      rect(ctx, 141, hudY(3), 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
+      rect(ctx, 142, hudY(4), 13, 13, "#1a1430");
+      rect(ctx, 145, hudY(7), 2, 7, C.cream);
+      rect(ctx, 150, hudY(7), 2, 7, C.cream);
     }
     drawBonusHud(me);
     drawAbRing(me);
     if (w.toastT > 0) {
       var tw2 = textWidth(w.toast, 1) + 12;
       ctx.globalAlpha = Math.min(1, w.toastT / 15);
-      box(ctx, Math.round(LW / 2 - tw2 / 2), 38, tw2, 13, C.navy, C.gold);
-      drawText(ctx, w.toast, LW / 2, 41, C.gold, 1, "center");
+      box(ctx, Math.round(LW / 2 - tw2 / 2), hudY(38), tw2, 13, C.navy, C.gold);
+      drawText(ctx, w.toast, LW / 2, hudY(41), C.gold, 1, "center");
       ctx.globalAlpha = 1;
     }
     if (w.tick < 170 && !(w.toastT > 0)) {
@@ -888,9 +905,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var htw = textWidth(line1, 1);
       if (line2) htw = Math.max(htw, textWidth(line2, 1));
       var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
-      box(ctx, hx, 56, hw, hh, C.navy, C.cream);
-      drawText(ctx, line1, LW / 2, 58, C.cream, 1, "center");
-      if (line2) drawText(ctx, line2, LW / 2, 68, C.cream, 1, "center");
+      box(ctx, hx, hudY(56), hw, hh, C.navy, C.cream);
+      drawText(ctx, line1, LW / 2, hudY(58), C.cream, 1, "center");
+      if (line2) drawText(ctx, line2, LW / 2, hudY(68), C.cream, 1, "center");
       ctx.globalAlpha = 1;
     }
     if ((w.fallWarn || w.liftWarn) && !paused) {
@@ -952,7 +969,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
-    var x = 3, y = 22;
+    var x = 3, y = hudY(22);
     for (var i = 0; i < BON_HUD.length; i++) {
       var b = BON_HUD[i], t = me[b[0]];
       if (!(t > 0)) continue;
@@ -1292,7 +1309,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },
