@@ -4,7 +4,11 @@ import { useEffect, useRef } from "grok/canvas";
    Single source of truth: this file. hoppak.js is generated from it (build.sh). */
 type Ctx = CanvasRenderingContext2D;
 
-var LW = 160;
+var FIELD_W: number = (function () {
+  try { if (typeof HOP_FIELD_W !== "undefined" && Number(HOP_FIELD_W) > 0) return Number(HOP_FIELD_W); } catch (_e) {}
+  return 180;
+})();
+var LW = FIELD_W;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
 function viewX0() { return -VIEW_PAD; }

@@ -11,7 +11,7 @@ var NET_PROTO = 1;
 var NET_SEND_MS = 66; /* own state ~15 Hz */
 var NET_DELAY_MS = 150; /* interpolation buffer */
 var NET_GRACE_MS = 10000;
-var NET_XS = [74, 22, 124, 48]; /* start x by slot (same as the bot squad) */
+/* start x by slot comes from startXs() in 02_world.tsx so solo, squad and online match LW */
 var NET_TAGS: any = { host: "ХОСТ", ready: "ГОТОВ", wait: "ЖДЁМ", off: "НЕТ СВЯЗИ" };
 
 var NET: any = (function () {
@@ -255,7 +255,7 @@ var NET: any = (function () {
   /** Online rooms pin the logical width: the map generator depends on LW. */
   N.fixedLW = function () { return N.room ? N.room.lw : 0; };
   /* Evening score is client-side from `results` broadcasts (same session, same room).
-     Server NET_LW is 180; width parity with solo (160) needs a one-line server change via Devops. */
+     Server NET_LW is 180; with FIELD_W=180 solo and online share identical width. */
   function emptySession(code: string) { return { code: code || "", rounds: [], wins: {}, best: {}, names: {} }; }
   N.session = emptySession("");
   function sessionFor(code: string) {
@@ -309,10 +309,11 @@ var NET: any = (function () {
     var mine: any = null, others: any[] = [];
     for (var i = 0; i < info.players.length; i++) { if (info.players[i].pid === N.you) mine = info.players[i]; else others.push(info.players[i]); }
     var me0 = w.players[0];
-    if (mine) { me0.x = NET_XS[mine.slot % 4]; me0.name = mine.name; me0.pid = mine.pid; }
+    var sxs = startXs();
+    if (mine) { me0.x = sxs[mine.slot % 4]; me0.name = mine.name; me0.pid = mine.pid; }
     for (var k = 0; k < others.length; k++) {
       var o = others[k];
-      var p: any = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], false);
+      var p: any = newPlayer(k + 1, o.kind, lookOf(o.kind), sxs[o.slot % 4], false);
       p.remote = true; p.pid = o.pid; p.name = o.name; p.react = 1; p.bias = 0;
       w.players.push(p);
     }

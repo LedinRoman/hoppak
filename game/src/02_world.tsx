@@ -316,6 +316,15 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, stallT: 0, stallH: 0
   };
 }
+function startXs() {
+  if (LW === 160) return [74, 22, 124, 48];
+  return [
+    Math.round((LW - PW) * 0.5),
+    Math.round((LW - PW) * 0.15),
+    Math.round((LW - PW) * 0.84),
+    Math.round((LW - PW) * 0.32)
+  ];
+}
 function createWorld(seed: number, mode: string, humanKind: number, humanLook: any, mapId?: string) {
   var w: any = {
     seed: seed >>> 0, rng: mulberry32(seed >>> 0), mode: mode, map: mapInfo(mapId || "city").id,
@@ -325,7 +334,8 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
   w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
-  var xs = mode === "squad" ? [74, 22, 124, 48] : [74];
+  var sxs = startXs();
+  var xs = mode === "squad" ? sxs : [sxs[0]];
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
   if (mode === "squad") {
     var bk = botKinds(humanKind);

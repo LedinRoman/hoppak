@@ -1,6 +1,13 @@
 /* Хоппак v0.57 — generated from hoppak.page.tsx by build.sh, do not edit */
 (() => {
-  var LW = 160;
+  var FIELD_W = function() {
+    try {
+      if (Number(180) > 0) return Number(180);
+    } catch (_e) {
+    }
+    return 180;
+  }();
+  var LW = FIELD_W;
   var LH = 346;
   var VIEW_PAD = 0;
   function viewX0() {
@@ -1312,6 +1319,15 @@
       stallH: 0
     };
   }
+  function startXs() {
+    if (LW === 160) return [74, 22, 124, 48];
+    return [
+      Math.round((LW - PW) * 0.5),
+      Math.round((LW - PW) * 0.15),
+      Math.round((LW - PW) * 0.84),
+      Math.round((LW - PW) * 0.32)
+    ];
+  }
   function createWorld(seed, mode, humanKind, humanLook, mapId) {
     var w = {
       seed: seed >>> 0,
@@ -1347,7 +1363,8 @@
     };
     w.nextBonusM = randInt(w.rng, 160, 240);
     w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
-    var xs = mode === "squad" ? [74, 22, 124, 48] : [74];
+    var sxs = startXs();
+    var xs = mode === "squad" ? sxs : [sxs[0]];
     w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
     if (mode === "squad") {
       var bk = botKinds(humanKind);
@@ -2566,8 +2583,8 @@
         rect(ctx, 6, roofY + 12, 18, 10, "#342a52");
         rect(ctx, 8, roofY + 14, 14, 1, "#706498");
         rect(ctx, 8, roofY + 17, 14, 1, "#706498");
-        rect(ctx, 132, roofY + 10, 2, 16, "#706498");
-        rect(ctx, 127, roofY + 10, 12, 1, "#706498");
+        rect(ctx, LW - 28, roofY + 10, 2, 16, "#706498");
+        rect(ctx, LW - 33, roofY + 10, 12, 1, "#706498");
       }
     }
   }
@@ -3114,7 +3131,6 @@
   var NET_SEND_MS = 66;
   var NET_DELAY_MS = 150;
   var NET_GRACE_MS = 1e4;
-  var NET_XS = [74, 22, 124, 48];
   var NET_TAGS = { host: "\u0425\u041E\u0421\u0422", ready: "\u0413\u041E\u0422\u041E\u0412", wait: "\u0416\u0414\u0401\u041C", off: "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418" };
   var NET = function() {
     var N = {
@@ -3604,14 +3620,15 @@
         else others.push(info.players[i]);
       }
       var me0 = w.players[0];
+      var sxs = startXs();
       if (mine) {
-        me0.x = NET_XS[mine.slot % 4];
+        me0.x = sxs[mine.slot % 4];
         me0.name = mine.name;
         me0.pid = mine.pid;
       }
       for (var k = 0; k < others.length; k++) {
         var o = others[k];
-        var p = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], false);
+        var p = newPlayer(k + 1, o.kind, lookOf(o.kind), sxs[o.slot % 4], false);
         p.remote = true;
         p.pid = o.pid;
         p.name = o.name;
@@ -4104,9 +4121,9 @@
       phoneLand = isPhone && cssW > cssH;
       var frameX = isWide ? 24 : 0;
       var frameY = isWide ? cssH >= 740 ? 16 : 4 : 0;
-      var availW = Math.max(160, cssW - frameX * 2);
+      var availW = Math.max(FIELD_W, cssW - frameX * 2);
       var availH = Math.max(240, cssH - frameY * 2);
-      var lw = netFixedLW() || 160;
+      var lw = netFixedLW() || FIELD_W;
       var lh = 346;
       if (fieldLocked) {
         lw = LW;
@@ -5124,7 +5141,7 @@
       ctx.restore();
       var me = w.players[0];
       var wantPause = wantTouchPause();
-      drawTextO(ctx, metersOf(me) + " \u041C", 80, 6, C.cream, "center");
+      drawTextO(ctx, metersOf(me) + " \u041C", LW / 2, 6, C.cream, "center");
       coinsLabel(5, 6, w.runCoins);
       if (w.mode === "squad") {
         var place = 1, lead = me, leadM = metersOf(me);
@@ -5136,16 +5153,17 @@
             leadM = om;
           }
         }
-        drawTextO(ctx, place + "/" + w.players.length, 80, 16, "#c8bfe0", "center");
+        drawTextO(ctx, place + "/" + w.players.length, LW / 2, 16, "#c8bfe0", "center");
         var leadLab = lead.id === 0 ? "\u0422\u042B \u0412\u041F\u0415\u0420\u0415\u0414\u0418" : (lead.name || "\u0411\u041E\u0422").slice(0, 8) + " " + leadM + " \u041C";
-        drawTextO(ctx, leadLab, 80, 26, lead.id === 0 ? C.gold : C.cream, "center");
+        drawTextO(ctx, leadLab, LW / 2, 26, lead.id === 0 ? C.gold : C.cream, "center");
       }
       if (wantPause) {
-        addHit("pause", 138, 0, 22, 22);
-        rect(ctx, 141, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
-        rect(ctx, 142, 4, 13, 13, "#1a1430");
-        rect(ctx, 145, 7, 2, 7, C.cream);
-        rect(ctx, 150, 7, 2, 7, C.cream);
+        var px = LW - 22;
+        addHit("pause", px, 0, 22, 22);
+        rect(ctx, px + 3, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
+        rect(ctx, px + 4, 4, 13, 13, "#1a1430");
+        rect(ctx, px + 7, 7, 2, 7, C.cream);
+        rect(ctx, px + 12, 7, 2, 7, C.cream);
       }
       drawBonusHud(me);
       drawAbRing(me);
@@ -5728,7 +5746,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
+        return { fieldW: FIELD_W, lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
       },
       tap: function(id) {
         activate(id);

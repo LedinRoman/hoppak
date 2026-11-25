@@ -257,7 +257,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
       for (var ty = roofY + 7; ty < LH; ty += 6) for (tx = viewX0(); tx < LW + VIEW_PAD; tx += 8) rect(ctx, tx + (((ty - roofY) / 6) % 2 ? 4 : 0), ty, 3, 1, C.brickL);
       rect(ctx, viewX0(), roofY + 3, viewW(), 2, C.roof);
       rect(ctx, 6, roofY + 12, 18, 10, "#342a52"); rect(ctx, 8, roofY + 14, 14, 1, "#706498"); rect(ctx, 8, roofY + 17, 14, 1, "#706498");
-      rect(ctx, 132, roofY + 10, 2, 16, "#706498"); rect(ctx, 127, roofY + 10, 12, 1, "#706498");
+      rect(ctx, LW - 28, roofY + 10, 2, 16, "#706498"); rect(ctx, LW - 33, roofY + 10, 12, 1, "#706498");
     }
   }
 }

@@ -76,9 +76,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     phoneLand = isPhone && cssW > cssH;
     var frameX = isWide ? 24 : 0;
     var frameY = isWide ? (cssH >= 740 ? 16 : 4) : 0;
-    var availW = Math.max(160, cssW - frameX * 2);
+    var availW = Math.max(FIELD_W, cssW - frameX * 2);
     var availH = Math.max(240, cssH - frameY * 2);
-    var lw = netFixedLW() || 160;
+    var lw = netFixedLW() || FIELD_W;
     var lh = 346;
     if (fieldLocked) { lw = LW; lh = LH; }
     var sx: number, sy: number, cssWpx: number, cssHpx: number;
@@ -96,7 +96,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.style.boxShadow = "0 0 0 2px #f6ecd0, 0 0 0 6px #162040, 0 20px 60px rgba(0,0,0,0.7)";
       canvas.style.borderRadius = "4px";
     } else {
-      /* SPEC v0.57: integer physical scale k; canvas covers the screen; field 160×346 centered with integer offset. */
+      /* SPEC v0.57: integer physical scale k; canvas covers the screen; field FIELD_W×346 centered with integer offset. */
       var devW = Math.max(1, Math.round(availW * dpr)), devH = Math.max(1, Math.round(availH * dpr));
       pScale = Math.max(1, Math.min(Math.floor(devW / lw), Math.floor(devH / lh)));
       cssScale = pScale / dpr;
@@ -789,7 +789,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
     var me = w.players[0];
     var wantPause = wantTouchPause();
-    drawTextO(ctx, metersOf(me) + " М", 80, 6, C.cream, "center");
+    drawTextO(ctx, metersOf(me) + " М", LW / 2, 6, C.cream, "center");
     coinsLabel(5, 6, w.runCoins);
     if (w.mode === "squad") {
       var place = 1, lead = me, leadM = metersOf(me);
@@ -798,16 +798,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (w.players[i] !== me && om > metersOf(me)) place++;
         if (om > leadM) { lead = w.players[i]; leadM = om; }
       }
-      drawTextO(ctx, place + "/" + w.players.length, 80, 16, "#c8bfe0", "center");
+      drawTextO(ctx, place + "/" + w.players.length, LW / 2, 16, "#c8bfe0", "center");
       var leadLab = lead.id === 0 ? "ТЫ ВПЕРЕДИ" : ((lead.name || "БОТ").slice(0, 8) + " " + leadM + " М");
-      drawTextO(ctx, leadLab, 80, 26, lead.id === 0 ? C.gold : C.cream, "center");
+      drawTextO(ctx, leadLab, LW / 2, 26, lead.id === 0 ? C.gold : C.cream, "center");
     }
     if (wantPause) {
-      addHit("pause", 138, 0, 22, 22);
-      rect(ctx, 141, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
-      rect(ctx, 142, 4, 13, 13, "#1a1430");
-      rect(ctx, 145, 7, 2, 7, C.cream);
-      rect(ctx, 150, 7, 2, 7, C.cream);
+      var px = LW - 22;
+      addHit("pause", px, 0, 22, 22);
+      rect(ctx, px + 3, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
+      rect(ctx, px + 4, 4, 13, 13, "#1a1430");
+      rect(ctx, px + 7, 7, 2, 7, C.cream);
+      rect(ctx, px + 12, 7, 2, 7, C.cream);
     }
     drawBonusHud(me);
     drawAbRing(me);
@@ -1230,7 +1231,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    getSize: function () { return { fieldW: FIELD_W, lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },
