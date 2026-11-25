@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+*~
+*.swp
+*.swo
+
+# Logs and env
+*.log
+.env
+.env.*
+!.env.example
+
+# Editor
+.idea/
+*.iml
+
+# Temp / build scratch (keep checked-in page-build and sprites)
+*.tmp
+tmp/
+.cache/
