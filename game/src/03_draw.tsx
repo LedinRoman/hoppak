@@ -165,7 +165,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     }
     ctx.globalAlpha = 0.65;
     for (k = 0; k < 16; k++) {
-      var ux = mod(Math.floor(hash(k + 500) * LW) + Math.sin(tick * 0.05 + k) * 4, LW);
+      var ux = mod(Math.floor(hash(k + 500) * viewW()) + Math.sin(tick * 0.05 + k) * 4, viewW()) + viewX0();
       var uy = mod(Math.floor(hash(k + 600) * LH) - tick * (0.35 + (k % 3) * 0.15) + alt * 0.25, LH);
       var sz = k % 4 === 0 ? 3 : 2;
       rect(ctx, ux, uy, sz, sz, "#a8f8ff");
@@ -177,7 +177,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   if (map === "ice") {
     ctx.globalAlpha = 0.8;
     for (k = 0; k < 24; k++) {
-      var fx = mod(Math.floor(hash(k + 700) * LW) + Math.sin(tick * 0.03 + k) * 5, LW);
+      var fx = mod(Math.floor(hash(k + 700) * viewW()) + Math.sin(tick * 0.03 + k) * 5, viewW()) + viewX0();
       var fy = mod(Math.floor(hash(k + 800) * LH) + tick * (0.3 + (k % 3) * 0.12) + alt * 0.28, LH);
       rect(ctx, fx, fy, k % 5 === 0 ? 2 : 1, k % 5 === 0 ? 2 : 1, "#ffffff");
     }
@@ -186,7 +186,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   /* lava rising embers */
   if (map === "lava") {
     for (k = 0; k < 20; k++) {
-      var ex = mod(Math.floor(hash(k + 900) * LW) + Math.sin(tick * 0.06 + k) * 6, LW);
+      var ex = mod(Math.floor(hash(k + 900) * viewW()) + Math.sin(tick * 0.06 + k) * 6, viewW()) + viewX0();
       var ey = mod(Math.floor(hash(k + 950) * LH) - tick * (0.45 + (k % 3) * 0.15) + alt * 0.3, LH);
       rect(ctx, ex, ey, k % 3 === 0 ? 2 : 1, k % 3 === 0 ? 2 : 1, k % 2 ? "#ffd850" : "#ff6830");
     }

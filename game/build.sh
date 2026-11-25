@@ -13,7 +13,8 @@
 set -e
 cd "$(dirname "$0")"
 ESB=/tmp/esb/node_modules/.bin/esbuild
-FIELD_W="${FIELD_W:-180}"
+FIELD_W="${FIELD_W:-160}"
+SPACE="${SPACE:-0}"
 cat src/01_core.tsx src/02_world.tsx src/03_draw.tsx src/net.tsx src/04_shell.tsx > hoppak.page.tsx
 python3 - << 'PY'
 src = open("hoppak.page.tsx").read()
@@ -21,10 +22,10 @@ game = src.split("/* @@APP */")[0]
 game = game.split("\n", 1)[1]  # drop grok/canvas import
 open("/tmp/hoppak.game.ts", "w").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
 PY
-$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --define:HOP_FIELD_W=${FIELD_W} --outfile=hoppak.js --log-level=warning
+$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --define:HOP_FIELD_W=${FIELD_W} --define:HOP_SPACE="\"${SPACE}\"" --outfile=hoppak.js --log-level=warning
 sed -i '1i /* Хоппак v0.57 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
-$ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --define:HOP_FIELD_W=${FIELD_W} --outfile=/tmp/hop.min.tsx --log-level=warning
+$ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --define:HOP_FIELD_W=${FIELD_W} --define:HOP_SPACE="\"${SPACE}\"" --outfile=/tmp/hop.min.tsx --log-level=warning
 python3 - << 'PY'
 import re
 t = open("/tmp/hop.min.tsx").read().strip()
@@ -50,13 +51,13 @@ t = "\n".join(out)
 open("page-build/hop.canvas.tsx", "w").write("// @ts-nocheck\n" + t + "\n")
 print("page bytes", len(t.encode()))
 PY
-node --check hoppak.js && echo "js ok $(wc -c < hoppak.js) bytes (FIELD_W=${FIELD_W})"
+node --check hoppak.js && echo "js ok $(wc -c < hoppak.js) bytes (FIELD_W=${FIELD_W} SPACE=${SPACE})"
 
 if [ "${1:-}" = "site" ]; then
   SITE_ORIGIN="${HOP_SERVER:-https://76-13-250-251.sslip.io}"
   mkdir -p site
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
-    --define:HOP_SERVER="\"${SITE_ORIGIN}\"" --define:HOP_FIELD_W=${FIELD_W} \
+    --define:HOP_SERVER="\"${SITE_ORIGIN}\"" --define:HOP_FIELD_W=${FIELD_W} --define:HOP_SPACE="\"${SPACE}\"" \
     --outfile=site/hoppak.js --log-level=warning
   sed -i '1i /* Хоппак v0.57 site — HOP_SERVER baked in, do not edit */' site/hoppak.js
   python3 - << PY

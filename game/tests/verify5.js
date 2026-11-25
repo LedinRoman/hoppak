@@ -2,7 +2,7 @@ const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const fs = require('fs');
 const path = require('path');
 const GAME_DIR = path.resolve(__dirname, '..');
-const EXPECTED_LW = Number(process.env.FIELD_W || 180);
+const EXPECTED_LW = Number(process.env.FIELD_W || 160);
 const OUT = '/tmp/hoppak_verify5_' + EXPECTED_LW + '/';
 fs.mkdirSync(OUT, { recursive: true });
 const SIZES = [

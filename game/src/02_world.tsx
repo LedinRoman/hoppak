@@ -5,15 +5,48 @@ function isPerm(t: string) { return t === "normal" || t === "move" || t === "ice
 function mkPlat(x: number, y: number, w: number, type: string, row: number) {
   return { x: x, y: y, w: w, type: type, vx: 0, broken: false, breakT: 0, respawnT: 0, spring: false, springT: 0, row: row };
 }
-function findX(r: any, pw: number, row: any[]) {
+function reachRest(dy: number) {
+  if (dy <= 53) return 58;
+  if (dy <= 60) return 53;
+  if (dy <= 64) return 50;
+  if (dy <= 68) return 48;
+  return 44;
+}
+function centerToPlatGap(cx: number, bx: number, bw: number) {
+  var c = mod(cx, LW);
+  if (c >= bx && c <= bx + bw) return 0;
+  return Math.min(mod(bx - c, LW), mod(c - (bx + bw), LW));
+}
+function rowReachOk(x: number, pw: number, prev: any[], maxDx: number) {
+  for (var i = 0; i < prev.length; i++) {
+    var pr = prev[i];
+    if (centerToPlatGap(pr.x + pr.w / 2, x, pw) <= maxDx) return true;
+  }
+  return false;
+}
+function findX(r: any, pw: number, row: any[], prev?: any[], maxDx?: number) {
   for (var t = 0; t < 24; t++) {
-    var x = randInt(r, 4, LW - pw - 4);
+    var x = randInt(r, WALL_PAD, LW - pw - WALL_PAD);
     var ok = true;
     for (var i = 0; i < row.length; i++) {
       var o = row[i];
       if (!(x + pw + X_SEP <= o.x || x >= o.x + o.w + X_SEP)) { ok = false; break; }
     }
+    if (ok && prev && prev.length && maxDx != null && !rowReachOk(x, pw, prev, maxDx)) ok = false;
     if (ok) return x;
+  }
+  if (prev && prev.length && maxDx != null && !row.length) {
+    var anc = prev[Math.floor(r() * prev.length)], acx = anc.x + anc.w / 2;
+    for (var fi = 0; fi < 40; fi++) {
+      var cand = randInt(r, WALL_PAD, LW - pw - WALL_PAD);
+      if (centerToPlatGap(acx, cand, pw) <= maxDx) return cand;
+    }
+    var bestX = WALL_PAD, bestD = 1e9;
+    for (var px2 = WALL_PAD; px2 <= LW - pw - WALL_PAD; px2 += 2) {
+      var cd = centerToPlatGap(acx, px2, pw);
+      if (cd < bestD) { bestD = cd; bestX = px2; }
+    }
+    return bestX;
   }
   return -1;
 }
@@ -194,35 +227,52 @@ function genRow(w: any) {
   var moveP = m > 70 ? lerp(0.14, 0.45, d) : 0;
   var isMove = w.lastKind !== "move" && r() < moveP;
   if (isMove) {
-    var mw = Math.round(lerp(40, 26, d));
+    var mw = Math.round(lerp(40, 26, d)) - PLAT_TRIM;
     var sp = lerp(0.35, 1.15, d) * (0.85 + r() * 0.3);
-    var mp = mkPlat(randInt(r, 4, LW - mw - 4), y, mw, "move", rowId);
+    var mp = mkPlat(randInt(r, WALL_PAD, LW - mw - WALL_PAD), y, mw, "move", rowId);
     mp.vx = r() < 0.5 ? -sp : sp;
     row.push(mp);
   } else {
     var n: number;
-    /* Singles start later than in v0.54 (which allowed them from 0 m). After 300 m
-       the branches match v0.54 exactly (250–600 was already 45% singles). */
-    if (m < 190) n = r() < 0.22 ? 3 : 2;
-    else if (m < 300) n = r() < 0.16 ? 3 : (r() < 0.18 ? 1 : 2);
-    else if (m < 600) n = r() < 0.08 ? 3 : (r() < 0.45 ? 1 : 2);
-    else {
-      n = r() < lerp(0.62, 0.12, (d - 0.28) / 0.72) ? 2 : 1;
-      if (n === 2 && m < 900 && r() < 0.06) n = 3;
+    if (SPACE_MODE === "B") {
+      if (m < 190) n = r() < 0.28 ? 1 : 2;
+      else if (m < 300) n = r() < 0.45 ? 1 : 2;
+      else if (m < 600) n = r() < 0.65 ? 1 : 2;
+      else n = r() < lerp(0.35, 0.10, (d - 0.28) / 0.72) ? 2 : 1;
+      if (spec === "ice" && m < 150 && n === 1) n = 2;
+    } else {
+      /* Singles start later than in v0.54 (which allowed them from 0 m). After 300 m
+         the branches match v0.54 exactly (250–600 was already 45% singles). */
+      if (m < 190) n = r() < 0.22 ? 3 : 2;
+      else if (m < 300) n = r() < 0.16 ? 3 : (r() < 0.18 ? 1 : 2);
+      else if (m < 600) n = r() < 0.08 ? 3 : (r() < 0.45 ? 1 : 2);
+      else {
+        n = r() < lerp(0.62, 0.12, (d - 0.28) / 0.72) ? 2 : 1;
+        if (n === 2 && m < 900 && r() < 0.06) n = 3;
+      }
+      if (spec === "ice" && m < 300 && n === 1) n = 2;
     }
-    if (spec === "ice" && m < 300 && n === 1) n = 2;
-    var wmin = Math.round(lerp(42, 24, d)), wmax = Math.round(lerp(54, 32, d));
+    var wmin = Math.round(lerp(42, 24, d)) - PLAT_TRIM, wmax = Math.round(lerp(54, 32, d)) - PLAT_TRIM;
     var breakP054 = m > 80 ? lerp(0.10, 0.58, d) : 0;
     var breakP = m < 200 ? 0 : m < 300 ? breakP054 * ((m - 200) / 100) : breakP054;
+    var needReach = SPACE_MODE === "B" && w.prevSolid && w.prevSolid.length;
+    var maxReach = needReach ? (reachRest(w.lastGap || 40) + 4) : undefined;
     for (var i = 0; i < n; i++) {
       var pw = randInt(r, wmin, wmax);
-      var x = findX(r, pw, row);
+      var x = findX(r, pw, row, (i === 0 && needReach) ? w.prevSolid : undefined, i === 0 ? maxReach : undefined);
       if (x < 0) break;
       row.push(mkPlat(x, y, pw, r() < breakP ? "break" : "normal", rowId));
     }
     var solid = 0;
     for (var k = 0; k < row.length; k++) if (isPerm(row[k].type)) solid++;
     if (!solid) row[0].type = "normal";
+    if (needReach && row.length > 1) {
+      var anyReach = false;
+      for (k = 0; k < row.length; k++) if (isPerm(row[k].type) && rowReachOk(row[k].x, row[k].w, w.prevSolid, maxReach as number)) { anyReach = true; break; }
+      if (!anyReach && row[0].type === "break") {
+        for (k = 1; k < row.length; k++) if (row[k].type === "normal") { row[0].type = "normal"; row[k].type = "break"; break; }
+      }
+    }
     if (row.length === 1 && m > 1200 && r() < breakP * 0.8) {
       var dw = randInt(r, wmin, wmax), dx0 = findX(r, dw, row);
       if (dx0 >= 0) row.push(mkPlat(dx0, y, dw, "break", rowId));
@@ -260,18 +310,33 @@ function genRow(w: any) {
   /* Gap vs height. Soften the opening (min ~0.34 JUMP_H); from 300 m the values
      are identical to v0.54 (gT = m/700, 0.42–0.78 / 0.58–0.94). */
   var gT = clamp(m / 700, 0, 1);
-  var minG054 = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
-  var maxG054 = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
-  var minG: number, maxG: number;
-  if (m < 300) {
-    var u = clamp(m / 300, 0, 1);
-    minG = Math.round(lerp(Math.max(ROW_SEP, Math.floor(JUMP_H * 0.34)), minG054, u));
-    maxG = Math.round(lerp(Math.min(GAP_CAP, Math.floor(JUMP_H * 0.50)), maxG054, u));
+  var minG054: number, maxG054: number, minG: number, maxG: number;
+  if (SPACE_MODE === "B") {
+    minG054 = Math.max(ROW_SEP + 6, Math.floor(JUMP_H * lerp(0.50, 0.80, gT)));
+    maxG054 = Math.min(72, Math.floor(JUMP_H * lerp(0.66, 0.90, gT)));
+    if (m < 300) {
+      var uB = clamp(m / 300, 0, 1);
+      minG = Math.round(lerp(36, minG054, uB));
+      maxG = Math.round(lerp(48, maxG054, uB));
+    } else {
+      minG = minG054; maxG = maxG054;
+    }
   } else {
-    minG = minG054; maxG = maxG054;
+    minG054 = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
+    maxG054 = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
+    if (m < 300) {
+      var u = clamp(m / 300, 0, 1);
+      minG = Math.round(lerp(Math.max(ROW_SEP, Math.floor(JUMP_H * 0.34)), minG054, u));
+      maxG = Math.round(lerp(Math.min(GAP_CAP, Math.floor(JUMP_H * 0.50)), maxG054, u));
+    } else {
+      minG = minG054; maxG = maxG054;
+    }
   }
   if (minG > maxG) minG = maxG;
   var gap = randInt(r, minG, maxG);
+  var rowSolids: any[] = [];
+  for (var rsi = 0; rsi < row.length; rsi++) if (isPerm(row[rsi].type)) rowSolids.push(row[rsi]);
+  if (rowSolids.length) { w.prevSolid = rowSolids; w.lastGap = gap; }
 
   var pMon = m < 180 ? 0 : m < 400 ? 0.045 : lerp(0.07, 0.26, d);
   var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
@@ -333,7 +398,9 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
-  w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
+  var sp0 = SPACE_MODE === "C" ? mkPlat(0, 0, LW, "normal", 0) : mkPlat(8, 0, LW - 16, "normal", 0);
+  w.platforms.push(sp0);
+  w.prevSolid = [sp0]; w.lastGap = 24;
   var sxs = startXs();
   var xs = mode === "squad" ? sxs : [sxs[0]];
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
@@ -655,8 +722,8 @@ function tickWorld(w: any, inputs: any) {
     var pl = w.platforms[i];
     if (pl.type === "move") {
       pl.x += pl.vx * sf;
-      if (pl.x < 2) { pl.x = 2; pl.vx = Math.abs(pl.vx); }
-      if (pl.x + pl.w > LW - 2) { pl.x = LW - 2 - pl.w; pl.vx = -Math.abs(pl.vx); }
+      if (pl.x < MOVE_WALL) { pl.x = MOVE_WALL; pl.vx = Math.abs(pl.vx); }
+      if (pl.x + pl.w > LW - MOVE_WALL) { pl.x = LW - MOVE_WALL - pl.w; pl.vx = -Math.abs(pl.vx); }
     }
     if (pl.broken && pl.breakT > 0) pl.breakT--;
     if (pl.respawnT > 0 && --pl.respawnT === 0) { pl.broken = false; spawnParts(w, pl.x + pl.w / 2, pl.y, 4, "#88f8ff", 1.2, -0.02, 1); }

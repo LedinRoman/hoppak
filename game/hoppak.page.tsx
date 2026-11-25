@@ -6,8 +6,15 @@ type Ctx = CanvasRenderingContext2D;
 
 var FIELD_W: number = (function () {
   try { if (typeof HOP_FIELD_W !== "undefined" && Number(HOP_FIELD_W) > 0) return Number(HOP_FIELD_W); } catch (_e) {}
-  return 180;
+  return 160;
 })();
+var SPACE_MODE: string = (function () {
+  try { if (typeof HOP_SPACE !== "undefined" && HOP_SPACE) { var v = String(HOP_SPACE).toUpperCase(); if (v === "A" || v === "B" || v === "C") return v; } } catch (_e) {}
+  return "0";
+})();
+var PLAT_TRIM = SPACE_MODE === "A" ? 4 : 0;
+var WALL_PAD = SPACE_MODE === "C" ? 0 : 4;
+var MOVE_WALL = SPACE_MODE === "C" ? 0 : 2;
 var LW = FIELD_W;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
@@ -30,7 +37,7 @@ var ICE_FRIC = 0.975;
 var STEP = 1 / 50; /* slowed in v0.1.1, keep */
 var ROW_SEP = 28; /* min vertical distance between platform rows */
 var GAP_CAP = Math.floor(JUMP_H - 6); /* hard max gap, ~75 px: still one-jump reachable */
-var X_SEP = 10; /* min horizontal gap between platforms of one row */
+var X_SEP = SPACE_MODE === "B" ? 16 : 10; /* min horizontal gap between platforms of one row */
 var INK = "#0c0818";
 
 var C: any = {
@@ -629,15 +636,48 @@ function isPerm(t: string) { return t === "normal" || t === "move" || t === "ice
 function mkPlat(x: number, y: number, w: number, type: string, row: number) {
   return { x: x, y: y, w: w, type: type, vx: 0, broken: false, breakT: 0, respawnT: 0, spring: false, springT: 0, row: row };
 }
-function findX(r: any, pw: number, row: any[]) {
+function reachRest(dy: number) {
+  if (dy <= 53) return 58;
+  if (dy <= 60) return 53;
+  if (dy <= 64) return 50;
+  if (dy <= 68) return 48;
+  return 44;
+}
+function centerToPlatGap(cx: number, bx: number, bw: number) {
+  var c = mod(cx, LW);
+  if (c >= bx && c <= bx + bw) return 0;
+  return Math.min(mod(bx - c, LW), mod(c - (bx + bw), LW));
+}
+function rowReachOk(x: number, pw: number, prev: any[], maxDx: number) {
+  for (var i = 0; i < prev.length; i++) {
+    var pr = prev[i];
+    if (centerToPlatGap(pr.x + pr.w / 2, x, pw) <= maxDx) return true;
+  }
+  return false;
+}
+function findX(r: any, pw: number, row: any[], prev?: any[], maxDx?: number) {
   for (var t = 0; t < 24; t++) {
-    var x = randInt(r, 4, LW - pw - 4);
+    var x = randInt(r, WALL_PAD, LW - pw - WALL_PAD);
     var ok = true;
     for (var i = 0; i < row.length; i++) {
       var o = row[i];
       if (!(x + pw + X_SEP <= o.x || x >= o.x + o.w + X_SEP)) { ok = false; break; }
     }
+    if (ok && prev && prev.length && maxDx != null && !rowReachOk(x, pw, prev, maxDx)) ok = false;
     if (ok) return x;
+  }
+  if (prev && prev.length && maxDx != null && !row.length) {
+    var anc = prev[Math.floor(r() * prev.length)], acx = anc.x + anc.w / 2;
+    for (var fi = 0; fi < 40; fi++) {
+      var cand = randInt(r, WALL_PAD, LW - pw - WALL_PAD);
+      if (centerToPlatGap(acx, cand, pw) <= maxDx) return cand;
+    }
+    var bestX = WALL_PAD, bestD = 1e9;
+    for (var px2 = WALL_PAD; px2 <= LW - pw - WALL_PAD; px2 += 2) {
+      var cd = centerToPlatGap(acx, px2, pw);
+      if (cd < bestD) { bestD = cd; bestX = px2; }
+    }
+    return bestX;
   }
   return -1;
 }
@@ -818,35 +858,52 @@ function genRow(w: any) {
   var moveP = m > 70 ? lerp(0.14, 0.45, d) : 0;
   var isMove = w.lastKind !== "move" && r() < moveP;
   if (isMove) {
-    var mw = Math.round(lerp(40, 26, d));
+    var mw = Math.round(lerp(40, 26, d)) - PLAT_TRIM;
     var sp = lerp(0.35, 1.15, d) * (0.85 + r() * 0.3);
-    var mp = mkPlat(randInt(r, 4, LW - mw - 4), y, mw, "move", rowId);
+    var mp = mkPlat(randInt(r, WALL_PAD, LW - mw - WALL_PAD), y, mw, "move", rowId);
     mp.vx = r() < 0.5 ? -sp : sp;
     row.push(mp);
   } else {
     var n: number;
-    /* Singles start later than in v0.54 (which allowed them from 0 m). After 300 m
-       the branches match v0.54 exactly (250–600 was already 45% singles). */
-    if (m < 190) n = r() < 0.22 ? 3 : 2;
-    else if (m < 300) n = r() < 0.16 ? 3 : (r() < 0.18 ? 1 : 2);
-    else if (m < 600) n = r() < 0.08 ? 3 : (r() < 0.45 ? 1 : 2);
-    else {
-      n = r() < lerp(0.62, 0.12, (d - 0.28) / 0.72) ? 2 : 1;
-      if (n === 2 && m < 900 && r() < 0.06) n = 3;
+    if (SPACE_MODE === "B") {
+      if (m < 190) n = r() < 0.28 ? 1 : 2;
+      else if (m < 300) n = r() < 0.45 ? 1 : 2;
+      else if (m < 600) n = r() < 0.65 ? 1 : 2;
+      else n = r() < lerp(0.35, 0.10, (d - 0.28) / 0.72) ? 2 : 1;
+      if (spec === "ice" && m < 150 && n === 1) n = 2;
+    } else {
+      /* Singles start later than in v0.54 (which allowed them from 0 m). After 300 m
+         the branches match v0.54 exactly (250–600 was already 45% singles). */
+      if (m < 190) n = r() < 0.22 ? 3 : 2;
+      else if (m < 300) n = r() < 0.16 ? 3 : (r() < 0.18 ? 1 : 2);
+      else if (m < 600) n = r() < 0.08 ? 3 : (r() < 0.45 ? 1 : 2);
+      else {
+        n = r() < lerp(0.62, 0.12, (d - 0.28) / 0.72) ? 2 : 1;
+        if (n === 2 && m < 900 && r() < 0.06) n = 3;
+      }
+      if (spec === "ice" && m < 300 && n === 1) n = 2;
     }
-    if (spec === "ice" && m < 300 && n === 1) n = 2;
-    var wmin = Math.round(lerp(42, 24, d)), wmax = Math.round(lerp(54, 32, d));
+    var wmin = Math.round(lerp(42, 24, d)) - PLAT_TRIM, wmax = Math.round(lerp(54, 32, d)) - PLAT_TRIM;
     var breakP054 = m > 80 ? lerp(0.10, 0.58, d) : 0;
     var breakP = m < 200 ? 0 : m < 300 ? breakP054 * ((m - 200) / 100) : breakP054;
+    var needReach = SPACE_MODE === "B" && w.prevSolid && w.prevSolid.length;
+    var maxReach = needReach ? (reachRest(w.lastGap || 40) + 4) : undefined;
     for (var i = 0; i < n; i++) {
       var pw = randInt(r, wmin, wmax);
-      var x = findX(r, pw, row);
+      var x = findX(r, pw, row, (i === 0 && needReach) ? w.prevSolid : undefined, i === 0 ? maxReach : undefined);
       if (x < 0) break;
       row.push(mkPlat(x, y, pw, r() < breakP ? "break" : "normal", rowId));
     }
     var solid = 0;
     for (var k = 0; k < row.length; k++) if (isPerm(row[k].type)) solid++;
     if (!solid) row[0].type = "normal";
+    if (needReach && row.length > 1) {
+      var anyReach = false;
+      for (k = 0; k < row.length; k++) if (isPerm(row[k].type) && rowReachOk(row[k].x, row[k].w, w.prevSolid, maxReach as number)) { anyReach = true; break; }
+      if (!anyReach && row[0].type === "break") {
+        for (k = 1; k < row.length; k++) if (row[k].type === "normal") { row[0].type = "normal"; row[k].type = "break"; break; }
+      }
+    }
     if (row.length === 1 && m > 1200 && r() < breakP * 0.8) {
       var dw = randInt(r, wmin, wmax), dx0 = findX(r, dw, row);
       if (dx0 >= 0) row.push(mkPlat(dx0, y, dw, "break", rowId));
@@ -884,18 +941,33 @@ function genRow(w: any) {
   /* Gap vs height. Soften the opening (min ~0.34 JUMP_H); from 300 m the values
      are identical to v0.54 (gT = m/700, 0.42–0.78 / 0.58–0.94). */
   var gT = clamp(m / 700, 0, 1);
-  var minG054 = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
-  var maxG054 = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
-  var minG: number, maxG: number;
-  if (m < 300) {
-    var u = clamp(m / 300, 0, 1);
-    minG = Math.round(lerp(Math.max(ROW_SEP, Math.floor(JUMP_H * 0.34)), minG054, u));
-    maxG = Math.round(lerp(Math.min(GAP_CAP, Math.floor(JUMP_H * 0.50)), maxG054, u));
+  var minG054: number, maxG054: number, minG: number, maxG: number;
+  if (SPACE_MODE === "B") {
+    minG054 = Math.max(ROW_SEP + 6, Math.floor(JUMP_H * lerp(0.50, 0.80, gT)));
+    maxG054 = Math.min(72, Math.floor(JUMP_H * lerp(0.66, 0.90, gT)));
+    if (m < 300) {
+      var uB = clamp(m / 300, 0, 1);
+      minG = Math.round(lerp(36, minG054, uB));
+      maxG = Math.round(lerp(48, maxG054, uB));
+    } else {
+      minG = minG054; maxG = maxG054;
+    }
   } else {
-    minG = minG054; maxG = maxG054;
+    minG054 = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
+    maxG054 = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
+    if (m < 300) {
+      var u = clamp(m / 300, 0, 1);
+      minG = Math.round(lerp(Math.max(ROW_SEP, Math.floor(JUMP_H * 0.34)), minG054, u));
+      maxG = Math.round(lerp(Math.min(GAP_CAP, Math.floor(JUMP_H * 0.50)), maxG054, u));
+    } else {
+      minG = minG054; maxG = maxG054;
+    }
   }
   if (minG > maxG) minG = maxG;
   var gap = randInt(r, minG, maxG);
+  var rowSolids: any[] = [];
+  for (var rsi = 0; rsi < row.length; rsi++) if (isPerm(row[rsi].type)) rowSolids.push(row[rsi]);
+  if (rowSolids.length) { w.prevSolid = rowSolids; w.lastGap = gap; }
 
   var pMon = m < 180 ? 0 : m < 400 ? 0.045 : lerp(0.07, 0.26, d);
   var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
@@ -957,7 +1029,9 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
-  w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
+  var sp0 = SPACE_MODE === "C" ? mkPlat(0, 0, LW, "normal", 0) : mkPlat(8, 0, LW - 16, "normal", 0);
+  w.platforms.push(sp0);
+  w.prevSolid = [sp0]; w.lastGap = 24;
   var sxs = startXs();
   var xs = mode === "squad" ? sxs : [sxs[0]];
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
@@ -1279,8 +1353,8 @@ function tickWorld(w: any, inputs: any) {
     var pl = w.platforms[i];
     if (pl.type === "move") {
       pl.x += pl.vx * sf;
-      if (pl.x < 2) { pl.x = 2; pl.vx = Math.abs(pl.vx); }
-      if (pl.x + pl.w > LW - 2) { pl.x = LW - 2 - pl.w; pl.vx = -Math.abs(pl.vx); }
+      if (pl.x < MOVE_WALL) { pl.x = MOVE_WALL; pl.vx = Math.abs(pl.vx); }
+      if (pl.x + pl.w > LW - MOVE_WALL) { pl.x = LW - MOVE_WALL - pl.w; pl.vx = -Math.abs(pl.vx); }
     }
     if (pl.broken && pl.breakT > 0) pl.breakT--;
     if (pl.respawnT > 0 && --pl.respawnT === 0) { pl.broken = false; spawnParts(w, pl.x + pl.w / 2, pl.y, 4, "#88f8ff", 1.2, -0.02, 1); }
@@ -1816,7 +1890,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     }
     ctx.globalAlpha = 0.65;
     for (k = 0; k < 16; k++) {
-      var ux = mod(Math.floor(hash(k + 500) * LW) + Math.sin(tick * 0.05 + k) * 4, LW);
+      var ux = mod(Math.floor(hash(k + 500) * viewW()) + Math.sin(tick * 0.05 + k) * 4, viewW()) + viewX0();
       var uy = mod(Math.floor(hash(k + 600) * LH) - tick * (0.35 + (k % 3) * 0.15) + alt * 0.25, LH);
       var sz = k % 4 === 0 ? 3 : 2;
       rect(ctx, ux, uy, sz, sz, "#a8f8ff");
@@ -1828,7 +1902,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   if (map === "ice") {
     ctx.globalAlpha = 0.8;
     for (k = 0; k < 24; k++) {
-      var fx = mod(Math.floor(hash(k + 700) * LW) + Math.sin(tick * 0.03 + k) * 5, LW);
+      var fx = mod(Math.floor(hash(k + 700) * viewW()) + Math.sin(tick * 0.03 + k) * 5, viewW()) + viewX0();
       var fy = mod(Math.floor(hash(k + 800) * LH) + tick * (0.3 + (k % 3) * 0.12) + alt * 0.28, LH);
       rect(ctx, fx, fy, k % 5 === 0 ? 2 : 1, k % 5 === 0 ? 2 : 1, "#ffffff");
     }
@@ -1837,7 +1911,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   /* lava rising embers */
   if (map === "lava") {
     for (k = 0; k < 20; k++) {
-      var ex = mod(Math.floor(hash(k + 900) * LW) + Math.sin(tick * 0.06 + k) * 6, LW);
+      var ex = mod(Math.floor(hash(k + 900) * viewW()) + Math.sin(tick * 0.06 + k) * 6, viewW()) + viewX0();
       var ey = mod(Math.floor(hash(k + 950) * LH) - tick * (0.45 + (k % 3) * 0.15) + alt * 0.3, LH);
       rect(ctx, ex, ey, k % 3 === 0 ? 2 : 1, k % 3 === 0 ? 2 : 1, k % 2 ? "#ffd850" : "#ff6830");
     }
@@ -3013,7 +3087,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function abBar() {
     var coinW = 28;
-    try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19; } catch (_e) {}
+    try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + (SPACE_MODE === "C" ? 13 : 19); } catch (_e) {}
+    if (SPACE_MODE === "C") return { x: 2 + coinW, y: 2, w: 14, h: 14 };
     return { x: 4 + coinW, y: 5, w: 16, h: 16 };
   }
   function startSquad(seed?: number) {
@@ -3492,8 +3567,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var yy = Math.round(y);
     for (var x = viewX0(); x < LW + VIEW_PAD; x += 4) { var on = ((x - viewX0()) >> 2) % 2 === 0; rect(ctx, x, yy, 4, 1, on ? C.cream : "#162040"); rect(ctx, x, yy + 1, 4, 1, on ? "#162040" : C.cream); }
     var tw = textWidth(label, 1) + 6;
-    rect(ctx, 3, yy - 11, tw + 2, 11, INK); rect(ctx, 4, yy - 10, tw, 9, "#162040");
-    drawText(ctx, label, 4 + tw / 2, yy - 9, C.gold, 1, "center");
+    var gx = SPACE_MODE === "C" ? 1 : 4;
+    rect(ctx, gx - 1, yy - 11, tw + 2, 11, INK); rect(ctx, gx, yy - 10, tw, 9, "#162040");
+    drawText(ctx, label, gx + tw / 2, yy - 9, C.gold, 1, "center");
   }
   function recLine(y: number, label: string) {
     if (y < -8 || y > LH + 8) return;
@@ -3501,7 +3577,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.globalAlpha = 0.7;
     for (var x = viewX0(); x < LW + VIEW_PAD; x += 2) rect(ctx, x, yy, 1, 1, C.cream);
     ctx.globalAlpha = 1;
-    var tw = textWidth(label, 1) + 6, lx = LW - tw - 5;
+    var tw = textWidth(label, 1) + 6, lx = LW - tw - (SPACE_MODE === "C" ? 1 : 5);
     rect(ctx, lx - 1, yy - 11, tw + 2, 11, INK); rect(ctx, lx, yy - 10, tw, 9, "#162040");
     drawText(ctx, label, lx + tw / 2, yy - 9, C.cream, 1, "center");
   }
@@ -3580,8 +3656,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
     var me = w.players[0];
     var wantPause = wantTouchPause();
-    drawTextO(ctx, metersOf(me) + " М", LW / 2, 6, C.cream, "center");
-    coinsLabel(5, 6, w.runCoins);
+    var cmp = SPACE_MODE === "C";
+    drawTextO(ctx, metersOf(me) + " М", LW / 2, cmp ? 3 : 6, C.cream, "center");
+    coinsLabel(cmp ? 2 : 5, cmp ? 3 : 6, w.runCoins);
     if (w.mode === "squad") {
       var place = 1, lead = me, leadM = metersOf(me);
       for (i = 0; i < w.players.length; i++) {
@@ -3589,25 +3666,38 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (w.players[i] !== me && om > metersOf(me)) place++;
         if (om > leadM) { lead = w.players[i]; leadM = om; }
       }
-      drawTextO(ctx, place + "/" + w.players.length, LW / 2, 16, "#c8bfe0", "center");
       var leadLab = lead.id === 0 ? "ТЫ ВПЕРЕДИ" : ((lead.name || "БОТ").slice(0, 8) + " " + leadM + " М");
-      drawTextO(ctx, leadLab, LW / 2, 26, lead.id === 0 ? C.gold : C.cream, "center");
+      if (cmp) {
+        drawTextO(ctx, place + "/" + w.players.length + " " + (lead.id === 0 ? "ЛИДЕР" : ((lead.name || "БОТ").slice(0, 3) + " " + leadM + "М")), LW / 2, 12, lead.id === 0 ? C.gold : "#c8bfe0", "center");
+      } else {
+        drawTextO(ctx, place + "/" + w.players.length, LW / 2, 16, "#c8bfe0", "center");
+        drawTextO(ctx, leadLab, LW / 2, 26, lead.id === 0 ? C.gold : C.cream, "center");
+      }
     }
     if (wantPause) {
-      var px = LW - 22;
-      addHit("pause", px, 0, 22, 22);
-      rect(ctx, px + 3, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
-      rect(ctx, px + 4, 4, 13, 13, "#1a1430");
-      rect(ctx, px + 7, 7, 2, 7, C.cream);
-      rect(ctx, px + 12, 7, 2, 7, C.cream);
+      if (cmp) {
+        addHit("pause", LW - 18, 0, 18, 18);
+        rect(ctx, LW - 14, 3, 11, 11, pressId === "pause" ? "#3a4a7a" : INK);
+        rect(ctx, LW - 13, 4, 9, 9, "#1a1430");
+        rect(ctx, LW - 11, 6, 2, 5, C.cream);
+        rect(ctx, LW - 8, 6, 2, 5, C.cream);
+      } else {
+        var px = LW - 22;
+        addHit("pause", px, 0, 22, 22);
+        rect(ctx, px + 3, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
+        rect(ctx, px + 4, 4, 13, 13, "#1a1430");
+        rect(ctx, px + 7, 7, 2, 7, C.cream);
+        rect(ctx, px + 12, 7, 2, 7, C.cream);
+      }
     }
     drawBonusHud(me);
     drawAbRing(me);
     if (w.toastT > 0) {
-      var tw2 = textWidth(w.toast, 1) + 12;
+      var tw2 = textWidth(w.toast, 1) + (cmp ? 10 : 12);
+      var ty0 = cmp ? (w.mode === "squad" ? 23 : 20) : 38;
       ctx.globalAlpha = Math.min(1, w.toastT / 15);
-      box(ctx, Math.round(LW / 2 - tw2 / 2), 38, tw2, 13, C.navy, C.gold);
-      drawText(ctx, w.toast, LW / 2, 41, C.gold, 1, "center");
+      box(ctx, Math.round(LW / 2 - tw2 / 2), ty0, tw2, cmp ? 11 : 13, C.navy, C.gold);
+      drawText(ctx, w.toast, LW / 2, ty0 + (cmp ? 2 : 3), C.gold, 1, "center");
       ctx.globalAlpha = 1;
     }
     if (w.tick < 170 && !(w.toastT > 0)) {
@@ -3617,10 +3707,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var line2 = (isPhone && hasAb) ? ("СВАЙП ↑ - " + Hn.abName) : "";
       var htw = textWidth(line1, 1);
       if (line2) htw = Math.max(htw, textWidth(line2, 1));
-      var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
-      box(ctx, hx, 56, hw, hh, C.navy, C.cream);
-      drawText(ctx, line1, LW / 2, 58, C.cream, 1, "center");
-      if (line2) drawText(ctx, line2, LW / 2, 68, C.cream, 1, "center");
+      var hw = htw + (cmp ? 8 : 12), hh = line2 ? (cmp ? 20 : 23) : (cmp ? 11 : 12), hx = Math.round(LW / 2 - hw / 2);
+      var hy0 = cmp ? 38 : 56;
+      box(ctx, hx, hy0, hw, hh, C.navy, C.cream);
+      drawText(ctx, line1, LW / 2, hy0 + 2, C.cream, 1, "center");
+      if (line2) drawText(ctx, line2, LW / 2, hy0 + (cmp ? 11 : 12), C.cream, 1, "center");
       ctx.globalAlpha = 1;
     }
     if ((w.fallWarn || w.liftWarn) && !paused) {
@@ -3682,16 +3773,24 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
-    var x = 3, y = 22;
+    var cmp = SPACE_MODE === "C", x = cmp ? 2 : 3, y = cmp ? 18 : 22;
     for (var i = 0; i < BON_HUD.length; i++) {
       var b = BON_HUD[i], t = me[b[0]];
       if (!(t > 0)) continue;
       if (b[0] === "domeT" || b[0] === "wallT") continue;
-      rect(ctx, x, y, 16, 18, INK); rect(ctx, x + 1, y + 1, 14, 16, "#1a1430");
-      drawHudIcon(ctx, b[1], x + 3, y + 2);
-      var f = clamp(t / b[2], 0, 1);
-      rect(ctx, x + 3, y + 14, 10, 2, "#2c2a52"); rect(ctx, x + 3, y + 14, Math.max(1, Math.round(10 * f)), 2, ITEM_COL[b[1]] || C.cream);
-      y += 20;
+      if (cmp) {
+        rect(ctx, x, y, 14, 15, INK); rect(ctx, x + 1, y + 1, 12, 13, "#1a1430");
+        drawHudIcon(ctx, b[1], x + 2, y + 1);
+        var fC = clamp(t / b[2], 0, 1);
+        rect(ctx, x + 2, y + 12, 10, 1, "#2c2a52"); rect(ctx, x + 2, y + 12, Math.max(1, Math.round(10 * fC)), 1, ITEM_COL[b[1]] || C.cream);
+        y += 17;
+      } else {
+        rect(ctx, x, y, 16, 18, INK); rect(ctx, x + 1, y + 1, 14, 16, "#1a1430");
+        drawHudIcon(ctx, b[1], x + 3, y + 2);
+        var f = clamp(t / b[2], 0, 1);
+        rect(ctx, x + 3, y + 14, 10, 2, "#2c2a52"); rect(ctx, x + 3, y + 14, Math.max(1, Math.round(10 * f)), 2, ITEM_COL[b[1]] || C.cream);
+        y += 20;
+      }
     }
   }
   function fillDisc(cx: number, cy: number, r: number, col: string) {
@@ -3758,6 +3857,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var rf = rs.refuse != null ? rs.refuse : abDenyT;
     var b = abBar();
     var shx = rf > 0 ? ((rf % 4 < 2) ? 1 : -1) : 0;
+    if (SPACE_MODE === "C") {
+      var bx = b.x + shx, by = b.y;
+      addHit("ab", b.x - 1, b.y - 1, b.w + 2, b.h + 2);
+      var rim = active ? C.cream : ready ? C.gold : "#3a4a7a";
+      rect(ctx, bx + 1, by, b.w - 2, b.h, INK);
+      rect(ctx, bx, by + 1, b.w, b.h - 2, INK);
+      rect(ctx, bx + 1, by + 1, b.w - 2, b.h - 2, rim);
+      rect(ctx, bx + 2, by + 2, b.w - 4, b.h - 4, "#1a1430");
+      var barW = b.w - 4, fillW = active ? Math.max(1, Math.round(barW * (rs.f != null ? rs.f : 1))) : ready ? barW : Math.round(barW * f);
+      if (fillW > 0) rect(ctx, bx + 2, by + b.h - 2, fillW, 1, active ? C.cream : ready ? C.gold : "#5ec8ff");
+      ctx.globalAlpha = ready || active || rf > 0 ? 1 : 0.65;
+      drawAbIcon(H.ab, bx + 1, by + 1);
+      ctx.globalAlpha = 1;
+      return;
+    }
     var cx = b.x + 8 + shx, cy = b.y + 8;
     addHit("ab", b.x, b.y, b.w, b.h);
     fillDisc(cx, cy, 8, INK);
@@ -4022,7 +4136,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { fieldW: FIELD_W, lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    getSize: function () { return { fieldW: FIELD_W, space: SPACE_MODE, lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },
