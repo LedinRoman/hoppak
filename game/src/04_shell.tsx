@@ -1060,13 +1060,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         charge: me ? me.abCharge : 0, platVx: platVx, phase: phase
       };
     },
+    checkGroundMobs: function () { return unsupportedMobs(world); },
     inspectMap: function (seed: number, toM: number, mapId?: string) {
       var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);
       generateUntil(w, -toM * PX_PER_M - 200);
       return {
         jumpH: JUMP_H, gapCap: GAP_CAP, rowSep: ROW_SEP, xSep: X_SEP,
         platforms: w.platforms.map(function (p: any) { return { x: p.x, y: p.y, w: p.w, type: p.type, spring: p.spring, row: p.row, vx: p.vx }; }),
-        monsters: w.monsters.map(function (m: any) { return { kind: m.kind, x: m.x, y: m.y, w: m.w, h: m.h }; }),
+        monsters: w.monsters.map(function (m: any) { return { kind: m.kind, x: m.x, y: m.y, w: m.w, h: m.h, b: m.b, topY: m.topY, home: !!m.home }; }),
+        unsupported: unsupportedMobs(w),
         coins: w.coins.map(function (c: any) { return { x: c.x, y: c.y }; }),
         items: w.items.map(function (c: any) { return { kind: c.kind, x: c.x, y: c.y }; })
       };

@@ -24,6 +24,74 @@ function mkMob(kind: string, x: number, y: number, d: number, extra: any) {
   for (var k in extra) m[k] = extra[k];
   return m;
 }
+
+function platAlive(w: any, pl: any) {
+  return !!(pl && !pl.broken && w.platforms.indexOf(pl) >= 0);
+}
+function hangTop(pl: any) { return pl.y + 6; }
+function spaceBelow(w: any, pl: any, x: number, ww: number) {
+  var best = 1e9;
+  for (var i = 0; i < w.platforms.length; i++) {
+    var q = w.platforms[i];
+    if (q === pl || q.broken || q.y <= pl.y) continue;
+    if (x + ww <= q.x || x >= q.x + q.w) continue;
+    if (q.y - pl.y < best) best = q.y - pl.y;
+  }
+  return best;
+}
+function startFall(mo: any) { mo.falling = true; mo.hvy = 0.25; mo.home = null; }
+function followHome(w: any, mo: any, sf: number, hang: boolean) {
+  if (mo.falling) {
+    mo.hvy += 0.16 * sf;
+    mo.y += mo.hvy * sf;
+    if (hang) { mo.topY += mo.hvy * sf; mo.botY += mo.hvy * sf; }
+    if (mo.y > w.cameraY + LH + 50) { mo.alive = false; mo.squish = 0; }
+    return false;
+  }
+  var home = mo.home;
+  if (!platAlive(w, home)) { startFall(mo); return followHome(w, mo, sf, hang); }
+  if (home.vx) mo.x += home.vx * sf;
+  mo.minX = home.x;
+  mo.maxX = home.x + home.w - mo.w;
+  if (mo.maxX < mo.minX) mo.maxX = mo.minX;
+  mo.x = clamp(mo.x, mo.minX, mo.maxX);
+  if (hang) {
+    mo.topY = hangTop(home);
+    mo.botY = mo.topY + (mo.hangLen || 24);
+  } else {
+    mo.baseY = home.y - mo.h;
+    if (mo.b !== "hop") mo.y = mo.baseY;
+  }
+  return true;
+}
+function unsupportedMobs(w: any) {
+  var bad: any[] = [];
+  if (!w) return bad;
+  for (var i = 0; i < w.monsters.length; i++) {
+    var mo = w.monsters[i], M = MOBS[mo.kind];
+    if (!mo.alive || mo.falling || !M) continue;
+    var ok = false, j, pl;
+    if (mo.b === "snake") {
+      for (j = 0; j < w.platforms.length; j++) {
+        pl = w.platforms[j];
+        if (pl.broken) continue;
+        if (mo.x + mo.w <= pl.x + 1 || mo.x >= pl.x + pl.w - 1) continue;
+        if (Math.abs(hangTop(pl) - (mo.topY || mo.y)) <= 4) { ok = true; break; }
+      }
+      if (!ok) bad.push({ kind: mo.kind, x: mo.x, y: mo.y, why: "hang" });
+    } else if (M.plat) {
+      var feet = (mo.b === "hop" ? mo.baseY : mo.y) + mo.h;
+      for (j = 0; j < w.platforms.length; j++) {
+        pl = w.platforms[j];
+        if (pl.broken) continue;
+        if (mo.x + mo.w <= pl.x + 1 || mo.x >= pl.x + pl.w - 1) continue;
+        if (Math.abs(pl.y - feet) <= 3) { ok = true; break; }
+      }
+      if (!ok) bad.push({ kind: mo.kind, x: mo.x, y: mo.y, why: "stand" });
+    }
+  }
+  return bad;
+}
 function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: number, isMove: boolean) {
   var r = w.rng;
   var normals = row.filter(function (p: any) { return isPerm(p.type) && p.type !== "move" && p.type !== "bounce" && !p.spring && p.w >= 26; });
@@ -33,8 +101,21 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
   for (var ri = 0; ri < roster.length; ri++) {
     var k = roster[ri][0], from = roster[ri][1], M = MOBS[k];
     if (m < from) continue;
-    if (M.plat) { if (isMove || !normals.length || solids.length < 2) continue; }
-    if (gap < M.gap) continue;
+    if (M.b === "snake") {
+      var canHang = false;
+      for (var hi = 0; hi < row.length; hi++) {
+        var hp = row[hi];
+        if (!isPerm(hp.type) || hp.broken || hp.w < M.w + 4) continue;
+        if (spaceBelow(w, hp, hp.x + 2, M.w) >= 22) { canHang = true; break; }
+      }
+      if (!canHang) continue;
+    } else {
+      if (M.plat) {
+        var homes0 = row.filter(function (p: any) { return isPerm(p.type) && p.type !== "bounce" && !p.spring && p.w >= 26 && !p.broken; });
+        if (!homes0.length || (!isMove && solids.length < 2)) continue;
+      }
+      if (gap < M.gap) continue;
+    }
     var lastR = w.lastMobRow[k] != null ? w.lastMobRow[k] : w.rowN - 35;
     var age = Math.max(1, w.rowN - lastR);
     var wt = 1 + Math.min(5, age / 14);
@@ -51,12 +132,28 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
   }
   var M2 = MOBS[kind];
   w.lastMobRow[kind] = w.rowN;
+  if (M2.b === "snake") {
+    var hangs = row.filter(function (p: any) { return isPerm(p.type) && !p.broken && p.w >= M2.w + 4 && spaceBelow(w, p, p.x + 2, M2.w) >= 22; });
+    if (!hangs.length) return false;
+    var hs = hangs[Math.floor(r() * hangs.length)];
+    var sx = hs.x + randInt(r, 1, Math.max(1, hs.w - M2.w - 1));
+    var room = spaceBelow(w, hs, sx, M2.w);
+    var hangLen = Math.min(M2.gap || 32, Math.max(16, room - M2.h - 6));
+    var ty = hangTop(hs);
+    w.monsters.push(mkMob(kind, sx, ty + 2, d, {
+      home: hs, hangLen: hangLen, topY: ty, botY: ty + hangLen,
+      minX: hs.x, maxX: hs.x + hs.w - M2.w
+    }));
+    return true;
+  }
   if (M2.plat) {
-    var pl = normals[Math.floor(r() * normals.length)];
+    var homes = row.filter(function (p: any) { return isPerm(p.type) && p.type !== "bounce" && !p.spring && p.w >= 26 && !p.broken; });
+    if (!homes.length) return false;
+    var pl = homes[Math.floor(r() * homes.length)];
     var px = pl.x + randInt(r, 1, Math.max(1, pl.w - M2.w - 1));
     var wsp = M2.b === "walk" ? M2.sp * (0.85 + d * 0.6) : 0;
     w.monsters.push(mkMob(kind, px, pl.y - M2.h, d, {
-      minX: pl.x, maxX: pl.x + pl.w - M2.w, vx: r() < 0.5 ? -wsp : wsp,
+      home: pl, minX: pl.x, maxX: pl.x + pl.w - M2.w, vx: r() < 0.5 ? -wsp : wsp,
       jT: randInt(r, 30, 100), shootT: randInt(r, 50, 150), dir: r() < 0.5 ? -1 : 1, t: randInt(r, 0, 100)
     }));
     return true;
@@ -82,7 +179,6 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
   var sp = lerp(0.4, 0.95, d) * (0.8 + r() * 0.4);
   if (M2.b === "fly" || M2.b === "shoot") ex.vx = r() < 0.5 ? -sp : sp;
   if (M2.b === "fly" && M2.dive) ex.amp = clamp(Math.floor((gap - M2.h) / 2) - 6, 0, 7);
-  if (M2.b === "snake") { ex.topY = y - gap + 7; ex.botY = y - M2.h - 4; my = ex.topY + 2; }
   if (M2.b === "wind") { mx = randInt(r, 0, LW - M2.w); }
   if (M2.b === "comet") { ex.cT = randInt(r, 20, 90); }
   w.monsters.push(mkMob(kind, mx, my, d, ex));
@@ -537,7 +633,10 @@ function tickWorld(w: any, inputs: any) {
     if (mo.cool > 0) mo.cool -= sf;
     if (!mo.alive) { if (mo.squish > 0) mo.squish--; continue; }
     if (mobFrozen) { mo.t -= sf; continue; }
-    var b = mo.b;
+    var b = mo.b, MM = MOBS[mo.kind];
+    if (b === "snake" || (MM && MM.plat) || mo.home || mo.falling) {
+      if (!followHome(w, mo, sf, b === "snake")) continue;
+    }
     if (b === "walk") {
       mo.x += mo.vx * sf;
       if (mo.x < mo.minX) { mo.x = mo.minX; mo.vx = Math.abs(mo.vx); }
