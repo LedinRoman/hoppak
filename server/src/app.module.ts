@@ -1,6 +1,7 @@
 import { Controller, Get, Module } from '@nestjs/common';
 import { GameGateway } from './game.gateway';
 import { RoomsService, stats } from './rooms.service';
+import { DbModule } from './db/db.module';
 
 @Controller('api')
 export class HealthController {
@@ -15,5 +16,5 @@ export class HealthController {
   }
 }
 
-@Module({ controllers: [HealthController], providers: [RoomsService, GameGateway] })
+@Module({ imports: [DbModule.forRoot()], controllers: [HealthController], providers: [RoomsService, GameGateway] })
 export class AppModule {}
