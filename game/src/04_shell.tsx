@@ -48,6 +48,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var cols = skyAt(mapId, 0);
     wrap.style.background = "linear-gradient(" + cols[0] + " 0%, " + cols[1] + " 50%, " + cols[2] + " 100%)";
   }
+  /* Menu / lobby sky follows the map that is actually selected on this screen. */
+  function menuMap() {
+    if (world && (phase === "play" || phase === "results")) return world.map || save.bg;
+    if (phase === "lobby") return lobbyMap || save.bg;
+    if (phase === "net" && typeof NET !== "undefined" && NET && NET.room && NET.room.map) return NET.room.map;
+    return save.bg;
+  }
   function viewSize() {
     var vv = window.visualViewport;
     if (vv && vv.width > 0 && vv.height > 0) return { w: vv.width, h: vv.height, x: vv.offsetLeft || 0, y: vv.offsetTop || 0 };
@@ -129,7 +136,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.setTransform(sx, 0, 0, sy, FIELD_OX, FIELD_OY);
     ctx.imageSmoothingEnabled = false;
     (ctx as any).webkitImageSmoothingEnabled = false;
-    syncBackdrop(world ? world.map : save.bg);
+    syncBackdrop(menuMap());
     if (fieldLocked && phase === "play" && phoneLand) {
       if (!landPause || resumeCd > 0) { paused = true; landPause = true; resumeCd = 0; acc = 0; uiAcc = 0; lastT = -1; }
     } else if (landPause && !phoneLand) {
@@ -339,7 +346,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (isNaN(i) || i < 0 || i >= MAPS.length) return;
     var M = MAPS[i];
     flashT = 0;
-    if (mapOpen(i)) { campCard = i; return; }
+    if (mapOpen(i)) { campCard = i; if (save.bg !== M.id) { save.bg = M.id; writeSave(save); } return; }
     if (!mapOpen(i - 1)) { say("СНАЧАЛА ОТКРОЙ " + MAPS[i - 1].name); return; }
     if (!mapGoalMet(i)) { say("ДОЙДИ ДО " + MAPS[i - 1].goal + " М " + WHERE[i - 1]); return; }
     campCard = i;
@@ -664,7 +671,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     addHit("back", 0, y + 140, LW, LH - y - 140);
   }
   function drawLobby() { /* UI only: bot lobby now, online room UI can hook here later */
-    drawBg(ctx, MENU_CAM(), ui, save.bg, true);
+    drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
     header("ЗАБЕГ С БОТАМИ", 1);
@@ -1120,7 +1127,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (resumeCd <= 0) { paused = false; landPause = false; manualPause = false; acc = 0; uiAcc = 0; lastT = now; }
       }
     }
-    syncBackdrop(world ? world.map : save.bg);
+    syncBackdrop(menuMap());
     if (phase === "play" && world && world.phase === "play" && !paused) {
       acc += dt;
       var steps = 0;
@@ -1150,7 +1157,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       hits = [];
     }
     if (PHONE_INT && FIELD_OY > 0) {
-      var lb = mixHex(skyAt(world ? world.map : save.bg, 0)[0], INK, LETTERBOX_MIX);
+      var lb = mixHex(skyAt(menuMap(), 0)[0], INK, LETTERBOX_MIX);
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = lb;
       ctx.fillRect(0, 0, DEV_W, FIELD_OY); ctx.fillRect(0, FIELD_OY + LH * pScale, DEV_W, DEV_H - FIELD_OY - LH * pScale);
       ctx.restore();
@@ -1162,7 +1169,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   /* net: what the online module may use from the shell */
   var netApi: any = {
     ctx: ctx, btn: btn, header: header, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned,
-    bg: function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); dimView(ctx, "rgba(18,14,44,0.32)"); },
+    bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
     setPhase: function (p: string) { phase = p; }, goMenu: goMenu,

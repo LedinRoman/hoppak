@@ -4071,6 +4071,12 @@
       var cols = skyAt(mapId, 0);
       wrap.style.background = "linear-gradient(" + cols[0] + " 0%, " + cols[1] + " 50%, " + cols[2] + " 100%)";
     }
+    function menuMap() {
+      if (world && (phase === "play" || phase === "results")) return world.map || save.bg;
+      if (phase === "lobby") return lobbyMap || save.bg;
+      if (phase === "net" && typeof NET !== "undefined" && NET && NET.room && NET.room.map) return NET.room.map;
+      return save.bg;
+    }
     function viewSize() {
       var vv = window.visualViewport;
       if (vv && vv.width > 0 && vv.height > 0) return { w: vv.width, h: vv.height, x: vv.offsetLeft || 0, y: vv.offsetTop || 0 };
@@ -4171,7 +4177,7 @@
       ctx.setTransform(sx, 0, 0, sy, FIELD_OX, FIELD_OY);
       ctx.imageSmoothingEnabled = false;
       ctx.webkitImageSmoothingEnabled = false;
-      syncBackdrop(world ? world.map : save.bg);
+      syncBackdrop(menuMap());
       if (fieldLocked && phase === "play" && phoneLand) {
         if (!landPause || resumeCd > 0) {
           paused = true;
@@ -4569,6 +4575,10 @@
       flashT = 0;
       if (mapOpen(i)) {
         campCard = i;
+        if (save.bg !== M.id) {
+          save.bg = M.id;
+          writeSave(save);
+        }
         return;
       }
       if (!mapOpen(i - 1)) {
@@ -4988,7 +4998,7 @@
       addHit("back", 0, y + 140, LW, LH - y - 140);
     }
     function drawLobby() {
-      drawBg(ctx, MENU_CAM(), ui, save.bg, true);
+      drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
       dimView(ctx, "rgba(18,14,44,0.32)");
       var x = colX();
       header("\u0417\u0410\u0411\u0415\u0413 \u0421 \u0411\u041E\u0422\u0410\u041C\u0418", 1);
@@ -5561,7 +5571,7 @@
           }
         }
       }
-      syncBackdrop(world ? world.map : save.bg);
+      syncBackdrop(menuMap());
       if (phase === "play" && world && world.phase === "play" && !paused) {
         acc += dt;
         var steps = 0;
@@ -5600,7 +5610,7 @@
         hits = [];
       }
       if (PHONE_INT && FIELD_OY > 0) {
-        var lb = mixHex(skyAt(world ? world.map : save.bg, 0)[0], INK, LETTERBOX_MIX);
+        var lb = mixHex(skyAt(menuMap(), 0)[0], INK, LETTERBOX_MIX);
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.fillStyle = lb;
@@ -5620,7 +5630,7 @@
       openMaps,
       heroOwned,
       bg: function() {
-        drawBg(ctx, MENU_CAM(), ui, save.bg, true);
+        drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
         dimView(ctx, "rgba(18,14,44,0.32)");
       },
       ui: function() {
