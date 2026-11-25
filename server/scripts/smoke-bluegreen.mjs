@@ -55,6 +55,27 @@ function startSlot({ name, pubPort, intPort, version, peerIntPort, extraEnv = {}
   return { name, pubPort, intPort, version, child, logs };
 }
 
+/** Spawn a server that is expected to exit on its own; collect its output. */
+function runToExit(env, ms = 8000) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [MAIN_JS], { cwd: SERVER_DIR, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { out += d; });
+    const t = setTimeout(() => { child.kill('SIGKILL'); resolve({ code: 'timeout', out }); }, ms);
+    child.once('exit', (code) => { clearTimeout(t); resolve({ code, out }); });
+  });
+}
+
+async function waitHealth(port, ms = 8000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    try { const h = await fetch(`http://127.0.0.1:${port}/api/health`); if (h.ok) return await h.json(); } catch {}
+    await sleep(80);
+  }
+  return null;
+}
+
 async function waitReady(slot) {
   const t0 = Date.now();
   while (Date.now() - t0 < 10000) {
@@ -79,6 +100,8 @@ function openWs(url, name) {
       name,
       ws,
       inbox: [],
+      all: [],
+      token: null,
       closed: null,
       send(event, data = {}) {
         ws.send(JSON.stringify({ event, data }));
@@ -103,7 +126,10 @@ function openWs(url, name) {
       },
     };
     ws.on('message', (raw) => {
-      c.inbox.push(JSON.parse(raw.toString()));
+      const m = JSON.parse(raw.toString());
+      if (m.event === 'room' && m.data?.token) c.token = m.data.token;
+      c.all.push(m);
+      c.inbox.push(m);
     });
     ws.on('close', (code, reason) => {
       c.closed = { code, reason: reason.toString() };
@@ -113,6 +139,7 @@ function openWs(url, name) {
   });
 }
 
+const qTokenOf = (c) => c.token;
 const sockets = [];
 const track = (c) => {
   sockets.push(c);
@@ -273,8 +300,10 @@ try {
   const v1Menu = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws`, 'V1_menu'));
   await v1Menu.wait('hello');
   v1Menu.send('create', { name: 'MenuV1', kind: 0 });
-  const errDrainV1 = await v1Menu.wait('err');
-  check(errDrainV1?.code === 'DRAINING', `create on draining blue -> v1 client gets err DRAINING ("${errDrainV1?.msg}")`);
+  const v1MenuRoom = await v1Menu.wait('room');
+  check(Number(v1MenuRoom?.code) >= 5500 && v1MenuRoom?.lw === 180 && !v1Menu.inbox.some((m) => m.event === 'err'),
+    `BUG-43: v1 create on draining blue is proxied to green (room ${v1MenuRoom?.code}, lw=${v1MenuRoom?.lw}), no DRAINING`);
+  v1Menu.send('leave');
 
   // Create new room on green (active slot)
   const g2 = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws?p=2`, 'G_v2'));
@@ -391,12 +420,38 @@ try {
   const lobA = await a1.wait('room', (r) => r.phase === 'lobby');
   check(resA && resB && resA.ranking[0].m === 23 && !!lobA, `match on draining blue finished cleanly (winner m=23) and returned to lobby`);
 
-  // BUG-25: rematch on draining blue must be blocked (no round 2)
+  // BUG-25 + BUG-32: a rematch on draining blue starts no round there; the whole room moves to green instead.
+  const pidsBefore = lobA.players.map((p) => p.pid).sort().join(',');
   b1Re.send('ready', { ready: true });
   await sleep(30);
   a1.send('start', {});
-  const errRematch = await a1.wait('err');
-  check(errRematch?.code === 'DRAINING', `BUG-25: rematch start on draining blue blocked (${errRematch?.code})`);
+  const movedA = await a1.wait('room', (r) => r.code !== code1, 4000);
+  const startOnBlue = a1.inbox.some((m) => m.event === 'start');
+  // b1Re fronts B through green -> blue; blue closes that tunnel so green closes B, which resumes blindly on green
+  const b1ReClosed = await b1Re.waitClose(3000);
+  const b1Again = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws`, 'B_v1_again'));
+  await b1Again.wait('hello');
+  b1Again.send('resume', { token: b1Token });
+  const movedB = await b1Again.wait('room', () => true, 3000);
+  check(!startOnBlue && Number(movedA?.code) >= 5500 && movedA?.code === movedB?.code && movedA?.round === 1 && movedA?.lw === 180 &&
+    movedA.players.map((p) => p.pid).sort().join(',') === pidsBefore && movedA.host === lobA.host && movedB?.you === rB1.you && !!b1ReClosed,
+    `BUG-25/32: rematch on draining blue moved v1 room ${code1} -> ${movedA?.code} on green (same pids/host/round, A proxied, B resumed after tunnel close ${b1ReClosed?.code})`);
+  // rematch now really happens on green, through A's proxy on blue
+  b1Again.send('ready', { ready: true });
+  await a1.wait('room', (r) => r.players.every((p) => p.pid === r.host || p.ready));
+  a1.send('start', {});
+  const [reA, reB] = await Promise.all([a1.wait('start', () => true, 4000), b1Again.wait('start', () => true, 4000)]);
+  check(reA?.round === 2 && reB?.round === 2 && reA?.seed === reB?.seed, `BUG-32: rematch round 2 runs on green for both v1 players (seed ${reA?.seed})`);
+  a1.send('ev', { e: 'dead', m: 3 }); b1Again.send('ev', { e: 'dead', m: 4 });
+  await Promise.all([a1.wait('results'), b1Again.wait('results')]);
+  // BUG-44: A (still proxied blue->green) leaves and creates: the new room must not be stuck on draining blue
+  a1.send('leave'); await sleep(50);
+  a1.inbox.length = 0;
+  a1.send('create', { name: 'OldA2', kind: 0 });
+  const a1New = await a1.wait('room', (r) => r.code !== movedA?.code, 3000);
+  check(Number(a1New?.code) >= 5500 && !a1.inbox.some((m) => m.event === 'err' && m.data?.code === 'DRAINING'),
+    `BUG-44: after leave, v1 create from draining blue lands on green (${a1New?.code}), no DRAINING`);
+  a1.send('leave'); b1Again.send('leave');
 
   // BUG-25: drain completes to 0 rooms WITHOUT clients sending leave!
   let statsEnd = null;
@@ -460,6 +515,91 @@ try {
   const undrainRes = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/undrain`, { method: 'POST', headers: INT_HEADERS })).json();
   check(undrainRes.ok && undrainRes.draining === false, `POST /internal/undrain resets draining=false on blue`);
 
+  // 9b. BUG-32: 4 x v2 on blue finish a round, blue drains -> the room moves to green as ONE room
+  await sleep(200);
+  const q = [];
+  for (let i = 0; i < 4; i++) { q.push(track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, `Q${i}`))); await q[i].wait('hello'); }
+  q[0].send('create', { name: 'Q0', kind: 0 });
+  const qRoom = await q[0].wait('room');
+  for (let i = 1; i < 4; i++) { q[i].send('join', { code: qRoom.code, name: `Q${i}`, kind: i }); await q[i].wait('room'); }
+  for (let i = 1; i < 4; i++) q[i].send('ready', { ready: true });
+  await q[0].wait('room', (r) => r.players.length === 4 && r.players.every((p) => p.pid === r.host || p.ready));
+  q[0].send('start', {});
+  const qStarts = await Promise.all(q.map((c) => c.wait('start')));
+  // drain blue mid-round, finish the round
+  await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST', headers: INT_HEADERS });
+  q.forEach((c, i) => c.send('ev', { e: 'dead', m: 10 + i }));
+  const qRes = await Promise.all(q.map((c) => c.wait('results', () => true, 3000)));
+  check(qStarts.every((x) => x?.round === 1) && qRes.every((r) => r?.round === 1 && r.ranking.length === 4), `BUG-32: 4 v2 clients finished round 1 on draining blue`);
+  // BUG-35: one client's socket blinks inside the results-close window and comes back to blue
+  const q3Token = qTokenOf(q[3]);
+  q[3].ws.terminate();
+  const qRedirs = await Promise.all(q.slice(0, 3).map((c) => c.wait('redirect', () => true, 4000)));
+  const newCode = qRedirs[0]?.code;
+  check(qRedirs.every((r) => r?.node === 'green' && r?.resume === true && r?.code === newCode) && Number(newCode) >= 5500,
+    `BUG-32: all 3 connected v2 clients got the SAME redirect {node:green, code:${newCode}, resume:true}`);
+  const q3Back = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, 'Q3_back'));
+  await q3Back.wait('hello');
+  q3Back.send('resume', { token: q3Token });
+  const q3Redir = await q3Back.wait('redirect', () => true, 3000);
+  check(q3Redir?.node === 'green' && q3Redir?.code === newCode && q3Redir?.resume === true,
+    `BUG-35: a client that reconnects to blue after the move gets redirect to ${newCode} (not NO_SESSION)`);
+  // everybody resumes on green with their old token
+  const qg = [];
+  const allTokens = [...q.slice(0, 3).map((c) => qTokenOf(c)), q3Token];
+  for (let i = 0; i < 4; i++) {
+    const c = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws?p=2`, `QG${i}`));
+    await c.wait('hello');
+    c.send('resume', { token: allTokens[i] });
+    qg.push(c);
+  }
+  const qgRooms = await Promise.all(qg.map((c) => c.wait('room', () => true, 3000)));
+  const youSet = new Set(qgRooms.map((r) => r?.you));
+  check(qgRooms.every((r) => r?.code === newCode && r?.round === 1 && r?.players?.length === 4 && r?.host === qRoom.host && r?.field?.w === 160) && youSet.size === 4,
+    `BUG-32: 4/4 resumed into ONE room ${newCode} on green (same host, round 1, 4 distinct pids, field 160)`);
+  for (let i = 1; i < 4; i++) qg[i].send('ready', { ready: true });
+  const hostIdx = qgRooms.findIndex((r) => r.you === r.host);
+  await qg[hostIdx].wait('room', (r) => r.players.every((p) => p.on && (p.pid === r.host || p.ready)), 3000);
+  // make sure everybody (incl. the host) is ready-or-host
+  qg.forEach((c, i) => { if (i !== hostIdx) c.send('ready', { ready: true }); });
+  await sleep(80);
+  qg[hostIdx].send('start', {});
+  const qgStarts = await Promise.all(qg.map((c) => c.wait('start', () => true, 3000)));
+  check(qgStarts.every((x) => x?.round === 2 && x?.seed === qgStarts[0].seed), `BUG-32: rematch on green = round 2 for all 4 (party kept, evening score continues)`);
+  const blueAfter = await (await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`, { headers: INT_HEADERS })).json();
+  check(blueAfter.rooms === 0, `BUG-32: blue has 0 rooms after the move (${blueAfter.rooms})`);
+  qg.forEach((c) => c.send('leave'));
+
+  // 9c. BUG-32 lobby TTL: a v2 lobby on draining blue moves as one room too
+  const l0 = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, 'L0'));
+  const l1 = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, 'L1'));
+  await Promise.all([l0.wait('hello'), l1.wait('hello')]);
+  await fetch(`http://127.0.0.1:${BLUE_INT}/internal/undrain`, { method: 'POST', headers: INT_HEADERS });
+  l0.send('create', { name: 'L0', kind: 0 });
+  const lRoom = await l0.wait('room');
+  l1.send('join', { code: lRoom.code, name: 'L1', kind: 1 });
+  await l1.wait('room');
+  await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST', headers: INT_HEADERS });
+  const [lr0, lr1] = await Promise.all([l0.wait('redirect', () => true, 6000), l1.wait('redirect', () => true, 6000)]);
+  check(lr0?.code && lr0.code === lr1?.code && lr0.resume === true && lr0.node === 'green', `BUG-32: lobby on draining blue moved after DRAIN_LOBBY_TTL as one room (${lRoom.code} -> ${lr0?.code})`);
+
+  // 9d. BUG-44 (direct): v1 on green joins a blue room via proxy, gets PROTOCOL_MISMATCH, then creates -> room on green
+  await fetch(`http://127.0.0.1:${BLUE_INT}/internal/undrain`, { method: 'POST', headers: INT_HEADERS });
+  const v2Blue = track(await openWs(`ws://127.0.0.1:${BLUE_PUB}/ws?p=2`, 'V2_blue_room'));
+  await v2Blue.wait('hello');
+  v2Blue.send('create', { name: 'V2B', kind: 0 });
+  const v2BlueRoom = await v2Blue.wait('room');
+  const v1Pin = track(await openWs(`ws://127.0.0.1:${GREEN_PUB}/ws`, 'V1_pin'));
+  await v1Pin.wait('hello');
+  v1Pin.send('join', { code: v2BlueRoom.code, name: 'Pin', kind: 0 });
+  const v1PinErr = await v1Pin.wait('err');
+  v1Pin.send('create', { name: 'Pin', kind: 0 });
+  const v1PinRoom = await v1Pin.wait('room');
+  const greenRoomCheck = await fetch(`http://127.0.0.1:${GREEN_INT}/internal/rooms/${v1PinRoom?.code}`, { headers: INT_HEADERS });
+  check(v1PinErr?.code === 'PROTOCOL_MISMATCH' && Number(v1PinRoom?.code) >= 5500 && greenRoomCheck.status === 200,
+    `BUG-44: after a proxied PROTOCOL_MISMATCH the v1 socket creates its room on green (${v1PinRoom?.code}), not on blue`);
+  v1Pin.send('leave'); v2Blue.send('leave');
+
   // 10. BUG-28: Internal auth & bind checks
   const noAuth = await fetch(`http://127.0.0.1:${BLUE_INT}/internal/stats`);
   const badAuth = await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST', headers: { 'x-internal-token': 'wrong' } });
@@ -467,29 +607,18 @@ try {
     const ws = new WebSocket(`ws://127.0.0.1:${BLUE_INT}/internal/ws?p=1`);
     ws.once('unexpected-response', (_req, r) => res(r.statusCode));
     ws.once('open', () => { ws.close(); res(200); });
-    ws.once('error', () => res(401));
+    ws.once('error', () => res(-1)); // any other failure must NOT count as 401
   });
   check(noAuth.status === 401 && badAuth.status === 401 && badWs === 401,
     `BUG-28: internal HTTP/WS rejects missing/wrong INTERNAL_TOKEN (${noAuth.status}, ${badAuth.status}, ws=${badWs})`);
 
-  const failClosedPort = await freePort();
-  const failClosedPub = await freePort();
-  const failClosedSrv = spawn(process.execPath, [MAIN_JS], {
-    cwd: SERVER_DIR,
-    env: { ...process.env, NODE_ENV: 'production', PORT: String(failClosedPub), INTERNAL_PORT: String(failClosedPort), INTERNAL_HOST: '0.0.0.0', INTERNAL_TOKEN: '' },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  try {
-    const t0 = Date.now();
-    while (Date.now() - t0 < 8000) {
-      try { const h = await fetch(`http://127.0.0.1:${failClosedPub}/api/health`); if (h.ok) break; } catch {}
-      await sleep(80);
-    }
-    const fcRes = await fetch(`http://127.0.0.1:${failClosedPort}/internal/stats`);
-    check(fcRes.status === 401, `BUG-28: 0.0.0.0 without INTERNAL_TOKEN fails closed (${fcRes.status})`);
-  } finally {
-    failClosedSrv.kill('SIGTERM');
-  }
+  // BUG-48: 0.0.0.0 without INTERNAL_TOKEN refuses to start (clear FATAL in the log, exit 1)
+  const fc = await runToExit({ NODE_ENV: 'production', APP_VERSION: '0.58.0', PORT: String(await freePort()), INTERNAL_PORT: String(await freePort()), INTERNAL_HOST: '0.0.0.0', INTERNAL_TOKEN: '' });
+  check(fc.code === 1 && /FATAL: INTERNAL_TOKEN is required/.test(fc.out),
+    `BUG-48: INTERNAL_HOST=0.0.0.0 without INTERNAL_TOKEN refuses to start (exit ${fc.code})`);
+  // BUG-34: blue/green or production without APP_VERSION refuses to start
+  const nv = await runToExit({ NODE_ENV: 'production', NODE_NAME: 'blue', APP_VERSION: '', PORT: String(await freePort()), INTERNAL_PORT: 'off' });
+  check(nv.code === 1 && /FATAL: APP_VERSION is required/.test(nv.out), `BUG-34: NODE_NAME=blue without APP_VERSION refuses to start (exit ${nv.code})`);
 
   // 11. BUG-27: Disjoint room codes across slots (400 blue + 1500 green -> 0 collisions)
   await fetch(`http://127.0.0.1:${BLUE_INT}/internal/undrain`, { method: 'POST', headers: INT_HEADERS });
@@ -510,8 +639,8 @@ try {
     for (const c of conns) { try { c.ws.close(); } catch {} }
     return codes;
   };
-  const blueCodes = await batchCreate(BLUE_PUB, 400);
-  const greenCodes = await batchCreate(GREEN_PUB, 1500);
+  // both slots create concurrently (the real switch-over case), and both ranges are checked
+  const [blueCodes, greenCodes] = await Promise.all([batchCreate(BLUE_PUB, 400), batchCreate(GREEN_PUB, 1500)]);
   const greenSet = new Set(greenCodes);
   const overlap = blueCodes.filter((c) => greenSet.has(c));
   const blueInRange = blueCodes.every((c) => Number(c) >= 1000 && Number(c) <= 5499);
@@ -541,6 +670,7 @@ try {
       PORT: String(cfgPub),
       INTERNAL_PORT: 'off',
       NODE_NAME: 'blue',
+      APP_VERSION: '0.58.0',
       FIELD_W: '208',
       FIELD_H: '416',
       FIELD_PX_PER_M: '10',
@@ -575,6 +705,94 @@ try {
     );
   } finally {
     cfgSrv.kill('SIGTERM');
+  }
+
+  // 14. BUG-47: field config validation and logging
+  {
+    const { writeFileSync, mkdtempSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'hop-field-'));
+    const broken = join(dir, 'broken.json'); writeFileSync(broken, '{"w": 160,');
+    const huge = join(dir, 'huge.json'); writeFileSync(huge, JSON.stringify({ w: 100000, h: 2.6, pxPerM: 1e9 }));
+    const cases = [
+      { name: 'broken JSON', env: { FIELD_CONFIG_PATH: broken }, re: /not valid JSON/, w: 160, h: 346, px: 8, v1: 180 },
+      { name: 'missing file', env: { FIELD_CONFIG_PATH: join(dir, 'nope.json') }, re: /does not exist/, w: 160, h: 346, px: 8, v1: 180 },
+      { name: 'out-of-range file', env: { FIELD_CONFIG_PATH: huge }, re: /invalid w=100000/, w: 160, h: 346, px: 8, v1: 180 },
+      { name: 'bad env', env: { FIELD_W: 'abc', FIELD_W_V1: '99999' }, re: /invalid w="abc".*|invalid w="99999"/s, w: 160, h: 346, px: 8, v1: 180 },
+      { name: 'valid env', env: { FIELD_W: '176', FIELD_W_V1: '200' }, re: /v2 field: \{"w":176,"h":346,"pxPerM":8\}/, w: 176, h: 346, px: 8, v1: 200 },
+    ];
+    for (const cs of cases) {
+      const pub = await freePort();
+      const child = spawn(process.execPath, [MAIN_JS], { cwd: SERVER_DIR, env: { ...process.env, NODE_ENV: 'production', APP_VERSION: '0.58.0', PORT: String(pub), INTERNAL_PORT: 'off', ...cs.env }, stdio: ['ignore', 'pipe', 'pipe'] });
+      let out = ''; child.stdout.on('data', (d) => { out += d; }); child.stderr.on('data', (d) => { out += d; });
+      try {
+        await waitHealth(pub);
+        const c2 = await openWs(`ws://127.0.0.1:${pub}/ws?p=2`, 'f2'); const h2 = await c2.wait('hello');
+        const c1 = await openWs(`ws://127.0.0.1:${pub}/ws`, 'f1'); await c1.wait('hello');
+        c1.send('create', { name: 'F1', kind: 0 }); const r1 = await c1.wait('room');
+        c1.ws.close(); c2.ws.close();
+        check(cs.re.test(out) && /v2 field: /.test(out) && h2?.field?.w === cs.w && h2?.field?.h === cs.h && h2?.field?.pxPerM === cs.px && r1?.lw === cs.v1,
+          `BUG-47: ${cs.name}: logged, effective field ${JSON.stringify(h2?.field)}, v1 lw=${r1?.lw}`);
+      } finally { child.kill('SIGTERM'); }
+    }
+  }
+
+  // 15. BUG-48: different INTERNAL_TOKENs between slots are visible in both logs and in /api/health.peerAuth
+  {
+    const bp = await freePort(), bi = await freePort(), rp = await freePort(), ri = await freePort();
+    const b = startSlot({ name: 'blue', pubPort: bp, intPort: bi, version: '0.57.0', peerIntPort: ri });
+    const r = startSlot({ name: 'green', pubPort: rp, intPort: ri, version: '0.58.0', peerIntPort: bi, extraEnv: { INTERNAL_TOKEN: 'other-token' } });
+    try {
+      await waitHealth(bp); await waitHealth(rp);
+      const host = await openWs(`ws://127.0.0.1:${bp}/ws`, 'tok_host'); await host.wait('hello');
+      host.send('create', { name: 'TH', kind: 0 }); const hr = await host.wait('room');
+      const j = await openWs(`ws://127.0.0.1:${rp}/ws`, 'tok_join'); await j.wait('hello');
+      j.send('join', { code: hr.code, name: 'TJ', kind: 0 }); const je = await j.wait('err');
+      await sleep(200);
+      const hh = await (await fetch(`http://127.0.0.1:${rp}/api/health`)).json();
+      const rLog = r.logs.join(''), bLog = b.logs.join('');
+      check(je?.code === 'NOT_FOUND' && /rejected INTERNAL_TOKEN \(401\)/.test(rLog) && /rejected GET \/internal\/rooms\/\d+ .*unauthorized/.test(bLog) && hh.peerAuth === 'unauthorized',
+        `BUG-48: token mismatch -> ERROR in green log (401 from peer), ERROR in blue log (rejected), health.peerAuth=${hh.peerAuth}`);
+      host.ws.close(); j.ws.close();
+    } finally { b.child.kill('SIGTERM'); r.child.kill('SIGTERM'); }
+  }
+
+  // 16. BUG-45: 2nd and 3rd SIGTERM (mid-round and in lobby) are ignored; everybody gets results/SERVER_SHUTDOWN, nobody 1006
+  for (const phase of ['round', 'lobby']) {
+    const pub = await freePort(), int = await freePort();
+    const sl = startSlot({ name: 'blue', pubPort: pub, intPort: int, version: '0.57.0', peerIntPort: await freePort(), extraEnv: { GRACEFUL_SHUTDOWN_MS: '2500' } });
+    const exited = new Promise((res) => sl.child.once('exit', (code, sig) => res({ code, sig, at: Date.now() })));
+    await waitReady(sl);
+    const a = await openWs(`ws://127.0.0.1:${pub}/ws`, 'm1a'); await a.wait('hello');
+    const b = await openWs(`ws://127.0.0.1:${pub}/ws`, 'm1b'); await b.wait('hello');
+    const l = await openWs(`ws://127.0.0.1:${pub}/ws?p=2`, 'm2l'); await l.wait('hello');
+    a.send('create', { name: 'MA', kind: 0 }); const ra = await a.wait('room');
+    b.send('join', { code: ra.code, name: 'MB', kind: 1 }); await b.wait('room');
+    l.send('create', { name: 'ML', kind: 0 }); await l.wait('room');
+    if (phase === 'round') {
+      b.send('ready', { ready: true }); await sleep(40); a.send('start', {});
+      await Promise.all([a.wait('start'), b.wait('start')]);
+      a.send('st', { x: 50, y: -80, vx: 0, vy: -3, f: 1, a: 1, m: 80, ps: 0 });
+      await a.wait('snap');
+    }
+    const t0 = Date.now();
+    // in a round the 2nd/3rd signal come 300 ms apart (the slot must keep running until the timeout);
+    // in a pure lobby the shutdown itself takes ~0.3 s, so the repeats come 20 ms apart to land inside it
+    const gap = phase === 'round' ? 300 : 20;
+    sl.child.kill('SIGTERM'); await sleep(gap);
+    sl.child.kill('SIGTERM'); await sleep(gap);
+    sl.child.kill('SIGTERM');
+    await sleep(phase === 'round' ? 400 : 0);
+    const aliveAfterRepeats = phase !== 'round' || (sl.child.exitCode === null && sl.child.signalCode === null);
+    const ex = await exited;
+    await sleep(100);
+    const got = (c, ev, code) => c.all.some((m) => m.event === ev && (!code || m.data?.code === code));
+    const roundOk = phase !== 'round' || (got(a, 'results') && got(b, 'results') && got(a, 'err', 'SERVER_SHUTDOWN') && got(b, 'err', 'SERVER_SHUTDOWN'));
+    const lobbyOk = got(l, 'err', 'SERVER_SHUTDOWN') && (phase === 'round' || (got(a, 'err', 'SERVER_SHUTDOWN') && got(b, 'err', 'SERVER_SHUTDOWN')));
+    const closes = [a, b, l].map((c) => c.closed?.code);
+    check(aliveAfterRepeats && ex.code === 0 && roundOk && lobbyOk && closes.every((c) => c === 1000 || c === 1001) &&
+      /ignored repeated SIGTERM/.test(sl.logs.join('')) && (phase !== 'round' || ex.at - t0 >= 2400),
+      `BUG-45: 3x SIGTERM in ${phase}: process kept running (${ex.at - t0}ms, exit ${ex.code}), results+SERVER_SHUTDOWN delivered, closes ${closes.join('/')}`);
   }
 
   console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL BLUE-GREEN SMOKE CHECKS PASSED');
