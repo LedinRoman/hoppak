@@ -31,7 +31,7 @@ var NET: any = (function () {
     pendingAction: null as any, redirCount: 0, redirecting: false,
     pollTimer: 0, healthMs: NET_HEALTH_MS, probeSeq: 0,
     room: null, you: -1, token: "", err: "", errCode: "", sub: "home", code: "", startInfo: null, results: null,
-    off: 0, rtt: 0, pingT: 0, lastSend: 0, reconUntil: 0, reconTimer: 0, onOpen: null as any, probing: false,
+    off: 0, rtt: 0, pingT: 0, lastSend: 0, reconUntil: 0, reconTimer: 0, reconTry: 0, onOpen: null as any, probing: false,
     stats: { sent: 0, recv: 0, snaps: 0, startedAt: 0 },
     buf: {} as any, /* pid -> samples [{t,x,y,vx,vy,f,a,m,ps}] */
     events: [] as any[], api: null as any
@@ -113,11 +113,25 @@ var NET: any = (function () {
     var ver = v.trim();
     if (!ver) return;
     N.serverVersion = ver;
-    if (ver !== N.clientVersion) {
+    /* BUG-34: only a strictly NEWER, well-formed server version is an update; and never twice for the same
+       version right after we already reloaded for it (no endless ОБНОВИТЬ loop if the build is cached/stale). */
+    if (cmpVersion(ver, N.clientVersion) > 0 && reloadedFor() !== ver) {
       N.updateVersion = ver;
       N.updateAvail = true;
     }
   }
+  function parseVer(v: string) {
+    var m = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec(String(v || "").trim());
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3] || 0)] : null;
+  }
+  function cmpVersion(a: string, b: string) {
+    var x = parseVer(a), y = parseVer(b);
+    if (!x || !y) return 0;
+    for (var i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i] ? 1 : -1;
+    return 0;
+  }
+  N.cmpVersion = cmpVersion;
+  function reloadedFor() { try { return sessionStorage.getItem("hoppak.update.reloaded") || ""; } catch (_e) { return ""; } }
   N.shouldShowBanner = function () {
     return !!(N.updateAvail && N.updateVersion && N.updateDismissed !== N.updateVersion);
   };
@@ -125,6 +139,7 @@ var NET: any = (function () {
     N.updateDismissed = N.updateVersion || "__dismissed__";
   };
   N.reloadApp = function () {
+    try { if (N.updateVersion) sessionStorage.setItem("hoppak.update.reloaded", N.updateVersion); } catch (_e) {}
     if (N.room) {
       send("leave", {});
       N.room = null; N.token = ""; N.node = ""; N.targetNode = "";
@@ -245,6 +260,10 @@ var NET: any = (function () {
     if (N.probing) { N.onOpen = cb || N.onOpen; return; }
     N.st = N.st === "reconnecting" ? "reconnecting" : "connecting";
     N.onOpen = cb || null;
+    /* BUG-33: a slot-pinned socket (/ws/<node>: our room lives there, or the server told us to go there)
+       must not be gated by /api/health, which Caddy routes to the ACTIVE slot (maybe a different or dead one).
+       Open the WebSocket directly; its own 5 s open timeout and the reconnect loop cover a dead slot. */
+    if (N.targetNode && N.targetNode !== "local") { N.probeSeq++; N.probing = false; openSocket(u); return; }
     N.probing = true;
     var seq = ++N.probeSeq;
     probeHealth(toHealth(u), function (ok: boolean) {
@@ -260,8 +279,12 @@ var NET: any = (function () {
     });
   };
   function startReconnect() {
-    if (N.st !== "reconnecting") { N.st = "reconnecting"; N.reconUntil = now() + NET_GRACE_MS; }
-    N.targetNode = N.node || load("hoppak.net.node") || "";
+    if (N.st !== "reconnecting") { N.st = "reconnecting"; N.reconUntil = now() + NET_GRACE_MS; N.reconTry = 0; }
+    /* Try the room's slot first, then alternate with the plain /ws (active slot): if the room's slot died,
+       the active slot finds our token (moved room) or proxies us to the room's slot (BUG-33/35). */
+    var pinned = N.node || load("hoppak.net.node") || "";
+    N.reconTry = (N.reconTry || 0) + 1;
+    N.targetNode = (pinned && N.reconTry % 2 === 1) ? pinned : "";
     if (N.reconTimer) return;
     N.reconTimer = setTimeout(function () {
       N.reconTimer = 0;
@@ -320,6 +343,25 @@ var NET: any = (function () {
       if (d && d.version) noteServerVersion(d.version);
     } else if (ev === "redirect") {
       var nextNode = d && d.node ? String(d.node).trim() : "";
+      var tokNow = N.token || load("hoppak.net.token");
+      if (d && d.resume && nextNode && tokNow) {
+        /* BUG-32: our whole room moved to another slot (same seat/token, new code). Reconnect there and resume. */
+        N.pendingAction = null; N.redirCount = 0;
+        N.redirecting = true;
+        N.node = nextNode; N.targetNode = nextNode;
+        store("hoppak.net.node", nextNode);
+        var oldWs2 = N.ws;
+        N.ws = null;
+        if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+        if (N.reconTimer) { clearTimeout(N.reconTimer); N.reconTimer = 0; }
+        N.probeSeq++; N.probing = false; N.onOpen = null;
+        try { if (oldWs2) oldWs2.close(); } catch (_e) {}
+        N.st = "reconnecting"; N.reconUntil = now() + NET_GRACE_MS; N.reconTry = 1;
+        N.connect(function (ok: boolean) { N.redirecting = false; if (!ok && N.room) startReconnect(); });
+        /* if the open fails the socket's onclose sees redirecting=true; release it so the reconnect loop runs */
+        setTimeout(function () { if (N.redirecting && !N.ws) { N.redirecting = false; if (N.room) startReconnect(); } }, 5500);
+        return;
+      }
       var act = (d && d.code)
         ? { type: "join", code: String(d.code).trim() }
         : (N.pendingAction || (d && d.reason === "draining" ? { type: "create" } : null));
@@ -363,6 +405,8 @@ var NET: any = (function () {
       var wasRecon = N.st === "reconnecting";
       N.pendingAction = null; N.redirCount = 0; N.redirecting = false;
       var rf = parseField(d.field, d.lw); if (rf) d.field = rf;
+      /* Same seat (token) under a new code = the room moved slots: keep the evening score (BUG-32). */
+      if (N.session && N.session.code && d.code && N.session.code !== d.code && N.token && d.token === N.token) N.session.code = d.code;
       N.err = ""; N.errCode = ""; N.room = d; N.you = d.you; N.token = d.token;
       store("hoppak.net.token", d.token);
       if (N.node) store("hoppak.net.node", N.node);

@@ -3188,6 +3188,7 @@
       lastSend: 0,
       reconUntil: 0,
       reconTimer: 0,
+      reconTry: 0,
       onOpen: null,
       probing: false,
       stats: { sent: 0, recv: 0, snaps: 0, startedAt: 0 },
@@ -3297,9 +3298,27 @@
       var ver = v.trim();
       if (!ver) return;
       N.serverVersion = ver;
-      if (ver !== N.clientVersion) {
+      if (cmpVersion(ver, N.clientVersion) > 0 && reloadedFor() !== ver) {
         N.updateVersion = ver;
         N.updateAvail = true;
+      }
+    }
+    function parseVer(v) {
+      var m = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec(String(v || "").trim());
+      return m ? [Number(m[1]), Number(m[2]), Number(m[3] || 0)] : null;
+    }
+    function cmpVersion(a, b) {
+      var x = parseVer(a), y = parseVer(b);
+      if (!x || !y) return 0;
+      for (var i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i] ? 1 : -1;
+      return 0;
+    }
+    N.cmpVersion = cmpVersion;
+    function reloadedFor() {
+      try {
+        return sessionStorage.getItem("hoppak.update.reloaded") || "";
+      } catch (_e) {
+        return "";
       }
     }
     N.shouldShowBanner = function() {
@@ -3309,6 +3328,10 @@
       N.updateDismissed = N.updateVersion || "__dismissed__";
     };
     N.reloadApp = function() {
+      try {
+        if (N.updateVersion) sessionStorage.setItem("hoppak.update.reloaded", N.updateVersion);
+      } catch (_e) {
+      }
       if (N.room) {
         send("leave", {});
         N.room = null;
@@ -3520,6 +3543,12 @@
       }
       N.st = N.st === "reconnecting" ? "reconnecting" : "connecting";
       N.onOpen = cb || null;
+      if (N.targetNode && N.targetNode !== "local") {
+        N.probeSeq++;
+        N.probing = false;
+        openSocket(u);
+        return;
+      }
       N.probing = true;
       var seq = ++N.probeSeq;
       probeHealth(toHealth(u), function(ok) {
@@ -3538,8 +3567,11 @@
       if (N.st !== "reconnecting") {
         N.st = "reconnecting";
         N.reconUntil = now() + NET_GRACE_MS;
+        N.reconTry = 0;
       }
-      N.targetNode = N.node || load("hoppak.net.node") || "";
+      var pinned = N.node || load("hoppak.net.node") || "";
+      N.reconTry = (N.reconTry || 0) + 1;
+      N.targetNode = pinned && N.reconTry % 2 === 1 ? pinned : "";
       if (N.reconTimer) return;
       N.reconTimer = setTimeout(function() {
         N.reconTimer = 0;
@@ -3642,6 +3674,46 @@
         if (d && d.version) noteServerVersion(d.version);
       } else if (ev === "redirect") {
         var nextNode = d && d.node ? String(d.node).trim() : "";
+        var tokNow = N.token || load("hoppak.net.token");
+        if (d && d.resume && nextNode && tokNow) {
+          N.pendingAction = null;
+          N.redirCount = 0;
+          N.redirecting = true;
+          N.node = nextNode;
+          N.targetNode = nextNode;
+          store("hoppak.net.node", nextNode);
+          var oldWs2 = N.ws;
+          N.ws = null;
+          if (N.helloTimer) {
+            clearTimeout(N.helloTimer);
+            N.helloTimer = 0;
+          }
+          if (N.reconTimer) {
+            clearTimeout(N.reconTimer);
+            N.reconTimer = 0;
+          }
+          N.probeSeq++;
+          N.probing = false;
+          N.onOpen = null;
+          try {
+            if (oldWs2) oldWs2.close();
+          } catch (_e) {
+          }
+          N.st = "reconnecting";
+          N.reconUntil = now() + NET_GRACE_MS;
+          N.reconTry = 1;
+          N.connect(function(ok) {
+            N.redirecting = false;
+            if (!ok && N.room) startReconnect();
+          });
+          setTimeout(function() {
+            if (N.redirecting && !N.ws) {
+              N.redirecting = false;
+              if (N.room) startReconnect();
+            }
+          }, 5500);
+          return;
+        }
         var act = d && d.code ? { type: "join", code: String(d.code).trim() } : N.pendingAction || (d && d.reason === "draining" ? { type: "create" } : null);
         if (!nextNode || !act) {
           N.pendingAction = null;
@@ -3705,6 +3777,7 @@
         N.redirecting = false;
         var rf = parseField(d.field, d.lw);
         if (rf) d.field = rf;
+        if (N.session && N.session.code && d.code && N.session.code !== d.code && N.token && d.token === N.token) N.session.code = d.code;
         N.err = "";
         N.errCode = "";
         N.room = d;
