@@ -247,7 +247,7 @@ var BIGCOIN = 25;
 /* Campaign maps: open the next one by reaching `goal` m here AND paying its price.
    mobs: [kind, from metres] */
 var MAPS: any[] = [
-  { id: "city", name: "ГОРОД", price: 0, goal: 500, special: "", mobs: [["blob", 120], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
+  { id: "city", name: "ГОРОД", price: 0, goal: 500, special: "", mobs: [["blob", 180], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
   { id: "jungle", name: "ДЖУНГЛИ", price: 80, goal: 700, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
   { id: "ice", name: "ЛЕДНИК", price: 100, goal: 900, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
   { id: "lava", name: "ВУЛКАН", price: 120, goal: 1100, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
@@ -256,7 +256,7 @@ var MAPS: any[] = [
 ];
 /* mob kinds. b = behaviour; plat = stands on a platform; gap = min vertical gap (px) it needs */
 var MOBS: any = {
-  blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.22, name: "СЛИЗЕНЬ", g: "m" },
+  blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.16, name: "СЛИЗЕНЬ", g: "m" },
   magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, name: "ЛАВОСЛИЗЬ", g: "f" },
   penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, name: "ПИНГВИН", g: "m" },
   crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, name: "КРАБ", g: "m" },
@@ -369,9 +369,63 @@ function loadSave() {
   if (mapInfo(s.bg).id !== s.bg) s.bg = "city";
   if (typeof s.best !== "number") s.best = parseInt(storageGet("hoppak_best") || "0", 10) || 0;
   if (typeof s.mapBest.city !== "number") s.mapBest.city = s.best;
+  if (s.sfx !== false) s.sfx = true; else s.sfx = false;
+  if (s.vib !== false) s.vib = true; else s.vib = false;
+  if (!s.seen || typeof s.seen !== "object") s.seen = {};
+  sfxOn = !!s.sfx; vibOn = !!s.vib;
   return s;
 }
 function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
+
+/* ---- audio / vibro (WebAudio, no files: Canvas CSP blocks data-URI) ---- */
+var audioCtx: any = null, sfxOn = true, vibOn = true, sfxMem: any = {};
+function audioUnlock() {
+  try {
+    var AC: any = (typeof window !== "undefined") && ((window as any).AudioContext || (window as any).webkitAudioContext);
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch (_e) {}
+}
+function hopVib(ms: any) {
+  if (!vibOn) return;
+  try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); } catch (_e) {}
+}
+function beep(freq: number, dur: number, vol: number, type: string, slide?: number) {
+  if (!sfxOn || !audioCtx) return;
+  try {
+    var t0 = audioCtx.currentTime, osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    osc.type = type || "square";
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slide) osc.frequency.linearRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  } catch (_e) {}
+}
+function hopSfx(kind: string) {
+  if (!sfxOn) return;
+  audioUnlock();
+  if (!audioCtx) return;
+  if (kind === "jump") { beep(200 + Math.random() * 36, 0.045, 0.045, "sine", 40); }
+  else if (kind === "coin") { beep(880, 0.04, 0.05, "square"); beep(1170, 0.06, 0.04, "square"); }
+  else if (kind === "bonus") { beep(520, 0.06, 0.06, "triangle", 200); beep(780, 0.1, 0.05, "triangle"); hopVib(18); }
+  else if (kind === "hit") { beep(140, 0.1, 0.08, "sawtooth", -80); hopVib(30); }
+  else if (kind === "death") { beep(220, 0.22, 0.08, "sawtooth", -160); hopVib([40, 40, 60]); }
+  else if (kind === "warn") { beep(160, 0.08, 0.05, "square", -20); }
+  else if (kind === "deny") { beep(110, 0.07, 0.05, "square"); hopVib(12); }
+  else if (kind === "tick") { beep(940, 0.02, 0.03, "square"); }
+}
+
+/* TODO_DESIGN: first-meet toast copy. Ids are stable; wording is a draft. */
+var FIRST_TOAST: any = {
+  break: "РАСПАДАЕТСЯ!",
+  goal: "ТВОЯ ЦЕЛЬ",
+  record: "ТВОЙ РЕКОРД"
+};
+
 
 function textWidth(s: string, sc: number) { return String(s).length * 6 * sc; }
 function drawText(ctx: Ctx, s: string, x: number, y: number, color: string, sc?: number, align?: string) {
@@ -712,7 +766,7 @@ function genRow(w: any) {
   if (minG > maxG) minG = maxG;
   var gap = randInt(r, minG, maxG);
 
-  var pMon = m < 120 ? 0 : m < 400 ? 0.065 : lerp(0.08, 0.28, d);
+  var pMon = m < 180 ? 0 : m < 400 ? 0.045 : lerp(0.07, 0.26, d);
   var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
   var bonus = false;
   if (!mob && m >= w.nextBonusM && gap >= 26) {
@@ -752,7 +806,7 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     face: 1, squash: 0, iceT: 0, gravT: 0, camY: -LH + 70, place: 0, why: "",
     bias: [0, -14, 14, 6][i], react: [1, 3, 4, 5][i], tgt: null, botDir: 0,
     abCharge: CHARS[kind].need, abFx: 0, hookT: 0, hookN: 0, hx0: 0, hy0: 0, htx: 0, hty: 0, hookPl: null, hookCoin: null,
-    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0
+    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, stallT: 0, stallH: 0
   };
 }
 function createWorld(seed: number, mode: string, humanKind: number, humanLook: any, mapId?: string) {
@@ -760,7 +814,7 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     seed: seed >>> 0, rng: mulberry32(seed >>> 0), mode: mode, map: mapInfo(mapId || "city").id,
     platforms: [], monsters: [], bullets: [], coins: [], items: [], particles: [],
     nextY: -24, rowN: 1, lastKind: "", lastMobRow: {}, cameraY: -LH + 70, tick: 0, shake: 0,
-    phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0
+    phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
   w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
@@ -861,7 +915,7 @@ function killPlayer(w: any, p: any, why: string) {
   p.why = why;
   p.grabT = 0; p.wallT = 0; p.wall = 0;
   spawnParts(w, p.x + 6, p.y + 8, 14, p.look.hood, 2.8, 0.1);
-  if (p.id === 0) w.shake = 8;
+  if (p.id === 0) { w.shake = 8; hopSfx("death"); }
 }
 function invuln(p: any) { return p.invT > 0 || p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0; }
 function useShield(w: any, p: any) {
@@ -906,6 +960,7 @@ function landOn(w: any, p: any, pl: any) {
   p.y = pl.y - PH;
   p.baseY = pl.y;
   p.squash = 7;
+  if (p.id === 0) hopSfx("jump");
   var spr = pl.spring && overlapsX(p.x + 2, PW - 4, pl.x + pl.w / 2 - 5, 10);
   if (spr) {
     p.vy = SPRING_V;
@@ -970,6 +1025,8 @@ function killMob(w: any, mo: any, p: any, noBounce?: boolean) {
 }
 function mobBox(mo: any) {
   if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
+  /* slimes: slightly tighter box so a graze at the edge is not a hit */
+  if (mo.kind === "blob" || mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
   return [mo.x, mo.y, mo.w, mo.h];
 }
 /* motion envelope of a mob (for tests: must not cross platforms) */
@@ -1066,7 +1123,7 @@ function pickItem(w: any, p: any, it: any) {
   else if (B.id === "magnet") p.magnetT = Math.max(p.magnetT, B.t);
   else if (B.id === "rocket") { p.rocketT = B.t; p.grabT = 0; p.poundT = 0; p.invT = Math.max(p.invT, B.t + 40); }
   toast(w, B.id === "bigcoin" ? "КЛАД +" + BIGCOIN : B.name + "!");
-  if (p.id === 0) w.shake = 3;
+  if (p.id === 0) { w.shake = 3; hopSfx("bonus"); }
 }
 
 function tickWorld(w: any, inputs: any) {
@@ -1097,6 +1154,7 @@ function tickWorld(w: any, inputs: any) {
     var mo = w.monsters[i];
     mo.t += sf;
     if (mo.fx > 0) mo.fx--;
+    if (mo.warnT > 0) mo.warnT--; else mo.warn = 0;
     if (mo.cool > 0) mo.cool -= sf;
     if (!mo.alive) { if (mo.squish > 0) mo.squish--; continue; }
     if (mobFrozen) { mo.t -= sf; continue; }
@@ -1310,6 +1368,7 @@ function tickWorld(w: any, inputs: any) {
       for (k = 0; k < w.platforms.length; k++) {
         var q = w.platforms[k];
         if (q.broken) continue;
+        if (q.y > p.camY + LH) continue;
         if (pf <= q.y + 3 && feet >= q.y && overlapsX(p.x + 1, PW - 2, q.x, q.w)) {
           if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) { q.broken = true; q.breakT = 14; spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2); if (p.id === 0) w.shake = 3; continue; }
           landOn(w, p, q); break;
@@ -1319,6 +1378,13 @@ function tickWorld(w: any, inputs: any) {
     for (k = 0; k < w.monsters.length; k++) {
       var m2 = w.monsters[k];
       if (!m2.alive || m2.b === "pull" || m2.b === "wind") continue;
+      if ((m2.kind === "blob" || m2.kind === "magma") && p.id === 0) {
+        var sdx = wrapDx((m2.x + m2.w / 2) - (p.x + PW / 2));
+        var sdy = (m2.y + m2.h / 2) - (p.y + PH / 2);
+        var threat = Math.abs(sdx) < 36 && sdy > -28 && sdy < 40;
+        if (threat && !m2.warn) { m2.warn = 1; hopSfx("warn"); hopVib(8); }
+        if (threat) m2.warnT = 18;
+      }
       var bb = mobBox(m2);
       if (overlapsX(p.x + 2, PW - 4, bb[0] + 1, bb[2] - 2) && p.y + 4 < bb[1] + bb[3] && p.y + PH > bb[1]) {
         if (p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0) { killMob(w, m2, p, true); continue; }
@@ -1356,6 +1422,7 @@ function tickWorld(w: any, inputs: any) {
           w.runCoins += 1;
           addCharge(p, "coins", 1);
           spawnParts(w, cn.x + 3, cn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
+          hopSfx("coin");
         }
       }
       for (k = 0; k < w.items.length; k++) {
@@ -1373,20 +1440,35 @@ function tickWorld(w: any, inputs: any) {
     if (!cp.alive) continue;
     var target = cp.y - LH * 0.42;
     if (target < cp.camY) cp.camY = target;
+    /* Pressure to climb: after ~7s without a new max height, the bottom edge creeps up.
+       A climber resets stallT every jump. After ~15s idle the floor catches a camper. */
+    if (!cp.remote && w.tick > 80) {
+      if (cp.maxH > (cp.stallH || 0) + 0.5) { cp.stallH = cp.maxH; cp.stallT = 0; }
+      else cp.stallT = (cp.stallT || 0) + 1;
+      if (cp.stallT > 350) cp.camY -= 0.28;
+    }
     if (cp.camY < minCam) minCam = cp.camY;
   }
   w.cameraY = w.players[0].camY;
   if (minCam < 1e9) generateUntil(w, minCam - 80);
+  w.fallWarn = 0; w.liftWarn = 0;
   for (i = 0; i < w.players.length; i++) {
     var ep = w.players[i];
-    /* BUG-14: don't kill on the same tick as a bounce (vy < 0 or squash from landOn),
-       and give a 4 px margin past the camera. If a landable platform is still under
-       the hero (e.g. Knight pound at the rim), let them reach it. */
-    if (ep.alive && !ep.remote && w.tick > 80 && ep.vy >= 0 && ep.squash === 0 && ep.y > ep.camY + LH + 4 && !hasLandablePlat(w, ep)) {
+    if (!ep.alive || ep.remote) continue;
+    if (ep.stallT > 350) w.liftWarn = 1;
+    /* Visible/audible warning just before falling off the bottom. */
+    if (ep.vy >= 0 && ep.y + PH > ep.camY + LH - 28 && ep.y <= ep.camY + LH) {
+      w.fallWarn = 1;
+      if (ep.id === 0 && (w.warnSfxT || 0) <= 0) { hopSfx("warn"); w.warnSfxT = 22; }
+    }
+    /* Below the bottom edge is always death. Platforms below the edge no longer land.
+       BUG-14: if already bouncing (vy < 0) at the rim, do not kill. */
+    if (w.tick > 80 && ep.vy >= 0 && ep.y > ep.camY + LH) {
       if (ep.domeT > 0 && ep.domeSave) { ep.domeSave = false; ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; ep.invT = 40; spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2); if (ep.id === 0) toast(w, "КОСМОЩИТ СПАС!"); }
       else killPlayer(w, ep, "fall");
     }
   }
+  if (w.warnSfxT > 0) w.warnSfxT--;
   for (i = w.particles.length - 1; i >= 0; i--) {
     var pt = w.particles[i];
     pt.x += pt.vx; pt.y += pt.vy; pt.vy += pt.g; pt.vx *= 0.97;
@@ -1744,6 +1826,23 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
     ctx.fillRect(c1, y + 1, 1, 4); ctx.fillRect(c1 + 1, y + 3, 2, 1);
     ctx.fillRect(x + Math.floor(w * 0.68), y + 1, 1, 5); ctx.fillRect(x + Math.floor(w * 0.5), y + 2, 3, 1);
     rect(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 3, "#120a2c");
+    /* Temporary crack until Design's sprite. Same palette, no new colors. */
+    ctx.fillStyle = "#120a2c";
+    var zx = x + 2, zy = y + 2, step = 0;
+    while (zx < x + w - 2) {
+      ctx.fillRect(zx, zy, 2, 1);
+      step++;
+      zy = (step % 2) ? y + 3 : y + 1;
+      zx += 2;
+    }
+    ctx.fillStyle = C.brkD;
+    zx = x + 3; zy = y + 1; step = 0;
+    while (zx < x + w - 3) {
+      ctx.fillRect(zx, zy, 1, 1);
+      step++;
+      zy = (step % 2) ? y + 2 : y + 1;
+      zx += 2;
+    }
   } else if (p.type === "move") {
     rect(ctx, x, y, w, 5, C.mov); rect(ctx, x, y + 4, w, 2, C.movD);
     rect(ctx, x, y, w, 1, C.gold); rect(ctx, x, y + 1, 1, 4, C.gold); rect(ctx, x + w - 1, y + 1, 1, 4, C.gold);
@@ -1845,6 +1944,11 @@ function drawMob(ctx: Ctx, m: any, cam: number, mapId?: string, frozen?: boolean
     if (m.kind === "alien") { rect(ctx, x + 5, y - 4 + wb, 1, 4, INK); rect(ctx, x + 4, y - 5 + wb, 3, 2, "#ff5ab0"); rect(ctx, x + 5, y + 1 + wb, 2, 2, "#fff6e8"); rect(ctx, x + 5 + lk, y + 2 + wb, 1, 1, INK); }
     if (m.kind === "magma" && t % 20 < 10) rect(ctx, x + 4 + (t % 3), y + 8, 1, 2, pal[2]);
     rect(ctx, x + 5, y + 6, 2, 1, pal[1]);
+    if ((m.kind === "blob" || m.kind === "magma") && m.warnT > 0 && ((t >> 2) % 2)) {
+      ctx.globalAlpha = 0.75;
+      rect(ctx, x, y + wb, 12, 8, pal[2]);
+      ctx.globalAlpha = 1;
+    }
   } else if (m.kind === "penguin") {
     var wd = Math.floor(t / 8) % 2;
     rect(ctx, x - 1, y - 1, 12, 13, INK);
@@ -2183,6 +2287,7 @@ var NET: any = (function () {
     } else if (ev === "room") {
       var wasRecon = N.st === "reconnecting";
       N.room = d; N.you = d.you; N.token = d.token; store("hoppak.net.token", d.token); N.st = "online";
+      sessionFor(d.code);
       if (wasRecon) { var f = N.onOpen; N.onOpen = null; if (f) f(true); }
       if (N.api && N.api.phase() === "net" && N.sub !== "room") N.sub = "room";
     } else if (ev === "start") {
@@ -2206,6 +2311,7 @@ var NET: any = (function () {
       N.events.push(d);
     } else if (ev === "results") {
       N.results = d;
+      noteResults(d);
     } else if (ev === "err") {
       N.err = d.msg || d.code;
       if (d.code === "NO_SESSION") giveUp("КОМНАТА ЗАКРЫТА");
@@ -2219,7 +2325,7 @@ var NET: any = (function () {
   N.join = function (code: string) { N.connect(function (ok: boolean) { if (ok) { var m: any = me(); m.code = code; send("join", m); } }); };
   N.leave = function () {
     if (N.room) send("leave", {});
-    N.room = null; N.token = ""; N.startInfo = null; N.results = null; store("hoppak.net.token", null);
+    N.room = null; N.token = ""; N.startInfo = null; N.results = null; N.session = emptySession(""); store("hoppak.net.token", null);
     if (N.reconTimer) { clearTimeout(N.reconTimer); N.reconTimer = 0; }
     if (N.st === "reconnecting") N.st = N.ws ? "online" : "off";
   };
@@ -2228,6 +2334,51 @@ var NET: any = (function () {
   N.mePlayer = function () { if (!N.room) return null; for (var i = 0; i < N.room.players.length; i++) if (N.room.players[i].pid === N.you) return N.room.players[i]; return null; };
   /** Online rooms pin the logical width: the map generator depends on LW. */
   N.fixedLW = function () { return N.room ? N.room.lw : 0; };
+  /* Evening score is client-side from `results` broadcasts (same session, same room).
+     Server NET_LW is 180; width parity with solo (160) needs a one-line server change via Devops. */
+  function emptySession(code: string) { return { code: code || "", rounds: [], wins: {}, best: {}, names: {} }; }
+  N.session = emptySession("");
+  function sessionFor(code: string) {
+    if (!N.session || N.session.code !== (code || "")) N.session = emptySession(code);
+  }
+  function noteResults(d: any) {
+    sessionFor(N.room ? N.room.code : (N.session && N.session.code) || "");
+    if (!d || !d.ranking) return;
+    for (var i = 0; i < N.session.rounds.length; i++) if (N.session.rounds[i].round === d.round) return;
+    N.session.rounds.push({ round: d.round, ranking: d.ranking });
+    for (var j = 0; j < d.ranking.length; j++) {
+      var r = d.ranking[j];
+      if (r.name) N.session.names[r.pid] = r.name;
+      if (r.place === 1) N.session.wins[r.pid] = (N.session.wins[r.pid] || 0) + 1;
+      var hm = r.m || 0;
+      if (hm > (N.session.best[r.pid] || 0)) N.session.best[r.pid] = hm;
+    }
+  }
+  N.drawEvening = function (ctx: any, x: number, y: number) {
+    var S = N.session;
+    if (!S || !S.rounds || !S.rounds.length) return y;
+    var pids: any[] = [];
+    for (var k in S.names) pids.push(k);
+    if (!pids.length) {
+      for (var k2 in S.wins) if (pids.indexOf(k2) < 0) pids.push(k2);
+      for (var k3 in S.best) if (pids.indexOf(k3) < 0) pids.push(k3);
+    }
+    pids.sort(function (a: any, b: any) {
+      var wa = S.wins[a] || 0, wb = S.wins[b] || 0;
+      if (wb !== wa) return wb - wa;
+      return (S.best[b] || 0) - (S.best[a] || 0);
+    });
+    var h = 13 + pids.length * 11;
+    box(ctx, x, y, 152, h, C.navy, C.gold);
+    drawText(ctx, "СЧЁТ ВЕЧЕРА · " + S.rounds.length + " РАУНД", LW / 2, y + 3, C.gold, 1, "center");
+    for (var i2 = 0; i2 < pids.length; i2++) {
+      var pid = pids[i2], nm = String(S.names[pid] || "ИГРОК").slice(0, 8);
+      var lineY = y + 13 + i2 * 11;
+      drawText(ctx, nm, x + 6, lineY, C.cream, 1, "left");
+      drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, C.cream, 1, "right");
+    }
+    return y + h + 6;
+  };
 
   /* ---------- world integration ---------- */
   function lookOf(k: number) { return makeLook(k, "base", "none"); }
@@ -2433,7 +2584,9 @@ var NET: any = (function () {
     box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
     drawText(ctx, "КАРТА: " + mapInfo(R.map).name, LW / 2, my + 6, C.gold, 1, "center");
     api.btn("net:hero", x, my + 22, 152, 18, "#1a1430", "ГЕРОЙ: " + CHARS[api.save().char].name.toUpperCase() + " ▶", C.cream, 1, C.gold);
-    var by = Math.max(my + 48, LH - 66);
+    var evY = my + 44;
+    if (N.session && N.session.rounds && N.session.rounds.length) evY = N.drawEvening(ctx, x, evY);
+    var by = Math.max(evY + 4, LH - 66);
     if (host) {
       var others = R.players.filter(function (q: any) { return q.pid !== R.host && q.on; });
       var allReady = others.every(function (q: any) { return q.ready; });
@@ -2514,6 +2667,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var hits: any[] = [];
   var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
   var fieldLocked = false, landPause = false;
+  var resumeCd = 0, resumeAt = 0, abDenyT = 0, coinT0 = -1, coinSkip = false;
   var pressId: any = null;
   var confirmId: any = null, confirmAt = 0;
   var campCard = -1;
@@ -2616,9 +2770,31 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.imageSmoothingEnabled = false;
     (ctx as any).webkitImageSmoothingEnabled = false;
     syncBackdrop(world ? world.map : save.bg);
-    if (fieldLocked && phase === "play" && !paused && phoneLand) {
-      paused = true; landPause = true; acc = 0; uiAcc = 0; lastT = -1;
+    if (fieldLocked && phase === "play" && phoneLand) {
+      if (!landPause || resumeCd > 0) { paused = true; landPause = true; resumeCd = 0; acc = 0; uiAcc = 0; lastT = -1; }
+    } else if (landPause && !phoneLand) {
+      startResumeCountdown();
     }
+  }
+  function startResumeCountdown() {
+    landPause = false;
+    paused = true;
+    resumeCd = 3;
+    resumeAt = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    acc = 0; uiAcc = 0; lastT = -1;
+  }
+  function showFirstTimeToast(id: string, text?: string) {
+    if (!save.seen) save.seen = {};
+    if (save.seen[id]) return;
+    save.seen[id] = 1;
+    writeSave(save);
+    if (world) toast(world, text || FIRST_TOAST[id] || id);
+  }
+  function requestAbility() {
+    audioUnlock();
+    if (!world || !world.players || !world.players[0] || !world.players[0].alive) return;
+    if (abReady(world.players[0])) { abTap = true; return; }
+    if (abDenyT <= 0) { abDenyT = 18; hopSfx("deny"); }
   }
   function toLogic(cx: number, cy: number) {
     var r = canvas.getBoundingClientRect();
@@ -2682,7 +2858,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (confirmId === id && Date.now() < confirmAt) { confirmId = null; apply(); writeSave(save); }
     else { confirmId = id; confirmAt = Date.now() + 2000; }
   }
-  function abBar() { return { x: colX(), y: LH - 30, w: 152, h: 26 }; }
+  function abBar() {
+    var coinW = 28;
+    try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19; } catch (_e) {}
+    return { x: 4 + coinW, y: 5, w: 16, h: 16 };
+  }
   function startSquad(seed?: number) {
     /* Bot-only run. Online rooms will call a net start later; keep this off the lobby draw path. */
     mode = "squad";
@@ -2706,6 +2886,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     acc = 0; uiAcc = 0; lastT = -1;
     held.left = held.right = false;
     pointers = {}; abTap = false; pressId = null;
+    resumeCd = 0; landPause = false; abDenyT = 0; coinT0 = -1; coinSkip = false;
     try { canvas.focus(); } catch (_e) {}
   }
   function payout() {
@@ -2716,11 +2897,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.earnH = Math.floor(mtr / 25);
     world.earnC = world.runCoins + (world.bonusCoins || 0);
     world.earned = world.earnH + world.earnC;
+    world.coinFrom = save.coins;
     var mi = mapIdx(world.map);
     world.prevMapBest = mapBest(mi);
     world.newBest = mtr > (world.prevMapBest || 0);
     if (mtr > world.prevMapBest) save.mapBest[world.map] = mtr;
     save.coins += world.earned;
+    coinT0 = -1; coinSkip = false;
     if (mtr > save.best) save.best = mtr;
     world.best = save.best;
     writeSave(save);
@@ -2761,11 +2944,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     if (id === "set") { showSet = !showSet; return; }
     if (id === "tilt") { toggleTilt(); return; }
+    if (id === "sfx") { sfxOn = !sfxOn; save.sfx = sfxOn; writeSave(save); if (sfxOn) { audioUnlock(); hopSfx("tick"); } return; }
+    if (id === "vib") { vibOn = !vibOn; save.vib = vibOn; writeSave(save); if (vibOn) hopVib(18); return; }
     if (id === "menu") { goMenu(); return; }
     if (id === "back") { showSet = false; campCard = -1; phase = "menu"; return; }
     if (id === "go") { startSquad(); return; }
     if (id === "pause") { if (phase === "play" && !paused) { paused = true; acc = 0; uiAcc = 0; lastT = -1; } return; }
-    if (id === "resume") { paused = false; landPause = false; acc = 0; uiAcc = 0; lastT = -1; return; }
+    if (id === "resume") { startResumeCountdown(); return; }
     if (id === "font") { phase = "font"; return; }
     if (id === "rematch") {
       if (mode === "squad") { room.round = (room.round || 0) + 1; startSquad((((Date.now() + room.round * 40503) >>> 0))); }
@@ -2821,25 +3006,27 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     tiltAx = clamp(e.gamma / 22, -1, 1);
   }
   function recomputeHold() {
-    var l = false, r = false, bar = abBar();
+    var l = false, r = false;
     if (phase === "play" && !paused) for (var k in pointers) {
       var q = pointers[k];
-      if (q.y >= bar.y) continue;
+      if (q.y < 22 && q.x > LW - 24) continue;
       if (q.x < LW / 2) l = true; else r = true;
     }
     held.left = l; held.right = r;
   }
   function onPtrDown(e: any) {
     e.preventDefault();
+    audioUnlock();
     try { canvas.focus(); } catch (_e) {}
     try { if (e.pointerId != null) (e.currentTarget || ptrRoot).setPointerCapture(e.pointerId); } catch (_e) {}
     var loc = toLogic(e.clientX, e.clientY);
     var id = hitAt(loc.x, loc.y);
     pressId = id;
+    if (phase === "results") coinSkip = true;
     if (phase !== "play") return;
     if (paused) return;
     if (id === "ab" || id === "pause") return;
-    pointers[e.pointerId != null ? e.pointerId : 1] = { x: loc.x, y: loc.y, sx: loc.x, sy: loc.y };
+    pointers[e.pointerId != null ? e.pointerId : 1] = { x: loc.x, y: loc.y, sx: loc.x, sy: loc.y, sxCss: e.clientX, syCss: e.clientY, t0: e.timeStamp || Date.now(), swiped: false };
     recomputeHold();
   }
   function onPtrMove(e: any) {
@@ -2849,7 +3036,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var p = pointers[pid];
     if (!p) return;
     p.x = loc.x; p.y = loc.y;
-    if (p.sy - loc.y >= 18) { abTap = true; delete pointers[pid]; }
+    if (!p.swiped) {
+      var dy = (p.syCss != null ? p.syCss : e.clientY) - e.clientY;
+      var dx = e.clientX - (p.sxCss != null ? p.sxCss : e.clientX);
+      var dt = (e.timeStamp || Date.now()) - (p.t0 || 0);
+      if (dt <= 300 && dy >= 30 && dy > 1.5 * Math.abs(dx)) {
+        p.swiped = true;
+        requestAbility();
+      }
+    }
     recomputeHold();
   }
   function onPtrUp(e: any) {
@@ -2858,7 +3053,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (phase === "play") {
       if (paused) { if (id === "resume" || id === "menu") activate(id); }
       else if (id === "pause" && pressId === "pause") activate("pause");
-      else if (id === "ab" && pressId === "ab") abTap = true;
+      else if (id === "ab" && pressId === "ab") requestAbility();
       delete pointers[e.pointerId != null ? e.pointerId : 1];
       recomputeHold();
     } else if (id && id === pressId) activate(id);
@@ -2866,11 +3061,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function onKey(e: any, down: boolean) {
     var k = e.key;
+    if (down) audioUnlock();
     if (k === "ArrowLeft" || k === "a" || k === "A" || k === "ф" || k === "Ф") { held.kl = down; e.preventDefault(); return; }
     if (k === "ArrowRight" || k === "d" || k === "D" || k === "в" || k === "В") { held.kr = down; e.preventDefault(); return; }
     if (!down) return;
-    if (phase === "play" && paused && (k === " " || k === "Enter" || k === "Escape")) { paused = false; e.preventDefault(); return; }
-    if (phase === "play" && (k === " " || k === "ArrowUp" || k === "w" || k === "W" || k === "ц" || k === "Ц" || k === "Shift")) { abTap = true; e.preventDefault(); return; }
+    if (phase === "play" && paused && (k === " " || k === "Enter" || k === "Escape")) {
+      if (landPause || resumeCd <= 0) startResumeCountdown();
+      e.preventDefault(); return;
+    }
+    if (phase === "play" && (k === " " || k === "ArrowUp" || k === "w" || k === "W" || k === "ц" || k === "Ц" || k === "Shift")) { requestAbility(); e.preventDefault(); return; }
     if (k === "Escape" && phase === "play") { paused = true; acc = 0; uiAcc = 0; lastT = -1; return; }
     if (k === "Escape" && phase !== "menu" && phase !== "play") activate(phase === "results" ? "menu" : "back");
     if (phase === "shop" && (k === "ArrowLeft" || k === "ArrowRight")) activate(k === "ArrowLeft" ? "hero:prev" : "hero:next");
@@ -2965,11 +3164,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
     }
     if (showSet) {
-      box(ctx, x, 70, 152, 86, C.navy, C.cream);
+      box(ctx, x, 70, 152, 128, C.navy, C.cream);
       drawText(ctx, "НАСТРОЙКИ", LW / 2, 76, C.gold, 1, "center");
       btn("tilt", x + 8, 94, 136, 22, tiltOn ? C.mint : "#1a1430", "НАКЛОН: " + (tiltOn ? "ВКЛ" : "ВЫКЛ"), tiltOn ? INK : C.cream);
-      drawText(ctx, "ЗВУК И ВИБРО - СКОРО", LW / 2, 124, "#9a8ab8", 1, "center");
-      btn("set", x + 26, 136, 100, 16, C.navy, "ЗАКРЫТЬ");
+      btn("sfx", x + 8, 120, 136, 22, sfxOn ? C.mint : "#1a1430", "ЗВУК: " + (sfxOn ? "ВКЛ" : "ВЫКЛ"), sfxOn ? INK : C.cream);
+      btn("vib", x + 8, 146, 136, 22, vibOn ? C.mint : "#1a1430", "ВИБРО: " + (vibOn ? "ВКЛ" : "ВЫКЛ"), vibOn ? INK : C.cream);
+      btn("set", x + 26, 174, 100, 16, C.navy, "ЗАКРЫТЬ");
     }
     drawFlash();
   }
@@ -3155,6 +3355,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
     if (w.goalM) dashLine(-w.goalM * PX_PER_M - cam, "ЦЕЛЬ " + w.goalM + " М", C.gold, false);
     if (w.recM) dashLine(-w.recM * PX_PER_M - cam, "РЕКОРД " + w.recM, C.cream, true);
+    if (w.goalM) { var gy = -w.goalM * PX_PER_M - cam; if (gy > 8 && gy < LH - 8) showFirstTimeToast("goal"); }
+    if (w.recM) { var ry = -w.recM * PX_PER_M - cam; if (ry > 8 && ry < LH - 8) showFirstTimeToast("record"); }
+    for (i = 0; i < w.platforms.length; i++) {
+      var brk = w.platforms[i];
+      if (brk.type === "break" && !brk.broken) {
+        var by2 = brk.y - cam;
+        if (by2 > 8 && by2 < LH - 8) { showFirstTimeToast("break"); break; }
+      }
+    }
     for (i = 0; i < w.coins.length; i++) {
       var cn = w.coins[i];
       if (!cn.taken && cn.y - cam > -8 && cn.y - cam < LH + 4) drawCoin(ctx, cn.x, Math.round(cn.y - cam), w.tick + i * 3);
@@ -3209,13 +3418,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     coinsLabel(7, 9, w.runCoins);
     var wantPause = wantTouchPause();
     if (w.mode === "squad") {
-      var place = 1;
-      for (i = 0; i < w.players.length; i++) if (w.players[i] !== me && metersOf(w.players[i]) > metersOf(me)) place++;
+      var place = 1, lead = me, leadM = metersOf(me);
+      for (i = 0; i < w.players.length; i++) {
+        var om = metersOf(w.players[i]);
+        if (w.players[i] !== me && om > metersOf(me)) place++;
+        if (om > leadM) { lead = w.players[i]; leadM = om; }
+      }
       var pl = place + "/" + w.players.length;
       var pw2 = textWidth(pl, 1) + 8;
       var pr = wantPause ? LW - 22 : LW - 4;
       box(ctx, pr - pw2, 6, pw2, 13, C.navy, C.cream);
       drawText(ctx, pl, pr - 4, 9, C.cream, 1, "right");
+      var leadLab = lead.id === 0 ? "ТЫ ВПЕРЕДИ" : ((lead.name || "БОТ").slice(0, 8) + " " + leadM + " М");
+      var lw2 = textWidth(leadLab, 1) + 8;
+      box(ctx, pr - lw2, 20, lw2, 11, C.navy, lead.id === 0 ? C.gold : C.cream);
+      drawText(ctx, leadLab, pr - 4, 22, lead.id === 0 ? C.gold : C.cream, 1, "right");
     }
     if (wantPause) {
       addHit("pause", LW - 20, 4, 16, 16);
@@ -3235,17 +3452,40 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (w.tick < 170) {
       ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
       var hx2 = colX();
+      var hint = !isPhone ? "← → ХОД · ↑ СПОСОБНОСТЬ" : "ТАП ← → · СВАЙП ↑"; /* TODO_DESIGN */
       box(ctx, hx2, LH - 46, 152, 12, C.navy, C.cream);
-      drawText(ctx, (typeof window !== "undefined" && window.innerWidth >= 540) ? "← → ХОД · ↑ СПОСОБНОСТЬ" : "ТАПАЙ СЛЕВА И СПРАВА", LW / 2, LH - 44, C.cream, 1, "center");
+      drawText(ctx, hint, LW / 2, LH - 44, C.cream, 1, "center");
       ctx.globalAlpha = 1;
+    }
+    if ((w.fallWarn || w.liftWarn) && !paused) {
+      if ((ui >> 2) % 2) {
+        ctx.globalAlpha = w.fallWarn ? 0.9 : 0.6;
+        rect(ctx, 0, LH - 4, LW, 4, C.red);
+        var cxw = Math.round(LW / 2);
+        rect(ctx, cxw, LH - 12, 2, 2, C.cream);
+        rect(ctx, cxw - 2, LH - 10, 6, 2, C.cream);
+        rect(ctx, cxw - 4, LH - 8, 10, 2, C.cream);
+        ctx.globalAlpha = 1;
+      }
+      if (w.liftWarn) {
+        var liftLab = "ЛЕЗЬ ВВЕРХ!";
+        var ltw = textWidth(liftLab, 1) + 10;
+        box(ctx, Math.round(LW / 2 - ltw / 2), LH - 24, ltw, 13, C.navy, C.gold);
+        drawText(ctx, liftLab, LW / 2, LH - 21, C.gold, 1, "center");
+      }
     }
     if (paused) {
       dimView(ctx, "rgba(8,6,20,0.55)");
       box(ctx, colX(), LH / 2 - 48, 152, 100, C.navy, C.gold);
       drawText(ctx, "ПАУЗА", LW / 2, LH / 2 - 38, C.gold, 2, "center");
-      if (landPause) drawText(ctx, "ПОВЕРНИ ТЕЛЕФОН", LW / 2, LH / 2 - 16, C.cream, 1, "center");
-      btn("resume", colX() + 10, LH / 2 - (landPause ? 4 : 8), 132, 22, C.mint, "ПРОДОЛЖИТЬ", INK);
-      btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "МЕНЮ");
+      if (resumeCd > 0) {
+        drawText(ctx, String(resumeCd), LW / 2, LH / 2 - 14, C.gold, 3, "center");
+        btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "МЕНЮ");
+      } else {
+        if (landPause) drawText(ctx, "ПОВЕРНИ ТЕЛЕФОН", LW / 2, LH / 2 - 16, C.cream, 1, "center");
+        btn("resume", colX() + 10, LH / 2 - (landPause ? 4 : 8), 132, 22, C.mint, "ПРОДОЛЖИТЬ", INK);
+        btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "МЕНЮ");
+      }
     }
   }
   function drawFxBack(p: any, sy: number, cam: number) {
@@ -3349,26 +3589,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     addHit("ab", b.x, b.y, b.w, b.h);
     var ready = me.alive && me.abCharge >= H.need, active = !!(me.wall);
     var f = clamp(me.abCharge / H.need, 0, 1);
-    box(ctx, b.x, b.y, b.w, b.h, "#12101c", ready ? C.gold : C.cream);
-    var rad = 9, cx = b.x + 14, cy = b.y + 13;
-    var rim = ready ? ((ui >> 3) % 2 ? C.gold : C.cream) : active ? "#d82a2a" : "#3a4a7a";
-    fillDisc(cx, cy, rad + 1, rim);
-    fillDisc(cx, cy, rad, "#1a1430");
-    strokeArc(cx, cy, rad, ready ? C.gold : (active ? "#ff5a62" : "#5ec8ff"), ready ? 1 : f);
-    ctx.globalAlpha = ready || active ? 1 : 0.55;
+    var deny = abDenyT > 0;
+    var cx = b.x + 8, cy = b.y + 8;
+    var rim = (deny && (ui % 4 < 2)) ? C.red : ready ? ((ui >> 3) % 2 ? C.gold : C.cream) : active ? "#d82a2a" : "#3a4a7a";
+    fillDisc(cx, cy, 8, rim);
+    fillDisc(cx, cy, 6, "#1a1430");
+    strokeArc(cx, cy, 6, ready ? C.gold : (deny ? C.red : "#5ec8ff"), ready ? 1 : f);
+    ctx.globalAlpha = ready || active || deny ? 1 : 0.55;
     drawAbIcon(H.ab, cx - 6, cy - 6);
     ctx.globalAlpha = 1;
-    var lab = me.wall ? "ПРЫЖОК" : H.abName;
-    var ic = H.charge, chg = ic === "time" ? Math.round(f * 100) + "%" : Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-    var tcol = ready ? C.gold : C.cream, ty = b.y + 9;
-    drawText(ctx, lab, b.x + 28, ty, tcol, 1, "left");
-    var rw = textWidth(chg, 1), rx = b.x + b.w - 6;
-    var ix = rx - rw - 9;
-    if (ic === "time") icoClock(ix, ty, tcol);
-    else if (ic === "coins") drawCoin(ctx, ix, ty + 1, ui);
-    else if (ic === "height") drawText(ctx, "↑", ix, ty, C.mint, 1, "left");
-    else icoSkull(ix, ty, tcol);
-    drawText(ctx, chg, rx, ty, tcol, 1, "right");
+    if (deny && !ready) {
+      var left = H.charge === "time" ? String(Math.max(1, Math.ceil((H.need - me.abCharge) / 50))) : "!";
+      drawText(ctx, left, cx, b.y + 16, C.red, 1, "center");
+    }
   }
   function whyText(p: any) {
     var m = metersOf(p), w = p.why || "";
@@ -3376,7 +3609,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (w === "shot") return "СБИЛ ВЫСТРЕЛ НА " + m + " М";
     if (w === "hole") return "ЗАТЯНУЛА ДЫРА НА " + m + " М";
     if (w.indexOf("mob:") === 0) {
-      var mo = MOBS[w.slice(4)] || {};
+      var mk = w.slice(4);
+      if (mk === "blob") return "ТЕБЯ СБИЛ СЛИЗЕНЬ НА " + m + " М";
+      var mo = MOBS[mk] || {};
       var nm = mo.name || "МОБ";
       return ((mo.g === "f") ? "СБИЛА " : "СБИЛ ") + nm + " НА " + m + " М";
     }
@@ -3425,12 +3660,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     var rec = save.mapBest[world.map] || world.best || 0;
-    box(ctx, x, y, 152, 44, C.navy, C.gold);
+    box(ctx, x, y, 152, 56, C.navy, C.gold);
     drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 4, C.cream, 1, "left"); coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
     drawText(ctx, "СОБРАНО", x + 6, y + 15, C.cream, 1, "left"); coinsLabel(x + 146, y + 15, world.earnC || 0, "right");
     rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
-    drawText(ctx, "ИТОГО", x + 6, y + 29, C.gold, 1, "left"); coinsLabel(x + 146, y + 29, world.earned || 0, "right");
-    y += 48;
+    var dur = 700, nowA = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    if (coinT0 < 0) coinT0 = nowA;
+    var k = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
+    k = 1 - (1 - k) * (1 - k);
+    var shownEarn = Math.round((world.earned || 0) * k);
+    var shownTot = (world.coinFrom != null ? world.coinFrom : (save.coins - (world.earned || 0))) + shownEarn;
+    if (k < 1 && (ui % 4 === 0)) hopSfx("tick");
+    drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
+    y += 60;
+    if (world.net && typeof NET !== "undefined" && NET.drawEvening) y = NET.drawEvening(ctx, x, y);
     if (world.newBest) { box(ctx, x, y, 152, 13, C.navy, C.gold); drawText(ctx, "НОВЫЙ РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 3, C.gold, 1, "center"); y += 16; }
     else { drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 2, C.cream, 1, "center"); y += 14; }
     var nh = nextHeroNeed();
@@ -3475,8 +3718,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     while (uiAcc + 1e-9 >= UI_STEP && uSteps < 5) {
       ui++;
       if (flashT > 0) flashT--;
+      if (abDenyT > 0) abDenyT--;
       uiAcc -= UI_STEP;
       uSteps++;
+    }
+    if (resumeCd > 0 && paused) {
+      if (now - resumeAt >= 1000) {
+        resumeCd--;
+        resumeAt = now;
+        if (resumeCd <= 0) { paused = false; landPause = false; acc = 0; uiAcc = 0; lastT = now; }
+      }
     }
     syncBackdrop(world ? world.map : save.bg);
     if (phase === "play" && world && world.phase === "play" && !paused) {
@@ -3533,7 +3784,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var ptrRoot: any = wrap || canvas;
   resize();
   window.addEventListener("resize", resize);
-  window.addEventListener("orientationchange", resize);
+  var onOrientationChange = function () { resize(); setTimeout(resize, 300); setTimeout(resize, 800); };
+  window.addEventListener("orientationchange", onOrientationChange);
   if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
   var onCtx = function (e: any) { e.preventDefault(); };
   var onKD = function (e: any) { onKey(e, true); };
@@ -3561,7 +3813,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       running = false;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
-      window.removeEventListener("orientationchange", resize);
+      window.removeEventListener("orientationchange", onOrientationChange);
       if (window.visualViewport) window.visualViewport.removeEventListener("resize", resize);
       ptrRoot.removeEventListener("pointerdown", onPtrDown);
       ptrRoot.removeEventListener("pointermove", onPtrMove);
@@ -3583,7 +3835,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },

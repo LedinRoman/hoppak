@@ -273,7 +273,7 @@ function genRow(w: any) {
   if (minG > maxG) minG = maxG;
   var gap = randInt(r, minG, maxG);
 
-  var pMon = m < 120 ? 0 : m < 400 ? 0.065 : lerp(0.08, 0.28, d);
+  var pMon = m < 180 ? 0 : m < 400 ? 0.045 : lerp(0.07, 0.26, d);
   var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
   var bonus = false;
   if (!mob && m >= w.nextBonusM && gap >= 26) {
@@ -313,7 +313,7 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     face: 1, squash: 0, iceT: 0, gravT: 0, camY: -LH + 70, place: 0, why: "",
     bias: [0, -14, 14, 6][i], react: [1, 3, 4, 5][i], tgt: null, botDir: 0,
     abCharge: CHARS[kind].need, abFx: 0, hookT: 0, hookN: 0, hx0: 0, hy0: 0, htx: 0, hty: 0, hookPl: null, hookCoin: null,
-    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0
+    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, stallT: 0, stallH: 0
   };
 }
 function createWorld(seed: number, mode: string, humanKind: number, humanLook: any, mapId?: string) {
@@ -321,7 +321,7 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     seed: seed >>> 0, rng: mulberry32(seed >>> 0), mode: mode, map: mapInfo(mapId || "city").id,
     platforms: [], monsters: [], bullets: [], coins: [], items: [], particles: [],
     nextY: -24, rowN: 1, lastKind: "", lastMobRow: {}, cameraY: -LH + 70, tick: 0, shake: 0,
-    phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0
+    phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
   w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
@@ -422,7 +422,7 @@ function killPlayer(w: any, p: any, why: string) {
   p.why = why;
   p.grabT = 0; p.wallT = 0; p.wall = 0;
   spawnParts(w, p.x + 6, p.y + 8, 14, p.look.hood, 2.8, 0.1);
-  if (p.id === 0) w.shake = 8;
+  if (p.id === 0) { w.shake = 8; hopSfx("death"); }
 }
 function invuln(p: any) { return p.invT > 0 || p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0; }
 function useShield(w: any, p: any) {
@@ -467,6 +467,7 @@ function landOn(w: any, p: any, pl: any) {
   p.y = pl.y - PH;
   p.baseY = pl.y;
   p.squash = 7;
+  if (p.id === 0) hopSfx("jump");
   var spr = pl.spring && overlapsX(p.x + 2, PW - 4, pl.x + pl.w / 2 - 5, 10);
   if (spr) {
     p.vy = SPRING_V;
@@ -531,6 +532,8 @@ function killMob(w: any, mo: any, p: any, noBounce?: boolean) {
 }
 function mobBox(mo: any) {
   if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
+  /* slimes: slightly tighter box so a graze at the edge is not a hit */
+  if (mo.kind === "blob" || mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
   return [mo.x, mo.y, mo.w, mo.h];
 }
 /* motion envelope of a mob (for tests: must not cross platforms) */
@@ -627,7 +630,7 @@ function pickItem(w: any, p: any, it: any) {
   else if (B.id === "magnet") p.magnetT = Math.max(p.magnetT, B.t);
   else if (B.id === "rocket") { p.rocketT = B.t; p.grabT = 0; p.poundT = 0; p.invT = Math.max(p.invT, B.t + 40); }
   toast(w, B.id === "bigcoin" ? "КЛАД +" + BIGCOIN : B.name + "!");
-  if (p.id === 0) w.shake = 3;
+  if (p.id === 0) { w.shake = 3; hopSfx("bonus"); }
 }
 
 function tickWorld(w: any, inputs: any) {
@@ -658,6 +661,7 @@ function tickWorld(w: any, inputs: any) {
     var mo = w.monsters[i];
     mo.t += sf;
     if (mo.fx > 0) mo.fx--;
+    if (mo.warnT > 0) mo.warnT--; else mo.warn = 0;
     if (mo.cool > 0) mo.cool -= sf;
     if (!mo.alive) { if (mo.squish > 0) mo.squish--; continue; }
     if (mobFrozen) { mo.t -= sf; continue; }
@@ -871,6 +875,7 @@ function tickWorld(w: any, inputs: any) {
       for (k = 0; k < w.platforms.length; k++) {
         var q = w.platforms[k];
         if (q.broken) continue;
+        if (q.y > p.camY + LH) continue;
         if (pf <= q.y + 3 && feet >= q.y && overlapsX(p.x + 1, PW - 2, q.x, q.w)) {
           if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) { q.broken = true; q.breakT = 14; spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2); if (p.id === 0) w.shake = 3; continue; }
           landOn(w, p, q); break;
@@ -880,6 +885,13 @@ function tickWorld(w: any, inputs: any) {
     for (k = 0; k < w.monsters.length; k++) {
       var m2 = w.monsters[k];
       if (!m2.alive || m2.b === "pull" || m2.b === "wind") continue;
+      if ((m2.kind === "blob" || m2.kind === "magma") && p.id === 0) {
+        var sdx = wrapDx((m2.x + m2.w / 2) - (p.x + PW / 2));
+        var sdy = (m2.y + m2.h / 2) - (p.y + PH / 2);
+        var threat = Math.abs(sdx) < 36 && sdy > -28 && sdy < 40;
+        if (threat && !m2.warn) { m2.warn = 1; hopSfx("warn"); hopVib(8); }
+        if (threat) m2.warnT = 18;
+      }
       var bb = mobBox(m2);
       if (overlapsX(p.x + 2, PW - 4, bb[0] + 1, bb[2] - 2) && p.y + 4 < bb[1] + bb[3] && p.y + PH > bb[1]) {
         if (p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0) { killMob(w, m2, p, true); continue; }
@@ -917,6 +929,7 @@ function tickWorld(w: any, inputs: any) {
           w.runCoins += 1;
           addCharge(p, "coins", 1);
           spawnParts(w, cn.x + 3, cn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
+          hopSfx("coin");
         }
       }
       for (k = 0; k < w.items.length; k++) {
@@ -934,20 +947,35 @@ function tickWorld(w: any, inputs: any) {
     if (!cp.alive) continue;
     var target = cp.y - LH * 0.42;
     if (target < cp.camY) cp.camY = target;
+    /* Pressure to climb: after ~7s without a new max height, the bottom edge creeps up.
+       A climber resets stallT every jump. After ~15s idle the floor catches a camper. */
+    if (!cp.remote && w.tick > 80) {
+      if (cp.maxH > (cp.stallH || 0) + 0.5) { cp.stallH = cp.maxH; cp.stallT = 0; }
+      else cp.stallT = (cp.stallT || 0) + 1;
+      if (cp.stallT > 350) cp.camY -= 0.28;
+    }
     if (cp.camY < minCam) minCam = cp.camY;
   }
   w.cameraY = w.players[0].camY;
   if (minCam < 1e9) generateUntil(w, minCam - 80);
+  w.fallWarn = 0; w.liftWarn = 0;
   for (i = 0; i < w.players.length; i++) {
     var ep = w.players[i];
-    /* BUG-14: don't kill on the same tick as a bounce (vy < 0 or squash from landOn),
-       and give a 4 px margin past the camera. If a landable platform is still under
-       the hero (e.g. Knight pound at the rim), let them reach it. */
-    if (ep.alive && !ep.remote && w.tick > 80 && ep.vy >= 0 && ep.squash === 0 && ep.y > ep.camY + LH + 4 && !hasLandablePlat(w, ep)) {
+    if (!ep.alive || ep.remote) continue;
+    if (ep.stallT > 350) w.liftWarn = 1;
+    /* Visible/audible warning just before falling off the bottom. */
+    if (ep.vy >= 0 && ep.y + PH > ep.camY + LH - 28 && ep.y <= ep.camY + LH) {
+      w.fallWarn = 1;
+      if (ep.id === 0 && (w.warnSfxT || 0) <= 0) { hopSfx("warn"); w.warnSfxT = 22; }
+    }
+    /* Below the bottom edge is always death. Platforms below the edge no longer land.
+       BUG-14: if already bouncing (vy < 0) at the rim, do not kill. */
+    if (w.tick > 80 && ep.vy >= 0 && ep.y > ep.camY + LH) {
       if (ep.domeT > 0 && ep.domeSave) { ep.domeSave = false; ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; ep.invT = 40; spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2); if (ep.id === 0) toast(w, "КОСМОЩИТ СПАС!"); }
       else killPlayer(w, ep, "fall");
     }
   }
+  if (w.warnSfxT > 0) w.warnSfxT--;
   for (i = w.particles.length - 1; i >= 0; i--) {
     var pt = w.particles[i];
     pt.x += pt.vx; pt.y += pt.vy; pt.vy += pt.g; pt.vx *= 0.97;

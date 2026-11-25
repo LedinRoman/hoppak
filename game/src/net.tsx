@@ -184,6 +184,7 @@ var NET: any = (function () {
     } else if (ev === "room") {
       var wasRecon = N.st === "reconnecting";
       N.room = d; N.you = d.you; N.token = d.token; store("hoppak.net.token", d.token); N.st = "online";
+      sessionFor(d.code);
       if (wasRecon) { var f = N.onOpen; N.onOpen = null; if (f) f(true); }
       if (N.api && N.api.phase() === "net" && N.sub !== "room") N.sub = "room";
     } else if (ev === "start") {
@@ -207,6 +208,7 @@ var NET: any = (function () {
       N.events.push(d);
     } else if (ev === "results") {
       N.results = d;
+      noteResults(d);
     } else if (ev === "err") {
       N.err = d.msg || d.code;
       if (d.code === "NO_SESSION") giveUp("КОМНАТА ЗАКРЫТА");
@@ -220,7 +222,7 @@ var NET: any = (function () {
   N.join = function (code: string) { N.connect(function (ok: boolean) { if (ok) { var m: any = me(); m.code = code; send("join", m); } }); };
   N.leave = function () {
     if (N.room) send("leave", {});
-    N.room = null; N.token = ""; N.startInfo = null; N.results = null; store("hoppak.net.token", null);
+    N.room = null; N.token = ""; N.startInfo = null; N.results = null; N.session = emptySession(""); store("hoppak.net.token", null);
     if (N.reconTimer) { clearTimeout(N.reconTimer); N.reconTimer = 0; }
     if (N.st === "reconnecting") N.st = N.ws ? "online" : "off";
   };
@@ -229,6 +231,51 @@ var NET: any = (function () {
   N.mePlayer = function () { if (!N.room) return null; for (var i = 0; i < N.room.players.length; i++) if (N.room.players[i].pid === N.you) return N.room.players[i]; return null; };
   /** Online rooms pin the logical width: the map generator depends on LW. */
   N.fixedLW = function () { return N.room ? N.room.lw : 0; };
+  /* Evening score is client-side from `results` broadcasts (same session, same room).
+     Server NET_LW is 180; width parity with solo (160) needs a one-line server change via Devops. */
+  function emptySession(code: string) { return { code: code || "", rounds: [], wins: {}, best: {}, names: {} }; }
+  N.session = emptySession("");
+  function sessionFor(code: string) {
+    if (!N.session || N.session.code !== (code || "")) N.session = emptySession(code);
+  }
+  function noteResults(d: any) {
+    sessionFor(N.room ? N.room.code : (N.session && N.session.code) || "");
+    if (!d || !d.ranking) return;
+    for (var i = 0; i < N.session.rounds.length; i++) if (N.session.rounds[i].round === d.round) return;
+    N.session.rounds.push({ round: d.round, ranking: d.ranking });
+    for (var j = 0; j < d.ranking.length; j++) {
+      var r = d.ranking[j];
+      if (r.name) N.session.names[r.pid] = r.name;
+      if (r.place === 1) N.session.wins[r.pid] = (N.session.wins[r.pid] || 0) + 1;
+      var hm = r.m || 0;
+      if (hm > (N.session.best[r.pid] || 0)) N.session.best[r.pid] = hm;
+    }
+  }
+  N.drawEvening = function (ctx: any, x: number, y: number) {
+    var S = N.session;
+    if (!S || !S.rounds || !S.rounds.length) return y;
+    var pids: any[] = [];
+    for (var k in S.names) pids.push(k);
+    if (!pids.length) {
+      for (var k2 in S.wins) if (pids.indexOf(k2) < 0) pids.push(k2);
+      for (var k3 in S.best) if (pids.indexOf(k3) < 0) pids.push(k3);
+    }
+    pids.sort(function (a: any, b: any) {
+      var wa = S.wins[a] || 0, wb = S.wins[b] || 0;
+      if (wb !== wa) return wb - wa;
+      return (S.best[b] || 0) - (S.best[a] || 0);
+    });
+    var h = 13 + pids.length * 11;
+    box(ctx, x, y, 152, h, C.navy, C.gold);
+    drawText(ctx, "СЧЁТ ВЕЧЕРА · " + S.rounds.length + " РАУНД", LW / 2, y + 3, C.gold, 1, "center");
+    for (var i2 = 0; i2 < pids.length; i2++) {
+      var pid = pids[i2], nm = String(S.names[pid] || "ИГРОК").slice(0, 8);
+      var lineY = y + 13 + i2 * 11;
+      drawText(ctx, nm, x + 6, lineY, C.cream, 1, "left");
+      drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, C.cream, 1, "right");
+    }
+    return y + h + 6;
+  };
 
   /* ---------- world integration ---------- */
   function lookOf(k: number) { return makeLook(k, "base", "none"); }
@@ -434,7 +481,9 @@ var NET: any = (function () {
     box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
     drawText(ctx, "КАРТА: " + mapInfo(R.map).name, LW / 2, my + 6, C.gold, 1, "center");
     api.btn("net:hero", x, my + 22, 152, 18, "#1a1430", "ГЕРОЙ: " + CHARS[api.save().char].name.toUpperCase() + " ▶", C.cream, 1, C.gold);
-    var by = Math.max(my + 48, LH - 66);
+    var evY = my + 44;
+    if (N.session && N.session.rounds && N.session.rounds.length) evY = N.drawEvening(ctx, x, evY);
+    var by = Math.max(evY + 4, LH - 66);
     if (host) {
       var others = R.players.filter(function (q: any) { return q.pid !== R.host && q.on; });
       var allReady = others.every(function (q: any) { return q.ready; });

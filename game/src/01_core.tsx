@@ -247,7 +247,7 @@ var BIGCOIN = 25;
 /* Campaign maps: open the next one by reaching `goal` m here AND paying its price.
    mobs: [kind, from metres] */
 var MAPS: any[] = [
-  { id: "city", name: "ГОРОД", price: 0, goal: 500, special: "", mobs: [["blob", 120], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
+  { id: "city", name: "ГОРОД", price: 0, goal: 500, special: "", mobs: [["blob", 180], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
   { id: "jungle", name: "ДЖУНГЛИ", price: 80, goal: 700, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
   { id: "ice", name: "ЛЕДНИК", price: 100, goal: 900, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
   { id: "lava", name: "ВУЛКАН", price: 120, goal: 1100, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
@@ -256,7 +256,7 @@ var MAPS: any[] = [
 ];
 /* mob kinds. b = behaviour; plat = stands on a platform; gap = min vertical gap (px) it needs */
 var MOBS: any = {
-  blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.22, name: "СЛИЗЕНЬ", g: "m" },
+  blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.16, name: "СЛИЗЕНЬ", g: "m" },
   magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, name: "ЛАВОСЛИЗЬ", g: "f" },
   penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, name: "ПИНГВИН", g: "m" },
   crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, name: "КРАБ", g: "m" },
@@ -369,9 +369,63 @@ function loadSave() {
   if (mapInfo(s.bg).id !== s.bg) s.bg = "city";
   if (typeof s.best !== "number") s.best = parseInt(storageGet("hoppak_best") || "0", 10) || 0;
   if (typeof s.mapBest.city !== "number") s.mapBest.city = s.best;
+  if (s.sfx !== false) s.sfx = true; else s.sfx = false;
+  if (s.vib !== false) s.vib = true; else s.vib = false;
+  if (!s.seen || typeof s.seen !== "object") s.seen = {};
+  sfxOn = !!s.sfx; vibOn = !!s.vib;
   return s;
 }
 function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
+
+/* ---- audio / vibro (WebAudio, no files: Canvas CSP blocks data-URI) ---- */
+var audioCtx: any = null, sfxOn = true, vibOn = true, sfxMem: any = {};
+function audioUnlock() {
+  try {
+    var AC: any = (typeof window !== "undefined") && ((window as any).AudioContext || (window as any).webkitAudioContext);
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch (_e) {}
+}
+function hopVib(ms: any) {
+  if (!vibOn) return;
+  try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); } catch (_e) {}
+}
+function beep(freq: number, dur: number, vol: number, type: string, slide?: number) {
+  if (!sfxOn || !audioCtx) return;
+  try {
+    var t0 = audioCtx.currentTime, osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    osc.type = type || "square";
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slide) osc.frequency.linearRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  } catch (_e) {}
+}
+function hopSfx(kind: string) {
+  if (!sfxOn) return;
+  audioUnlock();
+  if (!audioCtx) return;
+  if (kind === "jump") { beep(200 + Math.random() * 36, 0.045, 0.045, "sine", 40); }
+  else if (kind === "coin") { beep(880, 0.04, 0.05, "square"); beep(1170, 0.06, 0.04, "square"); }
+  else if (kind === "bonus") { beep(520, 0.06, 0.06, "triangle", 200); beep(780, 0.1, 0.05, "triangle"); hopVib(18); }
+  else if (kind === "hit") { beep(140, 0.1, 0.08, "sawtooth", -80); hopVib(30); }
+  else if (kind === "death") { beep(220, 0.22, 0.08, "sawtooth", -160); hopVib([40, 40, 60]); }
+  else if (kind === "warn") { beep(160, 0.08, 0.05, "square", -20); }
+  else if (kind === "deny") { beep(110, 0.07, 0.05, "square"); hopVib(12); }
+  else if (kind === "tick") { beep(940, 0.02, 0.03, "square"); }
+}
+
+/* TODO_DESIGN: first-meet toast copy. Ids are stable; wording is a draft. */
+var FIRST_TOAST: any = {
+  break: "РАСПАДАЕТСЯ!",
+  goal: "ТВОЯ ЦЕЛЬ",
+  record: "ТВОЙ РЕКОРД"
+};
+
 
 function textWidth(s: string, sc: number) { return String(s).length * 6 * sc; }
 function drawText(ctx: Ctx, s: string, x: number, y: number, color: string, sc?: number, align?: string) {

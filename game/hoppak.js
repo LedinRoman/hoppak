@@ -1,4 +1,4 @@
-/* Хоппак v0.56 — generated from hoppak.page.tsx by build.sh, do not edit */
+/* Хоппак v0.57 — generated from hoppak.page.tsx by build.sh, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;
@@ -322,7 +322,7 @@
   ];
   var BIGCOIN = 25;
   var MAPS = [
-    { id: "city", name: "\u0413\u041E\u0420\u041E\u0414", price: 0, goal: 500, special: "", mobs: [["blob", 120], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
+    { id: "city", name: "\u0413\u041E\u0420\u041E\u0414", price: 0, goal: 500, special: "", mobs: [["blob", 180], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
     { id: "jungle", name: "\u0414\u0416\u0423\u041D\u0413\u041B\u0418", price: 80, goal: 700, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
     { id: "ice", name: "\u041B\u0415\u0414\u041D\u0418\u041A", price: 100, goal: 900, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
     { id: "lava", name: "\u0412\u0423\u041B\u041A\u0410\u041D", price: 120, goal: 1100, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
@@ -330,7 +330,7 @@
     { id: "space", name: "\u041A\u041E\u0421\u041C\u041E\u0421", price: 160, goal: 0, special: "grav", mobs: [["alien", 120], ["ufo", 400], ["comet", 800], ["hole", 1300]] }
   ];
   var MOBS = {
-    blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.22, name: "\u0421\u041B\u0418\u0417\u0415\u041D\u042C", g: "m" },
+    blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.16, name: "\u0421\u041B\u0418\u0417\u0415\u041D\u042C", g: "m" },
     magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, name: "\u041B\u0410\u0412\u041E\u0421\u041B\u0418\u0417\u042C", g: "f" },
     penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, name: "\u041F\u0418\u041D\u0413\u0412\u0418\u041D", g: "m" },
     crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, name: "\u041A\u0420\u0410\u0411", g: "m" },
@@ -503,11 +503,87 @@
     if (mapInfo(s.bg).id !== s.bg) s.bg = "city";
     if (typeof s.best !== "number") s.best = parseInt(storageGet("hoppak_best") || "0", 10) || 0;
     if (typeof s.mapBest.city !== "number") s.mapBest.city = s.best;
+    if (s.sfx !== false) s.sfx = true;
+    else s.sfx = false;
+    if (s.vib !== false) s.vib = true;
+    else s.vib = false;
+    if (!s.seen || typeof s.seen !== "object") s.seen = {};
+    sfxOn = !!s.sfx;
+    vibOn = !!s.vib;
     return s;
   }
   function writeSave(s) {
     storageSet("hoppak_save", JSON.stringify(s));
   }
+  var audioCtx = null;
+  var sfxOn = true;
+  var vibOn = true;
+  function audioUnlock() {
+    try {
+      var AC = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
+      if (!AC) return;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    } catch (_e) {
+    }
+  }
+  function hopVib(ms) {
+    if (!vibOn) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms);
+    } catch (_e) {
+    }
+  }
+  function beep(freq, dur, vol, type, slide) {
+    if (!sfxOn || !audioCtx) return;
+    try {
+      var t0 = audioCtx.currentTime, osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+      osc.type = type || "square";
+      osc.frequency.setValueAtTime(freq, t0);
+      if (slide) osc.frequency.linearRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
+      g.gain.setValueAtTime(1e-4, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + 8e-3);
+      g.gain.exponentialRampToValueAtTime(1e-4, t0 + dur);
+      osc.connect(g);
+      g.connect(audioCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.02);
+    } catch (_e) {
+    }
+  }
+  function hopSfx(kind) {
+    if (!sfxOn) return;
+    audioUnlock();
+    if (!audioCtx) return;
+    if (kind === "jump") {
+      beep(200 + Math.random() * 36, 0.045, 0.045, "sine", 40);
+    } else if (kind === "coin") {
+      beep(880, 0.04, 0.05, "square");
+      beep(1170, 0.06, 0.04, "square");
+    } else if (kind === "bonus") {
+      beep(520, 0.06, 0.06, "triangle", 200);
+      beep(780, 0.1, 0.05, "triangle");
+      hopVib(18);
+    } else if (kind === "hit") {
+      beep(140, 0.1, 0.08, "sawtooth", -80);
+      hopVib(30);
+    } else if (kind === "death") {
+      beep(220, 0.22, 0.08, "sawtooth", -160);
+      hopVib([40, 40, 60]);
+    } else if (kind === "warn") {
+      beep(160, 0.08, 0.05, "square", -20);
+    } else if (kind === "deny") {
+      beep(110, 0.07, 0.05, "square");
+      hopVib(12);
+    } else if (kind === "tick") {
+      beep(940, 0.02, 0.03, "square");
+    }
+  }
+  var FIRST_TOAST = {
+    break: "\u0420\u0410\u0421\u041F\u0410\u0414\u0410\u0415\u0422\u0421\u042F!",
+    goal: "\u0422\u0412\u041E\u042F \u0426\u0415\u041B\u042C",
+    record: "\u0422\u0412\u041E\u0419 \u0420\u0415\u041A\u041E\u0420\u0414"
+  };
   function textWidth(s, sc) {
     return String(s).length * 6 * sc;
   }
@@ -939,7 +1015,7 @@
     }
     if (minG > maxG) minG = maxG;
     var gap = randInt(r, minG, maxG);
-    var pMon = m < 120 ? 0 : m < 400 ? 0.065 : lerp(0.08, 0.28, d);
+    var pMon = m < 180 ? 0 : m < 400 ? 0.045 : lerp(0.07, 0.26, d);
     var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
     var bonus = false;
     if (!mob && m >= w.nextBonusM && gap >= 26) {
@@ -1030,7 +1106,9 @@
       poundT: 0,
       wallT: 0,
       wall: 0,
-      teleFx: 0
+      teleFx: 0,
+      stallT: 0,
+      stallH: 0
     };
   }
   function createWorld(seed, mode, humanKind, humanLook, mapId) {
@@ -1061,7 +1139,10 @@
       freezeMobT: 0,
       toast: "",
       toastT: 0,
-      nextBonusM: 0
+      nextBonusM: 0,
+      fallWarn: 0,
+      liftWarn: 0,
+      warnSfxT: 0
     };
     w.nextBonusM = randInt(w.rng, 160, 240);
     w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
@@ -1186,7 +1267,10 @@
     p.wallT = 0;
     p.wall = 0;
     spawnParts(w, p.x + 6, p.y + 8, 14, p.look.hood, 2.8, 0.1);
-    if (p.id === 0) w.shake = 8;
+    if (p.id === 0) {
+      w.shake = 8;
+      hopSfx("death");
+    }
   }
   function invuln(p) {
     return p.invT > 0 || p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0;
@@ -1233,20 +1317,11 @@
     w.toast = s;
     w.toastT = 70;
   }
-  function hasLandablePlat(w, p) {
-    var feet = p.y + PH, reach = 28;
-    for (var i = 0; i < w.platforms.length; i++) {
-      var q = w.platforms[i];
-      if (q.broken) continue;
-      if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) continue;
-      if (q.y + 3 >= p.prevY + PH - 2 && q.y <= feet + reach && overlapsX(p.x + 1, PW - 2, q.x, q.w)) return true;
-    }
-    return false;
-  }
   function landOn(w, p, pl) {
     p.y = pl.y - PH;
     p.baseY = pl.y;
     p.squash = 7;
+    if (p.id === 0) hopSfx("jump");
     var spr = pl.spring && overlapsX(p.x + 2, PW - 4, pl.x + pl.w / 2 - 5, 10);
     if (spr) {
       p.vy = SPRING_V;
@@ -1314,6 +1389,7 @@
   }
   function mobBox(mo) {
     if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
+    if (mo.kind === "blob" || mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
     return [mo.x, mo.y, mo.w, mo.h];
   }
   function abReady(p) {
@@ -1447,7 +1523,10 @@
       p.invT = Math.max(p.invT, B.t + 40);
     }
     toast(w, B.id === "bigcoin" ? "\u041A\u041B\u0410\u0414 +" + BIGCOIN : B.name + "!");
-    if (p.id === 0) w.shake = 3;
+    if (p.id === 0) {
+      w.shake = 3;
+      hopSfx("bonus");
+    }
   }
   function tickWorld(w, inputs) {
     w.tick++;
@@ -1489,6 +1568,8 @@
       var mo = w.monsters[i];
       mo.t += sf;
       if (mo.fx > 0) mo.fx--;
+      if (mo.warnT > 0) mo.warnT--;
+      else mo.warn = 0;
       if (mo.cool > 0) mo.cool -= sf;
       if (!mo.alive) {
         if (mo.squish > 0) mo.squish--;
@@ -1804,6 +1885,7 @@
         for (k = 0; k < w.platforms.length; k++) {
           var q = w.platforms[k];
           if (q.broken) continue;
+          if (q.y > p.camY + LH) continue;
           if (pf <= q.y + 3 && feet >= q.y && overlapsX(p.x + 1, PW - 2, q.x, q.w)) {
             if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) {
               q.broken = true;
@@ -1820,6 +1902,17 @@
       for (k = 0; k < w.monsters.length; k++) {
         var m2 = w.monsters[k];
         if (!m2.alive || m2.b === "pull" || m2.b === "wind") continue;
+        if ((m2.kind === "blob" || m2.kind === "magma") && p.id === 0) {
+          var sdx = wrapDx(m2.x + m2.w / 2 - (p.x + PW / 2));
+          var sdy = m2.y + m2.h / 2 - (p.y + PH / 2);
+          var threat = Math.abs(sdx) < 36 && sdy > -28 && sdy < 40;
+          if (threat && !m2.warn) {
+            m2.warn = 1;
+            hopSfx("warn");
+            hopVib(8);
+          }
+          if (threat) m2.warnT = 18;
+        }
         var bb = mobBox(m2);
         if (overlapsX(p.x + 2, PW - 4, bb[0] + 1, bb[2] - 2) && p.y + 4 < bb[1] + bb[3] && p.y + PH > bb[1]) {
           if (p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0) {
@@ -1875,6 +1968,7 @@
             w.runCoins += 1;
             addCharge(p, "coins", 1);
             spawnParts(w, cn.x + 3, cn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
+            hopSfx("coin");
           }
         }
         for (k = 0; k < w.items.length; k++) {
@@ -1894,13 +1988,31 @@
       if (!cp.alive) continue;
       var target = cp.y - LH * 0.42;
       if (target < cp.camY) cp.camY = target;
+      if (!cp.remote && w.tick > 80) {
+        if (cp.maxH > (cp.stallH || 0) + 0.5) {
+          cp.stallH = cp.maxH;
+          cp.stallT = 0;
+        } else cp.stallT = (cp.stallT || 0) + 1;
+        if (cp.stallT > 350) cp.camY -= 0.28;
+      }
       if (cp.camY < minCam) minCam = cp.camY;
     }
     w.cameraY = w.players[0].camY;
     if (minCam < 1e9) generateUntil(w, minCam - 80);
+    w.fallWarn = 0;
+    w.liftWarn = 0;
     for (i = 0; i < w.players.length; i++) {
       var ep = w.players[i];
-      if (ep.alive && !ep.remote && w.tick > 80 && ep.vy >= 0 && ep.squash === 0 && ep.y > ep.camY + LH + 4 && !hasLandablePlat(w, ep)) {
+      if (!ep.alive || ep.remote) continue;
+      if (ep.stallT > 350) w.liftWarn = 1;
+      if (ep.vy >= 0 && ep.y + PH > ep.camY + LH - 28 && ep.y <= ep.camY + LH) {
+        w.fallWarn = 1;
+        if (ep.id === 0 && (w.warnSfxT || 0) <= 0) {
+          hopSfx("warn");
+          w.warnSfxT = 22;
+        }
+      }
+      if (w.tick > 80 && ep.vy >= 0 && ep.y > ep.camY + LH) {
         if (ep.domeT > 0 && ep.domeSave) {
           ep.domeSave = false;
           ep.y = ep.camY + LH - PH - 12;
@@ -1911,6 +2023,7 @@
         } else killPlayer(w, ep, "fall");
       }
     }
+    if (w.warnSfxT > 0) w.warnSfxT--;
     for (i = w.particles.length - 1; i >= 0; i--) {
       var pt = w.particles[i];
       pt.x += pt.vx;
@@ -2318,6 +2431,24 @@
       ctx.fillRect(x + Math.floor(w * 0.68), y + 1, 1, 5);
       ctx.fillRect(x + Math.floor(w * 0.5), y + 2, 3, 1);
       rect(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 3, "#120a2c");
+      ctx.fillStyle = "#120a2c";
+      var zx = x + 2, zy = y + 2, step = 0;
+      while (zx < x + w - 2) {
+        ctx.fillRect(zx, zy, 2, 1);
+        step++;
+        zy = step % 2 ? y + 3 : y + 1;
+        zx += 2;
+      }
+      ctx.fillStyle = C.brkD;
+      zx = x + 3;
+      zy = y + 1;
+      step = 0;
+      while (zx < x + w - 3) {
+        ctx.fillRect(zx, zy, 1, 1);
+        step++;
+        zy = step % 2 ? y + 2 : y + 1;
+        zx += 2;
+      }
     } else if (p.type === "move") {
       rect(ctx, x, y, w, 5, C.mov);
       rect(ctx, x, y + 4, w, 2, C.movD);
@@ -2463,6 +2594,11 @@
       }
       if (m.kind === "magma" && t % 20 < 10) rect(ctx, x + 4 + t % 3, y + 8, 1, 2, pal[2]);
       rect(ctx, x + 5, y + 6, 2, 1, pal[1]);
+      if ((m.kind === "blob" || m.kind === "magma") && m.warnT > 0 && (t >> 2) % 2) {
+        ctx.globalAlpha = 0.75;
+        rect(ctx, x, y + wb, 12, 8, pal[2]);
+        ctx.globalAlpha = 1;
+      }
     } else if (m.kind === "penguin") {
       var wd = Math.floor(t / 8) % 2;
       rect(ctx, x - 1, y - 1, 12, 13, INK);
@@ -3103,6 +3239,7 @@
         N.token = d.token;
         store("hoppak.net.token", d.token);
         N.st = "online";
+        sessionFor(d.code);
         if (wasRecon) {
           var f = N.onOpen;
           N.onOpen = null;
@@ -3134,6 +3271,7 @@
         N.events.push(d);
       } else if (ev === "results") {
         N.results = d;
+        noteResults(d);
       } else if (ev === "err") {
         N.err = d.msg || d.code;
         if (d.code === "NO_SESSION") giveUp("\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410");
@@ -3166,6 +3304,7 @@
       N.token = "";
       N.startInfo = null;
       N.results = null;
+      N.session = emptySession("");
       store("hoppak.net.token", null);
       if (N.reconTimer) {
         clearTimeout(N.reconTimer);
@@ -3186,6 +3325,51 @@
     };
     N.fixedLW = function() {
       return N.room ? N.room.lw : 0;
+    };
+    function emptySession(code) {
+      return { code: code || "", rounds: [], wins: {}, best: {}, names: {} };
+    }
+    N.session = emptySession("");
+    function sessionFor(code) {
+      if (!N.session || N.session.code !== (code || "")) N.session = emptySession(code);
+    }
+    function noteResults(d) {
+      sessionFor(N.room ? N.room.code : N.session && N.session.code || "");
+      if (!d || !d.ranking) return;
+      for (var i = 0; i < N.session.rounds.length; i++) if (N.session.rounds[i].round === d.round) return;
+      N.session.rounds.push({ round: d.round, ranking: d.ranking });
+      for (var j = 0; j < d.ranking.length; j++) {
+        var r = d.ranking[j];
+        if (r.name) N.session.names[r.pid] = r.name;
+        if (r.place === 1) N.session.wins[r.pid] = (N.session.wins[r.pid] || 0) + 1;
+        var hm = r.m || 0;
+        if (hm > (N.session.best[r.pid] || 0)) N.session.best[r.pid] = hm;
+      }
+    }
+    N.drawEvening = function(ctx, x, y) {
+      var S = N.session;
+      if (!S || !S.rounds || !S.rounds.length) return y;
+      var pids = [];
+      for (var k in S.names) pids.push(k);
+      if (!pids.length) {
+        for (var k2 in S.wins) if (pids.indexOf(k2) < 0) pids.push(k2);
+        for (var k3 in S.best) if (pids.indexOf(k3) < 0) pids.push(k3);
+      }
+      pids.sort(function(a, b) {
+        var wa = S.wins[a] || 0, wb = S.wins[b] || 0;
+        if (wb !== wa) return wb - wa;
+        return (S.best[b] || 0) - (S.best[a] || 0);
+      });
+      var h = 13 + pids.length * 11;
+      box(ctx, x, y, 152, h, C.navy, C.gold);
+      drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 " + S.rounds.length + " \u0420\u0410\u0423\u041D\u0414", LW / 2, y + 3, C.gold, 1, "center");
+      for (var i2 = 0; i2 < pids.length; i2++) {
+        var pid = pids[i2], nm = String(S.names[pid] || "\u0418\u0413\u0420\u041E\u041A").slice(0, 8);
+        var lineY = y + 13 + i2 * 11;
+        drawText(ctx, nm, x + 6, lineY, C.cream, 1, "left");
+        drawText(ctx, (S.wins[pid] || 0) + "\u041F  " + (S.best[pid] || 0) + "\u041C", x + 146, lineY, C.cream, 1, "right");
+      }
+      return y + h + 6;
     };
     function lookOf(k) {
       return makeLook(k, "base", "none");
@@ -3478,7 +3662,9 @@
       box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
       drawText(ctx, "\u041A\u0410\u0420\u0422\u0410: " + mapInfo(R.map).name, LW / 2, my + 6, C.gold, 1, "center");
       api.btn("net:hero", x, my + 22, 152, 18, "#1a1430", "\u0413\u0415\u0420\u041E\u0419: " + CHARS[api.save().char].name.toUpperCase() + " \u25B6", C.cream, 1, C.gold);
-      var by = Math.max(my + 48, LH - 66);
+      var evY = my + 44;
+      if (N.session && N.session.rounds && N.session.rounds.length) evY = N.drawEvening(ctx, x, evY);
+      var by = Math.max(evY + 4, LH - 66);
       if (host) {
         var others = R.players.filter(function(q) {
           return q.pid !== R.host && q.on;
@@ -3638,6 +3824,7 @@
     var hits = [];
     var SCALE = 1, pScale = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
     var fieldLocked = false, landPause = false;
+    var resumeCd = 0, resumeAt = 0, abDenyT = 0, coinT0 = -1, coinSkip = false;
     var pressId = null;
     var confirmId = null, confirmAt = 0;
     var campCard = -1;
@@ -3750,12 +3937,45 @@
       ctx.imageSmoothingEnabled = false;
       ctx.webkitImageSmoothingEnabled = false;
       syncBackdrop(world ? world.map : save.bg);
-      if (fieldLocked && phase === "play" && !paused && phoneLand) {
-        paused = true;
-        landPause = true;
-        acc = 0;
-        uiAcc = 0;
-        lastT = -1;
+      if (fieldLocked && phase === "play" && phoneLand) {
+        if (!landPause || resumeCd > 0) {
+          paused = true;
+          landPause = true;
+          resumeCd = 0;
+          acc = 0;
+          uiAcc = 0;
+          lastT = -1;
+        }
+      } else if (landPause && !phoneLand) {
+        startResumeCountdown();
+      }
+    }
+    function startResumeCountdown() {
+      landPause = false;
+      paused = true;
+      resumeCd = 3;
+      resumeAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      acc = 0;
+      uiAcc = 0;
+      lastT = -1;
+    }
+    function showFirstTimeToast(id, text) {
+      if (!save.seen) save.seen = {};
+      if (save.seen[id]) return;
+      save.seen[id] = 1;
+      writeSave(save);
+      if (world) toast(world, text || FIRST_TOAST[id] || id);
+    }
+    function requestAbility() {
+      audioUnlock();
+      if (!world || !world.players || !world.players[0] || !world.players[0].alive) return;
+      if (abReady(world.players[0])) {
+        abTap = true;
+        return;
+      }
+      if (abDenyT <= 0) {
+        abDenyT = 18;
+        hopSfx("deny");
       }
     }
     function toLogic(cx, cy) {
@@ -3857,7 +4077,12 @@
       }
     }
     function abBar() {
-      return { x: colX(), y: LH - 30, w: 152, h: 26 };
+      var coinW = 28;
+      try {
+        if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19;
+      } catch (_e) {
+      }
+      return { x: 4 + coinW, y: 5, w: 16, h: 16 };
     }
     function startSquad(seed) {
       mode = "squad";
@@ -3886,6 +4111,11 @@
       pointers = {};
       abTap = false;
       pressId = null;
+      resumeCd = 0;
+      landPause = false;
+      abDenyT = 0;
+      coinT0 = -1;
+      coinSkip = false;
       try {
         canvas.focus();
       } catch (_e) {
@@ -3899,11 +4129,14 @@
       world.earnH = Math.floor(mtr / 25);
       world.earnC = world.runCoins + (world.bonusCoins || 0);
       world.earned = world.earnH + world.earnC;
+      world.coinFrom = save.coins;
       var mi = mapIdx(world.map);
       world.prevMapBest = mapBest(mi);
       world.newBest = mtr > (world.prevMapBest || 0);
       if (mtr > world.prevMapBest) save.mapBest[world.map] = mtr;
       save.coins += world.earned;
+      coinT0 = -1;
+      coinSkip = false;
       if (mtr > save.best) save.best = mtr;
       world.best = save.best;
       writeSave(save);
@@ -4000,6 +4233,23 @@
         toggleTilt();
         return;
       }
+      if (id === "sfx") {
+        sfxOn = !sfxOn;
+        save.sfx = sfxOn;
+        writeSave(save);
+        if (sfxOn) {
+          audioUnlock();
+          hopSfx("tick");
+        }
+        return;
+      }
+      if (id === "vib") {
+        vibOn = !vibOn;
+        save.vib = vibOn;
+        writeSave(save);
+        if (vibOn) hopVib(18);
+        return;
+      }
       if (id === "menu") {
         goMenu();
         return;
@@ -4024,11 +4274,7 @@
         return;
       }
       if (id === "resume") {
-        paused = false;
-        landPause = false;
-        acc = 0;
-        uiAcc = 0;
-        lastT = -1;
+        startResumeCountdown();
         return;
       }
       if (id === "font") {
@@ -4125,10 +4371,10 @@
       tiltAx = clamp(e.gamma / 22, -1, 1);
     }
     function recomputeHold() {
-      var l = false, r = false, bar2 = abBar();
+      var l = false, r = false;
       if (phase === "play" && !paused) for (var k in pointers) {
         var q = pointers[k];
-        if (q.y >= bar2.y) continue;
+        if (q.y < 22 && q.x > LW - 24) continue;
         if (q.x < LW / 2) l = true;
         else r = true;
       }
@@ -4137,6 +4383,7 @@
     }
     function onPtrDown(e) {
       e.preventDefault();
+      audioUnlock();
       try {
         canvas.focus();
       } catch (_e) {
@@ -4148,10 +4395,11 @@
       var loc = toLogic(e.clientX, e.clientY);
       var id = hitAt(loc.x, loc.y);
       pressId = id;
+      if (phase === "results") coinSkip = true;
       if (phase !== "play") return;
       if (paused) return;
       if (id === "ab" || id === "pause") return;
-      pointers[e.pointerId != null ? e.pointerId : 1] = { x: loc.x, y: loc.y, sx: loc.x, sy: loc.y };
+      pointers[e.pointerId != null ? e.pointerId : 1] = { x: loc.x, y: loc.y, sx: loc.x, sy: loc.y, sxCss: e.clientX, syCss: e.clientY, t0: e.timeStamp || Date.now(), swiped: false };
       recomputeHold();
     }
     function onPtrMove(e) {
@@ -4162,9 +4410,14 @@
       if (!p) return;
       p.x = loc.x;
       p.y = loc.y;
-      if (p.sy - loc.y >= 18) {
-        abTap = true;
-        delete pointers[pid];
+      if (!p.swiped) {
+        var dy = (p.syCss != null ? p.syCss : e.clientY) - e.clientY;
+        var dx = e.clientX - (p.sxCss != null ? p.sxCss : e.clientX);
+        var dt = (e.timeStamp || Date.now()) - (p.t0 || 0);
+        if (dt <= 300 && dy >= 30 && dy > 1.5 * Math.abs(dx)) {
+          p.swiped = true;
+          requestAbility();
+        }
       }
       recomputeHold();
     }
@@ -4175,7 +4428,7 @@
         if (paused) {
           if (id === "resume" || id === "menu") activate(id);
         } else if (id === "pause" && pressId === "pause") activate("pause");
-        else if (id === "ab" && pressId === "ab") abTap = true;
+        else if (id === "ab" && pressId === "ab") requestAbility();
         delete pointers[e.pointerId != null ? e.pointerId : 1];
         recomputeHold();
       } else if (id && id === pressId) activate(id);
@@ -4183,6 +4436,7 @@
     }
     function onKey(e, down) {
       var k = e.key;
+      if (down) audioUnlock();
       if (k === "ArrowLeft" || k === "a" || k === "A" || k === "\u0444" || k === "\u0424") {
         held.kl = down;
         e.preventDefault();
@@ -4195,12 +4449,12 @@
       }
       if (!down) return;
       if (phase === "play" && paused && (k === " " || k === "Enter" || k === "Escape")) {
-        paused = false;
+        if (landPause || resumeCd <= 0) startResumeCountdown();
         e.preventDefault();
         return;
       }
       if (phase === "play" && (k === " " || k === "ArrowUp" || k === "w" || k === "W" || k === "\u0446" || k === "\u0426" || k === "Shift")) {
-        abTap = true;
+        requestAbility();
         e.preventDefault();
         return;
       }
@@ -4322,11 +4576,12 @@
         btn("mp", x + 80, by + 66, 72, 22, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
       }
       if (showSet) {
-        box(ctx, x, 70, 152, 86, C.navy, C.cream);
+        box(ctx, x, 70, 152, 128, C.navy, C.cream);
         drawText(ctx, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", LW / 2, 76, C.gold, 1, "center");
         btn("tilt", x + 8, 94, 136, 22, tiltOn ? C.mint : "#1a1430", "\u041D\u0410\u041A\u041B\u041E\u041D: " + (tiltOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), tiltOn ? INK : C.cream);
-        drawText(ctx, "\u0417\u0412\u0423\u041A \u0418 \u0412\u0418\u0411\u0420\u041E - \u0421\u041A\u041E\u0420\u041E", LW / 2, 124, "#9a8ab8", 1, "center");
-        btn("set", x + 26, 136, 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
+        btn("sfx", x + 8, 120, 136, 22, sfxOn ? C.mint : "#1a1430", "\u0417\u0412\u0423\u041A: " + (sfxOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), sfxOn ? INK : C.cream);
+        btn("vib", x + 8, 146, 136, 22, vibOn ? C.mint : "#1a1430", "\u0412\u0418\u0411\u0420\u041E: " + (vibOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), vibOn ? INK : C.cream);
+        btn("set", x + 26, 174, 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
       }
       drawFlash();
     }
@@ -4529,6 +4784,24 @@
       for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
       if (w.goalM) dashLine(-w.goalM * PX_PER_M - cam, "\u0426\u0415\u041B\u042C " + w.goalM + " \u041C", C.gold, false);
       if (w.recM) dashLine(-w.recM * PX_PER_M - cam, "\u0420\u0415\u041A\u041E\u0420\u0414 " + w.recM, C.cream, true);
+      if (w.goalM) {
+        var gy = -w.goalM * PX_PER_M - cam;
+        if (gy > 8 && gy < LH - 8) showFirstTimeToast("goal");
+      }
+      if (w.recM) {
+        var ry = -w.recM * PX_PER_M - cam;
+        if (ry > 8 && ry < LH - 8) showFirstTimeToast("record");
+      }
+      for (i = 0; i < w.platforms.length; i++) {
+        var brk = w.platforms[i];
+        if (brk.type === "break" && !brk.broken) {
+          var by2 = brk.y - cam;
+          if (by2 > 8 && by2 < LH - 8) {
+            showFirstTimeToast("break");
+            break;
+          }
+        }
+      }
       for (i = 0; i < w.coins.length; i++) {
         var cn = w.coins[i];
         if (!cn.taken && cn.y - cam > -8 && cn.y - cam < LH + 4) drawCoin(ctx, cn.x, Math.round(cn.y - cam), w.tick + i * 3);
@@ -4585,13 +4858,24 @@
       coinsLabel(7, 9, w.runCoins);
       var wantPause = wantTouchPause();
       if (w.mode === "squad") {
-        var place = 1;
-        for (i = 0; i < w.players.length; i++) if (w.players[i] !== me && metersOf(w.players[i]) > metersOf(me)) place++;
+        var place = 1, lead = me, leadM = metersOf(me);
+        for (i = 0; i < w.players.length; i++) {
+          var om = metersOf(w.players[i]);
+          if (w.players[i] !== me && om > metersOf(me)) place++;
+          if (om > leadM) {
+            lead = w.players[i];
+            leadM = om;
+          }
+        }
         var pl = place + "/" + w.players.length;
         var pw2 = textWidth(pl, 1) + 8;
         var pr = wantPause ? LW - 22 : LW - 4;
         box(ctx, pr - pw2, 6, pw2, 13, C.navy, C.cream);
         drawText(ctx, pl, pr - 4, 9, C.cream, 1, "right");
+        var leadLab = lead.id === 0 ? "\u0422\u042B \u0412\u041F\u0415\u0420\u0415\u0414\u0418" : (lead.name || "\u0411\u041E\u0422").slice(0, 8) + " " + leadM + " \u041C";
+        var lw2 = textWidth(leadLab, 1) + 8;
+        box(ctx, pr - lw2, 20, lw2, 11, C.navy, lead.id === 0 ? C.gold : C.cream);
+        drawText(ctx, leadLab, pr - 4, 22, lead.id === 0 ? C.gold : C.cream, 1, "right");
       }
       if (wantPause) {
         addHit("pause", LW - 20, 4, 16, 16);
@@ -4611,17 +4895,40 @@
       if (w.tick < 170) {
         ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
         var hx2 = colX();
+        var hint = !isPhone ? "\u2190 \u2192 \u0425\u041E\u0414 \xB7 \u2191 \u0421\u041F\u041E\u0421\u041E\u0411\u041D\u041E\u0421\u0422\u042C" : "\u0422\u0410\u041F \u2190 \u2192 \xB7 \u0421\u0412\u0410\u0419\u041F \u2191";
         box(ctx, hx2, LH - 46, 152, 12, C.navy, C.cream);
-        drawText(ctx, typeof window !== "undefined" && window.innerWidth >= 540 ? "\u2190 \u2192 \u0425\u041E\u0414 \xB7 \u2191 \u0421\u041F\u041E\u0421\u041E\u0411\u041D\u041E\u0421\u0422\u042C" : "\u0422\u0410\u041F\u0410\u0419 \u0421\u041B\u0415\u0412\u0410 \u0418 \u0421\u041F\u0420\u0410\u0412\u0410", LW / 2, LH - 44, C.cream, 1, "center");
+        drawText(ctx, hint, LW / 2, LH - 44, C.cream, 1, "center");
         ctx.globalAlpha = 1;
+      }
+      if ((w.fallWarn || w.liftWarn) && !paused) {
+        if ((ui >> 2) % 2) {
+          ctx.globalAlpha = w.fallWarn ? 0.9 : 0.6;
+          rect(ctx, 0, LH - 4, LW, 4, C.red);
+          var cxw = Math.round(LW / 2);
+          rect(ctx, cxw, LH - 12, 2, 2, C.cream);
+          rect(ctx, cxw - 2, LH - 10, 6, 2, C.cream);
+          rect(ctx, cxw - 4, LH - 8, 10, 2, C.cream);
+          ctx.globalAlpha = 1;
+        }
+        if (w.liftWarn) {
+          var liftLab = "\u041B\u0415\u0417\u042C \u0412\u0412\u0415\u0420\u0425!";
+          var ltw = textWidth(liftLab, 1) + 10;
+          box(ctx, Math.round(LW / 2 - ltw / 2), LH - 24, ltw, 13, C.navy, C.gold);
+          drawText(ctx, liftLab, LW / 2, LH - 21, C.gold, 1, "center");
+        }
       }
       if (paused) {
         dimView(ctx, "rgba(8,6,20,0.55)");
         box(ctx, colX(), LH / 2 - 48, 152, 100, C.navy, C.gold);
         drawText(ctx, "\u041F\u0410\u0423\u0417\u0410", LW / 2, LH / 2 - 38, C.gold, 2, "center");
-        if (landPause) drawText(ctx, "\u041F\u041E\u0412\u0415\u0420\u041D\u0418 \u0422\u0415\u041B\u0415\u0424\u041E\u041D", LW / 2, LH / 2 - 16, C.cream, 1, "center");
-        btn("resume", colX() + 10, LH / 2 - (landPause ? 4 : 8), 132, 22, C.mint, "\u041F\u0420\u041E\u0414\u041E\u041B\u0416\u0418\u0422\u042C", INK);
-        btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "\u041C\u0415\u041D\u042E");
+        if (resumeCd > 0) {
+          drawText(ctx, String(resumeCd), LW / 2, LH / 2 - 14, C.gold, 3, "center");
+          btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "\u041C\u0415\u041D\u042E");
+        } else {
+          if (landPause) drawText(ctx, "\u041F\u041E\u0412\u0415\u0420\u041D\u0418 \u0422\u0415\u041B\u0415\u0424\u041E\u041D", LW / 2, LH / 2 - 16, C.cream, 1, "center");
+          btn("resume", colX() + 10, LH / 2 - (landPause ? 4 : 8), 132, 22, C.mint, "\u041F\u0420\u041E\u0414\u041E\u041B\u0416\u0418\u0422\u042C", INK);
+          btn("menu", colX() + 10, LH / 2 + 18, 132, 22, C.navy, "\u041C\u0415\u041D\u042E");
+        }
       }
     }
     function drawFxBack(p, sy, cam) {
@@ -4799,26 +5106,19 @@
       addHit("ab", b.x, b.y, b.w, b.h);
       var ready = me.alive && me.abCharge >= H.need, active = !!me.wall;
       var f = clamp(me.abCharge / H.need, 0, 1);
-      box(ctx, b.x, b.y, b.w, b.h, "#12101c", ready ? C.gold : C.cream);
-      var rad = 9, cx = b.x + 14, cy = b.y + 13;
-      var rim = ready ? (ui >> 3) % 2 ? C.gold : C.cream : active ? "#d82a2a" : "#3a4a7a";
-      fillDisc(cx, cy, rad + 1, rim);
-      fillDisc(cx, cy, rad, "#1a1430");
-      strokeArc(cx, cy, rad, ready ? C.gold : active ? "#ff5a62" : "#5ec8ff", ready ? 1 : f);
-      ctx.globalAlpha = ready || active ? 1 : 0.55;
+      var deny = abDenyT > 0;
+      var cx = b.x + 8, cy = b.y + 8;
+      var rim = deny && ui % 4 < 2 ? C.red : ready ? (ui >> 3) % 2 ? C.gold : C.cream : active ? "#d82a2a" : "#3a4a7a";
+      fillDisc(cx, cy, 8, rim);
+      fillDisc(cx, cy, 6, "#1a1430");
+      strokeArc(cx, cy, 6, ready ? C.gold : deny ? C.red : "#5ec8ff", ready ? 1 : f);
+      ctx.globalAlpha = ready || active || deny ? 1 : 0.55;
       drawAbIcon(H.ab, cx - 6, cy - 6);
       ctx.globalAlpha = 1;
-      var lab = me.wall ? "\u041F\u0420\u042B\u0416\u041E\u041A" : H.abName;
-      var ic = H.charge, chg = ic === "time" ? Math.round(f * 100) + "%" : Math.min(H.need, Math.floor(me.abCharge)) + "/" + H.need;
-      var tcol = ready ? C.gold : C.cream, ty = b.y + 9;
-      drawText(ctx, lab, b.x + 28, ty, tcol, 1, "left");
-      var rw = textWidth(chg, 1), rx = b.x + b.w - 6;
-      var ix = rx - rw - 9;
-      if (ic === "time") icoClock(ix, ty, tcol);
-      else if (ic === "coins") drawCoin(ctx, ix, ty + 1, ui);
-      else if (ic === "height") drawText(ctx, "\u2191", ix, ty, C.mint, 1, "left");
-      else icoSkull(ix, ty, tcol);
-      drawText(ctx, chg, rx, ty, tcol, 1, "right");
+      if (deny && !ready) {
+        var left = H.charge === "time" ? String(Math.max(1, Math.ceil((H.need - me.abCharge) / 50))) : "!";
+        drawText(ctx, left, cx, b.y + 16, C.red, 1, "center");
+      }
     }
     function whyText(p) {
       var m = metersOf(p), w = p.why || "";
@@ -4826,7 +5126,9 @@
       if (w === "shot") return "\u0421\u0411\u0418\u041B \u0412\u042B\u0421\u0422\u0420\u0415\u041B \u041D\u0410 " + m + " \u041C";
       if (w === "hole") return "\u0417\u0410\u0422\u042F\u041D\u0423\u041B\u0410 \u0414\u042B\u0420\u0410 \u041D\u0410 " + m + " \u041C";
       if (w.indexOf("mob:") === 0) {
-        var mo = MOBS[w.slice(4)] || {};
+        var mk = w.slice(4);
+        if (mk === "blob") return "\u0422\u0415\u0411\u042F \u0421\u0411\u0418\u041B \u0421\u041B\u0418\u0417\u0415\u041D\u042C \u041D\u0410 " + m + " \u041C";
+        var mo = MOBS[mk] || {};
         var nm = mo.name || "\u041C\u041E\u0411";
         return (mo.g === "f" ? "\u0421\u0411\u0418\u041B\u0410 " : "\u0421\u0411\u0418\u041B ") + nm + " \u041D\u0410 " + m + " \u041C";
       }
@@ -4881,15 +5183,22 @@
         }
       }
       var rec = save.mapBest[world.map] || world.best || 0;
-      box(ctx, x, y, 152, 44, C.navy, C.gold);
+      box(ctx, x, y, 152, 56, C.navy, C.gold);
       drawText(ctx, "\u0412\u042B\u0421\u041E\u0422\u0410 " + mtr + " \u041C", x + 6, y + 4, C.cream, 1, "left");
       coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
       drawText(ctx, "\u0421\u041E\u0411\u0420\u0410\u041D\u041E", x + 6, y + 15, C.cream, 1, "left");
       coinsLabel(x + 146, y + 15, world.earnC || 0, "right");
       rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
-      drawText(ctx, "\u0418\u0422\u041E\u0413\u041E", x + 6, y + 29, C.gold, 1, "left");
-      coinsLabel(x + 146, y + 29, world.earned || 0, "right");
-      y += 48;
+      var dur = 700, nowA = typeof performance !== "undefined" ? performance.now() : Date.now();
+      if (coinT0 < 0) coinT0 = nowA;
+      var k = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
+      k = 1 - (1 - k) * (1 - k);
+      var shownEarn = Math.round((world.earned || 0) * k);
+      var shownTot = (world.coinFrom != null ? world.coinFrom : save.coins - (world.earned || 0)) + shownEarn;
+      if (k < 1 && ui % 4 === 0) hopSfx("tick");
+      drawText(ctx, "+" + shownEarn + " \u2192 " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
+      y += 60;
+      if (world.net && typeof NET !== "undefined" && NET.drawEvening) y = NET.drawEvening(ctx, x, y);
       if (world.newBest) {
         box(ctx, x, y, 152, 13, C.navy, C.gold);
         drawText(ctx, "\u041D\u041E\u0412\u042B\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 \u041A\u0410\u0420\u0422\u042B " + rec + " \u041C", LW / 2, y + 3, C.gold, 1, "center");
@@ -4943,8 +5252,22 @@
       while (uiAcc + 1e-9 >= UI_STEP && uSteps < 5) {
         ui++;
         if (flashT > 0) flashT--;
+        if (abDenyT > 0) abDenyT--;
         uiAcc -= UI_STEP;
         uSteps++;
+      }
+      if (resumeCd > 0 && paused) {
+        if (now - resumeAt >= 1e3) {
+          resumeCd--;
+          resumeAt = now;
+          if (resumeCd <= 0) {
+            paused = false;
+            landPause = false;
+            acc = 0;
+            uiAcc = 0;
+            lastT = now;
+          }
+        }
       }
       syncBackdrop(world ? world.map : save.bg);
       if (phase === "play" && world && world.phase === "play" && !paused) {
@@ -5042,7 +5365,12 @@
     var ptrRoot = wrap || canvas;
     resize();
     window.addEventListener("resize", resize);
-    window.addEventListener("orientationchange", resize);
+    var onOrientationChange = function() {
+      resize();
+      setTimeout(resize, 300);
+      setTimeout(resize, 800);
+    };
+    window.addEventListener("orientationchange", onOrientationChange);
     if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
     var onCtx = function(e) {
       e.preventDefault();
@@ -5077,7 +5405,7 @@
         running = false;
         cancelAnimationFrame(raf);
         window.removeEventListener("resize", resize);
-        window.removeEventListener("orientationchange", resize);
+        window.removeEventListener("orientationchange", onOrientationChange);
         if (window.visualViewport) window.visualViewport.removeEventListener("resize", resize);
         ptrRoot.removeEventListener("pointerdown", onPtrDown);
         ptrRoot.removeEventListener("pointermove", onPtrMove);
@@ -5106,7 +5434,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD };
+        return { lw: LW, lh: LH, scale: SCALE, pScale, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD };
       },
       tap: function(id) {
         activate(id);

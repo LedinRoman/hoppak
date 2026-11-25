@@ -316,6 +316,23 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
     ctx.fillRect(c1, y + 1, 1, 4); ctx.fillRect(c1 + 1, y + 3, 2, 1);
     ctx.fillRect(x + Math.floor(w * 0.68), y + 1, 1, 5); ctx.fillRect(x + Math.floor(w * 0.5), y + 2, 3, 1);
     rect(ctx, x + Math.floor(w / 2) - 1, y + 2, 2, 3, "#120a2c");
+    /* Temporary crack until Design's sprite. Same palette, no new colors. */
+    ctx.fillStyle = "#120a2c";
+    var zx = x + 2, zy = y + 2, step = 0;
+    while (zx < x + w - 2) {
+      ctx.fillRect(zx, zy, 2, 1);
+      step++;
+      zy = (step % 2) ? y + 3 : y + 1;
+      zx += 2;
+    }
+    ctx.fillStyle = C.brkD;
+    zx = x + 3; zy = y + 1; step = 0;
+    while (zx < x + w - 3) {
+      ctx.fillRect(zx, zy, 1, 1);
+      step++;
+      zy = (step % 2) ? y + 2 : y + 1;
+      zx += 2;
+    }
   } else if (p.type === "move") {
     rect(ctx, x, y, w, 5, C.mov); rect(ctx, x, y + 4, w, 2, C.movD);
     rect(ctx, x, y, w, 1, C.gold); rect(ctx, x, y + 1, 1, 4, C.gold); rect(ctx, x + w - 1, y + 1, 1, 4, C.gold);
@@ -417,6 +434,11 @@ function drawMob(ctx: Ctx, m: any, cam: number, mapId?: string, frozen?: boolean
     if (m.kind === "alien") { rect(ctx, x + 5, y - 4 + wb, 1, 4, INK); rect(ctx, x + 4, y - 5 + wb, 3, 2, "#ff5ab0"); rect(ctx, x + 5, y + 1 + wb, 2, 2, "#fff6e8"); rect(ctx, x + 5 + lk, y + 2 + wb, 1, 1, INK); }
     if (m.kind === "magma" && t % 20 < 10) rect(ctx, x + 4 + (t % 3), y + 8, 1, 2, pal[2]);
     rect(ctx, x + 5, y + 6, 2, 1, pal[1]);
+    if ((m.kind === "blob" || m.kind === "magma") && m.warnT > 0 && ((t >> 2) % 2)) {
+      ctx.globalAlpha = 0.75;
+      rect(ctx, x, y + wb, 12, 8, pal[2]);
+      ctx.globalAlpha = 1;
+    }
   } else if (m.kind === "penguin") {
     var wd = Math.floor(t / 8) % 2;
     rect(ctx, x - 1, y - 1, 12, 13, INK);

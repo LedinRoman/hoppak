@@ -21,7 +21,7 @@ game = game.split("\n", 1)[1]  # drop grok/canvas import
 open("/tmp/hoppak.game.ts", "w").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
 PY
 $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --outfile=hoppak.js --log-level=warning
-sed -i '1i /* Хоппак v0.56 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
+sed -i '1i /* Хоппак v0.57 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
 $ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --outfile=/tmp/hop.min.tsx --log-level=warning
 python3 - << 'PY'
@@ -57,13 +57,13 @@ if [ "${1:-}" = "site" ]; then
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
     --define:HOP_SERVER="\"${SITE_ORIGIN}\"" \
     --outfile=site/hoppak.js --log-level=warning
-  sed -i '1i /* Хоппак v0.56 site — HOP_SERVER baked in, do not edit */' site/hoppak.js
+  sed -i '1i /* Хоппак v0.57 site — HOP_SERVER baked in, do not edit */' site/hoppak.js
   python3 - << PY
 from pathlib import Path
 html = Path("index.html").read_text()
-html = html.replace("Хоппак v0.54", "Хоппак v0.56").replace("Хоппак v0.56", "Хоппак v0.56")
+html = html.replace("Хоппак v0.54", "Хоппак v0.57").replace("Хоппак v0.57", "Хоппак v0.57")
 # if source title already bumped, leave it
-Path("site/index.html").write_text(html.replace("<title>Хоппак v0.54</title>", "<title>Хоппак v0.56</title>") if "v0.54" in html else html)
+Path("site/index.html").write_text(html.replace("<title>Хоппак v0.54</title>", "<title>Хоппак v0.57</title>") if "v0.54" in html else html)
 print("site origin ${SITE_ORIGIN}")
 print("site js", Path("site/hoppak.js").stat().st_size, "bytes")
 PY
