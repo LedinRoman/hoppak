@@ -169,6 +169,7 @@ export class InternalServer implements OnModuleInit, OnModuleDestroy {
       const path = url.pathname.replace(/\/+$/, '') || '/';
 
       if (method === 'GET' && path === '/internal/stats') {
+        await this.bg.refreshPeerAuth();
         return this.sendJson(res, 200, this.bg.getStats());
       }
 

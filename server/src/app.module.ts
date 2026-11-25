@@ -11,13 +11,13 @@ export class HealthController {
     private readonly bg: BlueGreenService,
   ) {}
   @Get('health')
-  health() {
+  async health() {
     const payload = {
       ok: !this.bg.shuttingDown,
       rooms: this.rooms.rooms.size,
       players: [...this.rooms.rooms.values()].reduce((n, r) => n + r.players.length, 0),
       uptime: Math.round(process.uptime()), stats,
-      ...this.bg.healthFields(),
+      ...await this.bg.healthFieldsFresh(),
     };
     if (this.bg.shuttingDown) {
       throw new ServiceUnavailableException(payload);

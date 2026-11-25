@@ -100,6 +100,9 @@ export class BlueGreenService {
   readonly migrateGraceMs: number;
   peerAuth: PeerAuth = 'unknown';
   private lastAuthLogAt = 0;
+  private peerAuthCheckedAt = 0;
+  private peerAuthInflight: Promise<void> | null = null;
+  private readonly peerAuthTtlMs: number;
   /** token -> where its room moved (old slot keeps this for late reconnects, BUG-35) */
   private readonly moved = new Map<string, { node: string; code: string; until: number }>();
   private peerAuthTimer: NodeJS.Timeout | null = null;
@@ -123,21 +126,39 @@ export class BlueGreenService {
     this.gracefulShutdownMs = parsePositiveMs(process.env.GRACEFUL_SHUTDOWN_MS, 25_000);
     this.field = loadFieldConfig();
     this.migrateGraceMs = parsePositiveMs(process.env.MIGRATE_GRACE_MS, 30_000);
+    this.peerAuthTtlMs = parsePositiveMs(process.env.PEER_AUTH_TTL_MS, 3_000);
     if (!this.peerInternalUrl) this.peerAuth = 'none';
     else {
       const t = setTimeout(() => void this.checkPeerAuth(), 300);
       t.unref();
-      this.peerAuthTimer = setInterval(() => void this.checkPeerAuth(), 30_000);
+      /* Live peerAuth: re-probe about as often as the cache lives, so /api/health is at most a few seconds stale. */
+      this.peerAuthTimer = setInterval(() => void this.checkPeerAuth(), this.peerAuthTtlMs);
       this.peerAuthTimer.unref();
     }
   }
 
+  /**
+   * Classify a peer HTTP result.
+   * Only a real application response counts as reachable+authorized:
+   *   2xx, 404, 409 → ok (token accepted; 404/409 are app-level)
+   *   401/403 → unauthorized
+   *   network error, timeout, 5xx, anything else (incl. 502/503 from a dead upstream) → unreachable
+   * Previously any non-401 status was treated as ok, so a 502 after the peer stopped could flip peerAuth to ok.
+   */
+  private classifyPeerStatus(status: number | 'error'): PeerAuth {
+    if (status === 401 || status === 403) return 'unauthorized';
+    if (status === 'error') return 'unreachable';
+    if (typeof status === 'number' && ((status >= 200 && status < 300) || status === 404 || status === 409)) return 'ok';
+    return 'unreachable';
+  }
+
   /** Track the peer's answer to our INTERNAL_TOKEN; log loudly on change (BUG-48). */
   private notePeerStatus(status: number | 'error', what: string) {
-    const next: PeerAuth = status === 401 || status === 403 ? 'unauthorized' : status === 'error' ? 'unreachable' : 'ok';
+    const next = this.classifyPeerStatus(status);
     const prev = this.peerAuth;
     this.peerAuth = next;
-    const now = Date.now();
+    this.peerAuthCheckedAt = Date.now();
+    const now = this.peerAuthCheckedAt;
     if (next === 'unauthorized' && (prev !== 'unauthorized' || now - this.lastAuthLogAt > 10_000)) {
       this.lastAuthLogAt = now;
       this.log.error(`peer ${this.peerInternalUrl} rejected INTERNAL_TOKEN (401) on ${what}: INTERNAL_TOKEN differs between slots? proxy/redirect/migration will not work`);
@@ -151,6 +172,30 @@ export class BlueGreenService {
   async checkPeerAuth() {
     if (!this.peerInternalUrl) return;
     await this.lookupPeerStats();
+  }
+
+  /** Fresh enough for /api/health: reuse a result not older than PEER_AUTH_TTL_MS (~3s), otherwise probe now. */
+  async refreshPeerAuth(): Promise<PeerAuth> {
+    if (!this.peerInternalUrl) {
+      this.peerAuth = 'none';
+      return this.peerAuth;
+    }
+    const age = this.peerAuthCheckedAt ? Date.now() - this.peerAuthCheckedAt : Number.POSITIVE_INFINITY;
+    if (age < this.peerAuthTtlMs) return this.peerAuth;
+    if (this.peerAuthInflight) {
+      await this.peerAuthInflight;
+      return this.peerAuth;
+    }
+    this.peerAuthInflight = this.checkPeerAuth().finally(() => {
+      this.peerAuthInflight = null;
+    });
+    await this.peerAuthInflight;
+    return this.peerAuth;
+  }
+
+  async healthFieldsFresh() {
+    if (!this.shuttingDown) await this.refreshPeerAuth();
+    return this.healthFields();
   }
 
   private internalHeaders(): Record<string, string> {
@@ -260,6 +305,7 @@ export class BlueGreenService {
       protocol: PROTOCOL_VERSION,
       minProtocol: MIN_PROTOCOL_VERSION,
       uptime: Math.round(process.uptime()),
+      peerAuth: this.peerAuth,
     };
   }
 
@@ -330,13 +376,9 @@ export class BlueGreenService {
         }
       }
     }
-    let targetVersion = (version || '').trim();
-    if (!targetVersion && this.peerInternalUrl) {
-      const peer = await this.lookupPeerStats();
-      if (peer && peer.version && peer.version !== this.version) {
-        targetVersion = peer.version;
-      }
-    }
+    /* Only announce an update when the caller passed a version. A drain without version
+       (rollback) must not send `update` and must not pick up the peer's APP_VERSION. */
+    const targetVersion = (version || '').trim();
     let notified = 0;
     if (targetVersion) {
       const res = this.announceUpdate(targetVersion);
