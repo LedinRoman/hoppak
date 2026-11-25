@@ -137,8 +137,12 @@ const SIZES = [
     await open(w, h);
     const sz = await H(() => window.__hoppak.getSize());
     sizes[name] = sz;
-    const integer = sz.cw === sz.lw * sz.scale && sz.ch === sz.lh * sz.scale && sz.scale === Math.floor(w / 160);
-    sizes[name].integerOk = integer && (sz.cw <= w) && (sz.ch <= h);
+    const cssW = sz.lw * sz.cssScale, cssH = sz.lh * sz.cssScale;
+    const integer = sz.lw === 160 && sz.lh >= 280 && sz.lh <= 346
+      && sz.pScale === Math.floor(sz.pScale) && sz.pScale >= 1
+      && sz.cw === sz.lw * sz.pScale && sz.ch === sz.lh * sz.pScale
+      && cssW <= w + 0.51 && cssH <= h + 0.51;
+    sizes[name].integerOk = integer;
     await H(() => { const s = window.__hoppak.getSave(); s.mapBest.city = 355; s.best = 355; s.coins = 80; });
     await shot('size_' + name + '_menu');
     await H(() => window.__hoppak.tap('camp')); await shot('size_' + name + '_campaign');
@@ -149,10 +153,39 @@ const SIZES = [
 
   const spriteFail = spritePix.some(n => n < 80);
   const sizeFail = Object.values(sizes).some(s => !s.integerOk);
-  const out = { res, errs, spritePix, spriteFail, size0, sizes, sizeFail };
+  const ground = await H(() => {
+    const maps = ['city', 'jungle', 'ice', 'lava', 'aqua', 'space'];
+    const out = {};
+    for (const map of maps) {
+      const spawn = [];
+      let snakes = 0, plat = 0;
+      for (let seed = 1; seed <= 50; seed++) {
+        const d = window.__hoppak.inspectMap(seed * 9973, 2500, map);
+        if (d.unsupported && d.unsupported.length) spawn.push({ seed, uns: d.unsupported });
+        (d.monsters || []).forEach(m => {
+          if (m.kind === 'snake') snakes++;
+          if (m.b === 'walk' || m.b === 'hop' || m.b === 'throw' || m.b === 'spit' || m.b === 'snake') plat++;
+        });
+      }
+      const g = window.__hoppak;
+      g.setHero(0); g.start('solo', 11, map);
+      g.simTicks(40); g.warp(800);
+      const mid = [];
+      for (let t = 0; t < 300; t++) {
+        g.simTicks(1);
+        const b = g.checkGroundMobs();
+        if (b && b.length) mid.push({ t, b });
+      }
+      out[map] = { spawnBad: spawn.length, midBad: mid.length, snakes, plat, sample: spawn.slice(0, 3), midSample: mid.slice(0, 3) };
+    }
+    return out;
+  });
+  const groundFail = Object.values(ground).some(g => g.spawnBad > 0 || g.midBad > 0);
+  const out = { res, errs, spritePix, spriteFail, size0, sizes, sizeFail, ground, groundFail };
   console.log(JSON.stringify(out, null, 1));
   if (spriteFail) throw new Error('hero sprites missing in shop: ' + JSON.stringify(spritePix));
   if (errs.length) throw new Error('errors: ' + errs.join(' | '));
   if (sizeFail) throw new Error('integer scale failed: ' + JSON.stringify(sizes));
+  if (groundFail) throw new Error('ground mobs unsupported: ' + JSON.stringify(ground));
   await b.close();
 })();
