@@ -22,7 +22,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var pointers: any = {};
   var acc = 0, lastT = 0, raf = 0, running = true, ui = 0;
   var hits: any[] = [];
-  var SCALE = 1;
+  var SCALE = 1, pScale = 1, cssScale = 1, isWide = false;
   var pressId: any = null;
   var confirmId: any = null, confirmAt = 0;
   var campCard = -1;
@@ -35,27 +35,33 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
   warmHeroSprites();
   function isPageBuild() { return typeof HOP_PAGE !== "undefined" && !!HOP_PAGE; }
+  function netFixedLW() {
+    return (typeof NET !== "undefined" && NET && typeof NET.fixedLW === "function") ? (NET.fixedLW() || 0) : 0;
+  }
   function resize() {
     var r = (wrap || canvas).getBoundingClientRect();
     var cssW = Math.max(1, r.width), cssH = Math.max(1, r.height);
-    var scale = Math.max(1, Math.floor(cssW / 160));
-    var lw = Math.max(160, Math.floor(cssW / scale));
-    var lh = Math.floor(cssH / scale);
-    if (lh < 240) {
-      scale = Math.max(1, Math.min(Math.floor(cssW / 160), Math.floor(cssH / 240)));
-      lw = 160;
-      lh = Math.max(240, Math.floor(cssH / scale));
-      if (lh * scale > cssH) lh = Math.max(240, Math.floor(cssH / scale));
+    var dpr = Math.max(1, window.devicePixelRatio || 1);
+    isWide = cssW >= 540;
+    var padX = isWide ? 24 : 0;
+    var padY = isWide ? (cssH >= 740 ? 16 : 4) : 0;
+    var availW = Math.max(160, cssW - padX * 2);
+    var availH = Math.max(240, cssH - padY * 2);
+    var lw = netFixedLW() || 160;
+    var lh = 346;
+    pScale = Math.max(1, Math.min(Math.floor((availW * dpr) / lw), Math.floor((availH * dpr) / lh)));
+    if (!isWide && (lh * pScale) / dpr < availH * 0.85) {
+      pScale = Math.max(1, Math.floor((availW * dpr) / lw));
+      lh = Math.max(280, Math.min(346, Math.floor((availH * dpr) / pScale)));
     }
-    var nlw = NET.fixedLW(); /* net: online rooms pin the world width (the map depends on LW) */
-    if (nlw) { scale = Math.max(1, Math.min(Math.floor(cssW / nlw), Math.floor(cssH / 240))); lw = nlw; lh = Math.max(240, Math.floor(cssH / scale)); }
-    netLW = nlw;
-    LW = lw; LH = lh; SCALE = scale;
-    canvas.width = LW * scale;
-    canvas.height = LH * scale;
-    canvas.style.width = (LW * scale) + "px";
-    canvas.style.height = (LH * scale) + "px";
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    cssScale = pScale / dpr;
+    netLW = netFixedLW();
+    LW = lw; LH = lh; SCALE = cssScale;
+    canvas.width = LW * pScale;
+    canvas.height = LH * pScale;
+    canvas.style.width = (LW * cssScale) + "px";
+    canvas.style.height = (LH * cssScale) + "px";
+    ctx.setTransform(pScale, 0, 0, pScale, 0, 0);
     ctx.imageSmoothingEnabled = false;
   }
   function toLogic(cx: number, cy: number) {
@@ -906,7 +912,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     else if (phase === "font") drawFontSheet();
     else if (phase === "net") { hits = []; NET.draw(netApi); drawFlash(); }
     else { drawPlay(); if (world && world.net) NET.overlay(netApi, world); }
-    if ((NET.fixedLW() || 0) !== netLW) resize();
+    if (netFixedLW() !== netLW) resize();
     raf = requestAnimationFrame(frame);
   }
 
@@ -970,7 +976,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, cw: canvas.width, ch: canvas.height }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, cw: canvas.width, ch: canvas.height }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },
