@@ -4900,7 +4900,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
 
   function poseOf(p: any) {
-    if (p.abFx > 0 || p.poundT > 0 || p.dashT > 0 || p.hookN > 0 || p.wall || p.teleFx > 10 || p.domeT > 170) return "ability";
+    if (!(p.domeT > 0) && (p.abFx > 0 || p.poundT > 0 || p.dashT > 0 || p.hookN > 0 || p.wall || p.teleFx > 10)) return "ability";
     if (p.squash > 3) return "squash";
     if (p.vy < -2.2) return "up";
     if (p.vy > 1.5) return "fall";
@@ -5184,33 +5184,22 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (p.magnetT > 0 && (ui >> 2) % 2) { ctx.globalAlpha = 0.35; for (k = 0; k < 8; k++) { var a = k * 0.785 + ui * 0.05; rect(ctx, cx + Math.cos(a) * 15, cy + Math.sin(a) * 15, 1, 1, "#ff5a62"); } ctx.globalAlpha = 1; }
     if (p.teleFx > 0) { ctx.globalAlpha = p.teleFx / 18; for (k = 0; k < 10; k++) { var a2 = k * 0.63 + ui * 0.2, r2 = 18 - p.teleFx * 0.6; rect(ctx, cx + Math.cos(a2) * r2, cy + Math.sin(a2) * r2, 2, 2, k % 2 ? "#e8c8ff" : "#a060ff"); } ctx.globalAlpha = 1; }
   }
-  /* Robot shield: violet, so it stays apart from the cyan bonus shield. Render only. */
-  function drawDome(p: any, cx: number, cy: number, tick: number) {
+  /* Robot shield: a solid violet band from the first tick. Render only; domeT is unchanged. */
+  function drawDome(p: any, cx: number, cy: number, _tick: number) {
     if (!(p.domeT > 0)) return;
     var left = p.domeT;
     if (left <= 55 && ((left >> 2) % 2) === 0) return;
-    var flash = left > 188;
-    var col = "#c89bff", edge = "#5a2ea8", hot = "#f4e8ff";
-    var rad = flash ? 16 : 15;
-    ring(cx, cy, rad, col, 0.95);
-    ring(cx, cy, rad - 2, edge, 0.9);
-    ring(cx, cy, rad + 2, hot, flash ? 0.9 : 0.4);
-    if (flash) {
-      ctx.globalAlpha = 0.34;
-      rect(ctx, cx - 11, cy - 11, 22, 22, col);
-      ctx.globalAlpha = 1;
-    }
-    var sparks = flash ? 10 : 8;
-    var orbit = flash ? 18 : 17;
-    for (var k = 0; k < sparks; k++) {
-      var a = (k / sparks) * Math.PI * 2 + tick * 0.18;
-      rect(ctx, Math.round(cx + Math.cos(a) * orbit), Math.round(cy + Math.sin(a) * orbit), 1, 1, k % 2 ? hot : col);
-    }
+    var rad = 16;
+    solidRing(cx, cy, rad + 1, "#2a1048");
+    solidRing(cx, cy, rad, "#f4e8ff");
+    solidRing(cx, cy, rad - 1, "#7a4ec8");
   }
-  function ring(cx: number, cy: number, r: number, col: string, alpha: number) {
-    ctx.globalAlpha = alpha;
-    for (var k = 0; k < 28; k++) { var a = (k / 28) * Math.PI * 2; rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col); }
-    ctx.globalAlpha = 1;
+  function solidRing(cx: number, cy: number, r: number, col: string) {
+    var n = Math.max(8, Math.round(r * 8));
+    for (var k = 0; k < n; k++) {
+      var a = (k / n) * Math.PI * 2;
+      rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col);
+    }
   }
   function drawFxFront(p: any, sy: number, tick: number) {
     if (!p.alive) return;
@@ -5274,8 +5263,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x + 1, y + 1, 5, 5, "#0c0818");
     rect(ctx, x + 3, y + 2, 1, 3, col); rect(ctx, x + 3, y + 4, 2, 1, col);
   }
+  function ruCount(n: number, one: string, few: string, many: string) {
+    var k = Math.abs(Math.floor(n));
+    var m100 = k % 100, m10 = k % 10;
+    var w = (m100 >= 11 && m100 <= 14) ? many : m10 === 1 ? one : (m10 >= 2 && m10 <= 4) ? few : many;
+    return k + " " + w;
+  }
   function drawChargeLine(cx: number, y: number, H: any, col: string) {
-    var ic = H.charge, chg = ic === "time" ? Math.round(H.need / 50) + " СЕК" : ic === "coins" ? String(H.need) : ic === "height" ? H.need + " М" : H.need + " МОБА";
+    var ic = H.charge;
+    var chg = ic === "time" ? Math.round(H.need / 50) + " СЕК"
+      : ic === "coins" ? ruCount(H.need, "МОНЕТА", "МОНЕТЫ", "МОНЕТ")
+      : ic === "height" ? H.need + " М"
+      : ruCount(H.need, "МОБ", "МОБА", "МОБОВ");
     var pre = "ЗАРЯД: ", iw = 8, gap = 2, tw = textWidth(pre, 1) + iw + gap + textWidth(chg, 1);
     var x0 = Math.round(cx - tw / 2);
     drawText(ctx, pre, x0, y, col, 1, "left");
@@ -5410,7 +5409,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       } else {
         box(ctx, x, y, 152, 22, C.navy, C.coral);
         drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
-        var runs = "ЕЩЁ " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " ЗАБЕГА";
+        var runsLeft = Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8)));
+        var runs = "ЕЩЁ " + ruCount(runsLeft, "ЗАБЕГ", "ЗАБЕГА", "ЗАБЕГОВ");
         drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
       }
     }

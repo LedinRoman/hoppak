@@ -6592,7 +6592,7 @@
       return out;
     }
     function poseOf(p) {
-      if (p.abFx > 0 || p.poundT > 0 || p.dashT > 0 || p.hookN > 0 || p.wall || p.teleFx > 10 || p.domeT > 170) return "ability";
+      if (!(p.domeT > 0) && (p.abFx > 0 || p.poundT > 0 || p.dashT > 0 || p.hookN > 0 || p.wall || p.teleFx > 10)) return "ability";
       if (p.squash > 3) return "squash";
       if (p.vy < -2.2) return "up";
       if (p.vy > 1.5) return "fall";
@@ -6923,35 +6923,21 @@
         ctx.globalAlpha = 1;
       }
     }
-    function drawDome(p, cx, cy, tick) {
+    function drawDome(p, cx, cy, _tick) {
       if (!(p.domeT > 0)) return;
       var left = p.domeT;
       if (left <= 55 && (left >> 2) % 2 === 0) return;
-      var flash2 = left > 188;
-      var col = "#c89bff", edge = "#5a2ea8", hot = "#f4e8ff";
-      var rad = flash2 ? 16 : 15;
-      ring(cx, cy, rad, col, 0.95);
-      ring(cx, cy, rad - 2, edge, 0.9);
-      ring(cx, cy, rad + 2, hot, flash2 ? 0.9 : 0.4);
-      if (flash2) {
-        ctx.globalAlpha = 0.34;
-        rect(ctx, cx - 11, cy - 11, 22, 22, col);
-        ctx.globalAlpha = 1;
-      }
-      var sparks = flash2 ? 10 : 8;
-      var orbit = flash2 ? 18 : 17;
-      for (var k = 0; k < sparks; k++) {
-        var a = k / sparks * Math.PI * 2 + tick * 0.18;
-        rect(ctx, Math.round(cx + Math.cos(a) * orbit), Math.round(cy + Math.sin(a) * orbit), 1, 1, k % 2 ? hot : col);
-      }
+      var rad = 16;
+      solidRing(cx, cy, rad + 1, "#2a1048");
+      solidRing(cx, cy, rad, "#f4e8ff");
+      solidRing(cx, cy, rad - 1, "#7a4ec8");
     }
-    function ring(cx, cy, r, col, alpha) {
-      ctx.globalAlpha = alpha;
-      for (var k = 0; k < 28; k++) {
-        var a = k / 28 * Math.PI * 2;
+    function solidRing(cx, cy, r, col) {
+      var n = Math.max(8, Math.round(r * 8));
+      for (var k = 0; k < n; k++) {
+        var a = k / n * Math.PI * 2;
         rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col);
       }
-      ctx.globalAlpha = 1;
     }
     function drawFxFront(p, sy, tick) {
       if (!p.alive) return;
@@ -7051,8 +7037,15 @@
       rect(ctx, x + 3, y + 2, 1, 3, col);
       rect(ctx, x + 3, y + 4, 2, 1, col);
     }
+    function ruCount(n, one, few, many) {
+      var k = Math.abs(Math.floor(n));
+      var m100 = k % 100, m10 = k % 10;
+      var w = m100 >= 11 && m100 <= 14 ? many : m10 === 1 ? one : m10 >= 2 && m10 <= 4 ? few : many;
+      return k + " " + w;
+    }
     function drawChargeLine(cx, y, H, col) {
-      var ic = H.charge, chg = ic === "time" ? Math.round(H.need / 50) + " \u0421\u0415\u041A" : ic === "coins" ? String(H.need) : ic === "height" ? H.need + " \u041C" : H.need + " \u041C\u041E\u0411\u0410";
+      var ic = H.charge;
+      var chg = ic === "time" ? Math.round(H.need / 50) + " \u0421\u0415\u041A" : ic === "coins" ? ruCount(H.need, "\u041C\u041E\u041D\u0415\u0422\u0410", "\u041C\u041E\u041D\u0415\u0422\u042B", "\u041C\u041E\u041D\u0415\u0422") : ic === "height" ? H.need + " \u041C" : ruCount(H.need, "\u041C\u041E\u0411", "\u041C\u041E\u0411\u0410", "\u041C\u041E\u0411\u041E\u0412");
       var pre = "\u0417\u0410\u0420\u042F\u0414: ", iw = 8, gap = 2, tw = textWidth(pre, 1) + iw + gap + textWidth(chg, 1);
       var x0 = Math.round(cx - tw / 2);
       drawText(ctx, pre, x0, y, col, 1, "left");
@@ -7204,7 +7197,8 @@
         } else {
           box(ctx, x, y, 152, 22, C.navy, C.coral);
           drawText(ctx, "\u0414\u041E " + HTO[nh.i] + " \u041E\u0421\u0422\u0410\u041B\u041E\u0421\u042C \u25CF " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
-          var runs = "\u0415\u0429\u0401 " + Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8))) + " \u0417\u0410\u0411\u0415\u0413\u0410";
+          var runsLeft = Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8)));
+          var runs = "\u0415\u0429\u0401 " + ruCount(runsLeft, "\u0417\u0410\u0411\u0415\u0413", "\u0417\u0410\u0411\u0415\u0413\u0410", "\u0417\u0410\u0411\u0415\u0413\u041E\u0412");
           drawText(ctx, runs, LW / 2, y + 12, C.gold, 1, "center");
         }
       }
