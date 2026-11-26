@@ -80,6 +80,44 @@ function parsePositiveMs(raw: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+export const DEFAULT_WS_PING_MS = 25_000;
+export const DEFAULT_WS_PONG_TIMEOUT_MS = 60_000;
+
+/**
+ * BUG-56: validate the heartbeat config. Both values must be numbers >= 1 and the pong timeout must be
+ * at least 2x the ping interval (otherwise a healthy client is terminated before its pong can arrive).
+ * Anything else -> warning and BOTH values fall back to the defaults (25000 / 60000).
+ */
+export function resolveHeartbeatConfig(
+  rawPing: string | undefined,
+  rawTimeout: string | undefined,
+): { pingMs: number; pongTimeoutMs: number; warning?: string } {
+  const def = { pingMs: DEFAULT_WS_PING_MS, pongTimeoutMs: DEFAULT_WS_PONG_TIMEOUT_MS };
+  const parse = (raw: string | undefined, d: number) => {
+    if (raw === undefined || raw.trim() === '') return { v: d, bad: false };
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 1 ? { v: Math.round(n), bad: false } : { v: d, bad: true };
+  };
+  const ping = parse(rawPing, def.pingMs);
+  const timeout = parse(rawTimeout, def.pongTimeoutMs);
+  if (ping.bad || timeout.bad) {
+    return {
+      ...def,
+      warning: `invalid heartbeat config (WS_PING_MS=${JSON.stringify(rawPing)}, WS_PONG_TIMEOUT_MS=${JSON.stringify(rawTimeout)}): ` +
+        `both must be numbers >= 1; falling back to defaults WS_PING_MS=${def.pingMs}, WS_PONG_TIMEOUT_MS=${def.pongTimeoutMs}`,
+    };
+  }
+  if (timeout.v < 2 * ping.v) {
+    return {
+      ...def,
+      warning: `unsafe heartbeat config (WS_PING_MS=${ping.v}, WS_PONG_TIMEOUT_MS=${timeout.v}): ` +
+        `WS_PONG_TIMEOUT_MS must be >= 2x WS_PING_MS or healthy clients get terminated; ` +
+        `falling back to defaults WS_PING_MS=${def.pingMs}, WS_PONG_TIMEOUT_MS=${def.pongTimeoutMs}`,
+    };
+  }
+  return { pingMs: ping.v, pongTimeoutMs: timeout.v };
+}
+
 @Injectable()
 export class BlueGreenService implements OnModuleDestroy {
   private readonly log = new Logger('BlueGreen');
@@ -132,8 +170,10 @@ export class BlueGreenService implements OnModuleDestroy {
     this.field = loadFieldConfig();
     this.migrateGraceMs = parsePositiveMs(process.env.MIGRATE_GRACE_MS, 30_000);
     this.peerAuthTtlMs = parsePositiveMs(process.env.PEER_AUTH_TTL_MS, 3_000);
-    this.wsPingMs = parsePositiveMs(process.env.WS_PING_MS, 25_000);
-    this.wsPongTimeoutMs = parsePositiveMs(process.env.WS_PONG_TIMEOUT_MS, 60_000);
+    const hb = resolveHeartbeatConfig(process.env.WS_PING_MS, process.env.WS_PONG_TIMEOUT_MS);
+    if (hb.warning) this.log.warn(hb.warning);
+    this.wsPingMs = hb.pingMs;
+    this.wsPongTimeoutMs = hb.pongTimeoutMs;
     this.wsPingTimer = setInterval(() => this.sweepHeartbeats(), this.wsPingMs);
     this.wsPingTimer.unref();
     if (!this.peerInternalUrl) this.peerAuth = 'none';

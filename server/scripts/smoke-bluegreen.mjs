@@ -923,6 +923,39 @@ try {
     } finally { b.child.kill('SIGKILL'); g.child.kill('SIGKILL'); }
   }
 
+  // 20. BUG-56: unsafe/invalid heartbeat config -> warning + defaults (25000/60000); healthy clients are not killed
+  {
+    const cases = [
+      { label: 'ping 400 / timeout 150 (timeout < 2x ping)', env: { WS_PING_MS: '400', WS_PONG_TIMEOUT_MS: '150' }, warn: true },
+      { label: 'ping 40000 / timeout default 60000 (< 2x ping)', env: { WS_PING_MS: '40000' }, warn: true },
+      { label: 'ping abc / timeout -5 (invalid)', env: { WS_PING_MS: 'abc', WS_PONG_TIMEOUT_MS: '-5' }, warn: true },
+      { label: 'ping 100 / timeout 200 (exactly 2x, valid)', env: { WS_PING_MS: '100', WS_PONG_TIMEOUT_MS: '200' }, warn: false },
+    ];
+    for (const c of cases) {
+      const bp = await freePort(), bi = await freePort(), gi = await freePort();
+      const b = startSlot({ name: 'blue', pubPort: bp, intPort: bi, version: '0.58.0', peerIntPort: gi, extraEnv: c.env });
+      try {
+        await waitHealth(bp);
+        const cl = await openWs(`ws://127.0.0.1:${bp}/ws?p=2`, 'hb_cfg');
+        let pings = 0;
+        cl.ws.on('ping', () => { pings++; });
+        await cl.wait('hello');
+        await sleep(1000); // > 2x the unsafe 400 ms interval; unsafe config would have killed this healthy client at ~400 ms
+        const alive = cl.ws.readyState === 1;
+        const logText = b.logs.join('');
+        const warned = /(unsafe|invalid) heartbeat config/.test(logText) && /falling back to defaults WS_PING_MS=25000, WS_PONG_TIMEOUT_MS=60000/.test(logText);
+        if (c.warn) {
+          check(alive && warned && pings === 0,
+            `BUG-56: ${c.label}: warning logged, defaults used (no 1s ping), healthy client survived (alive=${alive}, warned=${warned}, pings=${pings})`);
+        } else {
+          check(alive && !/heartbeat config/.test(logText) && pings >= 5,
+            `BUG-56: ${c.label}: accepted without warning (alive=${alive}, pings=${pings})`);
+        }
+        try { cl.ws.close(); } catch {}
+      } finally { b.child.kill('SIGKILL'); }
+    }
+  }
+
   console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL BLUE-GREEN SMOKE CHECKS PASSED');
   process.exitCode = failures ? 1 : 0;
 } finally {

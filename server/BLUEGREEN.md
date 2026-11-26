@@ -32,8 +32,8 @@
 | `PEER_INTERNAL_URL` | `""` | URL внутреннего порта соседнего слота (например `http://game_green:3001` для `blue` и `http://game_blue:3001` для `green`). |
 | `PEER_TIMEOUT_MS` | `800` | Таймаут HTTP/WS запросов к соседнему слоту (мс). |
 | `PEER_AUTH_TTL_MS` | `3000` | Как часто обновлять `peerAuth` (фон и кэш `/api/health`). |
-| `WS_PING_MS` | `25000` | Интервал серверных WS-фреймов `ws.ping()` ко всем сокетам (публичным, `/internal/ws` и прокси-туннелям), чтобы idle-соединения в лобби/итогах не обрывались egress/NAT-таймаутом (BUG-50). |
-| `WS_PONG_TIMEOUT_MS` | `60000` | Через сколько мс без `pong` мёртвый WS-сокет принудительно закрывается (`ws.terminate()`). |
+| `WS_PING_MS` | `25000` | Интервал серверных WS-фреймов `ws.ping()` ко всем сокетам (публичным, `/internal/ws` и прокси-туннелям), чтобы idle-соединения в лобби/итогах не обрывались egress/NAT-таймаутом (BUG-50). Должен быть ≥ 1; см. валидацию ниже (BUG-56). |
+| `WS_PONG_TIMEOUT_MS` | `60000` | Через сколько мс без `pong` мёртвый WS-сокет принудительно закрывается (`ws.terminate()`). Должен быть ≥ 2 × `WS_PING_MS`, иначе предупреждение и сброс обоих значений на дефолты (BUG-56). |
 | `ROOM_CODE_MIN` / `ROOM_CODE_MAX` | `blue`: `1000..5499`, `green`: `5500..9999` | Непересекающиеся диапазоны 4-значных кодов комнат по слотам (устраняет коллизии кодов между слотами). |
 | `DRAIN_LOBBY_TTL_MS` | `15000` | Через сколько мс закрывать неактивную лобби-комнату на слоте в режиме `drain`. |
 | `DRAIN_RESULTS_CLOSE_MS` | `1500` | Задержка после завершения раунда (`results`) перед автоматическим закрытием/переводом комнаты в `drain`. |
@@ -99,6 +99,7 @@
 ### Heartbeat (BUG-50): один серверный `ws.ping()`
 
 - **Единственная реализация** — `BlueGreenService.sweepHeartbeats()` (`src/bluegreen/bluegreen.service.ts`): один `setInterval` на процесс, раз в `WS_PING_MS` (25000) шлёт `ws.ping()` каждому сокету и закрывает (`terminate()`) сокет, от которого не было `pong` дольше `WS_PONG_TIMEOUT_MS` (60000). Таймер `unref()` и очищается в `onModuleDestroy`.
+- **Валидация конфига (BUG-56):** `resolveHeartbeatConfig()` читает `WS_PING_MS`/`WS_PONG_TIMEOUT_MS` один раз при старте. Оба значения должны быть числами ≥ 1, и `WS_PONG_TIMEOUT_MS` ≥ 2 × `WS_PING_MS` (иначе здоровый клиент терминируется раньше, чем успеет ответить pong). Если нет (например, ping 400 / timeout 150, только `WS_PING_MS=40000` при дефолтном timeout, `abc`, `-5`), в лог пишется `WARN [BlueGreen] unsafe|invalid heartbeat config (...) falling back to defaults WS_PING_MS=25000, WS_PONG_TIMEOUT_MS=60000`, и **оба** значения сбрасываются на дефолты. Граница ровно 2× допустима. Проверка: `test:bluegreen` п. 20.
 - Покрывает: публичные сокеты v1 и v2 (регистрируются в `setupSocket` → `registerClient`), внутренние `/internal/ws` сокеты (тот же `setupSocket`) и исходящие upstream-сокеты прокси v1 (`proxyUpstreams`), на обоих слотах (blue и green).
 - Хотфикс прод-сервера (`22efb22`, heartbeat в `GameGateway`) влит merge-коммитом, но **его дубль в `game.gateway.ts` убран**: heartbeat там не нужен, иначе каждый сокет получал бы два пинга за интервал. Клиенту (браузер) pong отвечает сам; v2-клиентский прикладной `{event:'ping'}` — отдельный механизм (RTT/AFK) и серверный `ws.ping()` не заменяет.
 - Проверки: `test:bluegreen` (п. 19: v1/v2/прокси живут, «немой» сокет закрывается), `node scripts/smoke-ws-ping.mjs` (одиночный сервер), `node scripts/smoke-ws-ping-count.mjs [секунды]` (на двух слотах с `WS_PING_MS=1000` считает пинги за ~60 с: ожидаем ≈60 на сокет, а не ≈120), `node scripts/smoke-ws-ping.mjs --long` (11 минут idle при дефолтных 25 с).
