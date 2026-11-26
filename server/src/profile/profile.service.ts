@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { Player } from './player.entity';
 import { PlayerRun } from './player-run.entity';
 import { hashToken, newGuestToken } from './auth';
-import { parseAndVerifyInitData } from './telegram';
+import { parseAndVerifyInitData, VerifiedTelegramInitData } from './telegram';
 import {
   ITEM_PRICES, MAP_IDS, MIGRATE_COINS_MAX, RUN_HEIGHT_MAX,
   awardForRun, clamp, emptyCampaign, mapPurchaseBlock, mergeCampaign, mergePurchases,
@@ -265,6 +265,16 @@ export class ProfileService {
     return out;
   }
 
+  /** Store Telegram profile fields for admin. Never copy these onto PublicProfile. */
+  private applyTelegramProfile(p: Player, tg: VerifiedTelegramInitData) {
+    p.telegramUsername = tg.username;
+    p.telegramFirstName = tg.firstName;
+    p.telegramLastName = tg.lastName;
+    p.telegramLanguage = tg.languageCode;
+    p.telegramIsPremium = tg.isPremium;
+    p.telegramProfileUpdatedAt = new Date();
+  }
+
   async authTelegram(
     guestToken: string | null,
     initData: unknown,
@@ -274,7 +284,8 @@ export class ProfileService {
     if (!botToken) {
       throw new HttpException({ ok: false, error: 'TELEGRAM_AUTH_UNAVAILABLE' }, HttpStatus.SERVICE_UNAVAILABLE);
     }
-    const { telegramId } = parseAndVerifyInitData(initData, botToken);
+    const verified = parseAndVerifyInitData(initData, botToken);
+    const { telegramId } = verified;
 
     const execute = async (playerRepo: Repository<Player>) => {
       const foundTg = await playerRepo.findOne({ where: { telegramId } });
@@ -294,6 +305,8 @@ export class ProfileService {
 
       if (existingByTg) {
         if (guest && guest.id === existingByTg.id && guestToken) {
+          this.applyTelegramProfile(existingByTg, verified);
+          await playerRepo.save(existingByTg);
           return { token: guestToken, profile: this.toPublic(existingByTg), linked: false };
         }
         if (guest && guest.id !== existingByTg.id && !guest.telegramId && !guest.mergedInto) {
@@ -301,6 +314,7 @@ export class ProfileService {
           this.closeGuest(guest, existingByTg.id);
           const nextToken = newGuestToken();
           existingByTg.guestTokenHash = hashToken(nextToken);
+          this.applyTelegramProfile(existingByTg, verified);
           await playerRepo.save(guest);
           await playerRepo.save(existingByTg);
           return {
@@ -313,6 +327,7 @@ export class ProfileService {
         }
         const nextToken = newGuestToken();
         existingByTg.guestTokenHash = hashToken(nextToken);
+        this.applyTelegramProfile(existingByTg, verified);
         await playerRepo.save(existingByTg);
         return { token: nextToken, profile: this.toPublic(existingByTg), linked: false };
       }
@@ -323,6 +338,7 @@ export class ProfileService {
         }
         guest.telegramId = telegramId;
         guest.telegramLinkedAt = new Date();
+        this.applyTelegramProfile(guest, verified);
         await playerRepo.save(guest);
         return { token: guestToken!, profile: this.toPublic(guest), linked: true };
       }
@@ -336,6 +352,7 @@ export class ProfileService {
         telegramId,
         telegramLinkedAt: new Date(),
       });
+      this.applyTelegramProfile(created, verified);
       await playerRepo.save(created);
       return { token, profile: this.toPublic(created), linked: true };
     };

@@ -50,6 +50,24 @@ export class Player {
   @Column({ name: 'merged_at', type: 'timestamptz', nullable: true })
   mergedAt: Date | null;
 
+  @Column({ name: 'telegram_username', type: 'varchar', length: 64, nullable: true })
+  telegramUsername: string | null;
+
+  @Column({ name: 'telegram_first_name', type: 'varchar', length: 128, nullable: true })
+  telegramFirstName: string | null;
+
+  @Column({ name: 'telegram_last_name', type: 'varchar', length: 128, nullable: true })
+  telegramLastName: string | null;
+
+  @Column({ name: 'telegram_language', type: 'varchar', length: 16, nullable: true })
+  telegramLanguage: string | null;
+
+  @Column({ name: 'telegram_is_premium', type: 'boolean', nullable: true })
+  telegramIsPremium: boolean | null;
+
+  @Column({ name: 'telegram_profile_updated_at', type: 'timestamptz', nullable: true })
+  telegramProfileUpdatedAt: Date | null;
+
   @BeforeInsert()
   assignId() {
     if (!this.id) this.id = randomUUID();

@@ -13,6 +13,8 @@ const { ITEM_PRICES, RUN_COINS_MAX, RUN_BONUS_MAX, HEIGHT_AWARD_MIN } = require(
 const { AddBestBuyRunId1795642000000 } = require('../dist/db/migrations/1795642000000-AddBestBuyRunId');
 const { AddMergedInto1795643000000 } = require('../dist/db/migrations/1795643000000-AddMergedInto');
 const { AddCampaign1795644000000 } = require('../dist/db/migrations/1795644000000-AddCampaign');
+const { AddTelegramProfile1795645000000 } = require('../dist/db/migrations/1795645000000-AddTelegramProfile');
+const { parseAndVerifyInitData, clipTelegramField } = require('../dist/profile/telegram');
 
 function clone(v) {
   return v == null ? v : JSON.parse(JSON.stringify(v));
@@ -31,6 +33,7 @@ function makeMemoryRepos() {
     p.windowStartedAt = row.windowStartedAt ? new Date(row.windowStartedAt) : null;
     p.telegramLinkedAt = row.telegramLinkedAt ? new Date(row.telegramLinkedAt) : null;
     p.mergedAt = row.mergedAt ? new Date(row.mergedAt) : null;
+    p.telegramProfileUpdatedAt = row.telegramProfileUpdatedAt ? new Date(row.telegramProfileUpdatedAt) : null;
     return p;
   }
 
@@ -301,8 +304,8 @@ async function testProfileFlow() {
 /** Fake bot token for unit tests only — not a real Telegram secret. */
 const TEST_BOT_TOKEN = 'hoppak-unit-test-bot-token';
 
-function makeInitData(botToken, userId) {
-  const user = JSON.stringify({ id: userId, first_name: 'T' });
+function makeInitData(botToken, userId, extra = {}) {
+  const user = JSON.stringify({ id: userId, first_name: 'T', ...extra });
   const auth_date = String(Math.floor(Date.now() / 1000));
   const fields = { auth_date, query_id: 'AA', user };
   const dataCheckString = Object.keys(fields).sort().map((k) => `${k}=${fields[k]}`).join('\n');
@@ -566,6 +569,25 @@ async function testMigrationSql() {
   assert.ok(up3.some(q => /ADD COLUMN "campaign" jsonb/i.test(q)));
   assert.ok(down3.some(q => /DROP COLUMN "campaign"/i.test(q)));
   console.log('PASS campaign migration SQL');
+
+  const m4 = new AddTelegramProfile1795645000000();
+  const up4 = [];
+  const down4 = [];
+  await m4.up({ query: async (q) => up4.push(q) });
+  await m4.down({ query: async (q) => down4.push(q) });
+  for (const col of [
+    'telegram_username',
+    'telegram_first_name',
+    'telegram_last_name',
+    'telegram_language',
+    'telegram_is_premium',
+    'telegram_profile_updated_at',
+  ]) {
+    assert.ok(up4.some((q) => new RegExp('ADD COLUMN IF NOT EXISTS "' + col + '"', 'i').test(q)), 'up ' + col);
+    assert.ok(down4.some((q) => new RegExp('DROP COLUMN IF EXISTS "' + col + '"', 'i').test(q)), 'down ' + col);
+  }
+  assert.ok(up4.every((q) => /ADD COLUMN/i.test(q) && !/DROP COLUMN|ALTER COLUMN|UPDATE /i.test(q)));
+  console.log('PASS telegram profile migration SQL');
 }
 
 async function testTwoDevices() {
@@ -716,10 +738,118 @@ async function testMapPurchase() {
   console.log('PASS map purchase (no free open, goal, coins, one charge, old opens stay)');
 }
 
+const TG_PROFILE_LEAK_KEYS = [
+  'telegramUsername', 'telegramFirstName', 'telegramLastName',
+  'telegramLanguage', 'telegramIsPremium', 'telegramProfileUpdatedAt',
+  'username', 'first_name', 'last_name', 'language_code', 'is_premium',
+];
+
+function assertNoTelegramProfileLeak(payload, uniqueMarker) {
+  const profile = payload && payload.profile;
+  assert.ok(profile, 'profile present');
+  for (const k of TG_PROFILE_LEAK_KEYS) {
+    assert.strictEqual(profile[k], undefined, 'profile must not expose ' + k);
+  }
+  const raw = JSON.stringify(payload);
+  if (uniqueMarker) {
+    assert.ok(!raw.includes(uniqueMarker), 'API must not include telegram username');
+  }
+}
+
+async function testTelegramProfileFields() {
+  process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
+  const { app, base, players } = await startTestApp();
+  const init = (uid, extra) => makeInitData(TEST_BOT_TOKEN, uid, extra);
+  try {
+    assert.strictEqual(clipTelegramField('abc', 2), 'ab');
+    assert.strictEqual(clipTelegramField('', 8), null);
+    assert.strictEqual(clipTelegramField(1, 8), null);
+
+    const longName = 'N'.repeat(200);
+    const longUser = 'u'.repeat(80);
+    const signed = init(424201, {
+      username: longUser,
+      first_name: longName,
+      last_name: 'Ledin',
+      language_code: 'ru-RU-extra-longer',
+      is_premium: true,
+    });
+    const parsed = parseAndVerifyInitData(signed, TEST_BOT_TOKEN);
+    assert.strictEqual(parsed.username, 'u'.repeat(64));
+    assert.strictEqual(parsed.firstName, 'N'.repeat(128));
+    assert.strictEqual(parsed.lastName, 'Ledin');
+    assert.strictEqual(parsed.languageCode, 'ru-RU-extra-longer'.slice(0, 16));
+    assert.strictEqual(parsed.isPremium, true);
+
+    const guest = await req(base, 'POST', '/api/profile/guest');
+    const tok = guest.data.token;
+    const linked = await req(base, 'POST', '/api/auth/telegram', {
+      initData: init(424201, {
+        username: 'unit_tg_nick_xyz',
+        first_name: 'Roman',
+        last_name: 'L',
+        language_code: 'ru',
+        is_premium: true,
+      }),
+    }, tok);
+    assert.strictEqual(linked.status, 201, JSON.stringify(linked.data));
+    assert.strictEqual(linked.data.linked, true);
+    assertNoTelegramProfileLeak(linked.data, 'unit_tg_nick_xyz');
+    const row = [...players.values()].find((p) => String(p.telegramId) === '424201');
+    assert.ok(row);
+    assert.strictEqual(row.telegramUsername, 'unit_tg_nick_xyz');
+    assert.strictEqual(row.telegramFirstName, 'Roman');
+    assert.strictEqual(row.telegramLastName, 'L');
+    assert.strictEqual(row.telegramLanguage, 'ru');
+    assert.strictEqual(row.telegramIsPremium, true);
+    assert.ok(row.telegramProfileUpdatedAt instanceof Date);
+
+    const again = await req(base, 'POST', '/api/auth/telegram', {
+      initData: init(424201, {
+        username: 'unit_tg_nick_v2',
+        first_name: 'Ro',
+        language_code: 'en',
+      }),
+    }, tok);
+    assert.strictEqual(again.status, 201, JSON.stringify(again.data));
+    assertNoTelegramProfileLeak(again.data, 'unit_tg_nick_v2');
+    const row2 = [...players.values()].find((p) => String(p.telegramId) === '424201');
+    assert.strictEqual(row2.telegramUsername, 'unit_tg_nick_v2');
+    assert.strictEqual(row2.telegramFirstName, 'Ro');
+    assert.strictEqual(row2.telegramLastName, null);
+    assert.strictEqual(row2.telegramLanguage, 'en');
+    assert.strictEqual(row2.telegramIsPremium, null);
+
+    const created = await req(base, 'POST', '/api/auth/telegram', {
+      initData: init(424202, { username: 'fresh_tg_user', first_name: 'A', is_premium: false }),
+    });
+    assert.strictEqual(created.status, 201, JSON.stringify(created.data));
+    assertNoTelegramProfileLeak(created.data, 'fresh_tg_user');
+    const fresh = [...players.values()].find((p) => String(p.telegramId) === '424202');
+    assert.strictEqual(fresh.telegramUsername, 'fresh_tg_user');
+    assert.strictEqual(fresh.telegramIsPremium, false);
+
+    const g2 = await req(base, 'POST', '/api/profile/guest');
+    const merged = await req(base, 'POST', '/api/auth/telegram', {
+      initData: init(424202, { username: 'fresh_tg_merged', first_name: 'B' }),
+    }, g2.data.token);
+    assert.strictEqual(merged.status, 201, JSON.stringify(merged.data));
+    assert.strictEqual(merged.data.merged, true);
+    assertNoTelegramProfileLeak(merged.data, 'fresh_tg_merged');
+    const afterMerge = [...players.values()].find((p) => String(p.telegramId) === '424202');
+    assert.strictEqual(afterMerge.telegramUsername, 'fresh_tg_merged');
+    assert.strictEqual(afterMerge.telegramFirstName, 'B');
+  } finally {
+    await app.close();
+  }
+  console.log('PASS telegram profile fields (clip, persist, no API leak, login/merge update)');
+}
+
 (async () => {
   await testWithoutDb();
   await testProfileFlow();
   await testTelegramMerge();
+  await testTelegramProfileFields();
   await testAwardSeries();
   await testMigrationSql();
   await testTwoDevices();

@@ -7,7 +7,22 @@ const CLOCK_SKEW_SEC = 300;
 export type VerifiedTelegramInitData = {
   telegramId: string;
   authDate: number;
+  username: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  languageCode: string | null;
+  isPremium: boolean | null;
 };
+
+const USERNAME_MAX = 64;
+const NAME_MAX = 128;
+const LANGUAGE_MAX = 16;
+
+/** Clip a Telegram string field. Never log the raw value. */
+export function clipTelegramField(value: unknown, max: number): string | null {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  return value.length > max ? value.slice(0, max) : value;
+}
 
 export function parseAndVerifyInitData(
   initData: unknown,
@@ -66,5 +81,13 @@ export function parseAndVerifyInitData(
     throw new HttpException({ ok: false, error: 'INVALID_INIT_DATA' }, HttpStatus.UNAUTHORIZED);
   }
 
-  return { telegramId: tgId, authDate };
+  return {
+    telegramId: tgId,
+    authDate,
+    username: clipTelegramField(user.username, USERNAME_MAX),
+    firstName: clipTelegramField(user.first_name, NAME_MAX),
+    lastName: clipTelegramField(user.last_name, NAME_MAX),
+    languageCode: clipTelegramField(user.language_code, LANGUAGE_MAX),
+    isPremium: typeof user.is_premium === 'boolean' ? user.is_premium : null,
+  };
 }
