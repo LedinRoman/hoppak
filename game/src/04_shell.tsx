@@ -2019,8 +2019,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
       if (tg) {
         var c = tg.contentSafeAreaInset, s = tg.safeAreaInset;
-        sum = (s && Number(s[side])) || 0;
-        sum += (c && Number(c[side])) || 0;
+        var jsSum = ((s && Number(s[side])) || 0) + ((c && Number(c[side])) || 0);
+        var cssSum = 0;
+        try {
+          var cs = getComputedStyle(document.documentElement);
+          cssSum = (parseFloat(cs.getPropertyValue("--tg-safe-area-inset-" + side)) || 0)
+            + (parseFloat(cs.getPropertyValue("--tg-content-safe-area-inset-" + side)) || 0);
+        } catch (_eCss) {}
+        sum = Math.max(jsSum, cssSum);
       }
     } catch (_e) {}
     if (sum > 0) return sum;
