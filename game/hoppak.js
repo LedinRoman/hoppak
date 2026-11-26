@@ -1,4 +1,4 @@
-/* Хоппак v0.6rc — generated from hoppak.page.tsx by build.sh, do not edit */
+/* Хоппак v0.6 — generated from hoppak.page.tsx by build.sh, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;

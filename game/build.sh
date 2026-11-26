@@ -21,7 +21,7 @@ game = game.split("\n", 1)[1]  # drop grok/canvas import
 open("/tmp/hoppak.game.ts", "w").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
 PY
 $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --outfile=hoppak.js --log-level=warning
-sed -i '1i /* Хоппак v0.6rc — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
+sed -i '1i /* Хоппак v0.6 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
 $ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --outfile=/tmp/hop.min.tsx --log-level=warning
 python3 - << 'PY'
@@ -58,20 +58,26 @@ if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
   HTML_SRC="index.html"
   if [ -n "${HOP_API:-}" ]; then DEFS="${DEFS} --define:HOP_API=\"${HOP_API}\""; fi
   # Staging (/v/0.6rc/) is the only build that loads telegram-web-app.js and the alpha toggle.
+  # The visible label is v0.6 on the prod page and v0.6rc on staging. Room admission
+  # stays NET_GEN ("0.6") and NET_PROTO (1); this label is not that check.
+  VER_LABEL="v0.6"
   if [ "${1:-}" = "staging" ]; then
     DEFS="${DEFS} --define:HOP_STAGING=true"
     HTML_SRC="index.staging.html"
+    VER_LABEL="v0.6rc"
   fi
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
     ${DEFS} \
     --outfile=site/hoppak.js --log-level=warning
-  sed -i '1i /* Хоппак v0.6rc site — HOP_SERVER baked in, do not edit */' site/hoppak.js
+  sed -i "1i /* Хоппак ${VER_LABEL} site — HOP_SERVER baked in, do not edit */" site/hoppak.js
   python3 - << PY
 from pathlib import Path
 html = Path("${HTML_SRC}").read_text()
-html = html.replace("Хоппак v0.59", "Хоппак v0.6rc").replace("Хоппак v0.58", "Хоппак v0.6rc")
+label = "Хоппак ${VER_LABEL}"
+html = html.replace("Хоппак v0.6rc", "Хоппак __VER__").replace("Хоппак v0.59", "Хоппак __VER__").replace("Хоппак v0.58", "Хоппак __VER__").replace("Хоппак v0.6", "Хоппак __VER__")
+html = html.replace("Хоппак __VER__", label)
 Path("site/index.html").write_text(html)
-print("site html", "${HTML_SRC}")
+print("site html", "${HTML_SRC}", label)
 print("site js", Path("site/hoppak.js").stat().st_size, "bytes")
 PY
   # fix the printed origin (the heredoc was unquoted wrongly for the env var)
