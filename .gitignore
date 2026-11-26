@@ -33,3 +33,4 @@ tmp/
 server/dist/
 server/public/
 game/site/v/
+game/.build-out.*/

@@ -83,6 +83,17 @@ async function waitFor(pg, fn, arg, ms = 10000) {
   return false;
 }
 
+/* Socket blink helpers. `net.dropSocket()` only calls ws.close(): `net.st` stays 'online' until the close event
+   fires, so a bare `waitFor(st === 'online')` right after it is already true BEFORE the reconnect even started
+   (the race behind the flaky "p2 reconnected via /ws/blue (undefined)", S17 "0 WS" and S4/S8/S12/S13 failures:
+   the test went on to drain / kill players while the client was still offline). Wait on the real condition:
+   a NEW WebSocket object that is OPEN. */
+const dropSocket = (pg) => pg.evaluate(() => { window.__wsPrev = __hoppak.net.ws; __hoppak.net.dropSocket(); });
+const awaitReconnect = (pg, ms = 10000) => waitFor(pg, () => {
+  const N = __hoppak.net;
+  return !!N.ws && N.ws !== window.__wsPrev && N.ws.readyState === 1 && N.st === 'online';
+}, null, ms);
+
 function startSlot({ name, pubPort, intPort, version, peerIntPort }) {
   const logs = [];
   const child = spawn(process.execPath, [MAIN_JS], {
@@ -535,8 +546,8 @@ async function run() {
 
     // 4. Test mid-match reconnect on draining blue -> must reconnect to /ws/blue?p=2!
     const wsLogBeforeRecon = proxy.wsLog.length;
-    await p2.evaluate(() => __hoppak.net.dropSocket());
-    check(await waitFor(p2, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net, null, 8000),
+    await dropSocket(p2);
+    check(await awaitReconnect(p2, 8000) && await waitFor(p2, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net, null, 8000),
       'p2 reconnected mid-match after socket drop');
     const reconWs = proxy.wsLog.slice(wsLogBeforeRecon).find((w) => w.pathname === '/ws/blue');
     check(!!reconWs && reconWs.search.includes('p=2'),
@@ -548,9 +559,10 @@ async function run() {
       sessionStorage.removeItem('hoppak.net.node');
       __hoppak.net.node = '';
       __hoppak.net.targetNode = '';
+      window.__wsPrev = __hoppak.net.ws;
       __hoppak.net.dropSocket();
     });
-    check(await waitFor(p2, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net && __hoppak.getSize().lw === 160, null, 8000),
+    check(await awaitReconnect(p2, 8000) && await waitFor(p2, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net && __hoppak.getSize().lw === 160, null, 8000),
       'BUG-24: p2 blind reconnect via active green recovered running blue match at lw=160');
     const blindWs = proxy.wsLog.slice(wsBeforeBlindRecon).find((w) => w.pathname === '/ws' && w.targetSlot === 'green');
     check(!!blindWs, `proxy routed blind reconnect to active green (${JSON.stringify(blindWs)})`);
@@ -836,6 +848,10 @@ async function run() {
         });
         await sleep(250);
       }
+      if (await pg.evaluate(() => __hoppak.getWorld()?.players?.[0]?.alive)) {
+        /* still alive after 10 s: dump enough state to tell harness races from client bugs */
+        log('killMe: player still alive', JSON.stringify(await pg.evaluate(() => { const w = __hoppak.getWorld(), N = __hoppak.net; return { phase: __hoppak.getPhase(), st: N.st, wsState: N.ws && N.ws.readyState, room: N.room && N.room.code, tick: w && w.tick, y: w && w.players[0].y, camY: w && w.players[0].camY, alive: w && w.players[0].alive, err: N.err, vis: document.visibilityState }; })));
+      }
     };
     const errsQ = [];
     const Q = [];
@@ -889,8 +905,8 @@ async function run() {
     proxy.setActive('green');
     await fetch(`http://127.0.0.1:${BLUE_INT}/internal/drain`, { method: 'POST', headers: INT_H, body: JSON.stringify({ version: '0.58.0' }) });
     // BUG-36: an old client's socket blinks mid-round and reconnects blindly via /ws (now green -> proxied to blue)
-    await O56.evaluate(() => __hoppak.net.dropSocket());
-    check(await waitFor(O56, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net && __hoppak.getPhase() === 'play', null, 8000),
+    await dropSocket(O56);
+    check(await awaitReconnect(O56, 8000) && await waitFor(O56, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net && __hoppak.getPhase() === 'play', null, 8000),
       'S3: v0.56 blind reconnect mid-round via green continues the round on blue');
     await sleep(600);
     // finish both rounds
@@ -901,7 +917,7 @@ async function run() {
     check(allRes, `S4: both rooms finished round 1 on draining blue (results shown to all 6) ${allRes ? '' : JSON.stringify(ph4)}`);
     // BUG-35: one v2 socket blinks inside the results-close window (DRAIN_RESULTS_CLOSE_MS=5000 here)
     await sleep(500);
-    await Q[3].evaluate(() => __hoppak.net.dropSocket());
+    await dropSocket(Q[3]);
     // wait for the move
     let moved = true;
     for (const pg of Q) moved = (await waitFor(pg, (c) => __hoppak.net.room && __hoppak.net.room.code !== c && __hoppak.net.node === 'green' && __hoppak.net.st === 'online', qCode, 12000)) && moved;
@@ -1005,8 +1021,9 @@ async function run() {
     green.child.kill('SIGKILL');
     await sleep(300);
     const wsBeforeW = proxy.wsLog.length;
-    await W1.evaluate(() => __hoppak.net.dropSocket()); await W2.evaluate(() => __hoppak.net.dropSocket());
-    const wBack = await waitFor(W1, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net && __hoppak.getPhase() === 'play', null, 9000) &&
+    await dropSocket(W1); await dropSocket(W2);
+    const wBack = await awaitReconnect(W1, 9000) && await awaitReconnect(W2, 9000) &&
+                  await waitFor(W1, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net && __hoppak.getPhase() === 'play', null, 9000) &&
                   await waitFor(W2, () => __hoppak.net.st === 'online' && __hoppak.getWorld()?.net && __hoppak.getPhase() === 'play', null, 9000);
     const wBlue = proxy.wsLog.slice(wsBeforeW).filter((w) => w.pathname === '/ws/blue').length;
     check(wBack && wBlue >= 2, `S17 (BUG-33): with active green dead, both clients reconnected to /ws/blue (${wBlue} WS) and the round on blue continues`);
