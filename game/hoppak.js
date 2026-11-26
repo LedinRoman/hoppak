@@ -5226,6 +5226,15 @@
       drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
       if (mark && align !== "right") drawText(ctx, mark, x0 + w + 4, y - 0.5, C.mov, 1, "left");
     }
+    function drawWallet() {
+      var mark = tgMark();
+      var s = String(save.coins);
+      var w = textWidth(s, 1) + 9 + (mark ? textWidth(mark, 1) + 4 : 0);
+      var x = LW - 4 - w;
+      rect(ctx, x - 3, 1, w + 6, 11, INK);
+      rect(ctx, x - 2, 2, w + 4, 9, C.navy);
+      coinsLabel(LW - 4, 3, save.coins, "right", true);
+    }
     function drawBuy(id, x, y, w, h, price) {
       addHit(id, x, y, w, h);
       var on = pressId === id;
@@ -5748,9 +5757,8 @@
       dimView(ctx, "rgba(18,14,44,0.14)");
       var x = colX();
       drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
-      gear(LW - 22, 4);
+      gear(4, 4);
       drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 41, C.cream, "center");
-      coinsLabel(x, 52, save.coins, void 0, true);
       var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
       var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
       var by = LH - 118;
@@ -5820,7 +5828,6 @@
       dimView(ctx, "rgba(18,14,44,0.32)");
       var x = colX();
       header("\u041C\u0410\u0413\u0410\u0417\u0418\u041D", 2);
-      coinsLabel(LW - 6, 12, save.coins, "right", true);
       var pw = 22, gap = 4, sx = Math.round(LW / 2 - (6 * pw + 5 * gap) / 2);
       for (var k = 0; k < 6; k++) {
         var bx = sx + k * (pw + gap), by = 36, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
@@ -5874,7 +5881,6 @@
       dimView(ctx, "rgba(18,14,44,0.34)");
       var x = colX();
       header("\u041A\u0410\u041C\u041F\u0410\u041D\u0418\u042F", 2);
-      coinsLabel(LW - 6, 12, save.coins, "right", true);
       box(ctx, x, 36, 152, 22, "#1a1430", C.mint);
       drawText(ctx, "\u0414\u041E\u0419\u0414\u0418 \u0414\u041E \u0426\u0415\u041B\u0418 \u2192", LW / 2, 39, C.cream, 1, "center");
       drawText(ctx, "\u041E\u0422\u041A\u0420\u041E\u0419 \u0417\u0410 \u041C\u041E\u041D\u0415\u0422\u042B", LW / 2, 49, C.mint, 1, "center");
@@ -6591,7 +6597,9 @@
         hits = [];
         NET.draw(netApi);
         drawFlash();
-      } else {
+      }
+      if (phase !== "play") drawWallet();
+      else {
         drawPlay();
         if (world && world.net) NET.overlay(netApi, world);
       }

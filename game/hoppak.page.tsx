@@ -3899,6 +3899,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
     if (mark && align !== "right") drawText(ctx, mark, x0 + w + 4, y - 0.5, C.mov, 1, "left");
   }
+  /* Same pixel on every screen except the in-run HUD (that counter is coins picked up this run). */
+  function drawWallet() {
+    var mark = tgMark();
+    var s = String(save.coins);
+    var w = textWidth(s, 1) + 9 + (mark ? textWidth(mark, 1) + 4 : 0);
+    var x = LW - 4 - w;
+    rect(ctx, x - 3, 1, w + 6, 11, INK);
+    rect(ctx, x - 2, 2, w + 4, 9, C.navy);
+    coinsLabel(LW - 4, 3, save.coins, "right", true);
+  }
   function drawBuy(id: string, x: number, y: number, w: number, h: number, price: number) {
     addHit(id, x, y, w, h);
     var on = pressId === id;
@@ -4216,9 +4226,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dimView(ctx, "rgba(18,14,44,0.14)");
     var x = colX();
     drawBig(ctx, "ХОППАК", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
-    gear(LW - 22, 4);
+    gear(4, 4);
     drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 41, C.cream, "center");
-    coinsLabel(x, 52, save.coins, undefined, true);
     var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + b + "/" + M.goal + " М") : (M.name + " · " + b + " М");
     var by = LH - 118;
@@ -4278,7 +4287,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
     header("МАГАЗИН", 2);
-    coinsLabel(LW - 6, 12, save.coins, "right", true);
     var pw = 22, gap = 4, sx = Math.round(LW / 2 - (6 * pw + 5 * gap) / 2);
     for (var k = 0; k < 6; k++) {
       var bx = sx + k * (pw + gap), by = 36, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
@@ -4326,7 +4334,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dimView(ctx, "rgba(18,14,44,0.34)");
     var x = colX();
     header("КАМПАНИЯ", 2);
-    coinsLabel(LW - 6, 12, save.coins, "right", true);
     box(ctx, x, 36, 152, 22, "#1a1430", C.mint);
     drawText(ctx, "ДОЙДИ ДО ЦЕЛИ →", LW / 2, 39, C.cream, 1, "center");
     drawText(ctx, "ОТКРОЙ ЗА МОНЕТЫ", LW / 2, 49, C.mint, 1, "center");
@@ -4911,6 +4918,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     else if (phase === "results") drawResults();
     else if (phase === "font") drawFontSheet();
     else if (phase === "net") { hits = []; NET.draw(netApi); drawFlash(); }
+    if (phase !== "play") drawWallet();
     else { drawPlay(); if (world && world.net) NET.overlay(netApi, world); }
     if (phoneLand && phase !== "play") {
       dimView(ctx, "rgba(8,6,20,0.55)");
