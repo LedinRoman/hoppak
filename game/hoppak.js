@@ -3807,7 +3807,7 @@
         N.helloTimer = 0;
       }
       N.st = "unsupported";
-      N.err = "\u041E\u041D\u041B\u0410\u0419\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418";
+      N.err = "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418";
       N.room = null;
       var ws = N.ws;
       N.ws = null;
@@ -3920,7 +3920,42 @@
         N.err = d.msg || d.code;
         if (d.code === "NO_SESSION") giveUp("\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410");
         if (N.api) N.api.say(cleanText(N.err, 24) || "\u041E\u0428\u0418\u0411\u041A\u0410");
+      } else if (ev === "kicked") {
+        var code = d && d.code || N.room && N.room.code || "";
+        rememberKick(code);
+        N.room = null;
+        N.you = null;
+        N.token = "";
+        N.startInfo = null;
+        store("hoppak.net.token", null);
+        N.sub = "home";
+        N.st = N.ws ? "online" : "off";
+        if (N.api) {
+          N.api.goMenu();
+          N.api.say("\u0422\u0415\u0411\u042F \u0412\u042B\u0413\u041D\u0410\u041B\u0418");
+        }
       }
+    }
+    function kickedCodes() {
+      try {
+        var raw = sessionStorage.getItem("hoppak.net.kicked");
+        var a = raw ? JSON.parse(raw) : [];
+        return Array.isArray(a) ? a : [];
+      } catch (_e) {
+        return [];
+      }
+    }
+    function rememberKick(code) {
+      if (!code) return;
+      var a = kickedCodes();
+      if (a.indexOf(code) < 0) a.push(code);
+      try {
+        sessionStorage.setItem("hoppak.net.kicked", JSON.stringify(a));
+      } catch (_e) {
+      }
+    }
+    function wasKicked(code) {
+      return kickedCodes().indexOf(String(code || "")) >= 0;
     }
     function me() {
       return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN };
@@ -3934,6 +3969,13 @@
       });
     };
     N.join = function(code) {
+      if (wasKicked(code)) {
+        if (N.api) {
+          N.api.goMenu();
+          N.api.say("\u0422\u0415\u0411\u042F \u0412\u042B\u0413\u041D\u0410\u041B\u0418");
+        }
+        return;
+      }
       N.connect(function(ok) {
         if (ok) {
           var m = me();
@@ -4038,10 +4080,12 @@
         me0.name = mine.name;
         me0.pid = mine.pid;
       }
+      var hostSim = N.isHost();
       for (var k = 0; k < others.length; k++) {
         var o = others[k];
-        var p = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], false);
-        p.remote = true;
+        var mineBot = !!(o.bot && hostSim);
+        var p = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], mineBot);
+        p.remote = !mineBot;
         p.pid = o.pid;
         p.name = o.name;
         p.react = 1;
@@ -4049,6 +4093,7 @@
         w.players.push(p);
       }
       N.lastSend = 0;
+      N.lastBot = 0;
       N.events = [];
       N.buf = {};
       N.stats.startedAt = now();
@@ -4132,6 +4177,20 @@
         w.netDead = true;
         send("st", { x: me0.x, y: me0.y, vx: 0, vy: me0.vy, f: me0.face, a: 0, m: Math.round(me0.maxH), ps: 0, tk: w.tick });
         send("ev", { e: "dead", m: metersOf(me0), why: me0.why });
+      }
+      if (N.isHost() && t - N.lastBot >= NET_SEND_MS && w.tick > 0) {
+        N.lastBot = t;
+        var rows = [];
+        for (var bpi = 0; bpi < w.players.length; bpi++) {
+          var bp2 = w.players[bpi];
+          if (!bp2.isBot || bp2.remote) continue;
+          rows.push({ b: bp2.pid, x: Math.round(bp2.x * 10) / 10, y: Math.round(bp2.y * 10) / 10, vx: Math.round(bp2.vx * 100) / 100, vy: Math.round(bp2.vy * 100) / 100, f: bp2.face, a: bp2.alive ? 1 : 0, m: Math.round(bp2.maxH), ps: flags(bp2) });
+          if (!bp2.alive && !bp2.netDead) {
+            bp2.netDead = true;
+            send("ev", { e: "dead", b: bp2.pid, m: metersOf(bp2), why: bp2.why || "fall" });
+          }
+        }
+        if (rows.length) send("sb", { s: rows });
       }
       for (var bi = 0; bi < w.platforms.length; bi++) {
         var bp = w.platforms[bi];
@@ -4270,7 +4329,7 @@
       if (N.st === "online") return { t: "\u0421\u0415\u0420\u0412\u0415\u0420 \u041D\u0410 \u0421\u0412\u042F\u0417\u0418", c: C.mint };
       if (N.st === "connecting") return { t: "\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", c: C.gold };
       if (N.st === "reconnecting") return { t: "\u041F\u0415\u0420\u0415\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", c: C.gold };
-      if (N.st === "unsupported") return { t: N.err || "\u041E\u041D\u041B\u0410\u0419\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", c: C.red, two: true };
+      if (N.st === "unsupported") return { t: N.err || "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", c: C.red, two: true };
       return { t: N.err || "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418", c: C.red };
     }
     N.draw = function(api) {
@@ -4280,11 +4339,11 @@
       if (N.sub === "update" || N.st === "update") return drawUpdate(api, x);
       if (N.sub === "room" && N.room) return drawRoom(api, x);
       if (N.sub === "code") return drawCode(api, x);
-      api.header("\u041E\u041D\u041B\u0410\u0419\u041D \u0421 \u0414\u0420\u0423\u0417\u042C\u042F\u041C\u0418", 1);
+      api.header("\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", 1);
       drawText(ctx, "\u0414\u041E 4 \u0418\u0413\u0420\u041E\u041A\u041E\u0412 \u041D\u0410 \u041E\u0414\u041D\u041E\u0419 \u041A\u0410\u0420\u0422\u0415", LW / 2, 34, C.cream, 1, "center");
       if (sl.two) {
         box(ctx, x, 48, 152, 24, C.navy, sl.c);
-        drawText(ctx, "\u041E\u041D\u041B\u0410\u0419\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D", LW / 2, 51, sl.c, 1, "center");
+        drawText(ctx, "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D", LW / 2, 51, sl.c, 1, "center");
         drawText(ctx, "\u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", LW / 2, 61, sl.c, 1, "center");
       } else {
         box(ctx, x, 48, 152, 13, C.navy, sl.c);
@@ -4296,13 +4355,12 @@
       var ok = N.st === "online";
       api.btn("net:create", x, y, 152, 30, ok ? C.mint : "#3a3450", "\u0421\u041E\u0417\u0414\u0410\u0422\u042C \u041A\u041E\u041C\u041D\u0410\u0422\u0423", INK, 1);
       api.btn("net:enter", x, y + 36, 152, 30, ok ? C.gold : "#3a3450", "\u0412\u041E\u0419\u0422\u0418 \u041F\u041E \u041A\u041E\u0414\u0423", INK, 1);
-      if (!ok && N.st !== "connecting") api.btn("net:retry", x, y + 72, 72, 20, C.navy, "\u0415\u0429\u0401 \u0420\u0410\u0417");
-      if (!ok && N.st !== "connecting") api.btn("net:bots", x + 80, y + 72, 72, 20, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
+      if (!ok && N.st !== "connecting") api.btn("net:retry", x + 26, y + 72, 100, 20, C.navy, "\u0415\u0429\u0401 \u0420\u0410\u0417");
       api.btn("net:back", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
     };
     function drawUpdate(api, x) {
       var ctx = api.ctx;
-      api.header("\u041E\u041D\u041B\u0410\u0419\u041D", 1);
+      api.header("\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", 1);
       box(ctx, x, Math.round(LH / 2 - 40), 152, 64, C.navy, C.gold);
       drawText(ctx, "\u041E\u0411\u041D\u041E\u0412\u0418", LW / 2, Math.round(LH / 2 - 28), C.gold, 2, "center");
       drawText(ctx, "\u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423", LW / 2, Math.round(LH / 2 - 10), C.gold, 2, "center");
@@ -4336,18 +4394,22 @@
       for (var i = 0; i < 4; i++) {
         var y = 56 + i * 26, p = sorted[i];
         if (!p) {
-          box(ctx, x, y, 152, 23, "#141030", "#3a3450");
-          drawText(ctx, "\u0421\u0412\u041E\u0411\u041E\u0414\u041D\u041E", LW / 2, y + 8, "#5a4c82", 1, "center");
+          if (host) api.btn("net:addbot", x, y, 152, 23, "#1a1430", "\u0411\u041E\u0422 +", C.cream);
+          else {
+            box(ctx, x, y, 152, 23, "#141030", "#3a3450");
+            drawText(ctx, "\u0421\u0412\u041E\u0411\u041E\u0414\u041D\u041E", LW / 2, y + 8, "#5a4c82", 1, "center");
+          }
           continue;
         }
         var isMe = p.pid === N.you;
         box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, isMe ? C.gold : C.cream);
         drawJumper(ctx, x + 6, y + 5, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
         drawText(ctx, cleanNick(p.name) || "\u0418\u0413\u0420\u041E\u041A", x + 28, y + 3, C.cream, 1, "left");
-        var tag = !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
-        var tc = !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
+        var tag = p.bot ? "\u0411\u041E\u0422" : !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
+        var tc = p.bot ? C.mint : !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
         drawText(ctx, tag + (isMe ? " \xB7 \u0422\u042B" : ""), x + 28, y + 13, tc, 1, "left");
-        drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
+        if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
+        else drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
       }
       var my = 56 + 4 * 26 + 4;
       if (host) {
@@ -4362,7 +4424,7 @@
       var by = Math.max(evY + 4, LH - 66);
       if (host) {
         var others = R.players.filter(function(q) {
-          return q.pid !== R.host && q.on;
+          return q.pid !== R.host && q.on && !q.bot;
         });
         var allReady = others.every(function(q) {
           return q.ready;
@@ -4392,8 +4454,12 @@
         N.connect();
         return;
       }
-      if (id === "net:bots") {
-        api.bots();
+      if (id === "net:addbot") {
+        send("bot", {});
+        return;
+      }
+      if (id.indexOf("net:kick") === 0) {
+        send("kick", { pid: parseInt(id.slice(8), 10) });
         return;
       }
       if (id === "net:name") {
@@ -6072,14 +6138,13 @@
       if (isPageBuild()) {
         btn("camp", x, by + 40, 152, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
         btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
-        btn("mp", x + 80, by + 66, 72, 22, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
+        btn("set", x + 80, by + 66, 72, 22, C.navy, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418");
       } else {
         btn("camp", x, by + 40, 72, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
-        btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "\u041E\u041D\u041B\u0410\u0419\u041D", C.cream, 1, C.mint);
+        btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", C.cream, 1, C.mint);
         btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
-        btn("mp", x + 80, by + 66, 72, 22, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
+        btn("set", x + 80, by + 66, 72, 22, C.navy, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418");
       }
-      btn("set", x, by + 92, 152, 22, C.navy, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418");
       if (showSet) {
         hits = [];
         dimView(ctx, "rgba(8,6,20,0.62)");

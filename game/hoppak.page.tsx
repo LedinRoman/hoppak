@@ -2624,7 +2624,8 @@ function drawShieldAura(ctx: Ctx, p: any, sy: number, tick: number) {
    Protocol: server/src/protocol.ts. Everything online lives here; the shell only calls
    NET.* through small hooks (search "NET." in 04_shell.tsx and "w.net" / "p.remote" in 02_world.tsx).
    Model: every client simulates the same seeded map and only its own hero; remote heroes are
-   drawn from server-relayed snapshots (20 Hz) with ~150 ms interpolation. Stomped mobs and
+   drawn from server-relayed snapshots (20 Hz) with ~150 ms interpolation. Bots are the squad
+   AI, simulated by the host client and relayed like a remote hero (`sb`). Stomped mobs and
    deaths are relayed as events; the server decides when the round ends (everybody fell). */
 /* Must match server PROTOCOL_VERSION in net @ 2e6bfc0 (hello { v, s }). */
 var NET_PROTO = 1;
@@ -2792,7 +2793,7 @@ var NET: any = (function () {
   function rejectVersion() {
     if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
     N.st = "unsupported";
-    N.err = "ОНЛАЙН НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ";
+    N.err = "МУЛЬТИПЛЕЕР НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ";
     N.room = null;
     var ws = N.ws;
     N.ws = null;
@@ -2865,13 +2866,35 @@ var NET: any = (function () {
       N.err = d.msg || d.code;
       if (d.code === "NO_SESSION") giveUp("КОМНАТА ЗАКРЫТА");
       if (N.api) N.api.say(cleanText(N.err, 24) || "ОШИБКА");
+    } else if (ev === "kicked") {
+      var code = (d && d.code) || (N.room && N.room.code) || "";
+      rememberKick(code);
+      N.room = null; N.you = null; N.token = ""; N.startInfo = null;
+      store("hoppak.net.token", null);
+      N.sub = "home";
+      N.st = N.ws ? "online" : "off";
+      if (N.api) { N.api.goMenu(); N.api.say("ТЕБЯ ВЫГНАЛИ"); }
     }
   }
+  function kickedCodes(): string[] {
+    try { var raw = sessionStorage.getItem("hoppak.net.kicked"); var a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; }
+    catch (_e) { return []; }
+  }
+  function rememberKick(code: string) {
+    if (!code) return;
+    var a = kickedCodes();
+    if (a.indexOf(code) < 0) a.push(code);
+    try { sessionStorage.setItem("hoppak.net.kicked", JSON.stringify(a)); } catch (_e) {}
+  }
+  function wasKicked(code: string) { return kickedCodes().indexOf(String(code || "")) >= 0; }
 
   /* ---------- room actions ---------- */
   function me() { return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN }; }
   N.create = function () { N.connect(function (ok: boolean) { if (ok) { var m = me(); send("create", m); } }); };
-  N.join = function (code: string) { N.connect(function (ok: boolean) { if (ok) { var m: any = me(); m.code = code; send("join", m); } }); };
+  N.join = function (code: string) {
+    if (wasKicked(code)) { if (N.api) { N.api.goMenu(); N.api.say("ТЕБЯ ВЫГНАЛИ"); } return; }
+    N.connect(function (ok: boolean) { if (ok) { var m: any = me(); m.code = code; send("join", m); } });
+  };
   N.leave = function () {
     if (N.room) send("leave", {});
     N.room = null; N.token = ""; N.startInfo = null; N.results = null; N.session = emptySession(""); store("hoppak.net.token", null);
@@ -2939,13 +2962,15 @@ var NET: any = (function () {
     for (var i = 0; i < info.players.length; i++) { if (info.players[i].pid === N.you) mine = info.players[i]; else others.push(info.players[i]); }
     var me0 = w.players[0];
     if (mine) { me0.x = NET_XS[mine.slot % 4]; me0.name = mine.name; me0.pid = mine.pid; }
+    var hostSim = N.isHost();
     for (var k = 0; k < others.length; k++) {
       var o = others[k];
-      var p: any = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], false);
-      p.remote = true; p.pid = o.pid; p.name = o.name; p.react = 1; p.bias = 0;
+      var mineBot = !!(o.bot && hostSim);
+      var p: any = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], mineBot);
+      p.remote = !mineBot; p.pid = o.pid; p.name = o.name; p.react = 1; p.bias = 0;
       w.players.push(p);
     }
-    N.lastSend = 0; N.events = []; N.buf = {};
+    N.lastSend = 0; N.lastBot = 0; N.events = []; N.buf = {};
     N.stats.startedAt = now();
   };
   /** True while waiting for the synchronized start moment (shell skips ticks). */
@@ -3000,6 +3025,17 @@ var NET: any = (function () {
       w.netDead = true;
       send("st", { x: me0.x, y: me0.y, vx: 0, vy: me0.vy, f: me0.face, a: 0, m: Math.round(me0.maxH), ps: 0, tk: w.tick });
       send("ev", { e: "dead", m: metersOf(me0), why: me0.why });
+    }
+    if (N.isHost() && t - N.lastBot >= NET_SEND_MS && w.tick > 0) {
+      N.lastBot = t;
+      var rows: any[] = [];
+      for (var bpi = 0; bpi < w.players.length; bpi++) {
+        var bp2 = w.players[bpi];
+        if (!bp2.isBot || bp2.remote) continue;
+        rows.push({ b: bp2.pid, x: Math.round(bp2.x * 10) / 10, y: Math.round(bp2.y * 10) / 10, vx: Math.round(bp2.vx * 100) / 100, vy: Math.round(bp2.vy * 100) / 100, f: bp2.face, a: bp2.alive ? 1 : 0, m: Math.round(bp2.maxH), ps: flags(bp2) });
+        if (!bp2.alive && !bp2.netDead) { bp2.netDead = true; send("ev", { e: "dead", b: bp2.pid, m: metersOf(bp2), why: bp2.why || "fall" }); }
+      }
+      if (rows.length) send("sb", { s: rows });
     }
     for (var bi = 0; bi < w.platforms.length; bi++) {
       var bp = w.platforms[bi];
@@ -3097,7 +3133,7 @@ var NET: any = (function () {
     if (N.st === "online") return { t: "СЕРВЕР НА СВЯЗИ", c: C.mint };
     if (N.st === "connecting") return { t: "ПОДКЛЮЧАЕМСЯ...", c: C.gold };
     if (N.st === "reconnecting") return { t: "ПЕРЕПОДКЛЮЧАЕМСЯ...", c: C.gold };
-    if (N.st === "unsupported") return { t: N.err || "ОНЛАЙН НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ", c: C.red, two: true };
+    if (N.st === "unsupported") return { t: N.err || "МУЛЬТИПЛЕЕР НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ", c: C.red, two: true };
     return { t: N.err || "НЕТ СВЯЗИ", c: C.red };
   }
   N.draw = function (api: any) {
@@ -3107,11 +3143,11 @@ var NET: any = (function () {
     if (N.sub === "update" || N.st === "update") return drawUpdate(api, x);
     if (N.sub === "room" && N.room) return drawRoom(api, x);
     if (N.sub === "code") return drawCode(api, x);
-    api.header("ОНЛАЙН С ДРУЗЬЯМИ", 1);
+    api.header("МУЛЬТИПЛЕЕР", 1);
     drawText(ctx, "ДО 4 ИГРОКОВ НА ОДНОЙ КАРТЕ", LW / 2, 34, C.cream, 1, "center");
     if (sl.two) {
       box(ctx, x, 48, 152, 24, C.navy, sl.c);
-      drawText(ctx, "ОНЛАЙН НЕДОСТУПЕН", LW / 2, 51, sl.c, 1, "center");
+      drawText(ctx, "МУЛЬТИПЛЕЕР НЕДОСТУПЕН", LW / 2, 51, sl.c, 1, "center");
       drawText(ctx, "В ЭТОЙ ВЕРСИИ", LW / 2, 61, sl.c, 1, "center");
     } else {
       box(ctx, x, 48, 152, 13, C.navy, sl.c);
@@ -3123,13 +3159,12 @@ var NET: any = (function () {
     var ok = N.st === "online";
     api.btn("net:create", x, y, 152, 30, ok ? C.mint : "#3a3450", "СОЗДАТЬ КОМНАТУ", INK, 1);
     api.btn("net:enter", x, y + 36, 152, 30, ok ? C.gold : "#3a3450", "ВОЙТИ ПО КОДУ", INK, 1);
-    if (!ok && N.st !== "connecting") api.btn("net:retry", x, y + 72, 72, 20, C.navy, "ЕЩЁ РАЗ");
-    if (!ok && N.st !== "connecting") api.btn("net:bots", x + 80, y + 72, 72, 20, C.navy, "С БОТАМИ");
+    if (!ok && N.st !== "connecting") api.btn("net:retry", x + 26, y + 72, 100, 20, C.navy, "ЕЩЁ РАЗ");
     api.btn("net:back", x + 26, LH - 34, 100, 22, C.navy, "НАЗАД");
   };
   function drawUpdate(api: any, x: number) {
     var ctx = api.ctx;
-    api.header("ОНЛАЙН", 1);
+    api.header("МУЛЬТИПЛЕЕР", 1);
     box(ctx, x, Math.round(LH / 2 - 40), 152, 64, C.navy, C.gold);
     drawText(ctx, "ОБНОВИ", LW / 2, Math.round(LH / 2 - 28), C.gold, 2, "center");
     drawText(ctx, "СТРАНИЦУ", LW / 2, Math.round(LH / 2 - 10), C.gold, 2, "center");
@@ -3161,18 +3196,19 @@ var NET: any = (function () {
     for (var i = 0; i < 4; i++) {
       var y = 56 + i * 26, p = sorted[i];
       if (!p) {
-        box(ctx, x, y, 152, 23, "#141030", "#3a3450");
-        drawText(ctx, "СВОБОДНО", LW / 2, y + 8, "#5a4c82", 1, "center");
+        if (host) api.btn("net:addbot", x, y, 152, 23, "#1a1430", "БОТ +", C.cream);
+        else { box(ctx, x, y, 152, 23, "#141030", "#3a3450"); drawText(ctx, "СВОБОДНО", LW / 2, y + 8, "#5a4c82", 1, "center"); }
         continue;
       }
       var isMe = p.pid === N.you;
       box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, isMe ? C.gold : C.cream);
       drawJumper(ctx, x + 6, y + 5, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
       drawText(ctx, cleanNick(p.name) || "ИГРОК", x + 28, y + 3, C.cream, 1, "left");
-      var tag = !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
-      var tc = !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
+      var tag = p.bot ? "БОТ" : !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
+      var tc = p.bot ? C.mint : !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
       drawText(ctx, tag + (isMe ? " · ТЫ" : ""), x + 28, y + 13, tc, 1, "left");
-      drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
+      if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
+      else drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
     }
     var my = 56 + 4 * 26 + 4;
     if (host) {
@@ -3186,7 +3222,7 @@ var NET: any = (function () {
     if (N.session && N.session.rounds && N.session.rounds.length) evY = N.drawEvening(ctx, x, evY);
     var by = Math.max(evY + 4, LH - 66);
     if (host) {
-      var others = R.players.filter(function (q: any) { return q.pid !== R.host && q.on; });
+      var others = R.players.filter(function (q: any) { return q.pid !== R.host && q.on && !q.bot; });
       var allReady = others.every(function (q: any) { return q.ready; });
       var lab = R.players.length < 2 ? "НАЧАТЬ ОДНОМУ" : allReady ? "НАЧАТЬ" : "ЖДЁМ ГОТОВНОСТИ";
       api.btn("net:start", x, by, 152, 26, allReady ? C.mint : "#3a3450", lab, INK, 1);
@@ -3202,7 +3238,8 @@ var NET: any = (function () {
     if (id === "net:menu") { api.setPhase("net"); N.open(api); return; }
     if (id === "net:back") { api.goMenu(); return; }
     if (id === "net:retry") { N.err = ""; N.connect(); return; }
-    if (id === "net:bots") { api.bots(); return; }
+    if (id === "net:addbot") { send("bot", {}); return; }
+    if (id.indexOf("net:kick") === 0) { send("kick", { pid: parseInt(id.slice(8), 10) }); return; }
     if (id === "net:name") {
       var cur = cleanNick(nick());
       var v = typeof window !== "undefined" && window.prompt ? window.prompt("Имя для друзей (по-русски, до 10 букв)", cur) : null;
@@ -4483,14 +4520,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (isPageBuild()) {
       btn("camp", x, by + 40, 152, 22, C.navy, "КАРТЫ");
       btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
-      btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+      btn("set", x + 80, by + 66, 72, 22, C.navy, "НАСТРОЙКИ");
     } else {
       btn("camp", x, by + 40, 72, 22, C.navy, "КАРТЫ");
-      btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "ОНЛАЙН", C.cream, 1, C.mint);
+      btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "МУЛЬТИПЛЕЕР", C.cream, 1, C.mint);
       btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
-      btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+      btn("set", x + 80, by + 66, 72, 22, C.navy, "НАСТРОЙКИ");
     }
-    btn("set", x, by + 92, 152, 22, C.navy, "НАСТРОЙКИ");
     if (showSet) {
       hits = [];
       dimView(ctx, "rgba(8,6,20,0.62)");

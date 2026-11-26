@@ -671,14 +671,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (isPageBuild()) {
       btn("camp", x, by + 40, 152, 22, C.navy, "КАРТЫ");
       btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
-      btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+      btn("set", x + 80, by + 66, 72, 22, C.navy, "НАСТРОЙКИ");
     } else {
       btn("camp", x, by + 40, 72, 22, C.navy, "КАРТЫ");
-      btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "ОНЛАЙН", C.cream, 1, C.mint);
+      btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "МУЛЬТИПЛЕЕР", C.cream, 1, C.mint);
       btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
-      btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
+      btn("set", x + 80, by + 66, 72, 22, C.navy, "НАСТРОЙКИ");
     }
-    btn("set", x, by + 92, 152, 22, C.navy, "НАСТРОЙКИ");
     if (showSet) {
       hits = [];
       dimView(ctx, "rgba(8,6,20,0.62)");

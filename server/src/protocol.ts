@@ -11,7 +11,11 @@
  *   hero    { kind }                             -> room (to everyone), lobby only
  *   map     { map }            host only         -> room
  *   start   {}                 host only         -> start (to everyone)
+ *   bot     {}                 host, lobby       -> room. Fills one empty slot with a bot.
+ *   kick    { pid }            host, lobby       -> room, and `kicked` to that human
  *   st      { x, y, vx, vy, f, a, m, ps, tk }    ~15 Hz, own player state, relayed in `snap`
+ *   sb      { s: st[] }        host only         bot states. Each row is a `st` plus `b` = bot pid.
+ *                              The host client runs the same bot AI as «С ботами». The server only relays.
  *   ev      { e, ... }         e = dead | mob | pick | ab | brk  -> ev (to the others)
  *                              brk { id } is a shared red platform. The server remembers it and
  *                              broadcasts rst { id } to everyone after BREAK_RESTORE_MS.
@@ -25,8 +29,12 @@
  *   snap    { ts, s: [pid, x, y, vx, vy, f, a, m, ps][] }          20 Hz while phase = play
  *   ev      { pid, e, ... }
  *   results { round, ranking: { pid, name, kind, m, place }[] }
+ *   kicked  { code, msg }   the host removed you. Resume token is dead.
  *   err     { code, msg }
  *   pong    { c, s }
+ *
+ * PlayerInfo may include `bot: true`. Old clients ignore the field. NET protocol stays 1.
+ * A bot does not open a socket, so the generation check on join is unchanged.
  */
 export const PROTOCOL_VERSION = 1;
 /** Shared online break platforms come back after this many milliseconds. */
@@ -54,6 +62,7 @@ export interface PlayerInfo {
   kind: number;
   ready: boolean;
   on: boolean;
+  bot?: boolean;
 }
 
 export interface Msg<T = any> {

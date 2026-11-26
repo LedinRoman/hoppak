@@ -21,6 +21,8 @@ export interface Player {
   dead: boolean;
   m: number; // metres reached (reported)
   suspicious: number;
+  /** Host client simulates this seat. No socket. */
+  bot: boolean;
 }
 
 export interface Room {
@@ -78,7 +80,7 @@ export class RoomsService implements OnModuleDestroy {
     return Number.isInteger(n) && n >= 0 && n < HERO_COUNT ? n : 0;
   }
   info(p: Player): PlayerInfo {
-    return { pid: p.pid, slot: p.slot, name: p.name, kind: p.kind, ready: p.ready, on: !p.offSince };
+    return { pid: p.pid, slot: p.slot, name: p.name, kind: p.kind, ready: p.ready, on: p.bot || !p.offSince, bot: p.bot || undefined };
   }
   roomView(r: Room, p: Player) {
     return {
@@ -116,7 +118,7 @@ export class RoomsService implements OnModuleDestroy {
     const p: Player = {
       pid: r.nextPid++, slot: this.freeSlot(r), name: RoomsService.cleanName(name, k), kind: k, ready: false,
       token: randomBytes(12).toString('base64url'), ws, offSince: 0, st: null, stDirty: false, lastStAt: 0,
-      dead: false, m: 0, suspicious: 0,
+      dead: false, m: 0, suspicious: 0, bot: false,
     };
     r.players.push(p);
     this.byToken.set(p.token, { room: r, player: p });
@@ -157,6 +159,36 @@ export class RoomsService implements OnModuleDestroy {
     this.log.log(`room ${room.code}: ${player.name} resumed`);
     return hit;
   }
+  private static readonly BOT_NAMES = ['Капитан', 'Пират', 'Ниндзя', 'Робот', 'Маг', 'Рыцарь'];
+  addBot(r: Room, p: Player) {
+    if (p.pid !== r.host) throw new RoomError('NOT_HOST', 'Только хост');
+    if (r.phase !== 'lobby') throw new RoomError('IN_GAME', 'Забег уже идёт');
+    if (r.players.length >= MAX_PLAYERS) throw new RoomError('FULL', 'Комната заполнена');
+    const used = new Set(r.players.map((q) => q.kind));
+    let kind = 0;
+    for (let k = 0; k < HERO_COUNT; k++) if (!used.has(k)) { kind = k; break; }
+    const bot = this.addPlayer(r, null as unknown as WebSocket, RoomsService.BOT_NAMES[kind] || 'Бот', kind);
+    bot.bot = true;
+    bot.ready = true;
+    bot.ws = null;
+    this.log.log(`room ${r.code}: bot ${bot.name} added`);
+    return bot;
+  }
+  kick(r: Room, by: Player, pid: unknown) {
+    if (by.pid !== r.host) throw new RoomError('NOT_HOST', 'Только хост');
+    if (r.phase !== 'lobby') throw new RoomError('IN_GAME', 'Сначала дождись конца забега');
+    const id = Math.floor(Number(pid));
+    const t = r.players.find((q) => q.pid === id);
+    if (!t || t.pid === r.host) throw new RoomError('BAD_PID', 'Некого выгнать');
+    if (!t.bot && t.ws) {
+      const sock = t.ws as WebSocket & { sess?: Sess };
+      this.send(t.ws, 'kicked', { code: r.code, msg: 'Тебя выгнали из комнаты' });
+      if (sock.sess) { sock.sess.room = undefined; sock.sess.player = undefined; }
+      t.ws = null;
+    }
+    this.byToken.delete(t.token);
+    this.remove(r, t);
+  }
   setReady(r: Room, p: Player, ready: unknown) {
     if (r.phase !== 'lobby') return;
     p.ready = !!ready;
@@ -193,7 +225,14 @@ export class RoomsService implements OnModuleDestroy {
   /* ---------- in-run relay ---------- */
   /** Light validation: finite numbers, sane ranges, monotone height. Cheating is future work (see README). */
   state(r: Room, p: Player, d: any) {
-    if (r.phase !== 'play' || p.dead || !d) return;
+    let who = p;
+    if (d && d.b != null) {
+      const id = Math.floor(Number(d.b));
+      const bot = r.players.find((q) => q.pid === id && q.bot);
+      if (p.pid !== r.host || !bot) return;
+      who = bot;
+    }
+    if (r.phase !== 'play' || who.dead || !d) return;
     const num = (v: unknown, lo: number, hi: number) => {
       const n = Number(v);
       return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : NaN;
@@ -204,26 +243,37 @@ export class RoomsService implements OnModuleDestroy {
     const f = Number(d.f) < 0 ? -1 : 1, a = d.a === 0 || d.a === false ? 0 : 1;
     let m = num(d.m, 0, 1e7) || 0;
     const now = Date.now();
-    if (p.st && p.lastStAt) {
-      const dt = Math.max(0.02, (now - p.lastStAt) / 1000);
+    if (who.st && who.lastStAt) {
+      const dt = Math.max(0.02, (now - who.lastStAt) / 1000);
       // fastest legit climb (rocket) ~ 410 px/s; teleport ~ 300 px one-off. Flag, don't reject.
-      if (p.st[1] - y > 900 * dt + 400) p.suspicious++;
+      if (who.st[1] - y > 900 * dt + 400) who.suspicious++;
     }
-    if (m < p.m) m = p.m; // height can't go down
-    p.m = Math.max(p.m, Math.floor(m / 8));
-    p.st = [Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(vx * 100) / 100, Math.round(vy * 100) / 100, f, a, Math.round(m), (Number(d.ps) | 0) & 0xffff];
-    p.stDirty = true;
-    p.lastStAt = now;
+    if (m < who.m) m = who.m; // height can't go down
+    who.m = Math.max(who.m, Math.floor(m / 8));
+    who.st = [Math.round(x * 10) / 10, Math.round(y * 10) / 10, Math.round(vx * 100) / 100, Math.round(vy * 100) / 100, f, a, Math.round(m), (Number(d.ps) | 0) & 0xffff];
+    who.stDirty = true;
+    who.lastStAt = now;
+  }
+  /** Host packs every bot into one message so the flood guard stays comfortable. */
+  botsState(r: Room, p: Player, d: any) {
+    if (p.pid !== r.host || !d || !Array.isArray(d.s)) return;
+    for (const row of d.s.slice(0, MAX_PLAYERS)) this.state(r, p, row);
   }
   event(r: Room, p: Player, d: any) {
     if (r.phase !== 'play' || !d || typeof d.e !== 'string') return;
     const e = d.e;
     if (e === 'dead') {
-      if (p.dead) return;
-      p.dead = true;
+      let who = p;
+      if (d.b != null) {
+        const bot = r.players.find((q) => q.pid === Math.floor(Number(d.b)) && q.bot);
+        if (p.pid !== r.host || !bot) return;
+        who = bot;
+      }
+      if (who.dead) return;
+      who.dead = true;
       const m = Number(d.m);
-      if (Number.isFinite(m)) p.m = Math.max(p.m, Math.min(1e6, Math.floor(m)));
-      this.broadcast(r, 'ev', { pid: p.pid, e: 'dead', m: p.m, why: String(d.why || '').slice(0, 8) }, p.pid);
+      if (Number.isFinite(m)) who.m = Math.max(who.m, Math.min(1e6, Math.floor(m)));
+      this.broadcast(r, 'ev', { pid: who.pid, e: 'dead', m: who.m, why: String(d.why || '').slice(0, 8) }, p.pid);
       this.maybeFinish(r);
     } else if (e === 'mob' && typeof d.id === 'string' && d.id.length < 40) {
       this.broadcast(r, 'ev', { pid: p.pid, e: 'mob', id: d.id }, p.pid);
@@ -284,10 +334,18 @@ export class RoomsService implements OnModuleDestroy {
     s.room = undefined; s.player = undefined;
   }
   private remove(r: Room, p: Player) {
+    const wasHost = r.host === p.pid;
     r.players = r.players.filter((q) => q !== p);
     this.byToken.delete(p.token);
+    if (wasHost) {
+      for (const b of r.players.filter((q) => q.bot)) {
+        r.players = r.players.filter((q) => q !== b);
+        this.byToken.delete(b.token);
+        this.broadcast(r, 'ev', { pid: b.pid, e: 'left' });
+      }
+    }
     if (!r.players.length) { this.destroy(r); return; }
-    if (r.host === p.pid) {
+    if (wasHost) {
       const live = r.players.find((q) => !q.offSince) || r.players[0];
       r.host = live.pid;
     }
@@ -315,7 +373,7 @@ export class RoomsService implements OnModuleDestroy {
         this.maybeFinish(r);
       }
       for (const p of [...r.players]) {
-        if (p.offSince && now - p.offSince > RECONNECT_GRACE_MS) {
+        if (!p.bot && p.offSince && now - p.offSince > RECONNECT_GRACE_MS) {
           this.log.log(`room ${r.code}: ${p.name} dropped (no reconnect)`);
           if (r.phase === 'play' && !p.dead) p.dead = true;
           this.remove(r, p);

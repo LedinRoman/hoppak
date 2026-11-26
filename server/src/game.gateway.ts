@@ -82,6 +82,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   start(@ConnectedSocket() ws: Sock) {
     this.guard(ws, () => { const { room, player } = this.inRoom(ws); this.rooms.start(room, player); });
   }
+  @SubscribeMessage('bot')
+  bot(@ConnectedSocket() ws: Sock) {
+    this.guard(ws, () => { const { room, player } = this.inRoom(ws); this.rooms.addBot(room, player); this.rooms.pushRoom(room); });
+  }
+  @SubscribeMessage('kick')
+  kick(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
+    this.guard(ws, () => { const { room, player } = this.inRoom(ws); this.rooms.kick(room, player, d?.pid); });
+  }
+  @SubscribeMessage('sb')
+  sb(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
+    this.guard(ws, () => { const { room, player } = this.inRoom(ws); this.rooms.botsState(room, player, d); });
+  }
   @SubscribeMessage('st')
   st(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
     this.guard(ws, () => { const { room, player } = this.inRoom(ws); this.rooms.state(room, player, d); });
