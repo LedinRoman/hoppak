@@ -1,10 +1,12 @@
-import { Logger, OnModuleDestroy } from '@nestjs/common';
+import { Logger, OnModuleDestroy, Optional } from '@nestjs/common';
 import {
   ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway,
 } from '@nestjs/websockets';
 import type { WebSocket } from 'ws';
 import { MAX_MSGS_PER_SEC, PROTOCOL_VERSION } from './protocol';
 import { RoomError, RoomsService, Sess, stats } from './rooms.service';
+import { ProfileService } from './profile/profile.service';
+import { OnlineService } from './online.service';
 
 type Sock = WebSocket & { sess: Sess };
 
@@ -21,16 +23,49 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   private readonly wsPingMs: number;
   private readonly wsPongTimeoutMs: number;
   private wsPingTimer: NodeJS.Timeout | null = null;
+  private presenceTimer: NodeJS.Timeout | null = null;
 
-  constructor(private readonly rooms: RoomsService) {
+  constructor(
+    private readonly rooms: RoomsService,
+    @Optional() private readonly profiles?: ProfileService,
+    @Optional() private readonly online?: OnlineService,
+  ) {
     this.wsPingMs = parsePositiveMs(process.env.WS_PING_MS, 25_000);
     this.wsPongTimeoutMs = parsePositiveMs(process.env.WS_PONG_TIMEOUT_MS, 60_000);
     this.wsPingTimer = setInterval(() => this.sweepHeartbeats(), this.wsPingMs);
     this.wsPingTimer.unref();
+    this.presenceTimer = setInterval(() => this.sweepPresence(), 30_000);
+    this.presenceTimer.unref();
   }
 
   onModuleDestroy() {
     if (this.wsPingTimer) { clearInterval(this.wsPingTimer); this.wsPingTimer = null; }
+    if (this.presenceTimer) { clearInterval(this.presenceTimer); this.presenceTimer = null; }
+  }
+
+  private async identity(token: unknown) {
+    if (!this.profiles || typeof token !== 'string' || !token) return null;
+    try { return await this.profiles.identityForToken(token); } catch { return null; }
+  }
+  private seen(ws: Sock, room: string, d: any, screen: string) {
+    const id = ws.sess && ws.sess.accountId;
+    if (!id || !this.online) return;
+    const asked = d && (d.screen === 'game' || d.screen === 'spectator' || d.screen === 'lobby') ? d.screen : screen;
+    this.online.touch({
+      playerId: id,
+      room,
+      screen: asked,
+      clientVersion: String((d && d.v) || '').slice(0, 16),
+      platform: String((d && d.p) || '').slice(0, 16),
+    });
+  }
+  private sweepPresence() {
+    for (const ws of this.clients) {
+      const s = ws.sess;
+      if (!s || !s.accountId || !s.room || !s.player) continue;
+      const screen = s.room.phase === 'play' ? (s.player.dead ? 'spectator' : 'game') : 'lobby';
+      this.seen(ws, s.room.code, {}, screen);
+    }
   }
 
   private attachHeartbeat(ws: Sock) {
@@ -103,12 +138,26 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     this.rooms.send(ws, 'pong', { c: d && d.c, s: Date.now() });
   }
   @SubscribeMessage('create')
-  create(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
-    this.guard(ws, () => { const hit = this.rooms.create(ws, d?.name, d?.kind, d?.g); this.attach(ws, hit); this.rooms.pushRoom(hit.room); });
+  async create(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
+    const idn = await this.identity(d?.pt);
+    this.guard(ws, () => {
+      if (idn) ws.sess.accountId = idn.id;
+      const hit = this.rooms.create(ws, idn ? idn.name : d?.name, d?.kind, d?.g, idn?.id);
+      this.attach(ws, hit);
+      this.rooms.pushRoom(hit.room);
+      this.seen(ws, hit.room.code, d, 'lobby');
+    });
   }
   @SubscribeMessage('join')
-  join(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
-    this.guard(ws, () => { const hit = this.rooms.join(ws, d?.code, d?.name, d?.kind, d?.g); this.attach(ws, hit); this.rooms.pushRoom(hit.room); });
+  async join(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
+    const idn = await this.identity(d?.pt);
+    this.guard(ws, () => {
+      if (idn) ws.sess.accountId = idn.id;
+      const hit = this.rooms.join(ws, d?.code, idn ? idn.name : d?.name, d?.kind, d?.g, idn?.id);
+      this.attach(ws, hit);
+      this.rooms.pushRoom(hit.room);
+      this.seen(ws, hit.room.code, d, 'lobby');
+    });
   }
   @SubscribeMessage('resume')
   resume(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
@@ -157,6 +206,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
   @SubscribeMessage('leave')
   leave(@ConnectedSocket() ws: Sock) {
-    this.guard(ws, () => this.rooms.leave(ws.sess));
+    this.guard(ws, () => {
+      const id = ws.sess.accountId;
+      this.rooms.leave(ws.sess);
+      if (id && this.online) this.online.leave(id);
+    });
+  }
+  @SubscribeMessage('presence')
+  presence(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
+    this.guard(ws, () => {
+      const room = ws.sess.room;
+      if (!room || !ws.sess.accountId) return;
+      this.seen(ws, room.code, d, room.phase === 'play' ? 'game' : 'lobby');
+    });
   }
 }

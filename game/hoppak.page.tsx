@@ -886,6 +886,56 @@ function ringPix(ctx: Ctx, cx: number, cy: number, r0: number, r1: number, col: 
 
 /* ---------------- World ---------------- */
 function isPerm(t: string) { return t === "normal" || t === "move" || t === "ice" || t === "bounce" || t === "grav"; }
+/* Stable = does not vanish and does not slide away. Move is permanent but leaves the jump line. */
+function isStableType(t: string) { return t === "normal" || t === "ice" || t === "grav" || t === "bounce"; }
+/* Horizontal pixels available while rising `gap` px, from JUMP_V / GRAVITY / MAX_VX. */
+function horizReachPx(gap: number) {
+  var h = Math.max(0, Math.min(gap, JUMP_H - 1));
+  var disc = JUMP_V * JUMP_V - 2 * GRAVITY * h;
+  if (disc < 0) disc = 0;
+  var t = (-JUMP_V - Math.sqrt(disc)) / GRAVITY;
+  if (!(t > 0) || !isFinite(t)) t = 1;
+  return MAX_VX * t;
+}
+function edgeGap(ax: number, aw: number, bx: number, bw: number) {
+  function lin(a0: number, a1: number, b0: number, b1: number) {
+    if (a1 >= b0 && b1 >= a0) return 0;
+    if (a1 < b0) return b0 - a1;
+    return a0 - b1;
+  }
+  return Math.min(
+    lin(ax, ax + aw, bx, bx + bw),
+    lin(ax, ax + aw, bx + LW, bx + bw + LW),
+    lin(ax + LW, ax + aw + LW, bx, bx + bw)
+  );
+}
+/* After the row is placed: every previous stable platform must reach a stable one here. No extra RNG. */
+function ensureReach(w: any, row: any[], y: number) {
+  var prev = w.reachFrom && w.reachFrom.length ? w.reachFrom : [{ x: 8, w: LW - 16 }];
+  var gap = w.reachGap > 0 ? w.reachGap : ROW_SEP;
+  var reach = horizReachPx(gap);
+  var stable: any[] = [];
+  for (var i = 0; i < row.length; i++) if (isStableType(row[i].type)) stable.push(row[i]);
+  for (var a = 0; a < prev.length; a++) {
+    var ok = false;
+    for (var b = 0; b < stable.length; b++) {
+      if (edgeGap(prev[a].x, prev[a].w, stable[b].x, stable[b].w) <= reach + 0.01) { ok = true; break; }
+    }
+    if (ok) continue;
+    var pw = 36;
+    var x = Math.round(prev[a].x + prev[a].w / 2 - pw / 2);
+    while (x < 2) x += LW;
+    while (x + pw > LW - 2) x -= LW;
+    if (x < 2) x = 2;
+    var np = mkPlat(x, y, pw, "normal", row.length ? row[0].row : w.rowN);
+    row.push(np);
+    w.platforms.push(stampPlat(w, np));
+    stable.push(np);
+  }
+  var next: any[] = [];
+  for (var s = 0; s < stable.length; s++) next.push({ x: stable[s].x, w: stable[s].w });
+  if (next.length) w.reachFrom = next;
+}
 
 function mkPlat(x: number, y: number, w: number, type: string, row: number) {
   return { x: x, y: y, w: w, type: type, vx: 0, broken: false, breakT: 0, respawnT: 0, restoreT: 0, spring: false, springT: 0, row: row, seq: 0 };
@@ -893,7 +943,7 @@ function mkPlat(x: number, y: number, w: number, type: string, row: number) {
 function stampPlat(w: any, pl: any) {
   pl.seq = w.platSeq++;
   var pending = w.netBreaks && w.netBreaks[pl.seq];
-  if (pending && pl.type === "break") {
+  if (pending && (pl.type === "break" || pl.type === "lava" || pl.type === "bubble")) {
     delete w.netBreaks[pl.seq];
     if (pending === "brk") { pl.broken = true; pl.breakT = 0; }
     else { pl.broken = false; pl.restoreT = 16; }
@@ -1195,6 +1245,9 @@ function genRow(w: any) {
     var cx = randInt(r, 6, LW - 30);
     for (var q = 0; q < 3; q++) w.coins.push({ x: cx + q * 9, y: Math.round(y - gap / 2 - 3), taken: false });
   }
+  /* Safety platforms are added after coins so they do not change the coin rows. */
+  ensureReach(w, row, y);
+  w.reachGap = gap;
   w.nextY -= gap;
 }
 function generateUntil(w: any, upToY: number) {
@@ -1213,6 +1266,7 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     face: 1, squash: 0, iceT: 0, gravT: 0, camY: -LH + 70, place: 0, why: "",
     bias: [0, -14, 14, 6][i], react: [1, 3, 4, 5][i], tgt: null, botDir: 0,
     abCharge: CHARS[kind].need, abFx: 0, hookT: 0, hookN: 0, hx0: 0, hy0: 0, htx: 0, hty: 0, hookPl: null, hookCoin: null,
+    teleT: 0, teleN: 0, tx0: 0, ty0: 0, ttx: 0, tty: 0,
     domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, stallT: 0, stallH: 0
   };
 }
@@ -1221,6 +1275,7 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     seed: seed >>> 0, rng: mulberry32(seed >>> 0), mode: mode, map: mapInfo(mapId || "city").id,
     platforms: [], monsters: [], bullets: [], coins: [], items: [], particles: [],
     nextY: -24, rowN: 1, platSeq: 0, netBreaks: {}, lastKind: "", lastMobRow: {}, cameraY: -LH + 70, tick: 0, shake: 0,
+    reachFrom: [{ x: 8, w: LW - 16 }], reachGap: 24,
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
@@ -1381,13 +1436,15 @@ function landOn(w: any, p: any, pl: any) {
     p.vy = -6.7;
     pl.broken = true;
     pl.breakT = 14;
+    if (w.net) { pl.netTell = 1; pl.netKind = "lava"; }
     if (p.id === 0) w.shake = 4;
     spawnParts(w, pl.x + pl.w / 2, pl.y, 10, "#ff9030", 2.6, 0.12, 2);
   } else if (pl.type === "bubble") {
     p.vy = -6.9;
     pl.broken = true;
     pl.breakT = 10;
-    pl.respawnT = 75;
+    if (w.net) { pl.netTell = 1; pl.netKind = "bubble"; }
+    else pl.respawnT = 75;
     spawnParts(w, pl.x + pl.w / 2, pl.y, 10, "#88f8ff", 2.2, -0.04, 2);
   } else if (pl.type === "grav") {
     p.vy = -6.3;
@@ -1411,10 +1468,10 @@ function landOn(w: any, p: any, pl: any) {
     if (p.id === 0) w.shake = 7;
     spawnParts(w, p.x + 6, pl.y, 14, "#ffd046", 3, 0.1, 2);
   }
-  if (pl.type === "break" && !pl.broken) {
+    if (pl.type === "break" && !pl.broken) {
     pl.broken = true;
     pl.breakT = 14;
-    if (w.net) pl.netTell = 1;
+    if (w.net) { pl.netTell = 1; pl.netKind = "break"; }
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
   }
@@ -1489,6 +1546,7 @@ function useAbility(w: any, p: any) {
   }
   else if (H.ab === "tele") {
     /* the highest SOLID platform within ~1.5 jumps above, visible, with no mob standing on it */
+    generateUntil(w, p.y - JUMP_H * 1.5 - 80);
     var best: any = null;
     for (i = 0; i < w.platforms.length; i++) {
       var q = w.platforms[i];
@@ -1500,9 +1558,11 @@ function useAbility(w: any, p: any) {
     }
     if (!best) { if (p.id === 0) toast(w, "НЕТ ПЛАТФОРМЫ"); return false; }
     spawnParts(w, p.x + 6, p.y + 8, 14, "#c890ff", 2.4, 0, 2);
-    p.x = clamp(best.x + best.w / 2 - PW / 2, 0, LW - PW); p.y = best.y - PH; p.prevY = p.y; p.vy = JUMP_V; p.vx = 0; p.squash = 6;
-    p.invT = Math.max(p.invT, 30); p.grabT = 0; p.poundT = 0; p.teleFx = 18;
-    spawnParts(w, p.x + 6, p.y + 8, 16, "#e8c8ff", 2.6, 0, 2);
+    /* Same destination as the old snap. Ten ticks of interpolation, then the same jump. */
+    p.tx0 = p.x; p.ty0 = p.y; p.ttx = clamp(best.x + best.w / 2 - PW / 2, 0, LW - PW); p.tty = best.y - PH;
+    p.teleT = 0; p.teleN = 10;
+    p.invT = Math.max(p.invT, 30); p.grabT = 0; p.poundT = 0; p.teleFx = 18; p.vx = 0; p.vy = 0;
+    spawnParts(w, p.ttx + 6, p.tty + 8, 8, "#e8c8ff", 1.6, 0, 1);
   }
   else if (H.ab === "wall") { p.wallT = 300; p.wall = 0; spawnParts(w, p.x + 6, p.y + 8, 10, "#d82a2a", 2, 0, 1); }
   else if (H.ab === "dash") { p.vy = Math.min(p.vy, -6.6); p.vx = clamp(p.vx + p.face * 1.6, -MAX_VX * 1.3, MAX_VX * 1.3); p.dashT = 14; p.grabT = 0; spawnParts(w, p.x + 6, p.y + PH, 12, "#7ad8ff", 2.4, 0.08, 2); }
@@ -1675,6 +1735,24 @@ function tickWorld(w: any, inputs: any) {
       p.vy = JUMP_V * 0.97; p.vx = -wsd * 2.6; p.face = -wsd; p.wall = 0; p.squash = 4; p.x += -wsd * 2;
       spawnParts(w, wsd < 0 ? 1 : LW - 1, p.y + 10, 6, "#d8f0ff", 1.6, 0.05, 1);
     } else if (inp.ab) useAbility(w, p);
+    if (p.teleN > 0) {
+      p.teleT++;
+      var tu = p.teleT / p.teleN;
+      var tdx = wrapDx(p.ttx - p.tx0);
+      p.x = p.tx0 + tdx * tu;
+      p.y = p.ty0 + (p.tty - p.ty0) * tu;
+      if (p.x < -PW) p.x += LW;
+      if (p.x > LW) p.x -= LW;
+      p.vx = 0; p.vy = 0;
+      if (p.teleT >= p.teleN) {
+        p.teleN = 0;
+        p.x = p.ttx; p.y = p.tty; p.prevY = p.y; p.vy = JUMP_V; p.vx = 0; p.squash = 6;
+        spawnParts(w, p.x + 6, p.y + 8, 16, "#e8c8ff", 2.6, 0, 2);
+      }
+      var tmh = Math.max(0, -(p.y + PH));
+      if (tmh > p.maxH) { addCharge(p, "height", (tmh - p.maxH) / PX_PER_M); p.maxH = tmh; }
+      continue;
+    }
     if (p.hookN > 0) {
       p.hookT++;
       var u = p.hookT / p.hookN, hdx = p.htx - p.hx0, hdy = p.hty - p.hy0;
@@ -1700,7 +1778,7 @@ function tickWorld(w: any, inputs: any) {
       if (hmh > p.maxH) { addCharge(p, "height", (hmh - p.maxH) / PX_PER_M); p.maxH = hmh; }
       if (!p.isBot) for (k = 0; k < w.coins.length; k++) {
         var hc = w.coins[k];
-        if (!hc.taken && overlapsX(p.x - 2, PW + 4, hc.x, 6) && hc.y + 6 > p.y - 2 && hc.y < p.y + PH + 2) { hc.taken = true; w.runCoins += 1; addCharge(p, "coins", 1); spawnParts(w, hc.x + 3, hc.y + 3, 6, "#ffe07a", 1.8, 0, 1); }
+        if (!hc.taken && overlapsX(p.x - 2, PW + 4, hc.x, 6) && hc.y + 6 > p.y - 2 && hc.y < p.y + PH + 2) { hc.taken = true; hc.netTell = w.net ? 1 : 0; hc.idx = k; w.runCoins += 1; addCharge(p, "coins", 1); spawnParts(w, hc.x + 3, hc.y + 3, 6, "#ffe07a", 1.8, 0, 1); }
       }
       continue;
     }
@@ -1829,6 +1907,8 @@ function tickWorld(w: any, inputs: any) {
         }
         if (overlapsX(p.x, PW, cn.x, 6) && cn.y + 6 > p.y && cn.y < p.y + PH) {
           cn.taken = true;
+          cn.netTell = w.net ? 1 : 0;
+          cn.idx = k;
           w.runCoins += 1;
           addCharge(p, "coins", 1);
           spawnParts(w, cn.x + 3, cn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
@@ -1837,7 +1917,11 @@ function tickWorld(w: any, inputs: any) {
       }
       for (k = 0; k < w.items.length; k++) {
         var it = w.items[k];
-        if (!it.taken && overlapsX(p.x, PW, it.x - 2, 14) && it.y + 12 > p.y && it.y - 2 < p.y + PH) pickItem(w, p, it);
+        if (!it.taken && overlapsX(p.x, PW, it.x - 2, 14) && it.y + 12 > p.y && it.y - 2 < p.y + PH) {
+          it.idx = k;
+          pickItem(w, p, it);
+          if (w.net) it.netTell = 1;
+        }
       }
     }
     var mh = Math.max(0, -(p.y + PH));
@@ -2959,6 +3043,10 @@ var NET: any = (function () {
       N.err = d.msg || d.code;
       if (d.code === "NO_SESSION") giveUp("КОМНАТА ЗАКРЫТА");
       if (N.api) N.api.say(cleanText(N.err, 24) || "ОШИБКА");
+    } else if (ev === "replaced") {
+      N.leave();
+      if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
+      else if (N.api) N.api.goMenu();
     } else if (ev === "kicked") {
       var code = (d && d.code) || (N.room && N.room.code) || "";
       rememberKick(code);
@@ -2982,7 +3070,28 @@ var NET: any = (function () {
   function wasKicked(code: string) { return kickedCodes().indexOf(String(code || "")) >= 0; }
 
   /* ---------- room actions ---------- */
-  function me() { return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN }; }
+  function me() {
+    var tok = "";
+    try { tok = (typeof PROFILE !== "undefined" && PROFILE && PROFILE.getToken) ? (PROFILE.getToken() || "") : ""; } catch (_e) {}
+    var plat = "web";
+    try {
+      var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
+      if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
+    } catch (_e2) {}
+    return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
+  }
+  function screenNow() {
+    var w = N.api && N.api.world && N.api.world();
+    if (w && w.phase === "play") return (w.players && w.players[0] && !w.players[0].alive) ? "spectator" : "game";
+    if (N.room) return "lobby";
+    return "menu";
+  }
+  N.presence = function () {
+    if (!N.ws) return;
+    var m = me();
+    send("presence", { screen: screenNow(), v: m.v, p: m.p, pt: m.pt });
+  };
+  if (typeof setInterval !== "undefined") setInterval(function () { try { N.presence(); } catch (_e) {} }, 30000);
   N.create = function () { N.connect(function (ok: boolean) { if (ok) { var m = me(); send("create", m); } }); };
   N.join = function (code: string) {
     if (wasKicked(code)) { if (N.api) { N.api.goMenu(); N.api.say("ТЕБЯ ВЫГНАЛИ"); } return; }
@@ -3033,16 +3142,29 @@ var NET: any = (function () {
       if (wb !== wa) return wb - wa;
       return (S.best[b] || 0) - (S.best[a] || 0);
     });
-    var h = 13 + pids.length * 11;
+    var head = 13, rowH = 11, maxY = arguments.length > 3 ? arguments[3] : 0;
+    var fit = pids.length;
+    if (maxY > y + head) fit = Math.max(1, Math.min(pids.length, Math.floor((maxY - y - head) / rowH)));
+    else if (maxY) fit = 0;
+    var maxOff = Math.max(0, pids.length - fit);
+    if ((N.evOff || 0) > maxOff) N.evOff = maxOff;
+    if ((N.evOff || 0) < 0) N.evOff = 0;
+    var off = N.evOff || 0;
+    var h = head + fit * rowH;
     box(ctx, x, y, 152, h, C.navy, C.gold);
+    if (N.api && N.api.markBox) N.api.markBox("evening", x, y, 152, h);
     drawText(ctx, "СЧЁТ ВЕЧЕРА · " + S.rounds.length + " РАУНД", LW / 2, y + 3, C.gold, 1, "center");
-    for (var i2 = 0; i2 < pids.length; i2++) {
-      var pid = pids[i2], nm = String(S.names[pid] || "ИГРОК").slice(0, 8);
+    for (var i2 = 0; i2 < fit; i2++) {
+      var pid = pids[off + i2], nm = drawableChars(String(S.names[pid] || "ИГРОК")).slice(0, 10);
       var lineY = y + 13 + i2 * 11;
-      drawText(ctx, nm, x + 6, lineY, C.cream, 1, "left");
+      drawText(ctx, nm || "HOPP", x + 6, lineY, C.cream, 1, "left");
       drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, C.cream, 1, "right");
     }
-    return y + h + 6;
+    if (maxOff > 0 && N.api && N.api.btn) {
+      N.api.btn("net:evup", x + 132, y + 1, 18, 11, "#1a1430", "↑", C.cream);
+      N.evScroll = true;
+    }
+    return y + h + 4;
   };
 
   /* ---------- world integration ---------- */
@@ -3132,7 +3254,15 @@ var NET: any = (function () {
     }
     for (var bi = 0; bi < w.platforms.length; bi++) {
       var bp = w.platforms[bi];
-      if (bp.netTell) { bp.netTell = 0; send("ev", { e: "brk", id: bp.seq }); }
+      if (bp.netTell) { bp.netTell = 0; send("ev", { e: "brk", id: bp.seq, k: bp.netKind || "break" }); }
+    }
+    for (var ci = 0; ci < w.coins.length; ci++) {
+      var cn0 = w.coins[ci];
+      if (cn0.netTell) { cn0.netTell = 0; send("ev", { e: "coin", i: cn0.idx != null ? cn0.idx : ci }); }
+    }
+    for (var ii = 0; ii < w.items.length; ii++) {
+      var it0 = w.items[ii];
+      if (it0.netTell) { it0.netTell = 0; send("ev", { e: "item", i: it0.idx != null ? it0.idx : ii }); }
     }
     for (var k = 0; k < w.monsters.length; k++) {
       var mo = w.monsters[k];
@@ -3151,14 +3281,20 @@ var NET: any = (function () {
         if (rp.alive) { rp.alive = false; rp.why = e.why || "fall"; spawnParts(w, rp.x + 6, rp.y + 8, 10, rp.look.hood, 2.6, 0.1); }
         rp.maxH = Math.max(rp.maxH, (e.m || 0) * PX_PER_M);
         toast(w, rp.name + " ВЫБЫЛ");
-      } else if (e.e === "left" && rp) { rp.alive = false; rp.why = "left"; }
+      }       else if (e.e === "left" && rp) { rp.alive = false; rp.why = "left"; }
       else if (e.e === "brk" || e.e === "rst") applyPlatNet(w, e.id, e.e);
+      else if (e.e === "coin") {
+        var ci2 = e.i | 0, cn2 = w.coins[ci2];
+        if (cn2 && !cn2.taken) { cn2.taken = true; spawnParts(w, cn2.x + 3, cn2.y + 3, 6, "#ffe07a", 1.8, 0, 1); }
+      } else if (e.e === "item") {
+        var ii2 = e.i | 0, it2 = w.items[ii2];
+        if (it2 && !it2.taken) { it2.taken = true; it2.popT = 8; spawnParts(w, it2.x + 4, it2.y + 4, 6, "#ffd046", 1.6, 0, 1); }
+      }
     }
-    /* spectate the leader after falling */
+    /* After death, follow the watched player: their camera, and the events above (coins, mobs, platforms). */
     if (!me0.alive) {
-      var best: any = null;
-      for (var q = 1; q < w.players.length; q++) { var o = w.players[q]; if (o.alive && (!best || o.maxH > best.maxH)) best = o; }
-      if (best) { w.specCam = w.specCam == null ? w.cameraY : w.specCam + (best.camY - w.specCam) * 0.15; w.cameraY = w.specCam; generateUntil(w, w.cameraY - 80); }
+      var tgt = watchOf(w);
+      if (tgt) { w.cameraY = tgt.camY; w.watchName = tgt.name || ""; generateUntil(w, w.cameraY - 80); }
     }
     if (N.results && N.results.round === w.netRound && w.phase === "play") {
       var R = N.results.ranking;
@@ -3177,7 +3313,7 @@ var NET: any = (function () {
       w.netBreaks[idn] = kind === "rst" ? "rst" : "brk";
       return;
     }
-    if (pl.type !== "break") return;
+    if (pl.type !== "break" && pl.type !== "lava" && pl.type !== "bubble") return;
     if (kind === "brk") {
       if (pl.broken) return;
       pl.broken = true;
@@ -3209,7 +3345,8 @@ var NET: any = (function () {
       drawText(ctx, "ПЕРЕПОДКЛЮЧАЕМСЯ...", LW / 2, 27, C.cream, 1, "center");
     } else if (!w.players[0].alive && w.phase === "play") {
       box(ctx, LW / 2 - 64, 24, 128, 13, C.navy, C.cream);
-      drawText(ctx, "ЖДЁМ ОСТАЛЬНЫХ", LW / 2, 27, C.cream, 1, "center");
+      var wn = w.watchName ? drawableChars(String(w.watchName)).slice(0, 10) : "";
+      drawText(ctx, wn ? "СМОТРИМ " + wn : "ЖДЁМ ОСТАЛЬНЫХ", LW / 2, 27, C.cream, 1, "center");
     }
   };
 
@@ -3302,14 +3439,14 @@ var NET: any = (function () {
         continue;
       }
       var isMe = p.pid === N.you;
-      box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, isMe ? C.gold : C.cream);
+      var rim = isMe ? C.gold : p.ready || p.bot ? C.mint : !p.on ? C.red : C.cream;
+      box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, rim);
+      if (api.markBox) api.markBox("slot" + i, x, y, 152, 23);
       drawJumper(ctx, x + 6, y + 5, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
-      drawText(ctx, cleanNick(p.name) || "ИГРОК", x + 28, y + 3, C.cream, 1, "left");
-      var tag = p.bot ? "БОТ" : !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
-      var tc = p.bot ? C.mint : !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
-      drawText(ctx, tag + (isMe ? " · ТЫ" : ""), x + 28, y + 13, tc, 1, "left");
+      var heroNm = (CHARS[p.kind] && CHARS[p.kind].name || "").toUpperCase();
+      var slotLab = p.bot ? "БОТ" : slotLabel(p.name, heroNm, host && !isMe ? 90 : 112);
+      drawText(ctx, slotLab, x + 28, y + 8, C.cream, 1, "left");
       if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
-      else drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
     }
     var my = row0 + 4 * 26 + 4;
     if (host) {
@@ -3319,9 +3456,9 @@ var NET: any = (function () {
     box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
     drawText(ctx, "КАРТА: " + mapInfo(R.map).name, LW / 2, my + 6, C.gold, 1, "center");
     api.btn("net:hero", x, my + 22, 152, 18, "#1a1430", "ГЕРОЙ: " + CHARS[api.save().char].name.toUpperCase() + " ▶", C.cream, 1, C.gold);
-    var evY = my + 44;
-    if (N.session && N.session.rounds && N.session.rounds.length) evY = N.drawEvening(ctx, x, evY);
-    var by = Math.max(evY + 4, LH - 66);
+    var leaveY = LH - 26;
+    var by = leaveY - 30;
+    if (N.session && N.session.rounds && N.session.rounds.length && my + 44 < by - 16) N.drawEvening(ctx, x, my + 44, by - 2);
     if (host) {
       var others = R.players.filter(function (q: any) { return q.pid !== R.host && q.on && !q.bot; });
       var allReady = others.every(function (q: any) { return q.ready; });
@@ -3332,13 +3469,39 @@ var NET: any = (function () {
       api.btn("net:ready", x, by, 152, 26, rd ? C.mint : C.gold, rd ? "ГОТОВ ✓" : "Я ГОТОВ", INK, 1);
     }
     if (N.st === "reconnecting") drawText(ctx, "ПЕРЕПОДКЛЮЧАЕМСЯ...", LW / 2, by - 10, C.gold, 1, "center");
-    api.btn("net:leave", x + 26, LH - 34, 100, 22, C.navy, "ВЫЙТИ");
+    api.btn("net:leave", x, leaveY, 152, 22, C.navy, "ВЫЙТИ");
   }
+  function slotLabel(name: string, hero: string, maxW: number) {
+    var suffix = hero ? " · " + hero : "";
+    var room = maxW - textWidth(suffix, 1);
+    var nm = drawableChars(String(name || ""));
+    while (nm.length > 1 && textWidth(nm, 1) > room) nm = nm.slice(0, -1);
+    if (!nm) nm = "HOPP";
+    return nm + suffix;
+  }
+  function watchOf(w: any) {
+    var list: any[] = [];
+    for (var i = 1; i < w.players.length; i++) if (w.players[i].alive) list.push(w.players[i]);
+    if (!list.length) return null;
+    if (w.watchP && w.watchP.alive && list.indexOf(w.watchP) >= 0) return w.watchP;
+    w.watchP = list[0];
+    return w.watchP;
+  }
+  N.cycleWatch = function (w: any, dir: number) {
+    var list: any[] = [];
+    for (var i = 1; i < w.players.length; i++) if (w.players[i].alive) list.push(w.players[i]);
+    if (!list.length) return;
+    var cur = list.indexOf(w.watchP);
+    if (cur < 0) cur = 0;
+    else cur = (cur + (dir < 0 ? list.length - 1 : 1)) % list.length;
+    w.watchP = list[cur];
+  };
   N.tap = function (id: string, api: any) {
     N.api = api;
     if (id === "net:menu") { api.setPhase("net"); N.open(api); return; }
     if (id === "net:back") { api.goMenu(); return; }
     if (id === "net:retry") { N.err = ""; N.connect(); return; }
+    if (id === "net:evup") { N.evOff = Math.max(0, (N.evOff || 0) - 1); return; }
     if (id === "net:addbot") { send("bot", {}); return; }
     if (id.indexOf("net:kick") === 0) { send("kick", { pid: parseInt(id.slice(8), 10) }); return; }
     if (id === "net:name") {
@@ -3632,12 +3795,22 @@ var PROFILE: any = (function () {
     return fetch(base + path, opts).then(function (r: any) {
       clearTimeout(to);
       return r.json().catch(function () { return null; }).then(function (data: any) {
+        if (r.status === 401 && data && data.error === "SESSION_REPLACED") noteReplaced();
         return { status: r.status, ok: !!r.ok, data: data };
       });
     }).catch(function () {
       clearTimeout(to);
       return { status: 0, ok: false, data: null };
     });
+  }
+
+  function noteReplaced() {
+    if (P.replaced) return;
+    P.replaced = true;
+    var tok = getToken();
+    if (P.api && P.api.sessionReplaced) P.api.sessionReplaced();
+    var done = tok ? flushRunsStep(tok, true) : Promise.resolve(null);
+    Promise.resolve(done).then(function () { setToken(""); ensureProfile(); });
   }
 
   function applyProfile(prof: any, wRef?: any, awarded?: number, limited?: string) {
@@ -3815,6 +3988,7 @@ var PROFILE: any = (function () {
     if (head.mode) body.mode = head.mode;
     if (head.map) body.map = head.map;
     if (head.ver) body.ver = head.ver;
+    if (head.hero != null) body.hero = head.hero;
 
     return req("POST", "/api/run/finish", body, tok).then(function (res: any) {
       if (res.status === 401) {
@@ -3933,13 +4107,21 @@ var PROFILE: any = (function () {
     });
   };
 
+  P.beginRun = function (map: string, hero: number) {
+    var id = makeRunId();
+    var tok = getToken();
+    if (tok) req("POST", "/api/run/start", { runId: id, map: map || "", hero: hero }, tok);
+    return id;
+  };
+
   P.finishRun = function (height: number, runCoins: number, bonusCoins: number, worldRef?: any, meta?: any) {
     var h = Math.max(0, Math.floor(Number(height) || 0));
     var c = Math.max(0, Math.floor(Number(runCoins) || 0));
     var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
     var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
     var item: any = {
-      runId: makeRunId(),
+      runId: (meta && meta.runId) || makeRunId(),
+      hero: meta && meta.hero != null ? meta.hero : 0,
       height: h,
       runCoins: c,
       bonusCoins: b,
@@ -4398,7 +4580,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
   }
   function menuTop() {
-    return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1));
+    return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) + (testInsetTop || 0);
   }
   /* Nick uses the same 5×7 font as the rest of the UI, at scale 1. */
   function nickWidth(n: number) { return n ? n * 6 - 1 + 2 : 0; }
@@ -4665,6 +4847,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.recM = mapBest(mi);
     world.goalM = MAPS[mi].goal || 0;
     phase = "play";
+    sessionNote = false;
     rankY = {};
     paused = false;
     landPause = false;
@@ -4675,6 +4858,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     resumeCd = 0; landPause = false; manualPause = false; abDenyT = 0; refuseT = 0; popT = -1; wasReady = false; coinT0 = -1; coinSkip = false;
     try { canvas.focus(); } catch (_e) {}
     VIEW_SHIFT = 0;
+    if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.beginRun) world.runId = PROFILE.beginRun(world.map, save.char);
     abHintRun = !!(world.players[0] && heroHasAb(world.players[0]) && !(save.seen && save.seen.abHint));
     if (abHintRun) {
       if (!save.seen) save.seen = {};
@@ -4694,7 +4878,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ? PROFILE.computeAward(mtr, runC, bonC)
       : { awarded: (mtr >= 100 ? Math.floor(Math.max(0, Math.min(20000, mtr)) / 25) : 0) + Math.max(0, runC) + Math.max(0, bonC), limited: mtr < 100 ? "HEIGHT_MIN" : "" };
     world.earnH = mtr >= 100 ? Math.floor(Math.max(0, Math.min(20000, mtr)) / 25) : 0;
-    world.earnC = Math.max(0, plan.awarded - world.earnH);
+    var roomLeft = Math.max(0, plan.awarded - world.earnH);
+    world.earnB = Math.min(Math.max(0, bonC), roomLeft);
+    world.earnC = Math.max(0, roomLeft - world.earnB);
     world.earned = plan.awarded;
     world.limited = plan.limited || "";
     world.coinFrom = save.coins;
@@ -4713,11 +4899,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
           mode: world.net ? "online" : mode,
           map: world.map,
           ver: "0.6rc",
-          awarded: world.earned
+          awarded: world.earned,
+          runId: world.runId || "",
+          hero: save.char
         });
       }
     }
   }
+  var sessionNote = false;
   function goMenu() {
     /* Same payout as a finished run: map record, profile best, and the usual coins. No second pay once world.paid. */
     if (phase === "play" && world && !world.paid) payout();
@@ -4728,7 +4917,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (key.indexOf("char:") !== 0) return;
     var i = parseInt(key.slice(5), 10);
     if (isNaN(i) || i < 0 || i >= CHARS.length) return;
-    if (heroOwned(i)) { save.char = i; writeSave(save); say("ВЫБРАН"); }
+    if (heroOwned(i)) { save.char = i; writeSave(save); }
     else tryBuy("hero:act", CHARS[i].price, function () {
       save.coins -= CHARS[i].price; save.owned["char:" + i] = 1; save.char = i; say("КУПЛЕНО!");
       if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("char:" + i, CHARS[i].price);
@@ -4902,6 +5091,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var loc = toLogic(e.clientX, e.clientY);
     var id = hitAt(loc.x, loc.y);
     if (phase === "play") {
+      var pidUp = e.pointerId != null ? e.pointerId : 1;
+      var sw = pointers[pidUp];
+      if (sw && world && world.net && world.players[0] && !world.players[0].alive && typeof NET !== "undefined" && NET.cycleWatch) {
+        var sdx = loc.x - sw.sx, sdy = loc.y - sw.sy;
+        if (Math.abs(sdx) >= 18 && Math.abs(sdx) > Math.abs(sdy)) NET.cycleWatch(world, sdx < 0 ? -1 : 1);
+      }
       if (paused) { if (id === "resume" || id === "menu" || (id === "vol:mute" && pressId === id)) activate(id); }
       else if (id === "pause" && pressId === "pause") activate("pause");
       else if (id === "ab" && pressId === "ab") requestAbility();
@@ -4923,6 +5118,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       return;
     }
     if (down) audioUnlock();
+    if (phase === "play" && world && world.net && world.players[0] && !world.players[0].alive && (k === "ArrowLeft" || k === "ArrowRight") && typeof NET !== "undefined" && NET.cycleWatch) {
+      if (down) NET.cycleWatch(world, k === "ArrowLeft" ? -1 : 1);
+      e.preventDefault();
+      return;
+    }
     if (k === "ArrowLeft" || k === "a" || k === "A" || k === "ф" || k === "Ф") { held.kl = down; e.preventDefault(); return; }
     if (k === "ArrowRight" || k === "d" || k === "D" || k === "в" || k === "В") { held.kr = down; e.preventDefault(); return; }
     if (!down) return;
@@ -4974,6 +5174,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     markBox("header", x, y, w, h);
     if (phase === "results") pushRes("header", x, y, w, h);
     return { x: x, y: y, w: w, h: h, bottom: y + h };
+  }
+  function drawSessionNote() {
+    var y = belowBand();
+    box(ctx, colX(), y, 152, 26, C.navy, C.gold);
+    drawText(ctx, "АККАУНТ ОТКРЫТ", LW / 2, y + 3, C.gold, 1, "center");
+    drawText(ctx, "НА ДРУГОМ УСТРОЙСТВЕ", LW / 2, y + 14, C.gold, 1, "center");
+    markBox("session", colX(), y, 152, 26);
   }
   function drawFlash() {
     if (flashT <= 0) return;
@@ -5272,19 +5479,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (x < 12) fn(x + LW);
     if (x + wdt > LW - 12) fn(x - LW);
   }
-  function rankHeadOf(look: any) {
-    if (!look || !look.id) return null;
-    if (rankHead[look.id]) return rankHead[look.id];
-    var cv = document.createElement("canvas");
-    cv.width = 12;
-    cv.height = 12;
-    var g = cv.getContext("2d");
-    if (!g) return null;
-    g.imageSmoothingEnabled = false;
-    /* Idle sprite is drawn 36×32; the head sits about 8 px down that box. Crop 12×12 at 1:1. */
-    drawJumper(g, 1, 8, look, 1, "idle", false, true);
-    rankHead[look.id] = cv;
-    return cv;
+  function drawFaceMark(x: number, y: number, look: any, alive: boolean) {
+    x = Math.round(x); y = Math.round(y);
+    var hood = (look && look.hood) || "#c890ff";
+    var skin = (look && look.skin) || "#f0c8a0";
+    rect(ctx, x, y, 8, 8, "#000000");
+    rect(ctx, x + 1, y + 1, 6, 3, hood);
+    rect(ctx, x + 1, y + 4, 6, 3, skin);
+    rect(ctx, x + 2, y + 5, 1, 1, "#000000");
+    rect(ctx, x + 5, y + 5, 1, 1, "#000000");
+    if (!alive) rect(ctx, x + 1, y + 1, 6, 6, "rgba(0,0,0,0.45)");
   }
   function drawRankColumn(w: any) {
     if (!w || w.mode !== "squad" || !w.players || w.players.length < 2) return;
@@ -5303,19 +5507,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (Math.abs(target - next) < 1) next = target;
       rankY[p.id] = next;
       var iy = Math.round(next);
-      var head = rankHeadOf(p.look);
-      if (head) {
-        ctx.save();
-        ctx.imageSmoothingEnabled = false;
-        if (!p.alive) ctx.globalAlpha = 0.55;
-        ctx.drawImage(head, x, iy, 12, 12);
-        ctx.restore();
-      }
+      drawFaceMark(x, iy, p.look, !!p.alive);
       if (p.id === 0) {
-        rect(ctx, x - 1, iy - 1, 14, 1, C.gold);
-        rect(ctx, x - 1, iy + 12, 14, 1, C.gold);
-        rect(ctx, x - 1, iy, 1, 12, C.gold);
-        rect(ctx, x + 12, iy, 1, 12, C.gold);
+        rect(ctx, x - 1, iy - 1, 10, 1, C.gold);
+        rect(ctx, x - 1, iy + 8, 10, 1, C.gold);
+        rect(ctx, x - 1, iy, 1, 8, C.gold);
+        rect(ctx, x + 8, iy, 1, 8, C.gold);
       }
       if (!p.alive) {
         for (var d = 1; d < 11; d++) {
@@ -5759,8 +5956,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       pushRes("place" + p.place, x, y, 152, rowH);
       if (compact) {
         drawText(ctx, String(p.place), x + 8, y + 3, p.place === 1 ? C.gold : C.cream, 1, "center");
-        var head = rankHeadOf(p.look);
-        if (head) { ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(head, x + 16, y + 1, 12, 12); ctx.restore(); }
+        drawFaceMark(x + 16, y + 1, p.look, !!p.alive);
         drawText(ctx, String(p.name || "").slice(0, 8) + " " + metersOf(p) + " М", x + 30, y + 3, C.cream, 1, "left");
       } else {
         drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
@@ -5801,12 +5997,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     var rec = save.mapBest[world.map] || world.best || 0;
-    var ah = compact ? (note ? 40 : 32) : (note ? 68 : 56);
+    var ah = compact ? (note ? 50 : 42) : (note ? 82 : 70);
     if (y + ah + 4 <= limitY) {
       box(ctx, x, y, 152, ah, C.navy, C.gold);
       pushRes("award", x, y, 152, ah);
       drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 3, C.cream, 1, "left"); coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
       drawText(ctx, "СОБРАНО", x + 6, y + (compact ? 12 : 15), C.cream, 1, "left"); coinsLabel(x + 146, y + (compact ? 12 : 15), world.earnC || 0, "right");
+      drawText(ctx, "КЛАДЫ", x + 6, y + (compact ? 21 : 27), C.cream, 1, "left"); coinsLabel(x + 146, y + (compact ? 21 : 27), world.earnB || 0, "right");
       var dur = 700, nowA = (typeof performance !== "undefined" ? performance.now() : Date.now());
       if (coinT0 < 0) coinT0 = nowA;
       var kk = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
@@ -5815,12 +6012,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var shownTot = (world.coinFrom != null ? world.coinFrom : (save.coins - (world.earned || 0))) + shownEarn;
       if (kk < 1 && (ui % 4 === 0)) hopSfx("tick");
       if (compact) {
-        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 21, C.gold, 1, "center");
-        if (note) drawText(ctx, note, LW / 2, y + 30, C.cream, 1, "center");
+        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 1, "center");
+        if (note) drawText(ctx, note, LW / 2, y + 39, C.cream, 1, "center");
       } else {
-        rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
-        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
-        if (note) drawText(ctx, note, LW / 2, y + 48, C.cream, 1, "center");
+        rect(ctx, x + 6, y + 37, 140, 1, "#5a4a7a");
+        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 42, C.gold, 2, "center");
+        if (note) drawText(ctx, note, LW / 2, y + 62, C.cream, 1, "center");
       }
       y += compact ? ah + 3 : (note ? 72 : 60);
     }
@@ -5933,7 +6130,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.imageSmoothingEnabled = false;
     hits = [];
     screenLay = [];
-    if (phase === "menu") drawMenu();
+    if (phase === "menu") { drawMenu(); if (sessionNote) drawSessionNote(); }
     else if (phase === "shop") drawShop();
     else if (phase === "camp") drawCamp();
     else if (phase === "lobby") drawLobby();
@@ -5964,6 +6161,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   /* net: what the online module may use from the shell */
   var netApi: any = {
     ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned,
+    sessionReplaced: function () { sessionNote = true; goMenu(); },
     bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
@@ -5976,6 +6174,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     save: function () { return save; },
     saveNow: function () { writeSave(save); },
     say: function (s: string) { say(s); },
+    sessionReplaced: function () { sessionNote = true; goMenu(); },
     apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number, limited?: string) {
       if (!prof) return;
       if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
@@ -6023,6 +6222,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (document.hidden && phase === "play") paused = true;
   }
   var envSide: any = {};
+  var testInsetTop = 0;
   function insetSideCss(side: string) {
     var sum = 0;
     try {
@@ -6224,6 +6424,74 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       };
     },
     checkGroundMobs: function () { return unsupportedMobs(world); },
+    auditReach: function (seed: number, toM: number, mapId?: string, lw?: number) {
+      var prev = LW;
+      if (lw) LW = lw;
+      var w = createWorld(seed >>> 0, "solo", 4, makeLook(4, "base", "none"), mapId || "city");
+      generateUntil(w, -toM * PX_PER_M);
+      var byY: any = {};
+      var ys: number[] = [];
+      function add(y: number, p: any) {
+        var k = String(y);
+        if (!byY[k]) { byY[k] = []; ys.push(y); }
+        byY[k].push(p);
+      }
+      add(0, { x: 8, w: (lw || prev) - 16, type: "normal" });
+      for (var i = 0; i < w.platforms.length; i++) {
+        var pl = w.platforms[i];
+        if (pl.y === 0) continue;
+        add(pl.y, pl);
+      }
+      ys.sort(function (a, b) { return b - a; });
+      var fails = 0, example: any = null;
+      for (var r = 1; r < ys.length; r++) {
+        var gap = ys[r - 1] - ys[r];
+        var prevS = byY[String(ys[r - 1])].filter(function (p: any) { return isStableType(p.type); });
+        var curS = byY[String(ys[r])].filter(function (p: any) { return isStableType(p.type); });
+        if (!prevS.length || !curS.length) { fails++; if (!example) example = { y: ys[r], gap: gap, why: "empty" }; continue; }
+        var reach = horizReachPx(gap);
+        for (var a = 0; a < prevS.length; a++) {
+          var ok = false;
+          for (var b = 0; b < curS.length; b++) if (edgeGap(prevS[a].x, prevS[a].w, curS[b].x, curS[b].w) <= reach + 0.5) ok = true;
+          if (!ok) { fails++; if (!example) example = { y: ys[r], gap: gap, reach: reach }; }
+        }
+      }
+      LW = prev;
+      return { fails: fails, example: example, rows: ys.length };
+    },
+    mageProbe: function () {
+      mode = "solo";
+      save.char = 4;
+      startRun(7, "city");
+      var p = world.players[0];
+      p.abCharge = CHARS[4].need;
+      var y0 = p.y;
+      tickWorld(world, { 0: { dir: 0, ab: true } });
+      var y1 = p.y, n = p.teleN, tty = p.tty;
+      for (var i = 0; i < 4; i++) tickWorld(world, { 0: { dir: 0 } });
+      var y2 = p.y;
+      return { y0: y0, y1: y1, y2: y2, n: n, tty: tty };
+    },
+    lobbyProbe: function (inset: number) {
+      testInsetTop = inset || 0;
+      phase = "net";
+      NET.sub = "room";
+      NET.st = "online";
+      NET.you = 1;
+      NET.room = { code: "1234", you: 1, host: 1, map: "city", players: [
+        { pid: 1, slot: 0, name: "ROMAN", kind: 1, ready: true, on: true },
+        { pid: 2, slot: 1, name: "АННА", kind: 0, ready: true, on: true },
+        { pid: 3, slot: 2, name: "БОТ", kind: 2, ready: true, on: true, bot: true },
+        { pid: 4, slot: 3, name: "МИРА", kind: 3, ready: false, on: true }
+      ] };
+      NET.session = { rounds: [{ round: 1 }, { round: 2 }, { round: 3 }, { round: 4 }, { round: 5 }], names: { 1: "ROMAN", 2: "АННА", 3: "БОТ", 4: "МИРА" }, wins: { 1: 2, 2: 1, 3: 1, 4: 1 }, best: { 1: 10, 2: 9, 3: 8, 4: 7 } };
+      screenLay = [];
+      hits = [];
+      NET.draw(netApi);
+      var boxes = screenLay.slice();
+      testInsetTop = 0;
+      return { lw: LW, lh: LH, boxes: boxes };
+    },
     inspectMap: function (seed: number, toM: number, mapId?: string) {
       var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);
       generateUntil(w, -toM * PX_PER_M - 200);

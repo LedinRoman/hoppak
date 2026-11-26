@@ -988,6 +988,75 @@ async function admin(base, body) {
       console.log('PASS 11b: ios fullscreen once; tdesktop and macos only ready and expand');
     }
 
+    {
+      const ctx = await browser.createBrowserContext();
+      const pg = await ctx.newPage();
+      await pg.setViewport({ width: 390, height: 600, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+      pg.on('pageerror', (e) => errs.push('v061 pageerror: ' + e.message));
+      await pg.goto(base + '/index.html');
+      await pg.waitForFunction(() => window.__hoppak && window.__hoppak.auditReach);
+    const reach = await pg.evaluate(async () => {
+      const maps = ['city', 'jungle', 'ice', 'lava', 'aqua', 'space'];
+      const widths = [160, 180];
+      let bad = 0;
+      const samples = [];
+      for (const map of maps) {
+        for (const lw of widths) {
+          for (let seed = 1; seed <= 8; seed++) {
+            const r = window.__hoppak.auditReach(seed, 900, map, lw);
+            bad += r.fails;
+            if (r.fails && samples.length < 3) samples.push({ map, lw, seed, ex: r.example });
+          }
+        }
+      }
+      return { bad, samples };
+    });
+    assert.strictEqual(reach.bad, 0, 'reach ' + JSON.stringify(reach.samples));
+    console.log('PASS 12: every stable row is within jump reach');
+
+    const tele = await pg.evaluate(() => window.__hoppak.mageProbe());
+    assert.ok(tele.n > 0, 'teleport is interpolated');
+    assert.ok(Math.abs(tele.y1 - tele.tty) > 2, 'first tick is not a snap');
+    assert.ok(Math.abs(tele.y2 - tele.y0) > 0, 'mage moves during the blend');
+    console.log('PASS 13: mage teleport blends');
+
+    const flash = await pg.evaluate(() => {
+      window.__hoppak.setHero(0);
+      window.__hoppak.screen('shop');
+      window.__hoppak.tap('hero:act');
+      return window.__hoppak.getFlash();
+    });
+    assert.ok(!flash || flash.indexOf('ВЫБРАН') < 0, 'no selected popup');
+    console.log('PASS 14: hero select has no popup');
+
+    function overlap(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+    for (const inset of [0, 36]) {
+      const lay = await pg.evaluate((n) => window.__hoppak.lobbyProbe(n), inset);
+      const start = lay.boxes.find((b) => b.id === 'net:start' || b.id === 'net:ready');
+      const leave = lay.boxes.find((b) => b.id === 'net:leave');
+      assert.ok(start && leave, 'buttons ' + inset);
+      assert.ok(start.y + start.h <= leave.y + 0.5, 'start above leave ' + inset);
+      assert.ok(!overlap(start, leave), 'no overlap ' + inset);
+      for (const b of lay.boxes) {
+        if (b === start || b === leave) continue;
+        if (b.id === 'net:start' || b.id === 'net:leave' || b.id === 'net:ready') continue;
+        assert.ok(!overlap(start, b), inset + ' start vs ' + b.id);
+        assert.ok(!overlap(leave, b), inset + ' leave vs ' + b.id);
+        assert.ok(b.y + b.h <= lay.lh + 1 && b.y >= -1, b.id);
+      }
+      assert.ok(leave.y + leave.h <= lay.lh + 1);
+    }
+    console.log('PASS 15: lobby buttons stay clear of the evening score');
+      await pg.setViewport({ width: 360, height: 560, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+      const narrow = await pg.evaluate(() => window.__hoppak.lobbyProbe(36));
+      const ns = narrow.boxes.find((b) => b.id === 'net:start');
+      const nl = narrow.boxes.find((b) => b.id === 'net:leave');
+      assert.ok(ns && nl && ns.y + ns.h <= nl.y + 0.5);
+      await ctx.close();
+    }
+
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));
     console.log('ALL CLIENT PROFILE E2E TESTS PASS');
   } finally {

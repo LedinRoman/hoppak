@@ -9,12 +9,20 @@ const { ProfileController } = require('../dist/profile/profile.controller');
 const { ProfileService } = require('../dist/profile/profile.service');
 const { Player } = require('../dist/profile/player.entity');
 const { PlayerRun } = require('../dist/profile/player-run.entity');
+const { PlayerTelegram } = require('../dist/profile/player-telegram.entity');
+const { PlayerGeo } = require('../dist/profile/player-geo.entity');
+const { RunStart } = require('../dist/profile/run-start.entity');
+const { SuspiciousRun } = require('../dist/profile/suspicious-run.entity');
+const { plausBuckets, bucketFor } = require('../dist/profile/plausibility');
+const { clientAddress } = require('../dist/profile/client-ip');
+const { displayName } = require('../dist/profile/display-name');
 const { ITEM_PRICES, RUN_COINS_MAX, RUN_BONUS_MAX, HEIGHT_AWARD_MIN } = require('../dist/profile/limits');
 const { AddBestBuyRunId1795642000000 } = require('../dist/db/migrations/1795642000000-AddBestBuyRunId');
 const { AddMergedInto1795643000000 } = require('../dist/db/migrations/1795643000000-AddMergedInto');
 const { AddCampaign1795644000000 } = require('../dist/db/migrations/1795644000000-AddCampaign');
 const { AddTelegramProfile1795645000000 } = require('../dist/db/migrations/1795645000000-AddTelegramProfile');
 const { CommentProfileSchema1795646000000 } = require('../dist/db/migrations/1795646000000-CommentProfileSchema');
+const { SplitTelegramGeoOnlinePlausibility1795647000000 } = require('../dist/db/migrations/1795647000000-SplitTelegramGeoOnlinePlausibility');
 const { parseAndVerifyInitData, clipTelegramField } = require('../dist/profile/telegram');
 
 function clone(v) {
@@ -34,7 +42,7 @@ function makeMemoryRepos() {
     p.windowStartedAt = row.windowStartedAt ? new Date(row.windowStartedAt) : null;
     p.telegramLinkedAt = row.telegramLinkedAt ? new Date(row.telegramLinkedAt) : null;
     p.mergedAt = row.mergedAt ? new Date(row.mergedAt) : null;
-    p.telegramProfileUpdatedAt = row.telegramProfileUpdatedAt ? new Date(row.telegramProfileUpdatedAt) : null;
+    p.previousTokenAt = row.previousTokenAt ? new Date(row.previousTokenAt) : null;
     return p;
   }
 
@@ -67,10 +75,42 @@ function makeMemoryRepos() {
       for (const p of players.values()) {
         if (where.id && p.id === where.id) return hydratePlayer(p);
         if (where.guestTokenHash && p.guestTokenHash === where.guestTokenHash) return hydratePlayer(p);
-        if (where.telegramId && p.telegramId === where.telegramId) return hydratePlayer(p);
+        if (where.telegramId && String(p.telegramId) === String(where.telegramId)) return hydratePlayer(p);
+        if (where.previousTokenHash && p.previousTokenHash === where.previousTokenHash) return hydratePlayer(p);
       }
       return null;
     },
+  };
+
+  const telegrams = new Map();
+  const telegramRepo = {
+    create(obj) { return Object.assign(new PlayerTelegram(), obj); },
+    async findOne({ where }) { return telegrams.get(where.playerId) || null; },
+    async save(row) { telegrams.set(row.playerId, Object.assign(new PlayerTelegram(), row)); return telegrams.get(row.playerId); },
+  };
+  const geos = new Map();
+  const geoRepo = {
+    create(obj) { return Object.assign(new PlayerGeo(), obj); },
+    async findOne({ where }) { return geos.get(where.playerId) || null; },
+    async save(row) { geos.set(row.playerId, Object.assign(new PlayerGeo(), row)); return geos.get(row.playerId); },
+  };
+  const starts = new Map();
+  const startRepo = {
+    create(obj) { return Object.assign(new RunStart(), obj); },
+    async findOne({ where }) { return starts.get(`${where.playerId}:${where.runId}`) || null; },
+    async save(row) {
+      const rec = Object.assign(new RunStart(), row);
+      starts.set(`${rec.playerId}:${rec.runId}`, rec);
+      return rec;
+    },
+  };
+  const suspicious = [];
+  const suspiciousRepo = {
+    create(obj) { return Object.assign(new SuspiciousRun(), obj); },
+    async save(row) { const rec = Object.assign(new SuspiciousRun(), row); suspicious.push(rec); return rec; },
+  };
+  const rulesRepo = {
+    async find() { return plausBuckets(); },
   };
 
   const runRepo = {
@@ -123,7 +163,7 @@ function makeMemoryRepos() {
     },
   };
 
-  return { playerRepo, runRepo, players, runs };
+  return { playerRepo, runRepo, players, runs, telegramRepo, geoRepo, startRepo, rulesRepo, suspiciousRepo, telegrams, geos, starts, suspicious };
 }
 
 async function req(base, method, path, body, token) {
@@ -167,7 +207,7 @@ async function testWithoutDb() {
 
 async function testProfileFlow() {
   const { Module } = require('@nestjs/common');
-  const { playerRepo, runRepo, players } = makeMemoryRepos();
+  const { playerRepo, runRepo, players, telegramRepo, geoRepo, startRepo, rulesRepo, suspiciousRepo } = makeMemoryRepos();
 
   class TestProfileModule {}
   Module({
@@ -175,7 +215,7 @@ async function testProfileFlow() {
     providers: [
       {
         provide: ProfileService,
-        useFactory: () => new ProfileService(playerRepo, runRepo),
+        useFactory: () => new ProfileService(playerRepo, runRepo, telegramRepo, geoRepo, startRepo, rulesRepo, suspiciousRepo),
       },
     ],
   })(TestProfileModule);
@@ -317,16 +357,17 @@ function makeInitData(botToken, userId, extra = {}) {
 
 async function startTestApp() {
   const { Module } = require('@nestjs/common');
-  const { playerRepo, runRepo, players } = makeMemoryRepos();
+  const bag = makeMemoryRepos();
+  const { playerRepo, runRepo, players, telegramRepo, geoRepo, startRepo, rulesRepo, suspiciousRepo } = bag;
   class TestProfileModule {}
   Module({
     controllers: [ProfileController],
-    providers: [{ provide: ProfileService, useFactory: () => new ProfileService(playerRepo, runRepo) }],
+    providers: [{ provide: ProfileService, useFactory: () => new ProfileService(playerRepo, runRepo, telegramRepo, geoRepo, startRepo, rulesRepo, suspiciousRepo) }],
   })(TestProfileModule);
   const app = await NestFactory.create(TestProfileModule, { logger: false });
   await app.listen(0, '127.0.0.1');
   const port = app.getHttpServer().address().port;
-  return { app, base: `http://127.0.0.1:${port}`, playerRepo, players };
+  return { app, base: `http://127.0.0.1:${port}`, playerRepo, players, ...bag };
 }
 
 async function testTelegramMerge() {
@@ -619,6 +660,141 @@ async function testMigrationSql() {
   assert.ok(!up5.some((q) => /^(ALTER TABLE|ADD COLUMN|DROP COLUMN|UPDATE |DELETE |INSERT )/i.test(q)));
   assert.ok(down5.every((q) => /COMMENT ON (TABLE|COLUMN) .+ IS NULL/.test(q)));
   console.log('PASS profile schema comments migration SQL');
+
+  const m6 = new SplitTelegramGeoOnlinePlausibility1795647000000();
+  const up6 = [];
+  const down6 = [];
+  await m6.up({ query: async (q) => up6.push(q) });
+  await m6.down({ query: async (q) => down6.push(q) });
+  assert.ok(up6.some((q) => /INSERT INTO "player_telegram"/i.test(q)));
+  assert.ok(up6.some((q) => /DROP COLUMN IF EXISTS "telegram_username"/i.test(q)));
+  assert.ok(up6.some((q) => /INSERT INTO "rules_plausibility"/i.test(q)));
+  assert.ok(up6.some((q) => /CREATE TABLE IF NOT EXISTS "suspicious_runs"/i.test(q)));
+  assert.ok(up6.some((q) => /CREATE TABLE IF NOT EXISTS "online_now"/i.test(q)));
+  assert.ok(up6.some((q) => /CREATE TABLE IF NOT EXISTS "player_geo"/i.test(q)));
+  const newCols = [
+    ['player', 'previous_token_hash'], ['player', 'previous_token_at'],
+    ['player_telegram', 'player_id'], ['player_telegram', 'telegram_id'], ['player_telegram', 'username'],
+    ['player_telegram', 'first_name'], ['player_telegram', 'last_name'], ['player_telegram', 'language'],
+    ['player_telegram', 'is_premium'], ['player_telegram', 'updated_at'],
+    ['player_geo', 'player_id'], ['player_geo', 'last_ip'], ['player_geo', 'country'],
+    ['player_geo', 'origin_language'], ['player_geo', 'first_seen'], ['player_geo', 'last_seen'],
+    ['online_now', 'player_id'], ['online_now', 'room'], ['online_now', 'screen'],
+    ['online_now', 'client_version'], ['online_now', 'platform'], ['online_now', 'last_seen'],
+    ['online_snapshots', 'id'], ['online_snapshots', 'ts'], ['online_snapshots', 'count'],
+    ['run_start', 'player_id'], ['run_start', 'run_id'], ['run_start', 'map'], ['run_start', 'hero'], ['run_start', 'started_at'],
+    ['rules_plausibility', 'map'], ['rules_plausibility', 't_seconds'], ['rules_plausibility', 'max_coins'],
+    ['rules_plausibility', 'max_height_m'], ['rules_plausibility', 'max_treasures'], ['rules_plausibility', 'margin'],
+    ['rules_plausibility', 'version'], ['rules_plausibility', 'updated_at'],
+    ['suspicious_runs', 'id'], ['suspicious_runs', 'player_id'], ['suspicious_runs', 'run_id'],
+    ['suspicious_runs', 'map'], ['suspicious_runs', 'hero'], ['suspicious_runs', 'duration_s'],
+    ['suspicious_runs', 'claimed_coins'], ['suspicious_runs', 'claimed_height'], ['suspicious_runs', 'claimed_treasures'],
+    ['suspicious_runs', 'max_coins'], ['suspicious_runs', 'max_height'], ['suspicious_runs', 'max_treasures'],
+    ['suspicious_runs', 'reason'], ['suspicious_runs', 'client_version'], ['suspicious_runs', 'created_at'],
+  ];
+  for (const [table, col] of newCols) {
+    assert.ok(up6.some((q) => q.indexOf('COMMENT ON COLUMN "' + table + '"."' + col + '"') >= 0), table + '.' + col);
+  }
+  for (const table of ['player_telegram', 'player_geo', 'online_now', 'online_snapshots', 'run_start', 'rules_plausibility', 'suspicious_runs']) {
+    assert.ok(up6.some((q) => q.indexOf('COMMENT ON TABLE "' + table + '"') >= 0), table);
+  }
+  assert.ok(down6.some((q) => /UPDATE "player" p SET/i.test(q)));
+  assert.ok(down6.some((q) => /DROP TABLE IF EXISTS "player_telegram"/i.test(q)));
+  const seed = up6.find((q) => /INSERT INTO "rules_plausibility"/i.test(q));
+  for (const b of plausBuckets()) {
+    assert.ok(seed.indexOf("'" + b.map + "', " + b.tSeconds + ", " + b.maxCoins + ", " + b.maxHeightM + ", " + b.maxTreasures) >= 0, b.map + ' ' + b.tSeconds);
+  }
+  console.log('PASS telegram split, geo, online, plausibility migration SQL');
+}
+
+async function testPlausibilityAndSession() {
+  process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
+  assert.strictEqual(clientAddress('1.2.3.4, 5.6.7.8', '127.0.0.1'), '5.6.7.8');
+  assert.strictEqual(clientAddress('', '::ffff:10.0.0.9'), '10.0.0.9');
+  assert.strictEqual(displayName('Roman', 'other', 'abcd1234'), 'ROMAN');
+  assert.strictEqual(displayName('😀', 'okname', 'abcd1234'), 'OKNAME');
+  assert.strictEqual(displayName('😀', '🔥', 'abcd1234-ffff'), 'hopp-abcd');
+  const rule = bucketFor(plausBuckets(), 'city', 1);
+  assert.strictEqual(rule.tSeconds, 30);
+
+  const { app, base, players, starts, suspicious } = await startTestApp();
+  try {
+    const g = await req(base, 'POST', '/api/profile/guest', undefined, undefined);
+    const tok = g.data.token;
+    const id = g.data.profile.id;
+    const geo = await req(base, 'GET', '/api/profile', undefined, tok);
+    assert.strictEqual(geo.status, 200);
+
+    const run = 'honest-1';
+    const started = await req(base, 'POST', '/api/run/start', { runId: run, map: 'city', hero: 4 }, tok);
+    assert.strictEqual(started.status, 201, JSON.stringify(started.data));
+    const row = starts.get(id + ':' + run);
+    row.startedAt = new Date(Date.now() - 1000);
+    const coinsBefore = g.data.profile.coins;
+    const ok = await req(base, 'POST', '/api/run/finish', {
+      runId: run, map: 'city', hero: 4, ver: '0.6rc', height: 40, runCoins: 10, bonusCoins: 25,
+    }, tok);
+    assert.strictEqual(ok.data.ok, true, JSON.stringify(ok.data));
+    assert.ok(ok.data.awarded > 0, 'honest run is awarded');
+    assert.ok(!ok.data.maxCoins && !ok.data.maxHeight && !ok.data.maxTreasures, 'response hides the ceilings');
+    assert.strictEqual(suspicious.length, 0);
+
+    async function reject(field) {
+      const rid = 'bad-' + field;
+      await req(base, 'POST', '/api/run/start', { runId: rid, map: 'lava', hero: 4 }, tok);
+      starts.get(id + ':' + rid).startedAt = new Date(Date.now() - 1000);
+      const cap = bucketFor(plausBuckets(), 'lava', 1);
+      const body = { runId: rid, map: 'lava', hero: 4, ver: '0.6rc', height: 10, runCoins: 1, bonusCoins: 0 };
+      if (field === 'height') body.height = cap.maxHeightM + 1;
+      if (field === 'coins') body.runCoins = cap.maxCoins + 1;
+      if (field === 'treasures') body.bonusCoins = (cap.maxTreasures + 1) * 25;
+      const before = (await req(base, 'GET', '/api/profile', undefined, tok)).data.profile.coins;
+      const res = await req(base, 'POST', '/api/run/finish', body, tok);
+      assert.strictEqual(res.data.awarded, 0, field);
+      assert.strictEqual(res.data.limited, 'REJECTED', field);
+      assert.ok(!res.data.reason && !res.data.maxCoins, field);
+      const hit = suspicious.filter((s) => s.runId === rid);
+      assert.strictEqual(hit.length, 1, field);
+      assert.ok(hit[0].reason.indexOf(field) >= 0, hit[0].reason);
+      const after = (await req(base, 'GET', '/api/profile', undefined, tok)).data.profile.coins;
+      assert.strictEqual(after, before, field + ' does not pay');
+      const again = await req(base, 'POST', '/api/run/finish', body, tok);
+      assert.strictEqual(again.data.duplicate, true, field);
+      assert.strictEqual(again.data.awarded, 0, field);
+      assert.strictEqual(suspicious.filter((s) => s.runId === rid).length, 1, 'one suspicious row');
+    }
+    await reject('height');
+    await reject('coins');
+    await reject('treasures');
+    assert.ok((await req(base, 'GET', '/api/profile', undefined, tok)).data.profile.coins > coinsBefore);
+
+    const init = (uid) => makeInitData(TEST_BOT_TOKEN, 9001);
+    const linked = await req(base, 'POST', '/api/auth/telegram', { initData: init() }, tok);
+    assert.strictEqual(linked.status, 201, JSON.stringify(linked.data));
+    const kept = 'still-counts';
+    const startedKept = await req(base, 'POST', '/api/run/start', { runId: kept, map: 'city', hero: 0 }, tok);
+    assert.strictEqual(startedKept.status, 201, JSON.stringify(startedKept.data));
+    const other = await req(base, 'POST', '/api/profile/guest');
+    const second = await req(base, 'POST', '/api/auth/telegram', { initData: init() }, other.data.token);
+    assert.strictEqual(second.status, 201);
+    const oldGet = await req(base, 'GET', '/api/profile', undefined, tok);
+    assert.strictEqual(oldGet.status, 401);
+    assert.strictEqual(oldGet.data.error, 'SESSION_REPLACED');
+    const paid = await req(base, 'POST', '/api/run/finish', {
+      runId: kept, map: 'city', hero: 0, height: 120, runCoins: 2, bonusCoins: 0,
+    }, tok);
+    assert.ok(paid.data.awarded > 0, JSON.stringify(paid.data));
+    const dup = await req(base, 'POST', '/api/run/finish', {
+      runId: kept, map: 'city', hero: 0, height: 120, runCoins: 2, bonusCoins: 0,
+    }, second.data.token);
+    assert.strictEqual(dup.data.duplicate, true);
+    assert.strictEqual(dup.data.awarded, paid.data.awarded);
+    assert.ok(players.get(second.data.profile.id));
+  } finally {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    await app.close();
+  }
+  console.log('PASS plausibility and last-login session');
 }
 
 async function testTwoDevices() {
@@ -789,7 +965,7 @@ function assertNoTelegramProfileLeak(payload, uniqueMarker) {
 
 async function testTelegramProfileFields() {
   process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
-  const { app, base, players } = await startTestApp();
+  const { app, base, players, telegrams } = await startTestApp();
   const init = (uid, extra) => makeInitData(TEST_BOT_TOKEN, uid, extra);
   try {
     assert.strictEqual(clipTelegramField('abc', 2), 'ab');
@@ -828,12 +1004,14 @@ async function testTelegramProfileFields() {
     assertNoTelegramProfileLeak(linked.data, 'unit_tg_nick_xyz');
     const row = [...players.values()].find((p) => String(p.telegramId) === '424201');
     assert.ok(row);
-    assert.strictEqual(row.telegramUsername, 'unit_tg_nick_xyz');
-    assert.strictEqual(row.telegramFirstName, 'Roman');
-    assert.strictEqual(row.telegramLastName, 'L');
-    assert.strictEqual(row.telegramLanguage, 'ru');
-    assert.strictEqual(row.telegramIsPremium, true);
-    assert.ok(row.telegramProfileUpdatedAt instanceof Date);
+    assert.strictEqual(row.telegramUsername, undefined);
+    const tg = telegrams.get(row.id);
+    assert.strictEqual(tg.username, 'unit_tg_nick_xyz');
+    assert.strictEqual(tg.firstName, 'Roman');
+    assert.strictEqual(tg.lastName, 'L');
+    assert.strictEqual(tg.language, 'ru');
+    assert.strictEqual(tg.isPremium, true);
+    assert.ok(tg.updatedAt instanceof Date);
 
     const again = await req(base, 'POST', '/api/auth/telegram', {
       initData: init(424201, {
@@ -845,11 +1023,12 @@ async function testTelegramProfileFields() {
     assert.strictEqual(again.status, 201, JSON.stringify(again.data));
     assertNoTelegramProfileLeak(again.data, 'unit_tg_nick_v2');
     const row2 = [...players.values()].find((p) => String(p.telegramId) === '424201');
-    assert.strictEqual(row2.telegramUsername, 'unit_tg_nick_v2');
-    assert.strictEqual(row2.telegramFirstName, 'Ro');
-    assert.strictEqual(row2.telegramLastName, null);
-    assert.strictEqual(row2.telegramLanguage, 'en');
-    assert.strictEqual(row2.telegramIsPremium, null);
+    const tg2 = telegrams.get(row2.id);
+    assert.strictEqual(tg2.username, 'unit_tg_nick_v2');
+    assert.strictEqual(tg2.firstName, 'Ro');
+    assert.strictEqual(tg2.lastName, null);
+    assert.strictEqual(tg2.language, 'en');
+    assert.strictEqual(tg2.isPremium, null);
 
     const created = await req(base, 'POST', '/api/auth/telegram', {
       initData: init(424202, { username: 'fresh_tg_user', first_name: 'A', is_premium: false }),
@@ -857,8 +1036,8 @@ async function testTelegramProfileFields() {
     assert.strictEqual(created.status, 201, JSON.stringify(created.data));
     assertNoTelegramProfileLeak(created.data, 'fresh_tg_user');
     const fresh = [...players.values()].find((p) => String(p.telegramId) === '424202');
-    assert.strictEqual(fresh.telegramUsername, 'fresh_tg_user');
-    assert.strictEqual(fresh.telegramIsPremium, false);
+    assert.strictEqual(telegrams.get(fresh.id).username, 'fresh_tg_user');
+    assert.strictEqual(telegrams.get(fresh.id).isPremium, false);
 
     const g2 = await req(base, 'POST', '/api/profile/guest');
     const merged = await req(base, 'POST', '/api/auth/telegram', {
@@ -868,8 +1047,8 @@ async function testTelegramProfileFields() {
     assert.strictEqual(merged.data.merged, true);
     assertNoTelegramProfileLeak(merged.data, 'fresh_tg_merged');
     const afterMerge = [...players.values()].find((p) => String(p.telegramId) === '424202');
-    assert.strictEqual(afterMerge.telegramUsername, 'fresh_tg_merged');
-    assert.strictEqual(afterMerge.telegramFirstName, 'B');
+    assert.strictEqual(telegrams.get(afterMerge.id).username, 'fresh_tg_merged');
+    assert.strictEqual(telegrams.get(afterMerge.id).firstName, 'B');
   } finally {
     await app.close();
   }
@@ -883,6 +1062,7 @@ async function testTelegramProfileFields() {
   await testTelegramProfileFields();
   await testAwardSeries();
   await testMigrationSql();
+  await testPlausibilityAndSession();
   await testTwoDevices();
   await testMapPurchase();
   console.log('ALL SERVER PROFILE TESTS PASS');

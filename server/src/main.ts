@@ -8,6 +8,8 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: ['log', 'warn', 'error'] });
+  /* One trusted proxy (Caddy). req.ip and our X-Forwarded-For helper use the rightmost hop. */
+  app.set('trust proxy', 1);
   app.useWebSocketAdapter(new WsAdapter(app));
   // One process serves the static client (public/) and the WebSocket (/ws) on the same port,
   // so a single HTTPS tunnel / reverse proxy is enough and the page connects to wss://<same host>/ws.

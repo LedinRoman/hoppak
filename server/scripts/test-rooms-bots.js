@@ -68,4 +68,17 @@ rooms.state(host.room, guest.player, { b: again.pid, x: 9, y: -10, a: 1, m: 0 })
 assert.strictEqual(again.st[0], before, 'a guest cannot write a bot');
 
 rooms.onModuleDestroy();
+
+const rooms2 = new RoomsService();
+const a = sock();
+const b = sock();
+const first = rooms2.create(a, 'ROMAN', 1, '0.6', 'player-1');
+a.sess = { room: first.room, player: first.player };
+const second = rooms2.join(b, first.room.code, 'ROMAN', 1, '0.6', 'player-1');
+assert.strictEqual(second.room.players.filter((p) => p.accountId === 'player-1').length, 1);
+assert.ok(ev(a, 'replaced').length >= 1, 'the older socket is told');
+assert.strictEqual(second.player.accountId, 'player-1');
+const bot2 = rooms2.addBot(second.room, second.player);
+assert.strictEqual(bot2.name, 'БОТ');
+rooms2.onModuleDestroy();
 console.log('ALL ROOM BOT TESTS PASS');

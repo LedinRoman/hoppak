@@ -388,7 +388,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
   }
   function menuTop() {
-    return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1));
+    return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) + (testInsetTop || 0);
   }
   /* Nick uses the same 5×7 font as the rest of the UI, at scale 1. */
   function nickWidth(n: number) { return n ? n * 6 - 1 + 2 : 0; }
@@ -655,6 +655,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.recM = mapBest(mi);
     world.goalM = MAPS[mi].goal || 0;
     phase = "play";
+    sessionNote = false;
     rankY = {};
     paused = false;
     landPause = false;
@@ -665,6 +666,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     resumeCd = 0; landPause = false; manualPause = false; abDenyT = 0; refuseT = 0; popT = -1; wasReady = false; coinT0 = -1; coinSkip = false;
     try { canvas.focus(); } catch (_e) {}
     VIEW_SHIFT = 0;
+    if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.beginRun) world.runId = PROFILE.beginRun(world.map, save.char);
     abHintRun = !!(world.players[0] && heroHasAb(world.players[0]) && !(save.seen && save.seen.abHint));
     if (abHintRun) {
       if (!save.seen) save.seen = {};
@@ -684,7 +686,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ? PROFILE.computeAward(mtr, runC, bonC)
       : { awarded: (mtr >= 100 ? Math.floor(Math.max(0, Math.min(20000, mtr)) / 25) : 0) + Math.max(0, runC) + Math.max(0, bonC), limited: mtr < 100 ? "HEIGHT_MIN" : "" };
     world.earnH = mtr >= 100 ? Math.floor(Math.max(0, Math.min(20000, mtr)) / 25) : 0;
-    world.earnC = Math.max(0, plan.awarded - world.earnH);
+    var roomLeft = Math.max(0, plan.awarded - world.earnH);
+    world.earnB = Math.min(Math.max(0, bonC), roomLeft);
+    world.earnC = Math.max(0, roomLeft - world.earnB);
     world.earned = plan.awarded;
     world.limited = plan.limited || "";
     world.coinFrom = save.coins;
@@ -703,11 +707,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
           mode: world.net ? "online" : mode,
           map: world.map,
           ver: "0.6rc",
-          awarded: world.earned
+          awarded: world.earned,
+          runId: world.runId || "",
+          hero: save.char
         });
       }
     }
   }
+  var sessionNote = false;
   function goMenu() {
     /* Same payout as a finished run: map record, profile best, and the usual coins. No second pay once world.paid. */
     if (phase === "play" && world && !world.paid) payout();
@@ -718,7 +725,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (key.indexOf("char:") !== 0) return;
     var i = parseInt(key.slice(5), 10);
     if (isNaN(i) || i < 0 || i >= CHARS.length) return;
-    if (heroOwned(i)) { save.char = i; writeSave(save); say("ВЫБРАН"); }
+    if (heroOwned(i)) { save.char = i; writeSave(save); }
     else tryBuy("hero:act", CHARS[i].price, function () {
       save.coins -= CHARS[i].price; save.owned["char:" + i] = 1; save.char = i; say("КУПЛЕНО!");
       if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("char:" + i, CHARS[i].price);
@@ -892,6 +899,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var loc = toLogic(e.clientX, e.clientY);
     var id = hitAt(loc.x, loc.y);
     if (phase === "play") {
+      var pidUp = e.pointerId != null ? e.pointerId : 1;
+      var sw = pointers[pidUp];
+      if (sw && world && world.net && world.players[0] && !world.players[0].alive && typeof NET !== "undefined" && NET.cycleWatch) {
+        var sdx = loc.x - sw.sx, sdy = loc.y - sw.sy;
+        if (Math.abs(sdx) >= 18 && Math.abs(sdx) > Math.abs(sdy)) NET.cycleWatch(world, sdx < 0 ? -1 : 1);
+      }
       if (paused) { if (id === "resume" || id === "menu" || (id === "vol:mute" && pressId === id)) activate(id); }
       else if (id === "pause" && pressId === "pause") activate("pause");
       else if (id === "ab" && pressId === "ab") requestAbility();
@@ -913,6 +926,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       return;
     }
     if (down) audioUnlock();
+    if (phase === "play" && world && world.net && world.players[0] && !world.players[0].alive && (k === "ArrowLeft" || k === "ArrowRight") && typeof NET !== "undefined" && NET.cycleWatch) {
+      if (down) NET.cycleWatch(world, k === "ArrowLeft" ? -1 : 1);
+      e.preventDefault();
+      return;
+    }
     if (k === "ArrowLeft" || k === "a" || k === "A" || k === "ф" || k === "Ф") { held.kl = down; e.preventDefault(); return; }
     if (k === "ArrowRight" || k === "d" || k === "D" || k === "в" || k === "В") { held.kr = down; e.preventDefault(); return; }
     if (!down) return;
@@ -964,6 +982,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     markBox("header", x, y, w, h);
     if (phase === "results") pushRes("header", x, y, w, h);
     return { x: x, y: y, w: w, h: h, bottom: y + h };
+  }
+  function drawSessionNote() {
+    var y = belowBand();
+    box(ctx, colX(), y, 152, 26, C.navy, C.gold);
+    drawText(ctx, "АККАУНТ ОТКРЫТ", LW / 2, y + 3, C.gold, 1, "center");
+    drawText(ctx, "НА ДРУГОМ УСТРОЙСТВЕ", LW / 2, y + 14, C.gold, 1, "center");
+    markBox("session", colX(), y, 152, 26);
   }
   function drawFlash() {
     if (flashT <= 0) return;
@@ -1262,19 +1287,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (x < 12) fn(x + LW);
     if (x + wdt > LW - 12) fn(x - LW);
   }
-  function rankHeadOf(look: any) {
-    if (!look || !look.id) return null;
-    if (rankHead[look.id]) return rankHead[look.id];
-    var cv = document.createElement("canvas");
-    cv.width = 12;
-    cv.height = 12;
-    var g = cv.getContext("2d");
-    if (!g) return null;
-    g.imageSmoothingEnabled = false;
-    /* Idle sprite is drawn 36×32; the head sits about 8 px down that box. Crop 12×12 at 1:1. */
-    drawJumper(g, 1, 8, look, 1, "idle", false, true);
-    rankHead[look.id] = cv;
-    return cv;
+  function drawFaceMark(x: number, y: number, look: any, alive: boolean) {
+    x = Math.round(x); y = Math.round(y);
+    var hood = (look && look.hood) || "#c890ff";
+    var skin = (look && look.skin) || "#f0c8a0";
+    rect(ctx, x, y, 8, 8, "#000000");
+    rect(ctx, x + 1, y + 1, 6, 3, hood);
+    rect(ctx, x + 1, y + 4, 6, 3, skin);
+    rect(ctx, x + 2, y + 5, 1, 1, "#000000");
+    rect(ctx, x + 5, y + 5, 1, 1, "#000000");
+    if (!alive) rect(ctx, x + 1, y + 1, 6, 6, "rgba(0,0,0,0.45)");
   }
   function drawRankColumn(w: any) {
     if (!w || w.mode !== "squad" || !w.players || w.players.length < 2) return;
@@ -1293,19 +1315,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (Math.abs(target - next) < 1) next = target;
       rankY[p.id] = next;
       var iy = Math.round(next);
-      var head = rankHeadOf(p.look);
-      if (head) {
-        ctx.save();
-        ctx.imageSmoothingEnabled = false;
-        if (!p.alive) ctx.globalAlpha = 0.55;
-        ctx.drawImage(head, x, iy, 12, 12);
-        ctx.restore();
-      }
+      drawFaceMark(x, iy, p.look, !!p.alive);
       if (p.id === 0) {
-        rect(ctx, x - 1, iy - 1, 14, 1, C.gold);
-        rect(ctx, x - 1, iy + 12, 14, 1, C.gold);
-        rect(ctx, x - 1, iy, 1, 12, C.gold);
-        rect(ctx, x + 12, iy, 1, 12, C.gold);
+        rect(ctx, x - 1, iy - 1, 10, 1, C.gold);
+        rect(ctx, x - 1, iy + 8, 10, 1, C.gold);
+        rect(ctx, x - 1, iy, 1, 8, C.gold);
+        rect(ctx, x + 8, iy, 1, 8, C.gold);
       }
       if (!p.alive) {
         for (var d = 1; d < 11; d++) {
@@ -1749,8 +1764,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       pushRes("place" + p.place, x, y, 152, rowH);
       if (compact) {
         drawText(ctx, String(p.place), x + 8, y + 3, p.place === 1 ? C.gold : C.cream, 1, "center");
-        var head = rankHeadOf(p.look);
-        if (head) { ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(head, x + 16, y + 1, 12, 12); ctx.restore(); }
+        drawFaceMark(x + 16, y + 1, p.look, !!p.alive);
         drawText(ctx, String(p.name || "").slice(0, 8) + " " + metersOf(p) + " М", x + 30, y + 3, C.cream, 1, "left");
       } else {
         drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
@@ -1791,12 +1805,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     var rec = save.mapBest[world.map] || world.best || 0;
-    var ah = compact ? (note ? 40 : 32) : (note ? 68 : 56);
+    var ah = compact ? (note ? 50 : 42) : (note ? 82 : 70);
     if (y + ah + 4 <= limitY) {
       box(ctx, x, y, 152, ah, C.navy, C.gold);
       pushRes("award", x, y, 152, ah);
       drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 3, C.cream, 1, "left"); coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
       drawText(ctx, "СОБРАНО", x + 6, y + (compact ? 12 : 15), C.cream, 1, "left"); coinsLabel(x + 146, y + (compact ? 12 : 15), world.earnC || 0, "right");
+      drawText(ctx, "КЛАДЫ", x + 6, y + (compact ? 21 : 27), C.cream, 1, "left"); coinsLabel(x + 146, y + (compact ? 21 : 27), world.earnB || 0, "right");
       var dur = 700, nowA = (typeof performance !== "undefined" ? performance.now() : Date.now());
       if (coinT0 < 0) coinT0 = nowA;
       var kk = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
@@ -1805,12 +1820,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var shownTot = (world.coinFrom != null ? world.coinFrom : (save.coins - (world.earned || 0))) + shownEarn;
       if (kk < 1 && (ui % 4 === 0)) hopSfx("tick");
       if (compact) {
-        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 21, C.gold, 1, "center");
-        if (note) drawText(ctx, note, LW / 2, y + 30, C.cream, 1, "center");
+        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 1, "center");
+        if (note) drawText(ctx, note, LW / 2, y + 39, C.cream, 1, "center");
       } else {
-        rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
-        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
-        if (note) drawText(ctx, note, LW / 2, y + 48, C.cream, 1, "center");
+        rect(ctx, x + 6, y + 37, 140, 1, "#5a4a7a");
+        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 42, C.gold, 2, "center");
+        if (note) drawText(ctx, note, LW / 2, y + 62, C.cream, 1, "center");
       }
       y += compact ? ah + 3 : (note ? 72 : 60);
     }
@@ -1923,7 +1938,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.imageSmoothingEnabled = false;
     hits = [];
     screenLay = [];
-    if (phase === "menu") drawMenu();
+    if (phase === "menu") { drawMenu(); if (sessionNote) drawSessionNote(); }
     else if (phase === "shop") drawShop();
     else if (phase === "camp") drawCamp();
     else if (phase === "lobby") drawLobby();
@@ -1954,6 +1969,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   /* net: what the online module may use from the shell */
   var netApi: any = {
     ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned,
+    sessionReplaced: function () { sessionNote = true; goMenu(); },
     bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
@@ -1966,6 +1982,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     save: function () { return save; },
     saveNow: function () { writeSave(save); },
     say: function (s: string) { say(s); },
+    sessionReplaced: function () { sessionNote = true; goMenu(); },
     apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number, limited?: string) {
       if (!prof) return;
       if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
@@ -2013,6 +2030,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (document.hidden && phase === "play") paused = true;
   }
   var envSide: any = {};
+  var testInsetTop = 0;
   function insetSideCss(side: string) {
     var sum = 0;
     try {
@@ -2214,6 +2232,74 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       };
     },
     checkGroundMobs: function () { return unsupportedMobs(world); },
+    auditReach: function (seed: number, toM: number, mapId?: string, lw?: number) {
+      var prev = LW;
+      if (lw) LW = lw;
+      var w = createWorld(seed >>> 0, "solo", 4, makeLook(4, "base", "none"), mapId || "city");
+      generateUntil(w, -toM * PX_PER_M);
+      var byY: any = {};
+      var ys: number[] = [];
+      function add(y: number, p: any) {
+        var k = String(y);
+        if (!byY[k]) { byY[k] = []; ys.push(y); }
+        byY[k].push(p);
+      }
+      add(0, { x: 8, w: (lw || prev) - 16, type: "normal" });
+      for (var i = 0; i < w.platforms.length; i++) {
+        var pl = w.platforms[i];
+        if (pl.y === 0) continue;
+        add(pl.y, pl);
+      }
+      ys.sort(function (a, b) { return b - a; });
+      var fails = 0, example: any = null;
+      for (var r = 1; r < ys.length; r++) {
+        var gap = ys[r - 1] - ys[r];
+        var prevS = byY[String(ys[r - 1])].filter(function (p: any) { return isStableType(p.type); });
+        var curS = byY[String(ys[r])].filter(function (p: any) { return isStableType(p.type); });
+        if (!prevS.length || !curS.length) { fails++; if (!example) example = { y: ys[r], gap: gap, why: "empty" }; continue; }
+        var reach = horizReachPx(gap);
+        for (var a = 0; a < prevS.length; a++) {
+          var ok = false;
+          for (var b = 0; b < curS.length; b++) if (edgeGap(prevS[a].x, prevS[a].w, curS[b].x, curS[b].w) <= reach + 0.5) ok = true;
+          if (!ok) { fails++; if (!example) example = { y: ys[r], gap: gap, reach: reach }; }
+        }
+      }
+      LW = prev;
+      return { fails: fails, example: example, rows: ys.length };
+    },
+    mageProbe: function () {
+      mode = "solo";
+      save.char = 4;
+      startRun(7, "city");
+      var p = world.players[0];
+      p.abCharge = CHARS[4].need;
+      var y0 = p.y;
+      tickWorld(world, { 0: { dir: 0, ab: true } });
+      var y1 = p.y, n = p.teleN, tty = p.tty;
+      for (var i = 0; i < 4; i++) tickWorld(world, { 0: { dir: 0 } });
+      var y2 = p.y;
+      return { y0: y0, y1: y1, y2: y2, n: n, tty: tty };
+    },
+    lobbyProbe: function (inset: number) {
+      testInsetTop = inset || 0;
+      phase = "net";
+      NET.sub = "room";
+      NET.st = "online";
+      NET.you = 1;
+      NET.room = { code: "1234", you: 1, host: 1, map: "city", players: [
+        { pid: 1, slot: 0, name: "ROMAN", kind: 1, ready: true, on: true },
+        { pid: 2, slot: 1, name: "АННА", kind: 0, ready: true, on: true },
+        { pid: 3, slot: 2, name: "БОТ", kind: 2, ready: true, on: true, bot: true },
+        { pid: 4, slot: 3, name: "МИРА", kind: 3, ready: false, on: true }
+      ] };
+      NET.session = { rounds: [{ round: 1 }, { round: 2 }, { round: 3 }, { round: 4 }, { round: 5 }], names: { 1: "ROMAN", 2: "АННА", 3: "БОТ", 4: "МИРА" }, wins: { 1: 2, 2: 1, 3: 1, 4: 1 }, best: { 1: 10, 2: 9, 3: 8, 4: 7 } };
+      screenLay = [];
+      hits = [];
+      NET.draw(netApi);
+      var boxes = screenLay.slice();
+      testInsetTop = 0;
+      return { lw: LW, lh: LH, boxes: boxes };
+    },
     inspectMap: function (seed: number, toM: number, mapId?: string) {
       var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);
       generateUntil(w, -toM * PX_PER_M - 200);

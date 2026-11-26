@@ -1118,13 +1118,65 @@
   function isPerm(t) {
     return t === "normal" || t === "move" || t === "ice" || t === "bounce" || t === "grav";
   }
+  function isStableType(t) {
+    return t === "normal" || t === "ice" || t === "grav" || t === "bounce";
+  }
+  function horizReachPx(gap) {
+    var h = Math.max(0, Math.min(gap, JUMP_H - 1));
+    var disc = JUMP_V * JUMP_V - 2 * GRAVITY * h;
+    if (disc < 0) disc = 0;
+    var t = (-JUMP_V - Math.sqrt(disc)) / GRAVITY;
+    if (!(t > 0) || !isFinite(t)) t = 1;
+    return MAX_VX * t;
+  }
+  function edgeGap(ax, aw, bx, bw) {
+    function lin(a0, a1, b0, b1) {
+      if (a1 >= b0 && b1 >= a0) return 0;
+      if (a1 < b0) return b0 - a1;
+      return a0 - b1;
+    }
+    return Math.min(
+      lin(ax, ax + aw, bx, bx + bw),
+      lin(ax, ax + aw, bx + LW, bx + bw + LW),
+      lin(ax + LW, ax + aw + LW, bx, bx + bw)
+    );
+  }
+  function ensureReach(w, row, y) {
+    var prev = w.reachFrom && w.reachFrom.length ? w.reachFrom : [{ x: 8, w: LW - 16 }];
+    var gap = w.reachGap > 0 ? w.reachGap : ROW_SEP;
+    var reach = horizReachPx(gap);
+    var stable = [];
+    for (var i = 0; i < row.length; i++) if (isStableType(row[i].type)) stable.push(row[i]);
+    for (var a2 = 0; a2 < prev.length; a2++) {
+      var ok = false;
+      for (var b = 0; b < stable.length; b++) {
+        if (edgeGap(prev[a2].x, prev[a2].w, stable[b].x, stable[b].w) <= reach + 0.01) {
+          ok = true;
+          break;
+        }
+      }
+      if (ok) continue;
+      var pw = 36;
+      var x = Math.round(prev[a2].x + prev[a2].w / 2 - pw / 2);
+      while (x < 2) x += LW;
+      while (x + pw > LW - 2) x -= LW;
+      if (x < 2) x = 2;
+      var np = mkPlat(x, y, pw, "normal", row.length ? row[0].row : w.rowN);
+      row.push(np);
+      w.platforms.push(stampPlat(w, np));
+      stable.push(np);
+    }
+    var next = [];
+    for (var s = 0; s < stable.length; s++) next.push({ x: stable[s].x, w: stable[s].w });
+    if (next.length) w.reachFrom = next;
+  }
   function mkPlat(x, y, w, type, row) {
     return { x, y, w, type, vx: 0, broken: false, breakT: 0, respawnT: 0, restoreT: 0, spring: false, springT: 0, row, seq: 0 };
   }
   function stampPlat(w, pl) {
     pl.seq = w.platSeq++;
     var pending = w.netBreaks && w.netBreaks[pl.seq];
-    if (pending && pl.type === "break") {
+    if (pending && (pl.type === "break" || pl.type === "lava" || pl.type === "bubble")) {
       delete w.netBreaks[pl.seq];
       if (pending === "brk") {
         pl.broken = true;
@@ -1522,6 +1574,8 @@
       var cx = randInt(r, 6, LW - 30);
       for (var q = 0; q < 3; q++) w.coins.push({ x: cx + q * 9, y: Math.round(y - gap / 2 - 3), taken: false });
     }
+    ensureReach(w, row, y);
+    w.reachGap = gap;
     w.nextY -= gap;
   }
   function generateUntil(w, upToY) {
@@ -1568,6 +1622,12 @@
       hty: 0,
       hookPl: null,
       hookCoin: null,
+      teleT: 0,
+      teleN: 0,
+      tx0: 0,
+      ty0: 0,
+      ttx: 0,
+      tty: 0,
       domeT: 0,
       domeSave: false,
       kills: 0,
@@ -1608,6 +1668,8 @@
       cameraY: -LH + 70,
       tick: 0,
       shake: 0,
+      reachFrom: [{ x: 8, w: LW - 16 }],
+      reachGap: 24,
       phase: "play",
       players: [],
       finishWait: 0,
@@ -1814,13 +1876,20 @@
       p.vy = -6.7;
       pl.broken = true;
       pl.breakT = 14;
+      if (w.net) {
+        pl.netTell = 1;
+        pl.netKind = "lava";
+      }
       if (p.id === 0) w.shake = 4;
       spawnParts(w, pl.x + pl.w / 2, pl.y, 10, "#ff9030", 2.6, 0.12, 2);
     } else if (pl.type === "bubble") {
       p.vy = -6.9;
       pl.broken = true;
       pl.breakT = 10;
-      pl.respawnT = 75;
+      if (w.net) {
+        pl.netTell = 1;
+        pl.netKind = "bubble";
+      } else pl.respawnT = 75;
       spawnParts(w, pl.x + pl.w / 2, pl.y, 10, "#88f8ff", 2.2, -0.04, 2);
     } else if (pl.type === "grav") {
       p.vy = -6.3;
@@ -1847,7 +1916,10 @@
     if (pl.type === "break" && !pl.broken) {
       pl.broken = true;
       pl.breakT = 14;
-      if (w.net) pl.netTell = 1;
+      if (w.net) {
+        pl.netTell = 1;
+        pl.netKind = "break";
+      }
       spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
       spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
     }
@@ -1929,6 +2001,7 @@
       p.grabT = 0;
       p.poundT = 0;
     } else if (H.ab === "tele") {
+      generateUntil(w, p.y - JUMP_H * 1.5 - 80);
       var best = null;
       for (i = 0; i < w.platforms.length; i++) {
         var q = w.platforms[i];
@@ -1946,17 +2019,19 @@
         return false;
       }
       spawnParts(w, p.x + 6, p.y + 8, 14, "#c890ff", 2.4, 0, 2);
-      p.x = clamp(best.x + best.w / 2 - PW / 2, 0, LW - PW);
-      p.y = best.y - PH;
-      p.prevY = p.y;
-      p.vy = JUMP_V;
-      p.vx = 0;
-      p.squash = 6;
+      p.tx0 = p.x;
+      p.ty0 = p.y;
+      p.ttx = clamp(best.x + best.w / 2 - PW / 2, 0, LW - PW);
+      p.tty = best.y - PH;
+      p.teleT = 0;
+      p.teleN = 10;
       p.invT = Math.max(p.invT, 30);
       p.grabT = 0;
       p.poundT = 0;
       p.teleFx = 18;
-      spawnParts(w, p.x + 6, p.y + 8, 16, "#e8c8ff", 2.6, 0, 2);
+      p.vx = 0;
+      p.vy = 0;
+      spawnParts(w, p.ttx + 6, p.tty + 8, 8, "#e8c8ff", 1.6, 0, 1);
     } else if (H.ab === "wall") {
       p.wallT = 300;
       p.wall = 0;
@@ -2228,6 +2303,33 @@
         p.x += -wsd * 2;
         spawnParts(w, wsd < 0 ? 1 : LW - 1, p.y + 10, 6, "#d8f0ff", 1.6, 0.05, 1);
       } else if (inp.ab) useAbility(w, p);
+      if (p.teleN > 0) {
+        p.teleT++;
+        var tu = p.teleT / p.teleN;
+        var tdx = wrapDx(p.ttx - p.tx0);
+        p.x = p.tx0 + tdx * tu;
+        p.y = p.ty0 + (p.tty - p.ty0) * tu;
+        if (p.x < -PW) p.x += LW;
+        if (p.x > LW) p.x -= LW;
+        p.vx = 0;
+        p.vy = 0;
+        if (p.teleT >= p.teleN) {
+          p.teleN = 0;
+          p.x = p.ttx;
+          p.y = p.tty;
+          p.prevY = p.y;
+          p.vy = JUMP_V;
+          p.vx = 0;
+          p.squash = 6;
+          spawnParts(w, p.x + 6, p.y + 8, 16, "#e8c8ff", 2.6, 0, 2);
+        }
+        var tmh = Math.max(0, -(p.y + PH));
+        if (tmh > p.maxH) {
+          addCharge(p, "height", (tmh - p.maxH) / PX_PER_M);
+          p.maxH = tmh;
+        }
+        continue;
+      }
       if (p.hookN > 0) {
         p.hookT++;
         var u = p.hookT / p.hookN, hdx = p.htx - p.hx0, hdy = p.hty - p.hy0;
@@ -2263,6 +2365,8 @@
           var hc = w.coins[k];
           if (!hc.taken && overlapsX(p.x - 2, PW + 4, hc.x, 6) && hc.y + 6 > p.y - 2 && hc.y < p.y + PH + 2) {
             hc.taken = true;
+            hc.netTell = w.net ? 1 : 0;
+            hc.idx = k;
             w.runCoins += 1;
             addCharge(p, "coins", 1);
             spawnParts(w, hc.x + 3, hc.y + 3, 6, "#ffe07a", 1.8, 0, 1);
@@ -2450,6 +2554,8 @@
           }
           if (overlapsX(p.x, PW, cn.x, 6) && cn.y + 6 > p.y && cn.y < p.y + PH) {
             cn.taken = true;
+            cn.netTell = w.net ? 1 : 0;
+            cn.idx = k;
             w.runCoins += 1;
             addCharge(p, "coins", 1);
             spawnParts(w, cn.x + 3, cn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
@@ -2458,7 +2564,11 @@
         }
         for (k = 0; k < w.items.length; k++) {
           var it = w.items[k];
-          if (!it.taken && overlapsX(p.x, PW, it.x - 2, 14) && it.y + 12 > p.y && it.y - 2 < p.y + PH) pickItem(w, p, it);
+          if (!it.taken && overlapsX(p.x, PW, it.x - 2, 14) && it.y + 12 > p.y && it.y - 2 < p.y + PH) {
+            it.idx = k;
+            pickItem(w, p, it);
+            if (w.net) it.netTell = 1;
+          }
         }
       }
       var mh = Math.max(0, -(p.y + PH));
@@ -3640,7 +3750,6 @@
   var NET_DELAY_MS = 150;
   var NET_GRACE_MS = 1e4;
   var NET_XS = [74, 22, 124, 48];
-  var NET_TAGS = { host: "\u0425\u041E\u0421\u0422", ready: "\u0413\u041E\u0422\u041E\u0412", wait: "\u0416\u0414\u0401\u041C", off: "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418" };
   var NET = function() {
     var N = {
       ws: null,
@@ -4023,6 +4132,10 @@
         N.err = d.msg || d.code;
         if (d.code === "NO_SESSION") giveUp("\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410");
         if (N.api) N.api.say(cleanText(N.err, 24) || "\u041E\u0428\u0418\u0411\u041A\u0410");
+      } else if (ev === "replaced") {
+        N.leave();
+        if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
+        else if (N.api) N.api.goMenu();
       } else if (ev === "kicked") {
         var code = d && d.code || N.room && N.room.code || "";
         rememberKick(code);
@@ -4061,8 +4174,36 @@
       return kickedCodes().indexOf(String(code || "")) >= 0;
     }
     function me() {
-      return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN };
+      var tok = "";
+      try {
+        tok = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getToken ? PROFILE.getToken() || "" : "";
+      } catch (_e) {
+      }
+      var plat = "web";
+      try {
+        var tg = window.Telegram && window.Telegram.WebApp;
+        if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
+      } catch (_e2) {
+      }
+      return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
     }
+    function screenNow() {
+      var w = N.api && N.api.world && N.api.world();
+      if (w && w.phase === "play") return w.players && w.players[0] && !w.players[0].alive ? "spectator" : "game";
+      if (N.room) return "lobby";
+      return "menu";
+    }
+    N.presence = function() {
+      if (!N.ws) return;
+      var m = me();
+      send("presence", { screen: screenNow(), v: m.v, p: m.p, pt: m.pt });
+    };
+    if (typeof setInterval !== "undefined") setInterval(function() {
+      try {
+        N.presence();
+      } catch (_e) {
+      }
+    }, 3e4);
     N.create = function() {
       N.connect(function(ok) {
         if (ok) {
@@ -4149,16 +4290,29 @@
         if (wb !== wa) return wb - wa;
         return (S.best[b] || 0) - (S.best[a2] || 0);
       });
-      var h = 13 + pids.length * 11;
+      var head = 13, rowH = 11, maxY = arguments.length > 3 ? arguments[3] : 0;
+      var fit = pids.length;
+      if (maxY > y + head) fit = Math.max(1, Math.min(pids.length, Math.floor((maxY - y - head) / rowH)));
+      else if (maxY) fit = 0;
+      var maxOff = Math.max(0, pids.length - fit);
+      if ((N.evOff || 0) > maxOff) N.evOff = maxOff;
+      if ((N.evOff || 0) < 0) N.evOff = 0;
+      var off = N.evOff || 0;
+      var h = head + fit * rowH;
       box(ctx, x, y, 152, h, C.navy, C.gold);
+      if (N.api && N.api.markBox) N.api.markBox("evening", x, y, 152, h);
       drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 " + S.rounds.length + " \u0420\u0410\u0423\u041D\u0414", LW / 2, y + 3, C.gold, 1, "center");
-      for (var i2 = 0; i2 < pids.length; i2++) {
-        var pid = pids[i2], nm = String(S.names[pid] || "\u0418\u0413\u0420\u041E\u041A").slice(0, 8);
+      for (var i2 = 0; i2 < fit; i2++) {
+        var pid = pids[off + i2], nm = drawableChars(String(S.names[pid] || "\u0418\u0413\u0420\u041E\u041A")).slice(0, 10);
         var lineY = y + 13 + i2 * 11;
-        drawText(ctx, nm, x + 6, lineY, C.cream, 1, "left");
+        drawText(ctx, nm || "HOPP", x + 6, lineY, C.cream, 1, "left");
         drawText(ctx, (S.wins[pid] || 0) + "\u041F  " + (S.best[pid] || 0) + "\u041C", x + 146, lineY, C.cream, 1, "right");
       }
-      return y + h + 6;
+      if (maxOff > 0 && N.api && N.api.btn) {
+        N.api.btn("net:evup", x + 132, y + 1, 18, 11, "#1a1430", "\u2191", C.cream);
+        N.evScroll = true;
+      }
+      return y + h + 4;
     };
     function lookOf(k) {
       return makeLook(k, "base", "none");
@@ -4299,7 +4453,21 @@
         var bp = w.platforms[bi];
         if (bp.netTell) {
           bp.netTell = 0;
-          send("ev", { e: "brk", id: bp.seq });
+          send("ev", { e: "brk", id: bp.seq, k: bp.netKind || "break" });
+        }
+      }
+      for (var ci = 0; ci < w.coins.length; ci++) {
+        var cn0 = w.coins[ci];
+        if (cn0.netTell) {
+          cn0.netTell = 0;
+          send("ev", { e: "coin", i: cn0.idx != null ? cn0.idx : ci });
+        }
+      }
+      for (var ii = 0; ii < w.items.length; ii++) {
+        var it0 = w.items[ii];
+        if (it0.netTell) {
+          it0.netTell = 0;
+          send("ev", { e: "item", i: it0.idx != null ? it0.idx : ii });
         }
       }
       for (var k = 0; k < w.monsters.length; k++) {
@@ -4339,16 +4507,26 @@
           rp.alive = false;
           rp.why = "left";
         } else if (e.e === "brk" || e.e === "rst") applyPlatNet(w, e.id, e.e);
+        else if (e.e === "coin") {
+          var ci2 = e.i | 0, cn2 = w.coins[ci2];
+          if (cn2 && !cn2.taken) {
+            cn2.taken = true;
+            spawnParts(w, cn2.x + 3, cn2.y + 3, 6, "#ffe07a", 1.8, 0, 1);
+          }
+        } else if (e.e === "item") {
+          var ii2 = e.i | 0, it2 = w.items[ii2];
+          if (it2 && !it2.taken) {
+            it2.taken = true;
+            it2.popT = 8;
+            spawnParts(w, it2.x + 4, it2.y + 4, 6, "#ffd046", 1.6, 0, 1);
+          }
+        }
       }
       if (!me0.alive) {
-        var best = null;
-        for (var q = 1; q < w.players.length; q++) {
-          var o = w.players[q];
-          if (o.alive && (!best || o.maxH > best.maxH)) best = o;
-        }
-        if (best) {
-          w.specCam = w.specCam == null ? w.cameraY : w.specCam + (best.camY - w.specCam) * 0.15;
-          w.cameraY = w.specCam;
+        var tgt = watchOf(w);
+        if (tgt) {
+          w.cameraY = tgt.camY;
+          w.watchName = tgt.name || "";
           generateUntil(w, w.cameraY - 80);
         }
       }
@@ -4378,7 +4556,7 @@
         w.netBreaks[idn] = kind === "rst" ? "rst" : "brk";
         return;
       }
-      if (pl.type !== "break") return;
+      if (pl.type !== "break" && pl.type !== "lava" && pl.type !== "bubble") return;
       if (kind === "brk") {
         if (pl.broken) return;
         pl.broken = true;
@@ -4409,7 +4587,8 @@
         drawText(ctx, "\u041F\u0415\u0420\u0415\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", LW / 2, 27, C.cream, 1, "center");
       } else if (!w.players[0].alive && w.phase === "play") {
         box(ctx, LW / 2 - 64, 24, 128, 13, C.navy, C.cream);
-        drawText(ctx, "\u0416\u0414\u0401\u041C \u041E\u0421\u0422\u0410\u041B\u042C\u041D\u042B\u0425", LW / 2, 27, C.cream, 1, "center");
+        var wn = w.watchName ? drawableChars(String(w.watchName)).slice(0, 10) : "";
+        drawText(ctx, wn ? "\u0421\u041C\u041E\u0422\u0420\u0418\u041C " + wn : "\u0416\u0414\u0401\u041C \u041E\u0421\u0422\u0410\u041B\u042C\u041D\u042B\u0425", LW / 2, 27, C.cream, 1, "center");
       }
     };
     N.open = function(api) {
@@ -4513,14 +4692,14 @@
           continue;
         }
         var isMe = p.pid === N.you;
-        box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, isMe ? C.gold : C.cream);
+        var rim = isMe ? C.gold : p.ready || p.bot ? C.mint : !p.on ? C.red : C.cream;
+        box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, rim);
+        if (api.markBox) api.markBox("slot" + i, x, y, 152, 23);
         drawJumper(ctx, x + 6, y + 5, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
-        drawText(ctx, cleanNick(p.name) || "\u0418\u0413\u0420\u041E\u041A", x + 28, y + 3, C.cream, 1, "left");
-        var tag = p.bot ? "\u0411\u041E\u0422" : !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
-        var tc = p.bot ? C.mint : !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
-        drawText(ctx, tag + (isMe ? " \xB7 \u0422\u042B" : ""), x + 28, y + 13, tc, 1, "left");
+        var heroNm = (CHARS[p.kind] && CHARS[p.kind].name || "").toUpperCase();
+        var slotLab = p.bot ? "\u0411\u041E\u0422" : slotLabel(p.name, heroNm, host && !isMe ? 90 : 112);
+        drawText(ctx, slotLab, x + 28, y + 8, C.cream, 1, "left");
         if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
-        else drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
       }
       var my = row0 + 4 * 26 + 4;
       if (host) {
@@ -4530,9 +4709,9 @@
       box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
       drawText(ctx, "\u041A\u0410\u0420\u0422\u0410: " + mapInfo(R.map).name, LW / 2, my + 6, C.gold, 1, "center");
       api.btn("net:hero", x, my + 22, 152, 18, "#1a1430", "\u0413\u0415\u0420\u041E\u0419: " + CHARS[api.save().char].name.toUpperCase() + " \u25B6", C.cream, 1, C.gold);
-      var evY = my + 44;
-      if (N.session && N.session.rounds && N.session.rounds.length) evY = N.drawEvening(ctx, x, evY);
-      var by = Math.max(evY + 4, LH - 66);
+      var leaveY = LH - 26;
+      var by = leaveY - 30;
+      if (N.session && N.session.rounds && N.session.rounds.length && my + 44 < by - 16) N.drawEvening(ctx, x, my + 44, by - 2);
       if (host) {
         var others = R.players.filter(function(q) {
           return q.pid !== R.host && q.on && !q.bot;
@@ -4547,8 +4726,33 @@
         api.btn("net:ready", x, by, 152, 26, rd ? C.mint : C.gold, rd ? "\u0413\u041E\u0422\u041E\u0412 \u2713" : "\u042F \u0413\u041E\u0422\u041E\u0412", INK, 1);
       }
       if (N.st === "reconnecting") drawText(ctx, "\u041F\u0415\u0420\u0415\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", LW / 2, by - 10, C.gold, 1, "center");
-      api.btn("net:leave", x + 26, LH - 34, 100, 22, C.navy, "\u0412\u042B\u0419\u0422\u0418");
+      api.btn("net:leave", x, leaveY, 152, 22, C.navy, "\u0412\u042B\u0419\u0422\u0418");
     }
+    function slotLabel(name, hero, maxW) {
+      var suffix = hero ? " \xB7 " + hero : "";
+      var room = maxW - textWidth(suffix, 1);
+      var nm = drawableChars(String(name || ""));
+      while (nm.length > 1 && textWidth(nm, 1) > room) nm = nm.slice(0, -1);
+      if (!nm) nm = "HOPP";
+      return nm + suffix;
+    }
+    function watchOf(w) {
+      var list = [];
+      for (var i = 1; i < w.players.length; i++) if (w.players[i].alive) list.push(w.players[i]);
+      if (!list.length) return null;
+      if (w.watchP && w.watchP.alive && list.indexOf(w.watchP) >= 0) return w.watchP;
+      w.watchP = list[0];
+      return w.watchP;
+    }
+    N.cycleWatch = function(w, dir) {
+      var list = [];
+      for (var i = 1; i < w.players.length; i++) if (w.players[i].alive) list.push(w.players[i]);
+      if (!list.length) return;
+      var cur = list.indexOf(w.watchP);
+      if (cur < 0) cur = 0;
+      else cur = (cur + (dir < 0 ? list.length - 1 : 1)) % list.length;
+      w.watchP = list[cur];
+    };
     N.tap = function(id, api) {
       N.api = api;
       if (id === "net:menu") {
@@ -4563,6 +4767,10 @@
       if (id === "net:retry") {
         N.err = "";
         N.connect();
+        return;
+      }
+      if (id === "net:evup") {
+        N.evOff = Math.max(0, (N.evOff || 0) - 1);
         return;
       }
       if (id === "net:addbot") {
@@ -4961,11 +5169,23 @@
         return r.json().catch(function() {
           return null;
         }).then(function(data) {
+          if (r.status === 401 && data && data.error === "SESSION_REPLACED") noteReplaced();
           return { status: r.status, ok: !!r.ok, data };
         });
       }).catch(function() {
         clearTimeout(to);
         return { status: 0, ok: false, data: null };
+      });
+    }
+    function noteReplaced() {
+      if (P.replaced) return;
+      P.replaced = true;
+      var tok = getToken();
+      if (P.api && P.api.sessionReplaced) P.api.sessionReplaced();
+      var done = tok ? flushRunsStep(tok, true) : Promise.resolve(null);
+      Promise.resolve(done).then(function() {
+        setToken("");
+        ensureProfile();
       });
     }
     function applyProfile(prof, wRef, awarded, limited) {
@@ -5143,6 +5363,7 @@
       if (head.mode) body.mode = head.mode;
       if (head.map) body.map = head.map;
       if (head.ver) body.ver = head.ver;
+      if (head.hero != null) body.hero = head.hero;
       return req("POST", "/api/run/finish", body, tok).then(function(res) {
         if (res.status === 401) {
           setToken("");
@@ -5265,13 +5486,20 @@
         });
       });
     };
+    P.beginRun = function(map, hero) {
+      var id = makeRunId();
+      var tok = getToken();
+      if (tok) req("POST", "/api/run/start", { runId: id, map: map || "", hero }, tok);
+      return id;
+    };
     P.finishRun = function(height, runCoins, bonusCoins, worldRef, meta) {
       var h = Math.max(0, Math.floor(Number(height) || 0));
       var c = Math.max(0, Math.floor(Number(runCoins) || 0));
       var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
       var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
       var item = {
-        runId: makeRunId(),
+        runId: meta && meta.runId || makeRunId(),
+        hero: meta && meta.hero != null ? meta.hero : 0,
         height: h,
         runCoins: c,
         bonusCoins: b,
@@ -5823,7 +6051,7 @@
       drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
     }
     function menuTop() {
-      return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1));
+      return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) + (testInsetTop || 0);
     }
     function nickWidth(n) {
       return n ? n * 6 - 1 + 2 : 0;
@@ -6155,6 +6383,7 @@
       world.recM = mapBest(mi);
       world.goalM = MAPS[mi].goal || 0;
       phase = "play";
+      sessionNote = false;
       rankY = {};
       paused = false;
       landPause = false;
@@ -6180,6 +6409,7 @@
       } catch (_e) {
       }
       VIEW_SHIFT = 0;
+      if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.beginRun) world.runId = PROFILE.beginRun(world.map, save.char);
       abHintRun = !!(world.players[0] && heroHasAb(world.players[0]) && !(save.seen && save.seen.abHint));
       if (abHintRun) {
         if (!save.seen) save.seen = {};
@@ -6197,7 +6427,9 @@
       var bonC = world.bonusCoins || 0;
       var plan = typeof PROFILE !== "undefined" && PROFILE && PROFILE.computeAward ? PROFILE.computeAward(mtr, runC, bonC) : { awarded: (mtr >= 100 ? Math.floor(Math.max(0, Math.min(2e4, mtr)) / 25) : 0) + Math.max(0, runC) + Math.max(0, bonC), limited: mtr < 100 ? "HEIGHT_MIN" : "" };
       world.earnH = mtr >= 100 ? Math.floor(Math.max(0, Math.min(2e4, mtr)) / 25) : 0;
-      world.earnC = Math.max(0, plan.awarded - world.earnH);
+      var roomLeft = Math.max(0, plan.awarded - world.earnH);
+      world.earnB = Math.min(Math.max(0, bonC), roomLeft);
+      world.earnC = Math.max(0, roomLeft - world.earnB);
       world.earned = plan.awarded;
       world.limited = plan.limited || "";
       world.coinFrom = save.coins;
@@ -6217,11 +6449,14 @@
             mode: world.net ? "online" : mode,
             map: world.map,
             ver: "0.6rc",
-            awarded: world.earned
+            awarded: world.earned,
+            runId: world.runId || "",
+            hero: save.char
           });
         }
       }
     }
+    var sessionNote = false;
     function goMenu() {
       if (phase === "play" && world && !world.paid) payout();
       phase = "menu";
@@ -6242,7 +6477,6 @@
       if (heroOwned(i)) {
         save.char = i;
         writeSave(save);
-        say("\u0412\u042B\u0411\u0420\u0410\u041D");
       } else tryBuy("hero:act", CHARS[i].price, function() {
         save.coins -= CHARS[i].price;
         save.owned["char:" + i] = 1;
@@ -6565,6 +6799,12 @@
       var loc = toLogic(e.clientX, e.clientY);
       var id = hitAt(loc.x, loc.y);
       if (phase === "play") {
+        var pidUp = e.pointerId != null ? e.pointerId : 1;
+        var sw = pointers[pidUp];
+        if (sw && world && world.net && world.players[0] && !world.players[0].alive && typeof NET !== "undefined" && NET.cycleWatch) {
+          var sdx = loc.x - sw.sx, sdy = loc.y - sw.sy;
+          if (Math.abs(sdx) >= 18 && Math.abs(sdx) > Math.abs(sdy)) NET.cycleWatch(world, sdx < 0 ? -1 : 1);
+        }
         if (paused) {
           if (id === "resume" || id === "menu" || id === "vol:mute" && pressId === id) activate(id);
         } else if (id === "pause" && pressId === "pause") activate("pause");
@@ -6593,6 +6833,11 @@
         return;
       }
       if (down) audioUnlock();
+      if (phase === "play" && world && world.net && world.players[0] && !world.players[0].alive && (k === "ArrowLeft" || k === "ArrowRight") && typeof NET !== "undefined" && NET.cycleWatch) {
+        if (down) NET.cycleWatch(world, k === "ArrowLeft" ? -1 : 1);
+        e.preventDefault();
+        return;
+      }
       if (k === "ArrowLeft" || k === "a" || k === "A" || k === "\u0444" || k === "\u0424") {
         held.kl = down;
         e.preventDefault();
@@ -6670,6 +6915,13 @@
       markBox("header", x, y, w, h);
       if (phase === "results") pushRes("header", x, y, w, h);
       return { x, y, w, h, bottom: y + h };
+    }
+    function drawSessionNote() {
+      var y = belowBand();
+      box(ctx, colX(), y, 152, 26, C.navy, C.gold);
+      drawText(ctx, "\u0410\u041A\u041A\u0410\u0423\u041D\u0422 \u041E\u0422\u041A\u0420\u042B\u0422", LW / 2, y + 3, C.gold, 1, "center");
+      drawText(ctx, "\u041D\u0410 \u0414\u0420\u0423\u0413\u041E\u041C \u0423\u0421\u0422\u0420\u041E\u0419\u0421\u0422\u0412\u0415", LW / 2, y + 14, C.gold, 1, "center");
+      markBox("session", colX(), y, 152, 26);
     }
     function drawFlash() {
       if (flashT <= 0) return;
@@ -7007,18 +7259,17 @@
       if (x < 12) fn(x + LW);
       if (x + wdt > LW - 12) fn(x - LW);
     }
-    function rankHeadOf(look) {
-      if (!look || !look.id) return null;
-      if (rankHead[look.id]) return rankHead[look.id];
-      var cv = document.createElement("canvas");
-      cv.width = 12;
-      cv.height = 12;
-      var g = cv.getContext("2d");
-      if (!g) return null;
-      g.imageSmoothingEnabled = false;
-      drawJumper(g, 1, 8, look, 1, "idle", false, true);
-      rankHead[look.id] = cv;
-      return cv;
+    function drawFaceMark(x, y, look, alive) {
+      x = Math.round(x);
+      y = Math.round(y);
+      var hood = look && look.hood || "#c890ff";
+      var skin = look && look.skin || "#f0c8a0";
+      rect(ctx, x, y, 8, 8, "#000000");
+      rect(ctx, x + 1, y + 1, 6, 3, hood);
+      rect(ctx, x + 1, y + 4, 6, 3, skin);
+      rect(ctx, x + 2, y + 5, 1, 1, "#000000");
+      rect(ctx, x + 5, y + 5, 1, 1, "#000000");
+      if (!alive) rect(ctx, x + 1, y + 1, 6, 6, "rgba(0,0,0,0.45)");
     }
     function drawRankColumn(w) {
       if (!w || w.mode !== "squad" || !w.players || w.players.length < 2) return;
@@ -7037,19 +7288,12 @@
         if (Math.abs(target - next) < 1) next = target;
         rankY[p.id] = next;
         var iy = Math.round(next);
-        var head = rankHeadOf(p.look);
-        if (head) {
-          ctx.save();
-          ctx.imageSmoothingEnabled = false;
-          if (!p.alive) ctx.globalAlpha = 0.55;
-          ctx.drawImage(head, x, iy, 12, 12);
-          ctx.restore();
-        }
+        drawFaceMark(x, iy, p.look, !!p.alive);
         if (p.id === 0) {
-          rect(ctx, x - 1, iy - 1, 14, 1, C.gold);
-          rect(ctx, x - 1, iy + 12, 14, 1, C.gold);
-          rect(ctx, x - 1, iy, 1, 12, C.gold);
-          rect(ctx, x + 12, iy, 1, 12, C.gold);
+          rect(ctx, x - 1, iy - 1, 10, 1, C.gold);
+          rect(ctx, x - 1, iy + 8, 10, 1, C.gold);
+          rect(ctx, x - 1, iy, 1, 8, C.gold);
+          rect(ctx, x + 8, iy, 1, 8, C.gold);
         }
         if (!p.alive) {
           for (var d = 1; d < 11; d++) {
@@ -7576,13 +7820,7 @@
         pushRes("place" + p.place, x, y, 152, rowH);
         if (compact) {
           drawText(ctx, String(p.place), x + 8, y + 3, p.place === 1 ? C.gold : C.cream, 1, "center");
-          var head = rankHeadOf(p.look);
-          if (head) {
-            ctx.save();
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(head, x + 16, y + 1, 12, 12);
-            ctx.restore();
-          }
+          drawFaceMark(x + 16, y + 1, p.look, !!p.alive);
           drawText(ctx, String(p.name || "").slice(0, 8) + " " + metersOf(p) + " \u041C", x + 30, y + 3, C.cream, 1, "left");
         } else {
           drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
@@ -7623,7 +7861,7 @@
         }
       }
       var rec = save.mapBest[world.map] || world.best || 0;
-      var ah = compact ? note ? 40 : 32 : note ? 68 : 56;
+      var ah = compact ? note ? 50 : 42 : note ? 82 : 70;
       if (y + ah + 4 <= limitY) {
         box(ctx, x, y, 152, ah, C.navy, C.gold);
         pushRes("award", x, y, 152, ah);
@@ -7631,6 +7869,8 @@
         coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
         drawText(ctx, "\u0421\u041E\u0411\u0420\u0410\u041D\u041E", x + 6, y + (compact ? 12 : 15), C.cream, 1, "left");
         coinsLabel(x + 146, y + (compact ? 12 : 15), world.earnC || 0, "right");
+        drawText(ctx, "\u041A\u041B\u0410\u0414\u042B", x + 6, y + (compact ? 21 : 27), C.cream, 1, "left");
+        coinsLabel(x + 146, y + (compact ? 21 : 27), world.earnB || 0, "right");
         var dur = 700, nowA = typeof performance !== "undefined" ? performance.now() : Date.now();
         if (coinT0 < 0) coinT0 = nowA;
         var kk = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
@@ -7639,12 +7879,12 @@
         var shownTot = (world.coinFrom != null ? world.coinFrom : save.coins - (world.earned || 0)) + shownEarn;
         if (kk < 1 && ui % 4 === 0) hopSfx("tick");
         if (compact) {
-          drawText(ctx, "+" + shownEarn + " \u2192 " + shownTot, LW / 2, y + 21, C.gold, 1, "center");
-          if (note) drawText(ctx, note, LW / 2, y + 30, C.cream, 1, "center");
+          drawText(ctx, "+" + shownEarn + " \u2192 " + shownTot, LW / 2, y + 30, C.gold, 1, "center");
+          if (note) drawText(ctx, note, LW / 2, y + 39, C.cream, 1, "center");
         } else {
-          rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
-          drawText(ctx, "+" + shownEarn + " \u2192 " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
-          if (note) drawText(ctx, note, LW / 2, y + 48, C.cream, 1, "center");
+          rect(ctx, x + 6, y + 37, 140, 1, "#5a4a7a");
+          drawText(ctx, "+" + shownEarn + " \u2192 " + shownTot, LW / 2, y + 42, C.gold, 2, "center");
+          if (note) drawText(ctx, note, LW / 2, y + 62, C.cream, 1, "center");
         }
         y += compact ? ah + 3 : note ? 72 : 60;
       }
@@ -7770,8 +8010,10 @@
       ctx.imageSmoothingEnabled = false;
       hits = [];
       screenLay = [];
-      if (phase === "menu") drawMenu();
-      else if (phase === "shop") drawShop();
+      if (phase === "menu") {
+        drawMenu();
+        if (sessionNote) drawSessionNote();
+      } else if (phase === "shop") drawShop();
       else if (phase === "camp") drawCamp();
       else if (phase === "lobby") drawLobby();
       else if (phase === "results") drawResults();
@@ -7817,6 +8059,10 @@
       say,
       openMaps,
       heroOwned,
+      sessionReplaced: function() {
+        sessionNote = true;
+        goMenu();
+      },
       bg: function() {
         drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
         dimView(ctx, "rgba(18,14,44,0.32)");
@@ -7856,6 +8102,10 @@
       },
       say: function(s) {
         say(s);
+      },
+      sessionReplaced: function() {
+        sessionNote = true;
+        goMenu();
       },
       apply: function(prof, wRef, awarded, effectiveCoins, limited) {
         if (!prof) return;
@@ -7909,6 +8159,7 @@
       if (document.hidden && phase === "play") paused = true;
     }
     var envSide = {};
+    var testInsetTop = 0;
     function insetSideCss(side) {
       var sum = 0;
       try {
@@ -8244,6 +8495,90 @@
       },
       checkGroundMobs: function() {
         return unsupportedMobs(world);
+      },
+      auditReach: function(seed, toM, mapId, lw) {
+        var prev = LW;
+        if (lw) LW = lw;
+        var w = createWorld(seed >>> 0, "solo", 4, makeLook(4, "base", "none"), mapId || "city");
+        generateUntil(w, -toM * PX_PER_M);
+        var byY = {};
+        var ys = [];
+        function add(y, p) {
+          var k = String(y);
+          if (!byY[k]) {
+            byY[k] = [];
+            ys.push(y);
+          }
+          byY[k].push(p);
+        }
+        add(0, { x: 8, w: (lw || prev) - 16, type: "normal" });
+        for (var i = 0; i < w.platforms.length; i++) {
+          var pl = w.platforms[i];
+          if (pl.y === 0) continue;
+          add(pl.y, pl);
+        }
+        ys.sort(function(a3, b2) {
+          return b2 - a3;
+        });
+        var fails = 0, example = null;
+        for (var r = 1; r < ys.length; r++) {
+          var gap = ys[r - 1] - ys[r];
+          var prevS = byY[String(ys[r - 1])].filter(function(p) {
+            return isStableType(p.type);
+          });
+          var curS = byY[String(ys[r])].filter(function(p) {
+            return isStableType(p.type);
+          });
+          if (!prevS.length || !curS.length) {
+            fails++;
+            if (!example) example = { y: ys[r], gap, why: "empty" };
+            continue;
+          }
+          var reach = horizReachPx(gap);
+          for (var a2 = 0; a2 < prevS.length; a2++) {
+            var ok = false;
+            for (var b = 0; b < curS.length; b++) if (edgeGap(prevS[a2].x, prevS[a2].w, curS[b].x, curS[b].w) <= reach + 0.5) ok = true;
+            if (!ok) {
+              fails++;
+              if (!example) example = { y: ys[r], gap, reach };
+            }
+          }
+        }
+        LW = prev;
+        return { fails, example, rows: ys.length };
+      },
+      mageProbe: function() {
+        mode = "solo";
+        save.char = 4;
+        startRun(7, "city");
+        var p = world.players[0];
+        p.abCharge = CHARS[4].need;
+        var y0 = p.y;
+        tickWorld(world, { 0: { dir: 0, ab: true } });
+        var y1 = p.y, n = p.teleN, tty = p.tty;
+        for (var i = 0; i < 4; i++) tickWorld(world, { 0: { dir: 0 } });
+        var y2 = p.y;
+        return { y0, y1, y2, n, tty };
+      },
+      lobbyProbe: function(inset) {
+        testInsetTop = inset || 0;
+        phase = "net";
+        NET.sub = "room";
+        NET.st = "online";
+        NET.you = 1;
+        NET.room = { code: "1234", you: 1, host: 1, map: "city", players: [
+          { pid: 1, slot: 0, name: "ROMAN", kind: 1, ready: true, on: true },
+          { pid: 2, slot: 1, name: "\u0410\u041D\u041D\u0410", kind: 0, ready: true, on: true },
+          { pid: 3, slot: 2, name: "\u0411\u041E\u0422", kind: 2, ready: true, on: true, bot: true },
+          { pid: 4, slot: 3, name: "\u041C\u0418\u0420\u0410", kind: 3, ready: false, on: true }
+        ] };
+        NET.session = { rounds: [{ round: 1 }, { round: 2 }, { round: 3 }, { round: 4 }, { round: 5 }], names: { 1: "ROMAN", 2: "\u0410\u041D\u041D\u0410", 3: "\u0411\u041E\u0422", 4: "\u041C\u0418\u0420\u0410" }, wins: { 1: 2, 2: 1, 3: 1, 4: 1 }, best: { 1: 10, 2: 9, 3: 8, 4: 7 } };
+        screenLay = [];
+        hits = [];
+        NET.draw(netApi);
+        var boxes = screenLay.slice();
+        testInsetTop = 0;
+        return { lw: LW, lh: LH, boxes };
       },
       inspectMap: function(seed, toM, mapId) {
         var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);

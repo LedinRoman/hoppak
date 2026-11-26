@@ -1,6 +1,56 @@
 
 /* ---------------- World ---------------- */
 function isPerm(t: string) { return t === "normal" || t === "move" || t === "ice" || t === "bounce" || t === "grav"; }
+/* Stable = does not vanish and does not slide away. Move is permanent but leaves the jump line. */
+function isStableType(t: string) { return t === "normal" || t === "ice" || t === "grav" || t === "bounce"; }
+/* Horizontal pixels available while rising `gap` px, from JUMP_V / GRAVITY / MAX_VX. */
+function horizReachPx(gap: number) {
+  var h = Math.max(0, Math.min(gap, JUMP_H - 1));
+  var disc = JUMP_V * JUMP_V - 2 * GRAVITY * h;
+  if (disc < 0) disc = 0;
+  var t = (-JUMP_V - Math.sqrt(disc)) / GRAVITY;
+  if (!(t > 0) || !isFinite(t)) t = 1;
+  return MAX_VX * t;
+}
+function edgeGap(ax: number, aw: number, bx: number, bw: number) {
+  function lin(a0: number, a1: number, b0: number, b1: number) {
+    if (a1 >= b0 && b1 >= a0) return 0;
+    if (a1 < b0) return b0 - a1;
+    return a0 - b1;
+  }
+  return Math.min(
+    lin(ax, ax + aw, bx, bx + bw),
+    lin(ax, ax + aw, bx + LW, bx + bw + LW),
+    lin(ax + LW, ax + aw + LW, bx, bx + bw)
+  );
+}
+/* After the row is placed: every previous stable platform must reach a stable one here. No extra RNG. */
+function ensureReach(w: any, row: any[], y: number) {
+  var prev = w.reachFrom && w.reachFrom.length ? w.reachFrom : [{ x: 8, w: LW - 16 }];
+  var gap = w.reachGap > 0 ? w.reachGap : ROW_SEP;
+  var reach = horizReachPx(gap);
+  var stable: any[] = [];
+  for (var i = 0; i < row.length; i++) if (isStableType(row[i].type)) stable.push(row[i]);
+  for (var a = 0; a < prev.length; a++) {
+    var ok = false;
+    for (var b = 0; b < stable.length; b++) {
+      if (edgeGap(prev[a].x, prev[a].w, stable[b].x, stable[b].w) <= reach + 0.01) { ok = true; break; }
+    }
+    if (ok) continue;
+    var pw = 36;
+    var x = Math.round(prev[a].x + prev[a].w / 2 - pw / 2);
+    while (x < 2) x += LW;
+    while (x + pw > LW - 2) x -= LW;
+    if (x < 2) x = 2;
+    var np = mkPlat(x, y, pw, "normal", row.length ? row[0].row : w.rowN);
+    row.push(np);
+    w.platforms.push(stampPlat(w, np));
+    stable.push(np);
+  }
+  var next: any[] = [];
+  for (var s = 0; s < stable.length; s++) next.push({ x: stable[s].x, w: stable[s].w });
+  if (next.length) w.reachFrom = next;
+}
 
 function mkPlat(x: number, y: number, w: number, type: string, row: number) {
   return { x: x, y: y, w: w, type: type, vx: 0, broken: false, breakT: 0, respawnT: 0, restoreT: 0, spring: false, springT: 0, row: row, seq: 0 };
@@ -8,7 +58,7 @@ function mkPlat(x: number, y: number, w: number, type: string, row: number) {
 function stampPlat(w: any, pl: any) {
   pl.seq = w.platSeq++;
   var pending = w.netBreaks && w.netBreaks[pl.seq];
-  if (pending && pl.type === "break") {
+  if (pending && (pl.type === "break" || pl.type === "lava" || pl.type === "bubble")) {
     delete w.netBreaks[pl.seq];
     if (pending === "brk") { pl.broken = true; pl.breakT = 0; }
     else { pl.broken = false; pl.restoreT = 16; }
@@ -310,6 +360,9 @@ function genRow(w: any) {
     var cx = randInt(r, 6, LW - 30);
     for (var q = 0; q < 3; q++) w.coins.push({ x: cx + q * 9, y: Math.round(y - gap / 2 - 3), taken: false });
   }
+  /* Safety platforms are added after coins so they do not change the coin rows. */
+  ensureReach(w, row, y);
+  w.reachGap = gap;
   w.nextY -= gap;
 }
 function generateUntil(w: any, upToY: number) {
@@ -328,6 +381,7 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     face: 1, squash: 0, iceT: 0, gravT: 0, camY: -LH + 70, place: 0, why: "",
     bias: [0, -14, 14, 6][i], react: [1, 3, 4, 5][i], tgt: null, botDir: 0,
     abCharge: CHARS[kind].need, abFx: 0, hookT: 0, hookN: 0, hx0: 0, hy0: 0, htx: 0, hty: 0, hookPl: null, hookCoin: null,
+    teleT: 0, teleN: 0, tx0: 0, ty0: 0, ttx: 0, tty: 0,
     domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, stallT: 0, stallH: 0
   };
 }
@@ -336,6 +390,7 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     seed: seed >>> 0, rng: mulberry32(seed >>> 0), mode: mode, map: mapInfo(mapId || "city").id,
     platforms: [], monsters: [], bullets: [], coins: [], items: [], particles: [],
     nextY: -24, rowN: 1, platSeq: 0, netBreaks: {}, lastKind: "", lastMobRow: {}, cameraY: -LH + 70, tick: 0, shake: 0,
+    reachFrom: [{ x: 8, w: LW - 16 }], reachGap: 24,
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
@@ -496,13 +551,15 @@ function landOn(w: any, p: any, pl: any) {
     p.vy = -6.7;
     pl.broken = true;
     pl.breakT = 14;
+    if (w.net) { pl.netTell = 1; pl.netKind = "lava"; }
     if (p.id === 0) w.shake = 4;
     spawnParts(w, pl.x + pl.w / 2, pl.y, 10, "#ff9030", 2.6, 0.12, 2);
   } else if (pl.type === "bubble") {
     p.vy = -6.9;
     pl.broken = true;
     pl.breakT = 10;
-    pl.respawnT = 75;
+    if (w.net) { pl.netTell = 1; pl.netKind = "bubble"; }
+    else pl.respawnT = 75;
     spawnParts(w, pl.x + pl.w / 2, pl.y, 10, "#88f8ff", 2.2, -0.04, 2);
   } else if (pl.type === "grav") {
     p.vy = -6.3;
@@ -526,10 +583,10 @@ function landOn(w: any, p: any, pl: any) {
     if (p.id === 0) w.shake = 7;
     spawnParts(w, p.x + 6, pl.y, 14, "#ffd046", 3, 0.1, 2);
   }
-  if (pl.type === "break" && !pl.broken) {
+    if (pl.type === "break" && !pl.broken) {
     pl.broken = true;
     pl.breakT = 14;
-    if (w.net) pl.netTell = 1;
+    if (w.net) { pl.netTell = 1; pl.netKind = "break"; }
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
   }
@@ -604,6 +661,7 @@ function useAbility(w: any, p: any) {
   }
   else if (H.ab === "tele") {
     /* the highest SOLID platform within ~1.5 jumps above, visible, with no mob standing on it */
+    generateUntil(w, p.y - JUMP_H * 1.5 - 80);
     var best: any = null;
     for (i = 0; i < w.platforms.length; i++) {
       var q = w.platforms[i];
@@ -615,9 +673,11 @@ function useAbility(w: any, p: any) {
     }
     if (!best) { if (p.id === 0) toast(w, "НЕТ ПЛАТФОРМЫ"); return false; }
     spawnParts(w, p.x + 6, p.y + 8, 14, "#c890ff", 2.4, 0, 2);
-    p.x = clamp(best.x + best.w / 2 - PW / 2, 0, LW - PW); p.y = best.y - PH; p.prevY = p.y; p.vy = JUMP_V; p.vx = 0; p.squash = 6;
-    p.invT = Math.max(p.invT, 30); p.grabT = 0; p.poundT = 0; p.teleFx = 18;
-    spawnParts(w, p.x + 6, p.y + 8, 16, "#e8c8ff", 2.6, 0, 2);
+    /* Same destination as the old snap. Ten ticks of interpolation, then the same jump. */
+    p.tx0 = p.x; p.ty0 = p.y; p.ttx = clamp(best.x + best.w / 2 - PW / 2, 0, LW - PW); p.tty = best.y - PH;
+    p.teleT = 0; p.teleN = 10;
+    p.invT = Math.max(p.invT, 30); p.grabT = 0; p.poundT = 0; p.teleFx = 18; p.vx = 0; p.vy = 0;
+    spawnParts(w, p.ttx + 6, p.tty + 8, 8, "#e8c8ff", 1.6, 0, 1);
   }
   else if (H.ab === "wall") { p.wallT = 300; p.wall = 0; spawnParts(w, p.x + 6, p.y + 8, 10, "#d82a2a", 2, 0, 1); }
   else if (H.ab === "dash") { p.vy = Math.min(p.vy, -6.6); p.vx = clamp(p.vx + p.face * 1.6, -MAX_VX * 1.3, MAX_VX * 1.3); p.dashT = 14; p.grabT = 0; spawnParts(w, p.x + 6, p.y + PH, 12, "#7ad8ff", 2.4, 0.08, 2); }
@@ -790,6 +850,24 @@ function tickWorld(w: any, inputs: any) {
       p.vy = JUMP_V * 0.97; p.vx = -wsd * 2.6; p.face = -wsd; p.wall = 0; p.squash = 4; p.x += -wsd * 2;
       spawnParts(w, wsd < 0 ? 1 : LW - 1, p.y + 10, 6, "#d8f0ff", 1.6, 0.05, 1);
     } else if (inp.ab) useAbility(w, p);
+    if (p.teleN > 0) {
+      p.teleT++;
+      var tu = p.teleT / p.teleN;
+      var tdx = wrapDx(p.ttx - p.tx0);
+      p.x = p.tx0 + tdx * tu;
+      p.y = p.ty0 + (p.tty - p.ty0) * tu;
+      if (p.x < -PW) p.x += LW;
+      if (p.x > LW) p.x -= LW;
+      p.vx = 0; p.vy = 0;
+      if (p.teleT >= p.teleN) {
+        p.teleN = 0;
+        p.x = p.ttx; p.y = p.tty; p.prevY = p.y; p.vy = JUMP_V; p.vx = 0; p.squash = 6;
+        spawnParts(w, p.x + 6, p.y + 8, 16, "#e8c8ff", 2.6, 0, 2);
+      }
+      var tmh = Math.max(0, -(p.y + PH));
+      if (tmh > p.maxH) { addCharge(p, "height", (tmh - p.maxH) / PX_PER_M); p.maxH = tmh; }
+      continue;
+    }
     if (p.hookN > 0) {
       p.hookT++;
       var u = p.hookT / p.hookN, hdx = p.htx - p.hx0, hdy = p.hty - p.hy0;
@@ -815,7 +893,7 @@ function tickWorld(w: any, inputs: any) {
       if (hmh > p.maxH) { addCharge(p, "height", (hmh - p.maxH) / PX_PER_M); p.maxH = hmh; }
       if (!p.isBot) for (k = 0; k < w.coins.length; k++) {
         var hc = w.coins[k];
-        if (!hc.taken && overlapsX(p.x - 2, PW + 4, hc.x, 6) && hc.y + 6 > p.y - 2 && hc.y < p.y + PH + 2) { hc.taken = true; w.runCoins += 1; addCharge(p, "coins", 1); spawnParts(w, hc.x + 3, hc.y + 3, 6, "#ffe07a", 1.8, 0, 1); }
+        if (!hc.taken && overlapsX(p.x - 2, PW + 4, hc.x, 6) && hc.y + 6 > p.y - 2 && hc.y < p.y + PH + 2) { hc.taken = true; hc.netTell = w.net ? 1 : 0; hc.idx = k; w.runCoins += 1; addCharge(p, "coins", 1); spawnParts(w, hc.x + 3, hc.y + 3, 6, "#ffe07a", 1.8, 0, 1); }
       }
       continue;
     }
@@ -944,6 +1022,8 @@ function tickWorld(w: any, inputs: any) {
         }
         if (overlapsX(p.x, PW, cn.x, 6) && cn.y + 6 > p.y && cn.y < p.y + PH) {
           cn.taken = true;
+          cn.netTell = w.net ? 1 : 0;
+          cn.idx = k;
           w.runCoins += 1;
           addCharge(p, "coins", 1);
           spawnParts(w, cn.x + 3, cn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
@@ -952,7 +1032,11 @@ function tickWorld(w: any, inputs: any) {
       }
       for (k = 0; k < w.items.length; k++) {
         var it = w.items[k];
-        if (!it.taken && overlapsX(p.x, PW, it.x - 2, 14) && it.y + 12 > p.y && it.y - 2 < p.y + PH) pickItem(w, p, it);
+        if (!it.taken && overlapsX(p.x, PW, it.x - 2, 14) && it.y + 12 > p.y && it.y - 2 < p.y + PH) {
+          it.idx = k;
+          pickItem(w, p, it);
+          if (w.net) it.netTell = 1;
+        }
       }
     }
     var mh = Math.max(0, -(p.y + PH));

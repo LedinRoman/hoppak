@@ -4,6 +4,7 @@ import type { WebSocket } from 'ws';
 import {
   STALE_MS, HERO_COUNT, MAPS, MAX_PLAYERS, NET_LW, Phase, PlayerInfo, RECONNECT_GRACE_MS, ROOM_IDLE_MS, SNAP_HZ, START_DELAY_MS, BREAK_RESTORE_MS,
 } from './protocol';
+import { setAccountKick } from './session-kick';
 
 export interface Player {
   pid: number;
@@ -23,6 +24,8 @@ export interface Player {
   suspicious: number;
   /** Host client simulates this seat. No socket. */
   bot: boolean;
+  /** Profile id when the socket presented a bearer. Two seats of one account are not allowed. */
+  accountId?: string;
 }
 
 export interface Room {
@@ -49,7 +52,7 @@ export class RoomError extends Error {
 }
 
 /** Per-socket session data, stored on the ws object. */
-export interface Sess { room?: Room; player?: Player; win: number; winN: number; }
+export interface Sess { room?: Room; player?: Player; win: number; winN: number; accountId?: string; }
 
 export const stats = { msgsIn: 0, msgsOut: 0, bytesOut: 0, snaps: 0 };
 
@@ -59,6 +62,10 @@ export class RoomsService implements OnModuleDestroy {
   readonly rooms = new Map<string, Room>();
   private readonly byToken = new Map<string, { room: Room; player: Player }>();
   private sweeper = setInterval(() => this.sweep(), 2000);
+
+  constructor() {
+    setAccountKick((id) => this.kickAccount(id));
+  }
 
   onModuleDestroy() {
     clearInterval(this.sweeper);
@@ -113,39 +120,63 @@ export class RoomsService implements OnModuleDestroy {
     for (let s = 0; s < MAX_PLAYERS; s++) if (!r.players.some((p) => p.slot === s)) return s;
     return -1;
   }
-  private addPlayer(r: Room, ws: WebSocket, name: unknown, kind: unknown): Player {
+  private placeName(name: unknown, kind: number, trusted: boolean) {
+    if (!trusted) return RoomsService.cleanName(name, kind);
+    const t = String(name ?? '').trim().slice(0, 16);
+    return t || 'HOPP';
+  }
+  kickAccount(accountId: string) {
+    if (!accountId) return;
+    for (const r of [...this.rooms.values()]) {
+      for (const p of [...r.players]) if (p.accountId === accountId) this.dropReplaced(r, p);
+    }
+  }
+  private dropReplaced(r: Room, p: Player) {
+    this.send(p.ws, 'replaced', {});
+    try { if (p.ws) p.ws.close(4001, 'replaced'); } catch { /* ignore */ }
+    const sock = p.ws as WebSocket & { sess?: Sess };
+    if (sock && sock.sess) { sock.sess.room = undefined; sock.sess.player = undefined; }
+    this.remove(r, p);
+  }
+  private addPlayer(r: Room, ws: WebSocket, name: unknown, kind: unknown, accountId?: string): Player {
     const k = RoomsService.cleanKind(kind);
+    if (accountId) {
+      for (const q of [...r.players]) if (q.accountId === accountId) this.dropReplaced(r, q);
+      if (!this.rooms.has(r.code)) this.rooms.set(r.code, r);
+    }
     const p: Player = {
-      pid: r.nextPid++, slot: this.freeSlot(r), name: RoomsService.cleanName(name, k), kind: k, ready: false,
+      pid: r.nextPid++, slot: this.freeSlot(r), name: this.placeName(name, k, !!accountId), kind: k, ready: false,
+      accountId: accountId || undefined,
       token: randomBytes(12).toString('base64url'), ws, offSince: 0, st: null, stDirty: false, lastStAt: 0,
       dead: false, m: 0, suspicious: 0, bot: false,
     };
     r.players.push(p);
+    if (!r.players.some((q) => q.pid === r.host)) r.host = p.pid;
     this.byToken.set(p.token, { room: r, player: p });
     r.touched = Date.now();
     return p;
   }
 
   /* ---------- lobby ---------- */
-  create(ws: WebSocket, name: unknown, kind: unknown, gen?: unknown) {
+  create(ws: WebSocket, name: unknown, kind: unknown, gen?: unknown, accountId?: string) {
     const code = this.newCode();
     const r: Room = {
       code, host: 0, phase: 'lobby', map: 'city', lw: NET_LW, round: 0, seed: 0, startAt: 0, players: [], nextPid: 0,
       touched: Date.now(), snapTimer: null, broken: new Map(), gen: RoomsService.cleanGen(gen),
     };
     this.rooms.set(code, r);
-    const p = this.addPlayer(r, ws, name, kind);
+    const p = this.addPlayer(r, ws, name, kind, accountId);
     r.host = p.pid;
     this.log.log(`room ${code} created by ${p.name}`);
     return { room: r, player: p };
   }
-  join(ws: WebSocket, code: unknown, name: unknown, kind: unknown, gen?: unknown) {
+  join(ws: WebSocket, code: unknown, name: unknown, kind: unknown, gen?: unknown, accountId?: string) {
     const r = this.rooms.get(String(code ?? '').trim());
     if (!r) throw new RoomError('NOT_FOUND', 'Комната не найдена');
     if (RoomsService.cleanGen(gen) !== (r.gen || '')) throw new RoomError('GEN', 'Обнови страницу');
     if (r.phase === 'play') throw new RoomError('IN_GAME', 'Забег уже идёт');
     if (r.players.length >= MAX_PLAYERS) throw new RoomError('FULL', 'Комната заполнена');
-    const p = this.addPlayer(r, ws, name, kind);
+    const p = this.addPlayer(r, ws, name, kind, accountId);
     this.log.log(`room ${r.code}: ${p.name} joined (${r.players.length}/${MAX_PLAYERS})`);
     return { room: r, player: p };
   }
@@ -159,7 +190,6 @@ export class RoomsService implements OnModuleDestroy {
     this.log.log(`room ${room.code}: ${player.name} resumed`);
     return hit;
   }
-  private static readonly BOT_NAMES = ['Капитан', 'Пират', 'Ниндзя', 'Робот', 'Маг', 'Рыцарь'];
   addBot(r: Room, p: Player) {
     if (p.pid !== r.host) throw new RoomError('NOT_HOST', 'Только хост');
     if (r.phase !== 'lobby') throw new RoomError('IN_GAME', 'Забег уже идёт');
@@ -167,7 +197,7 @@ export class RoomsService implements OnModuleDestroy {
     const used = new Set(r.players.map((q) => q.kind));
     let kind = 0;
     for (let k = 0; k < HERO_COUNT; k++) if (!used.has(k)) { kind = k; break; }
-    const bot = this.addPlayer(r, null as unknown as WebSocket, RoomsService.BOT_NAMES[kind] || 'Бот', kind);
+    const bot = this.addPlayer(r, null as unknown as WebSocket, 'БОТ', kind);
     bot.bot = true;
     bot.ready = true;
     bot.ws = null;
@@ -279,17 +309,25 @@ export class RoomsService implements OnModuleDestroy {
       this.broadcast(r, 'ev', { pid: p.pid, e: 'mob', id: d.id }, p.pid);
     } else if ((e === 'pick' || e === 'ab') && typeof d.k === 'string' && d.k.length < 20) {
       this.broadcast(r, 'ev', { pid: p.pid, e, k: d.k }, p.pid);
+    } else if ((e === 'coin' || e === 'item') && Number.isFinite(Number(d.i))) {
+      const i = Math.floor(Number(d.i));
+      if (i < 0 || i > 1e6) return;
+      this.broadcast(r, 'ev', { pid: p.pid, e, i }, p.pid);
     } else if (e === 'brk') {
       const id = Math.floor(Number(d.id));
       if (!Number.isFinite(id) || id < 0 || id > 1e7) return;
+      const kind = d.k === 'lava' || d.k === 'bubble' || d.k === 'break' ? d.k : 'break';
       if (!r.broken) r.broken = new Map();
       if (r.broken.has(id)) return;
-      this.broadcast(r, 'ev', { pid: p.pid, e: 'brk', id }, p.pid);
+      this.broadcast(r, 'ev', { pid: p.pid, e: 'brk', id, k: kind }, p.pid);
+      /* Lava stays gone, matching solo. Bubbles return together after 75 ticks (1500 ms). */
+      const ms = kind === 'bubble' ? 1500 : kind === 'lava' ? 0 : BREAK_RESTORE_MS;
+      if (ms <= 0) return;
       const timer = setTimeout(() => {
         if (!this.rooms.has(r.code)) return;
         r.broken.delete(id);
         this.broadcast(r, 'ev', { pid: p.pid, e: 'rst', id });
-      }, BREAK_RESTORE_MS);
+      }, ms);
       r.broken.set(id, timer);
     }
   }

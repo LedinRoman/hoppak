@@ -3,8 +3,18 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Player } from './player.entity';
 import { PlayerRun } from './player-run.entity';
+import { PlayerTelegram } from './player-telegram.entity';
+import { PlayerGeo } from './player-geo.entity';
+import { RunStart } from './run-start.entity';
+import { RulesPlausibility } from './rules-plausibility.entity';
+import { SuspiciousRun } from './suspicious-run.entity';
 import { hashToken, newGuestToken } from './auth';
 import { parseAndVerifyInitData, VerifiedTelegramInitData } from './telegram';
+import { bucketFor, plausBuckets, PlausRule } from './plausibility';
+import { displayName } from './display-name';
+import { countryOfIp, originLanguage } from './geo';
+import { kickAccount } from '../session-kick';
+import { randomUUID } from 'crypto';
 import {
   ITEM_PRICES, MAP_IDS, MIGRATE_COINS_MAX, RUN_HEIGHT_MAX,
   awardForRun, clamp, emptyCampaign, mapPurchaseBlock, mergeCampaign, mergePurchases,
@@ -24,9 +34,17 @@ export type PublicProfile = {
 
 @Injectable()
 export class ProfileService {
+  private ruleCache: { at: number; rows: PlausRule[] } | null = null;
+  private fallbackLogged = false;
+
   constructor(
     @Optional() @InjectRepository(Player) private readonly players?: Repository<Player>,
     @Optional() @InjectRepository(PlayerRun) private readonly runs?: Repository<PlayerRun>,
+    @Optional() @InjectRepository(PlayerTelegram) private readonly telegrams?: Repository<PlayerTelegram>,
+    @Optional() @InjectRepository(PlayerGeo) private readonly geos?: Repository<PlayerGeo>,
+    @Optional() @InjectRepository(RunStart) private readonly starts?: Repository<RunStart>,
+    @Optional() @InjectRepository(RulesPlausibility) private readonly rules?: Repository<RulesPlausibility>,
+    @Optional() @InjectRepository(SuspiciousRun) private readonly suspicious?: Repository<SuspiciousRun>,
   ) {}
 
   enabled(): boolean {
@@ -72,11 +90,16 @@ export class ProfileService {
     return repo.findOne({ where: { guestTokenHash: hashToken(token) } });
   }
 
-  async requireByToken(token: string | null): Promise<Player> {
+  async requireByToken(token: string | null, opts?: { allowPrevious?: boolean }): Promise<Player> {
     if (!token) throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
-    const p = await this.findByToken(token);
-    if (!p) throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
-    return p;
+    const repo = this.requireDb();
+    const hash = hashToken(token);
+    const cur = await repo.findOne({ where: { guestTokenHash: hash } });
+    if (cur) return cur;
+    const prev = await repo.findOne({ where: { previousTokenHash: hash } });
+    if (prev && opts?.allowPrevious) return prev;
+    if (prev) throw new HttpException({ ok: false, error: 'SESSION_REPLACED' }, HttpStatus.UNAUTHORIZED);
+    throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
   }
 
   async migrate(p: Player, coins: unknown, purchases: unknown, best?: unknown): Promise<PublicProfile> {
@@ -164,6 +187,8 @@ export class ProfileService {
     bonusCoins: unknown,
     rawRunId?: unknown,
     rawMap?: unknown,
+    rawHero?: unknown,
+    rawVer?: unknown,
   ): Promise<{ awarded: number; profile: PublicProfile; limited?: string; duplicate?: boolean }> {
     const repo = this.requireDb();
     const runId = sanitizeRunId(rawRunId);
@@ -186,9 +211,27 @@ export class ProfileService {
         }
       }
 
-      const grant = awardForRun(Number(height) || 0, Number(runCoins) || 0, Number(bonusCoins) || 0);
+      const claimedH = Math.max(0, Math.floor(Number(height) || 0));
+      const claimedC = Math.max(0, Math.floor(Number(runCoins) || 0));
+      const claimedB = Math.max(0, Math.floor(Number(bonusCoins) || 0));
+      const mapIdEarly = typeof rawMap === 'string' && (MAP_IDS as readonly string[]).indexOf(rawMap) >= 0 ? rawMap : 'city';
+      const over = await this.plausibilityBreach(fresh.id, runId || '', mapIdEarly, claimedH, claimedC, claimedB, rawHero, rawVer);
+      if (over) {
+        if (runId && runRepo) {
+          try { await runRepo.insert(runRepo.create({ playerId: fresh.id, runId, awarded: 0 })); }
+          catch (err: any) {
+            if (err && (err.code === '23505' || err.code === 'SQLITE_CONSTRAINT')) {
+              const dup = await runRepo.findOne({ where: { playerId: fresh.id, runId } });
+              return { awarded: dup ? dup.awarded : 0, duplicate: true, limited: 'DUPLICATE', profile: this.toPublic(fresh) };
+            }
+          }
+        }
+        return { awarded: 0, profile: this.toPublic(fresh), limited: 'REJECTED' };
+      }
+
+      const grant = awardForRun(claimedH, claimedC, claimedB);
       const awarded = grant.awarded;
-      const h = clamp(Math.floor(Number(height) || 0), 0, RUN_HEIGHT_MAX);
+      const h = clamp(claimedH, 0, RUN_HEIGHT_MAX);
 
       if (runId && runRepo) {
         const rec = runRepo.create({ playerId: fresh.id, runId, awarded });
@@ -265,14 +308,27 @@ export class ProfileService {
     return out;
   }
 
-  /** Store Telegram profile fields for admin. Never copy these onto PublicProfile. */
-  private applyTelegramProfile(p: Player, tg: VerifiedTelegramInitData) {
-    p.telegramUsername = tg.username;
-    p.telegramFirstName = tg.firstName;
-    p.telegramLastName = tg.lastName;
-    p.telegramLanguage = tg.languageCode;
-    p.telegramIsPremium = tg.isPremium;
-    p.telegramProfileUpdatedAt = new Date();
+  /** Keep the previous bearer so an in-progress finish still counts. Kick the old socket. */
+  private rotateSession(p: Player): string {
+    const next = newGuestToken();
+    p.previousTokenHash = p.guestTokenHash;
+    p.previousTokenAt = new Date();
+    p.guestTokenHash = hashToken(next);
+    return next;
+  }
+
+  private async saveTelegram(playerId: string, tg: VerifiedTelegramInitData) {
+    if (!this.telegrams || !playerId) return;
+    const existing = await this.telegrams.findOne({ where: { playerId } });
+    const row = existing || this.telegrams.create({ playerId, telegramId: tg.telegramId });
+    row.telegramId = tg.telegramId;
+    row.username = tg.username;
+    row.firstName = tg.firstName;
+    row.lastName = tg.lastName;
+    row.language = tg.languageCode;
+    row.isPremium = tg.isPremium;
+    row.updatedAt = new Date();
+    await this.telegrams.save(row);
   }
 
   async authTelegram(
@@ -305,16 +361,13 @@ export class ProfileService {
 
       if (existingByTg) {
         if (guest && guest.id === existingByTg.id && guestToken) {
-          this.applyTelegramProfile(existingByTg, verified);
           await playerRepo.save(existingByTg);
-          return { token: guestToken, profile: this.toPublic(existingByTg), linked: false };
+          return { token: guestToken, profile: this.toPublic(existingByTg), linked: false, playerId: existingByTg.id, kicked: false };
         }
         if (guest && guest.id !== existingByTg.id && !guest.telegramId && !guest.mergedInto) {
           const mergedCoins = this.applyMerge(existingByTg, guest);
           this.closeGuest(guest, existingByTg.id);
-          const nextToken = newGuestToken();
-          existingByTg.guestTokenHash = hashToken(nextToken);
-          this.applyTelegramProfile(existingByTg, verified);
+          const nextToken = this.rotateSession(existingByTg);
           await playerRepo.save(guest);
           await playerRepo.save(existingByTg);
           return {
@@ -323,13 +376,13 @@ export class ProfileService {
             linked: false,
             merged: true,
             mergedCoins,
+            playerId: existingByTg.id,
+            kicked: true,
           };
         }
-        const nextToken = newGuestToken();
-        existingByTg.guestTokenHash = hashToken(nextToken);
-        this.applyTelegramProfile(existingByTg, verified);
+        const nextToken = this.rotateSession(existingByTg);
         await playerRepo.save(existingByTg);
-        return { token: nextToken, profile: this.toPublic(existingByTg), linked: false };
+        return { token: nextToken, profile: this.toPublic(existingByTg), linked: false, playerId: existingByTg.id, kicked: true };
       }
 
       if (guest) {
@@ -338,9 +391,8 @@ export class ProfileService {
         }
         guest.telegramId = telegramId;
         guest.telegramLinkedAt = new Date();
-        this.applyTelegramProfile(guest, verified);
         await playerRepo.save(guest);
-        return { token: guestToken!, profile: this.toPublic(guest), linked: true };
+        return { token: guestToken!, profile: this.toPublic(guest), linked: true, playerId: guest.id, kicked: false };
       }
 
       const token = newGuestToken();
@@ -352,14 +404,159 @@ export class ProfileService {
         telegramId,
         telegramLinkedAt: new Date(),
       });
-      this.applyTelegramProfile(created, verified);
       await playerRepo.save(created);
-      return { token, profile: this.toPublic(created), linked: true };
+      return { token, profile: this.toPublic(created), linked: true, playerId: created.id, kicked: false };
     };
 
-    if (repo.manager && typeof repo.manager.transaction === 'function') {
-      return repo.manager.transaction(async (em) => execute(em.getRepository(Player)));
+    const run = async () => {
+      if (repo.manager && typeof repo.manager.transaction === 'function') {
+        return repo.manager.transaction(async (em) => execute(em.getRepository(Player)));
+      }
+      return execute(repo);
+    };
+    const result = await run();
+    try { await this.saveTelegram(result.playerId, verified); } catch (err) { console.error('telegram profile write failed'); }
+    if (result.kicked) kickAccount(result.playerId);
+    const { playerId: _id, kicked: _k, ...rest } = result;
+    return rest;
+  }
+
+  async noteGeo(playerId: string, ip: string) {
+    if (!playerId || !this.geos) return;
+    try {
+      const country = countryOfIp(ip);
+      const now = new Date();
+      const existing = await this.geos.findOne({ where: { playerId } });
+      const row = existing || this.geos.create({ playerId, firstSeen: now });
+      if (ip) row.lastIp = ip;
+      if (country) {
+        row.country = country;
+        row.originLanguage = originLanguage(country);
+      }
+      row.lastSeen = now;
+      if (!row.firstSeen) row.firstSeen = now;
+      await this.geos.save(row);
+    } catch (err) {
+      console.error('geo write failed');
     }
-    return execute(repo);
+  }
+
+  async identityForToken(token: string | null): Promise<{ id: string; name: string } | null> {
+    if (!token || !this.players) return null;
+    try {
+      const p = await this.findByToken(token);
+      if (!p) return null;
+      let first: string | null = null;
+      let user: string | null = null;
+      if (this.telegrams) {
+        const t = await this.telegrams.findOne({ where: { playerId: p.id } });
+        if (t) { first = t.firstName; user = t.username; }
+      }
+      return { id: p.id, name: displayName(first, user, p.id) };
+    } catch (err) {
+      console.error('identity lookup failed');
+      return null;
+    }
+  }
+
+  async beginRun(p: Player, rawRunId: unknown, rawMap: unknown, rawHero: unknown) {
+    const runId = sanitizeRunId(rawRunId);
+    if (!runId || !this.starts) return;
+    const map = typeof rawMap === 'string' && (MAP_IDS as readonly string[]).indexOf(rawMap) >= 0 ? rawMap : 'city';
+    const hero = Math.max(0, Math.min(5, Math.floor(Number(rawHero) || 0)));
+    try {
+      const existing = await this.starts.findOne({ where: { playerId: p.id, runId } });
+      if (existing) return;
+      await this.starts.save(this.starts.create({ playerId: p.id, runId, map, hero, startedAt: new Date() }));
+    } catch (err) {
+      console.error('run start write failed');
+    }
+  }
+
+  private async loadRules(): Promise<PlausRule[]> {
+    const now = Date.now();
+    if (this.ruleCache && now - this.ruleCache.at < 60_000) return this.ruleCache.rows;
+    if (!this.rules) {
+      if (!this.fallbackLogged) { this.fallbackLogged = true; console.error('rules_plausibility missing, conservative fallback'); }
+      return plausBuckets();
+    }
+    try {
+      const found = await this.rules.find();
+      const rows: PlausRule[] = (found || []).map((r) => ({
+        map: r.map,
+        tSeconds: Number(r.tSeconds),
+        maxCoins: Number(r.maxCoins),
+        maxHeightM: Number(r.maxHeightM),
+        maxTreasures: Number(r.maxTreasures),
+        margin: Number(r.margin) || 1.2,
+      })).filter((r) => r.map && r.tSeconds > 0);
+      if (!rows.length) {
+        if (!this.fallbackLogged) { this.fallbackLogged = true; console.error('rules_plausibility empty, conservative fallback'); }
+        const fb = plausBuckets();
+        this.ruleCache = { at: now, rows: fb };
+        return fb;
+      }
+      this.ruleCache = { at: now, rows };
+      return rows;
+    } catch (err) {
+      console.error('rules_plausibility read failed, conservative fallback');
+      return plausBuckets();
+    }
+  }
+
+  /** Returns true when the claim is over the ceiling. Missing start time fails open. */
+  private async plausibilityBreach(
+    playerId: string, runId: string, map: string,
+    height: number, coins: number, bonusCoins: number, rawHero: unknown, rawVer: unknown,
+  ): Promise<boolean> {
+    if (!runId) return false;
+    let started: Date | null = null;
+    try {
+      if (this.starts) {
+        const row = await this.starts.findOne({ where: { playerId, runId } });
+        started = row ? row.startedAt : null;
+      }
+    } catch (err) {
+      console.error('run start read failed');
+      return false;
+    }
+    if (!started) {
+      console.error('run start missing, plausibility skipped');
+      return false;
+    }
+    const duration = Math.max(0, (Date.now() - new Date(started).getTime()) / 1000);
+    const rows = await this.loadRules();
+    const rule = bucketFor(rows, map, duration) || bucketFor(plausBuckets(), map, duration);
+    if (!rule) return false;
+    const treasures = Math.ceil(bonusCoins / 25);
+    const reasons: string[] = [];
+    if (height > rule.maxHeightM) reasons.push('height');
+    if (coins > rule.maxCoins) reasons.push('coins');
+    if (treasures > rule.maxTreasures || bonusCoins > rule.maxTreasures * 25) reasons.push('treasures');
+    if (!reasons.length) return false;
+    if (this.suspicious) {
+      try {
+        await this.suspicious.save(this.suspicious.create({
+          id: randomUUID(),
+          playerId,
+          runId,
+          map,
+          hero: Math.max(0, Math.min(5, Math.floor(Number(rawHero) || 0))),
+          durationS: Math.round(duration),
+          claimedCoins: coins,
+          claimedHeight: height,
+          claimedTreasures: treasures,
+          maxCoins: rule.maxCoins,
+          maxHeight: rule.maxHeightM,
+          maxTreasures: rule.maxTreasures,
+          reason: reasons.join(','),
+          clientVersion: String(rawVer || '').slice(0, 16),
+          createdAt: new Date(),
+        }));
+      } catch (err) {
+        console.error('suspicious_runs write failed');
+      }
+    }
+    return true;
   }
 }

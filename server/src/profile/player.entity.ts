@@ -1,7 +1,7 @@
 import { BeforeInsert, Column, Entity, PrimaryColumn } from 'typeorm';
 import { randomUUID } from 'crypto';
 
-@Entity({ name: 'player', comment: 'Профиль игрока (гость или аккаунт Telegram): монеты, покупки, рекорды и поля Telegram для админки.' })
+@Entity({ name: 'player', comment: 'Профиль игрока: монеты, покупки, рекорды. Поля Telegram лежат в player_telegram, страна в player_geo.' })
 export class Player {
   @PrimaryColumn('uuid', { comment: 'UUID игрока, первичный ключ. Сервер задаёт uuid v4 при создании строки.' })
   id: string;
@@ -50,23 +50,11 @@ export class Player {
   @Column({ name: 'merged_at', type: 'timestamptz', nullable: true, comment: 'timestamptz слияния гостя в существующий Telegram-профиль.' })
   mergedAt: Date | null;
 
-  @Column({ name: 'telegram_username', type: 'varchar', length: 64, nullable: true, comment: 'username из проверенного initData.user, до 64 символов. Обновляется при каждом успешном TG-логине, привязке или мердже. Только для админки, в API не отдаётся.' })
-  telegramUsername: string | null;
+  @Column({ name: 'previous_token_hash', type: 'varchar', length: 64, nullable: true, comment: 'SHA-256 предыдущего bearer-токена. Им ещё можно сдать уже начатый забег. Новый вход его затирает следующим.' })
+  previousTokenHash: string | null;
 
-  @Column({ name: 'telegram_first_name', type: 'varchar', length: 128, nullable: true, comment: 'first_name из проверенного initData, до 128 символов. Обновляется при каждом успешном TG-входе. В API не отдаётся.' })
-  telegramFirstName: string | null;
-
-  @Column({ name: 'telegram_last_name', type: 'varchar', length: 128, nullable: true, comment: 'last_name из проверенного initData, до 128 символов. Обновляется при каждом успешном TG-входе. В API не отдаётся.' })
-  telegramLastName: string | null;
-
-  @Column({ name: 'telegram_language', type: 'varchar', length: 16, nullable: true, comment: 'language_code из проверенного initData, до 16 символов. Обновляется при каждом успешном TG-входе. В API не отдаётся.' })
-  telegramLanguage: string | null;
-
-  @Column({ name: 'telegram_is_premium', type: 'boolean', nullable: true, comment: 'is_premium из проверенного initData (boolean или NULL, если поля не было). Обновляется при каждом успешном TG-входе. В API не отдаётся.' })
-  telegramIsPremium: boolean | null;
-
-  @Column({ name: 'telegram_profile_updated_at', type: 'timestamptz', nullable: true, comment: 'timestamptz последнего обновления telegram_* полей при успешном TG-логине, привязке или мердже.' })
-  telegramProfileUpdatedAt: Date | null;
+  @Column({ name: 'previous_token_at', type: 'timestamptz', nullable: true, comment: 'timestamptz, когда текущий токен стал предыдущим (вход с другого устройства).' })
+  previousTokenAt: Date | null;
 
   @BeforeInsert()
   assignId() {

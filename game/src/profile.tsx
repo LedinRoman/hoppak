@@ -253,12 +253,22 @@ var PROFILE: any = (function () {
     return fetch(base + path, opts).then(function (r: any) {
       clearTimeout(to);
       return r.json().catch(function () { return null; }).then(function (data: any) {
+        if (r.status === 401 && data && data.error === "SESSION_REPLACED") noteReplaced();
         return { status: r.status, ok: !!r.ok, data: data };
       });
     }).catch(function () {
       clearTimeout(to);
       return { status: 0, ok: false, data: null };
     });
+  }
+
+  function noteReplaced() {
+    if (P.replaced) return;
+    P.replaced = true;
+    var tok = getToken();
+    if (P.api && P.api.sessionReplaced) P.api.sessionReplaced();
+    var done = tok ? flushRunsStep(tok, true) : Promise.resolve(null);
+    Promise.resolve(done).then(function () { setToken(""); ensureProfile(); });
   }
 
   function applyProfile(prof: any, wRef?: any, awarded?: number, limited?: string) {
@@ -436,6 +446,7 @@ var PROFILE: any = (function () {
     if (head.mode) body.mode = head.mode;
     if (head.map) body.map = head.map;
     if (head.ver) body.ver = head.ver;
+    if (head.hero != null) body.hero = head.hero;
 
     return req("POST", "/api/run/finish", body, tok).then(function (res: any) {
       if (res.status === 401) {
@@ -554,13 +565,21 @@ var PROFILE: any = (function () {
     });
   };
 
+  P.beginRun = function (map: string, hero: number) {
+    var id = makeRunId();
+    var tok = getToken();
+    if (tok) req("POST", "/api/run/start", { runId: id, map: map || "", hero: hero }, tok);
+    return id;
+  };
+
   P.finishRun = function (height: number, runCoins: number, bonusCoins: number, worldRef?: any, meta?: any) {
     var h = Math.max(0, Math.floor(Number(height) || 0));
     var c = Math.max(0, Math.floor(Number(runCoins) || 0));
     var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
     var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
     var item: any = {
-      runId: makeRunId(),
+      runId: (meta && meta.runId) || makeRunId(),
+      hero: meta && meta.hero != null ? meta.hero : 0,
       height: h,
       runCoins: c,
       bonusCoins: b,
