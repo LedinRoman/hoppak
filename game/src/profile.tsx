@@ -1,7 +1,9 @@
 
 /* ---------------- Player profile (guest token + server sync) ----------------
    Targets feat/profile-db @ 2284797 and supports feat/profile-server-v06
-   (best, runId, /api/profile/buy). Keeps local save working offline or on 503.
+   (best, runId, /api/profile/buy, POST /api/auth/telegram). Keeps local save
+   working offline or on 503. Telegram Mini App login runs once per session
+   when Telegram.WebApp.initData is present; errors stay on the guest profile.
    All logic lives here; 04_shell.tsx only calls PROFILE.init / finishRun / buy. */
 
 var PROFILE: any = (function () {
@@ -9,9 +11,13 @@ var PROFILE: any = (function () {
   var QUEUE_KEY = "hoppak_profile_queue";
   var BUYS_KEY = "hoppak_profile_buys";
   var CACHE_KEY = "hoppak_profile_cache";
+  var HOUR_KEY = "hoppak_profile_hour";
   var REQ_MS = 5000;
   var FINISH_COOLDOWN_MS = 8200;
   var RATE_RETRY_MS = 8500;
+  var RUN_AWARD_MAX = 200;
+  var HOUR_AWARD_MAX = 400;
+  var HOUR_MS = 3600000;
   var P: any = {
     st: "idle", /* idle | syncing | ready | offline | unavailable */
     profile: null as any,
@@ -22,7 +28,8 @@ var PROFILE: any = (function () {
     nextRunAt: 0,
     backoffMs: 5000,
     retryTimer: 0,
-    onlineBound: false
+    onlineBound: false,
+    tgTried: false
   };
 
   function lsGet(k: string): string {
@@ -104,7 +111,64 @@ var PROFILE: any = (function () {
     var h = Math.max(0, Math.min(20000, Math.floor(Number(height) || 0)));
     var c = Math.max(0, Math.min(80, Math.floor(Number(runCoins) || 0)));
     var b = Math.max(0, Math.min(40, Math.floor(Number(bonusCoins) || 0)));
-    return Math.max(0, Math.min(200, Math.floor(h / 25) + c + b));
+    return Math.max(0, Math.min(RUN_AWARD_MAX, Math.floor(h / 25) + c + b));
+  }
+
+  function hourState(): any {
+    var now = Date.now();
+    var s = readJson(HOUR_KEY, null);
+    if (!s || typeof s !== "object" || !s.startedAt || now - s.startedAt >= HOUR_MS) {
+      s = { startedAt: now, awarded: 0 };
+      writeJson(HOUR_KEY, s);
+    }
+    return s;
+  }
+
+  function computeAward(height: number, runCoins: number, bonusCoins: number): any {
+    var want = estRunAward(height, runCoins, bonusCoins);
+    var hs = hourState();
+    var room = Math.max(0, HOUR_AWARD_MAX - Math.max(0, Math.floor(Number(hs.awarded) || 0)));
+    var awarded = Math.min(want, room);
+    return { want: want, awarded: awarded, limited: awarded < want ? "HOUR_CAP" : "" };
+  }
+
+  function noteAward(awarded: number) {
+    var n = Math.max(0, Math.floor(Number(awarded) || 0));
+    if (!n) return;
+    var hs = hourState();
+    hs.awarded = Math.max(0, Math.floor(Number(hs.awarded) || 0)) + n;
+    writeJson(HOUR_KEY, hs);
+  }
+
+  function pendingBuyKeys(): any {
+    var out: any = {};
+    var buys = getPendingBuys();
+    for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key) out[buys[i].key] = 1;
+    return out;
+  }
+
+  function readInitData(): string {
+    try {
+      var w: any = typeof window !== "undefined" ? window : null;
+      var d = w && w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initData;
+      if (typeof d === "string" && d) return d;
+    } catch (_e) {}
+    return "";
+  }
+
+  /* Once per session. 503 / 401 / 409 / network: stay on the guest profile, do not loop. */
+  function tryTelegramAuth(token: string): Promise<any> {
+    if (P.tgTried) return Promise.resolve(null);
+    var initData = readInitData();
+    if (!initData || !token) return Promise.resolve(null);
+    P.tgTried = true;
+    return req("POST", "/api/auth/telegram", { initData: initData }, token).then(function (res: any) {
+      if (!res || !res.ok || !res.data || !res.data.ok || !res.data.profile) return null;
+      if (res.data.token) setToken(res.data.token);
+      P.st = "ready";
+      applyProfile(res.data.profile);
+      return res.data.profile;
+    });
   }
 
   function makeRunId(): string {
@@ -419,7 +483,9 @@ var PROFILE: any = (function () {
           }
           return null;
         }
-        return flushAll(false).then(function () { return P.profile; });
+        return flushAll(false).then(function () {
+          return tryTelegramAuth(getToken()).then(function () { return P.profile; });
+        });
       });
     });
   };
@@ -428,6 +494,7 @@ var PROFILE: any = (function () {
     var h = Math.max(0, Math.floor(Number(height) || 0));
     var c = Math.max(0, Math.floor(Number(runCoins) || 0));
     var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
+    var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
     var item: any = {
       runId: makeRunId(),
       height: h,
@@ -436,7 +503,7 @@ var PROFILE: any = (function () {
       mode: (meta && meta.mode) || "solo",
       map: (meta && meta.map) || "",
       ver: (meta && meta.ver) || "0.6",
-      estAward: estRunAward(h, c, b),
+      estAward: pre,
       createdAt: Date.now()
     };
     var q = getRunQueue();
@@ -480,17 +547,23 @@ var PROFILE: any = (function () {
 
   P.getToken = getToken;
   P.apiOrigin = apiOrigin;
+  P.computeAward = computeAward;
+  P.noteAward = noteAward;
+  P.pendingBuyKeys = pendingBuyKeys;
   P.getState = function () {
+    var prof = P.profile;
     return {
       st: P.st,
-      profile: P.profile,
+      profile: prof,
       tokenPresent: !!getToken(),
       queueLen: getRunQueue().length,
       pendingBuysLen: getPendingBuys().length,
       pendingSpend: pendingSpend(),
       queuedEst: queuedEst(),
       buySupported: P.buySupported,
-      apiOrigin: apiOrigin()
+      apiOrigin: apiOrigin(),
+      tgTried: !!P.tgTried,
+      telegramId: prof && prof.telegramId ? String(prof.telegramId) : ""
     };
   };
   return P;

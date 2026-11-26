@@ -97,9 +97,17 @@ Credit coins after a completed run (note path: `/api/run/finish`, not `/api/prof
   ```
   (`limited` omitted unless capped.)
 
-### `POST /api/auth/telegram` (present in `2284797`, next step)
+### `POST /api/auth/telegram`
 
-- **Behavior:** Returns `503` `TELEGRAM_AUTH_UNAVAILABLE` when `TELEGRAM_BOT_TOKEN` is unset. Not called by the v0.6 client yet.
+- **Auth:** Optional `Authorization: Bearer <guest-token>`.
+- **Request body:** `{ "initData": "<Telegram.WebApp.initData>" }`.
+- **Server (`feat/profile-server-v06 @ f84e7b2`):**
+  - No `TELEGRAM_BOT_TOKEN` → `503` `TELEGRAM_AUTH_UNAVAILABLE`.
+  - Bad / missing / future `initData` → `401` `INVALID_INIT_DATA`; older than 24 h → `401` `EXPIRED_INIT_DATA`.
+  - If this `telegramId` already has a player: return that profile. If the current guest is a *different* player, the existing Telegram player's token is rotated (`linked: false`) — guest coins are not merged.
+  - If the current guest is already linked to a different `telegramId` → `409` `GUEST_ALREADY_LINKED`.
+  - Otherwise the guest is linked (`linked: true`, same token), or a new Telegram player is created when there is no guest.
+- **Client:** When `window.Telegram.WebApp.initData` is non-empty (Mini App), the client calls this once per session after the guest profile is ready, stores the returned token/profile, and on any error stays on the guest profile without retrying. The game HTML does not load `telegram-web-app.js` (plain web builds stay unchanged).
 
 ### Error Codes (`2284797`)
 

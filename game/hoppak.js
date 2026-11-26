@@ -4048,9 +4048,13 @@
     var QUEUE_KEY = "hoppak_profile_queue";
     var BUYS_KEY = "hoppak_profile_buys";
     var CACHE_KEY = "hoppak_profile_cache";
+    var HOUR_KEY = "hoppak_profile_hour";
     var REQ_MS = 5e3;
     var FINISH_COOLDOWN_MS = 8200;
     var RATE_RETRY_MS = 8500;
+    var RUN_AWARD_MAX = 200;
+    var HOUR_AWARD_MAX = 400;
+    var HOUR_MS = 36e5;
     var P = {
       st: "idle",
       /* idle | syncing | ready | offline | unavailable */
@@ -4063,7 +4067,8 @@
       nextRunAt: 0,
       backoffMs: 5e3,
       retryTimer: 0,
-      onlineBound: false
+      onlineBound: false,
+      tgTried: false
     };
     function lsGet(k) {
       try {
@@ -4151,7 +4156,58 @@
       var h = Math.max(0, Math.min(2e4, Math.floor(Number(height) || 0)));
       var c = Math.max(0, Math.min(80, Math.floor(Number(runCoins) || 0)));
       var b = Math.max(0, Math.min(40, Math.floor(Number(bonusCoins) || 0)));
-      return Math.max(0, Math.min(200, Math.floor(h / 25) + c + b));
+      return Math.max(0, Math.min(RUN_AWARD_MAX, Math.floor(h / 25) + c + b));
+    }
+    function hourState() {
+      var now = Date.now();
+      var s = readJson(HOUR_KEY, null);
+      if (!s || typeof s !== "object" || !s.startedAt || now - s.startedAt >= HOUR_MS) {
+        s = { startedAt: now, awarded: 0 };
+        writeJson(HOUR_KEY, s);
+      }
+      return s;
+    }
+    function computeAward(height, runCoins, bonusCoins) {
+      var want = estRunAward(height, runCoins, bonusCoins);
+      var hs = hourState();
+      var room = Math.max(0, HOUR_AWARD_MAX - Math.max(0, Math.floor(Number(hs.awarded) || 0)));
+      var awarded = Math.min(want, room);
+      return { want, awarded, limited: awarded < want ? "HOUR_CAP" : "" };
+    }
+    function noteAward(awarded) {
+      var n = Math.max(0, Math.floor(Number(awarded) || 0));
+      if (!n) return;
+      var hs = hourState();
+      hs.awarded = Math.max(0, Math.floor(Number(hs.awarded) || 0)) + n;
+      writeJson(HOUR_KEY, hs);
+    }
+    function pendingBuyKeys() {
+      var out = {};
+      var buys = getPendingBuys();
+      for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key) out[buys[i].key] = 1;
+      return out;
+    }
+    function readInitData() {
+      try {
+        var w = typeof window !== "undefined" ? window : null;
+        var d = w && w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initData;
+        if (typeof d === "string" && d) return d;
+      } catch (_e) {
+      }
+      return "";
+    }
+    function tryTelegramAuth(token) {
+      if (P.tgTried) return Promise.resolve(null);
+      var initData = readInitData();
+      if (!initData || !token) return Promise.resolve(null);
+      P.tgTried = true;
+      return req("POST", "/api/auth/telegram", { initData }, token).then(function(res) {
+        if (!res || !res.ok || !res.data || !res.data.ok || !res.data.profile) return null;
+        if (res.data.token) setToken(res.data.token);
+        P.st = "ready";
+        applyProfile(res.data.profile);
+        return res.data.profile;
+      });
     }
     function makeRunId() {
       var r = "";
@@ -4501,7 +4557,9 @@
             return null;
           }
           return flushAll(false).then(function() {
-            return P.profile;
+            return tryTelegramAuth(getToken()).then(function() {
+              return P.profile;
+            });
           });
         });
       });
@@ -4510,6 +4568,7 @@
       var h = Math.max(0, Math.floor(Number(height) || 0));
       var c = Math.max(0, Math.floor(Number(runCoins) || 0));
       var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
+      var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
       var item = {
         runId: makeRunId(),
         height: h,
@@ -4518,7 +4577,7 @@
         mode: meta && meta.mode || "solo",
         map: meta && meta.map || "",
         ver: meta && meta.ver || "0.6",
-        estAward: estRunAward(h, c, b),
+        estAward: pre,
         createdAt: Date.now()
       };
       var q = getRunQueue();
@@ -4571,17 +4630,23 @@
     };
     P.getToken = getToken;
     P.apiOrigin = apiOrigin;
+    P.computeAward = computeAward;
+    P.noteAward = noteAward;
+    P.pendingBuyKeys = pendingBuyKeys;
     P.getState = function() {
+      var prof = P.profile;
       return {
         st: P.st,
-        profile: P.profile,
+        profile: prof,
         tokenPresent: !!getToken(),
         queueLen: getRunQueue().length,
         pendingBuysLen: getPendingBuys().length,
         pendingSpend: pendingSpend(),
         queuedEst: queuedEst(),
         buySupported: P.buySupported,
-        apiOrigin: apiOrigin()
+        apiOrigin: apiOrigin(),
+        tgTried: !!P.tgTried,
+        telegramId: prof && prof.telegramId ? String(prof.telegramId) : ""
       };
     };
     return P;
@@ -4875,11 +4940,22 @@
       var s = sc || 1;
       drawText(ctx, label, x + w / 2, y + Math.round((h - 7 * s) / 2) + (on ? 1 : 0), tcol || C.cream, s, "center");
     }
-    function coinsLabel(x, y, n, align) {
+    function telegramLinked() {
+      try {
+        return !!(typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState().telegramId);
+      } catch (_e) {
+        return false;
+      }
+    }
+    function coinsLabel(x, y, n, align, showTg) {
       var s = String(n), w = textWidth(s, 1) + 9;
       var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
+      var tg = !!showTg && telegramLinked();
+      var tgW = tg ? textWidth("TG", 1) + 3 : 0;
+      if (tg && align === "right") drawText(ctx, "TG", x0 - tgW, y - 0.5, "#6ec8ff", 1, "left");
       drawCoin(ctx, x0, y, ui);
       drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
+      if (tg && align !== "right") drawText(ctx, "TG", x0 + w + 3, y - 0.5, "#6ec8ff", 1, "left");
     }
     function drawBuy(id, x, y, w, h, price) {
       addHit(id, x, y, w, h);
@@ -4958,9 +5034,13 @@
       world.paid = true;
       var me = world.players[0];
       var mtr = metersOf(me);
-      world.earnH = Math.floor(mtr / 25);
-      world.earnC = world.runCoins + (world.bonusCoins || 0);
-      world.earned = world.earnH + world.earnC;
+      var runC = world.runCoins || 0;
+      var bonC = world.bonusCoins || 0;
+      world.earnH = Math.floor(Math.max(0, Math.min(2e4, mtr)) / 25);
+      world.earnC = Math.max(0, Math.min(80, runC)) + Math.max(0, Math.min(40, bonC));
+      var plan = typeof PROFILE !== "undefined" && PROFILE && PROFILE.computeAward ? PROFILE.computeAward(mtr, runC, bonC) : { awarded: Math.max(0, Math.min(200, world.earnH + world.earnC)), want: world.earnH + world.earnC, limited: "" };
+      world.earned = plan.awarded;
+      world.limited = plan.limited || "";
       world.coinFrom = save.coins;
       var mi = mapIdx(world.map);
       world.prevMapBest = mapBest(mi);
@@ -4972,12 +5052,16 @@
       if (mtr > save.best) save.best = mtr;
       world.best = save.best;
       writeSave(save);
-      if (typeof PROFILE !== "undefined" && PROFILE && (mtr > 0 || (world.runCoins || 0) > 0 || (world.bonusCoins || 0) > 0)) {
-        PROFILE.finishRun(mtr, world.runCoins || 0, world.bonusCoins || 0, world, {
-          mode: world.net ? "online" : mode,
-          map: world.map,
-          ver: "0.6"
-        });
+      if (typeof PROFILE !== "undefined" && PROFILE) {
+        if (PROFILE.noteAward) PROFILE.noteAward(world.earned);
+        if (mtr > 0 || runC > 0 || bonC > 0) {
+          PROFILE.finishRun(mtr, runC, bonC, world, {
+            mode: world.net ? "online" : mode,
+            map: world.map,
+            ver: "0.6",
+            awarded: world.earned
+          });
+        }
       }
     }
     function goMenu() {
@@ -5376,7 +5460,7 @@
     function plaque() {
       var x = colX();
       box(ctx, x, 48, 152, 14, C.navy, C.gold);
-      coinsLabel(x + 4, 51, save.coins);
+      coinsLabel(x + 4, 51, save.coins, void 0, true);
       drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + (save.best || 0) + " \u041C", x + 148, 51, C.cream, 1, "right");
     }
     function gear(x, y) {
@@ -5395,7 +5479,7 @@
       drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
       gear(LW - 22, 4);
       drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 41, C.cream, "center");
-      coinsLabel(x, 52, save.coins);
+      coinsLabel(x, 52, save.coins, void 0, true);
       var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
       var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
       var by = LH - 118;
@@ -5465,7 +5549,7 @@
       dimView(ctx, "rgba(18,14,44,0.32)");
       var x = colX();
       header("\u041C\u0410\u0413\u0410\u0417\u0418\u041D", 2);
-      coinsLabel(LW - 6, 12, save.coins, "right");
+      coinsLabel(LW - 6, 12, save.coins, "right", true);
       var pw = 22, gap = 4, sx = Math.round(LW / 2 - (6 * pw + 5 * gap) / 2);
       for (var k = 0; k < 6; k++) {
         var bx = sx + k * (pw + gap), by = 36, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
@@ -5519,7 +5603,7 @@
       dimView(ctx, "rgba(18,14,44,0.34)");
       var x = colX();
       header("\u041A\u0410\u041C\u041F\u0410\u041D\u0418\u042F", 2);
-      coinsLabel(LW - 6, 12, save.coins, "right");
+      coinsLabel(LW - 6, 12, save.coins, "right", true);
       box(ctx, x, 36, 152, 22, "#1a1430", C.mint);
       drawText(ctx, "\u0414\u041E\u0419\u0414\u0418 \u0414\u041E \u0426\u0415\u041B\u0418 \u2192", LW / 2, 39, C.cream, 1, "center");
       drawText(ctx, "\u041E\u0422\u041A\u0420\u041E\u0419 \u0417\u0410 \u041C\u041E\u041D\u0415\u0422\u042B", LW / 2, 49, C.mint, 1, "center");
@@ -6305,6 +6389,17 @@
         if (typeof prof.best === "number" && prof.best > (save.best || 0)) save.best = prof.best;
         if (prof.purchases && typeof prof.purchases === "object") {
           for (var k in prof.purchases) if (prof.purchases[k]) save.owned[k] = 1;
+          var pend = {};
+          try {
+            if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.pendingBuyKeys) pend = PROFILE.pendingBuyKeys() || {};
+          } catch (_e) {
+          }
+          for (var ok in save.owned) {
+            if (save.owned[ok] && !prof.purchases[ok] && !pend[ok]) delete save.owned[ok];
+          }
+          if (!heroOwned(save.char)) save.char = 0;
+          var bi = mapIdx(save.bg);
+          if (bi > 0 && !mapOpen(bi)) save.bg = MAPS[0].id;
         }
         if (wRef && world === wRef && typeof awarded === "number") {
           wRef.earned = awarded;

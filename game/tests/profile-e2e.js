@@ -313,6 +313,146 @@ async function admin(base, body) {
       console.log('PASS 4: simulation determinism & Hz invariance untouched', hz.out[60].m, hz.out[120].m, hz.out[144].m);
     }
 
+    // 5. Telegram Mini App login: success, 503, 401 — once per session, guest fallback
+    {
+      const initData = 'user=' + encodeURIComponent(JSON.stringify({ id: 4242 })) + '&auth_date=1&hash=00';
+      async function openTg(origin, seed) {
+        const ctx = await browser.createBrowserContext();
+        const pg = await ctx.newPage();
+        pg.on('pageerror', (e) => errs.push('tg pageerror: ' + e.message));
+        await pg.evaluateOnNewDocument((d) => {
+          window.Telegram = { WebApp: { initData: d } };
+        }, initData);
+        await pg.goto(origin + '/index.html');
+        await pg.evaluate((s) => {
+          localStorage.clear();
+          if (s) localStorage.setItem('hoppak_save', JSON.stringify(s));
+        }, seed || null);
+        await pg.reload();
+        await sleep(500);
+        await pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
+        return { ctx, pg };
+      }
+
+      await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
+      const a = await openTg(base);
+      const stOk = await a.pg.evaluate(() => window.__hoppak.profile.getState());
+      assert.strictEqual(stOk.st, 'ready');
+      assert.strictEqual(String(stOk.profile.telegramId), '4242');
+      assert.strictEqual(stOk.telegramId, '4242');
+      assert.strictEqual(stOk.tgTried, true);
+      const tokOk = await a.pg.evaluate(() => window.__hoppak.profile.getToken());
+      assert.ok(tokOk && tokOk.length === 64);
+      await a.pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
+      const logOk = await (await fetch(base + '/__mock/log')).json();
+      const tgCalls = logOk.log.filter((x) => x.path === '/api/auth/telegram');
+      assert.strictEqual(tgCalls.length, 1, 'telegram auth must run once per session, got ' + tgCalls.length);
+      await a.ctx.close();
+      console.log('PASS 5a: Telegram initData links guest, telegramId set, no retry loop');
+
+      await admin(base, { mode: 'v06', tgAuth: '503', clearLog: true });
+      const b = await openTg(base);
+      const st503 = await b.pg.evaluate(() => window.__hoppak.profile.getState());
+      assert.strictEqual(st503.st, 'ready', '503 TELEGRAM_AUTH_UNAVAILABLE must not break guest profile');
+      assert.ok(!st503.profile.telegramId);
+      assert.strictEqual(st503.tgTried, true);
+      await b.pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
+      const log503 = await (await fetch(base + '/__mock/log')).json();
+      assert.strictEqual(log503.log.filter((x) => x.path === '/api/auth/telegram').length, 1);
+      await b.ctx.close();
+      console.log('PASS 5b: 503 TELEGRAM_AUTH_UNAVAILABLE falls back to guest, no retry');
+
+      await admin(base, { mode: 'v06', tgAuth: '401', clearLog: true });
+      const c = await openTg(base);
+      const st401 = await c.pg.evaluate(() => window.__hoppak.profile.getState());
+      assert.strictEqual(st401.st, 'ready');
+      assert.ok(!st401.profile.telegramId);
+      await c.pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
+      const log401 = await (await fetch(base + '/__mock/log')).json();
+      assert.strictEqual(log401.log.filter((x) => x.path === '/api/auth/telegram').length, 1);
+      await c.ctx.close();
+      console.log('PASS 5c: 401 INVALID_INIT_DATA falls back to guest, no retry');
+    }
+
+    // 6. Offline local payout respects 200/run and 400/hour caps
+    {
+      await admin(base, { mode: '503', clearLog: true });
+      const ctx = await browser.createBrowserContext();
+      const pg = await ctx.newPage();
+      pg.on('pageerror', (e) => errs.push('cap pageerror: ' + e.message));
+      await pg.goto(base + '/index.html');
+      await pg.evaluate(() => localStorage.clear());
+      await pg.reload();
+      await sleep(400);
+      const caps = await pg.evaluate(() => {
+        const g = window.__hoppak;
+        const out = [];
+        function bigRun() {
+          g.start('solo', 1, 'city');
+          const w = g.getWorld();
+          w.players[0].maxH = 20000 * 8;
+          w.runCoins = 80;
+          w.bonusCoins = 40;
+          g.forceResults();
+          const save = g.getSave();
+          const world = g.getWorld();
+          out.push({ coins: save.coins, earned: world && world.earned, limited: world && world.limited });
+        }
+        bigRun();
+        bigRun();
+        bigRun();
+        return out;
+      });
+      assert.strictEqual(caps[0].earned, 200);
+      assert.strictEqual(caps[0].coins, 200);
+      assert.strictEqual(caps[1].earned, 200);
+      assert.strictEqual(caps[1].coins, 400);
+      assert.strictEqual(caps[2].earned, 0);
+      assert.strictEqual(caps[2].coins, 400);
+      assert.strictEqual(caps[2].limited, 'HOUR_CAP');
+      await ctx.close();
+      console.log('PASS 6: offline payout caps 200/run and 400/hour');
+    }
+
+    // 7. 400 from /buy rolls back optimistic owned flag and restores coins
+    {
+      await admin(base, { mode: 'v06', tgAuth: '503', clearLog: true });
+      const ctx = await browser.createBrowserContext();
+      const pg = await ctx.newPage();
+      pg.on('pageerror', (e) => errs.push('buy400 pageerror: ' + e.message));
+      await pg.goto(base + '/v/0.6/index.html');
+      await pg.evaluate(() => {
+        localStorage.clear();
+        localStorage.setItem('hoppak_save', JSON.stringify({
+          v5: 1, coins: 50, best: 0, mapBest: { city: 0 },
+          owned: {}, char: 0, bg: 'city', sfx: true, vib: true
+        }));
+      });
+      await pg.reload();
+      await sleep(400);
+      await pg.evaluate(async () => {
+        await window.__hoppak.profile.flush();
+        const s = window.__hoppak.getSave();
+        s.coins = 0;
+        s.owned['char:2'] = 1;
+        s.char = 2;
+        window.__hoppak.profile.buy('char:2', 200);
+        await window.__hoppak.profile.flush();
+      });
+      await sleep(300);
+      const st = await pg.evaluate(() => ({
+        st: window.__hoppak.profile.getState(),
+        save: window.__hoppak.getSave(),
+      }));
+      assert.strictEqual(st.st.st, 'ready');
+      assert.ok(!st.save.owned['char:2']);
+      assert.strictEqual(st.save.char, 0);
+      assert.strictEqual(st.save.coins, 50);
+      assert.strictEqual(st.st.pendingBuysLen, 0);
+      await ctx.close();
+      console.log('PASS 7: 400 INSUFFICIENT_COINS rolls back optimistic owned');
+    }
+
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));
     console.log('ALL CLIENT PROFILE E2E TESTS PASS');
   } finally {

@@ -2852,7 +2852,9 @@ var NET: any = (function () {
 
 /* ---------------- Player profile (guest token + server sync) ----------------
    Targets feat/profile-db @ 2284797 and supports feat/profile-server-v06
-   (best, runId, /api/profile/buy). Keeps local save working offline or on 503.
+   (best, runId, /api/profile/buy, POST /api/auth/telegram). Keeps local save
+   working offline or on 503. Telegram Mini App login runs once per session
+   when Telegram.WebApp.initData is present; errors stay on the guest profile.
    All logic lives here; 04_shell.tsx only calls PROFILE.init / finishRun / buy. */
 
 var PROFILE: any = (function () {
@@ -2860,9 +2862,13 @@ var PROFILE: any = (function () {
   var QUEUE_KEY = "hoppak_profile_queue";
   var BUYS_KEY = "hoppak_profile_buys";
   var CACHE_KEY = "hoppak_profile_cache";
+  var HOUR_KEY = "hoppak_profile_hour";
   var REQ_MS = 5000;
   var FINISH_COOLDOWN_MS = 8200;
   var RATE_RETRY_MS = 8500;
+  var RUN_AWARD_MAX = 200;
+  var HOUR_AWARD_MAX = 400;
+  var HOUR_MS = 3600000;
   var P: any = {
     st: "idle", /* idle | syncing | ready | offline | unavailable */
     profile: null as any,
@@ -2873,7 +2879,8 @@ var PROFILE: any = (function () {
     nextRunAt: 0,
     backoffMs: 5000,
     retryTimer: 0,
-    onlineBound: false
+    onlineBound: false,
+    tgTried: false
   };
 
   function lsGet(k: string): string {
@@ -2955,7 +2962,64 @@ var PROFILE: any = (function () {
     var h = Math.max(0, Math.min(20000, Math.floor(Number(height) || 0)));
     var c = Math.max(0, Math.min(80, Math.floor(Number(runCoins) || 0)));
     var b = Math.max(0, Math.min(40, Math.floor(Number(bonusCoins) || 0)));
-    return Math.max(0, Math.min(200, Math.floor(h / 25) + c + b));
+    return Math.max(0, Math.min(RUN_AWARD_MAX, Math.floor(h / 25) + c + b));
+  }
+
+  function hourState(): any {
+    var now = Date.now();
+    var s = readJson(HOUR_KEY, null);
+    if (!s || typeof s !== "object" || !s.startedAt || now - s.startedAt >= HOUR_MS) {
+      s = { startedAt: now, awarded: 0 };
+      writeJson(HOUR_KEY, s);
+    }
+    return s;
+  }
+
+  function computeAward(height: number, runCoins: number, bonusCoins: number): any {
+    var want = estRunAward(height, runCoins, bonusCoins);
+    var hs = hourState();
+    var room = Math.max(0, HOUR_AWARD_MAX - Math.max(0, Math.floor(Number(hs.awarded) || 0)));
+    var awarded = Math.min(want, room);
+    return { want: want, awarded: awarded, limited: awarded < want ? "HOUR_CAP" : "" };
+  }
+
+  function noteAward(awarded: number) {
+    var n = Math.max(0, Math.floor(Number(awarded) || 0));
+    if (!n) return;
+    var hs = hourState();
+    hs.awarded = Math.max(0, Math.floor(Number(hs.awarded) || 0)) + n;
+    writeJson(HOUR_KEY, hs);
+  }
+
+  function pendingBuyKeys(): any {
+    var out: any = {};
+    var buys = getPendingBuys();
+    for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key) out[buys[i].key] = 1;
+    return out;
+  }
+
+  function readInitData(): string {
+    try {
+      var w: any = typeof window !== "undefined" ? window : null;
+      var d = w && w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initData;
+      if (typeof d === "string" && d) return d;
+    } catch (_e) {}
+    return "";
+  }
+
+  /* Once per session. 503 / 401 / 409 / network: stay on the guest profile, do not loop. */
+  function tryTelegramAuth(token: string): Promise<any> {
+    if (P.tgTried) return Promise.resolve(null);
+    var initData = readInitData();
+    if (!initData || !token) return Promise.resolve(null);
+    P.tgTried = true;
+    return req("POST", "/api/auth/telegram", { initData: initData }, token).then(function (res: any) {
+      if (!res || !res.ok || !res.data || !res.data.ok || !res.data.profile) return null;
+      if (res.data.token) setToken(res.data.token);
+      P.st = "ready";
+      applyProfile(res.data.profile);
+      return res.data.profile;
+    });
   }
 
   function makeRunId(): string {
@@ -3270,7 +3334,9 @@ var PROFILE: any = (function () {
           }
           return null;
         }
-        return flushAll(false).then(function () { return P.profile; });
+        return flushAll(false).then(function () {
+          return tryTelegramAuth(getToken()).then(function () { return P.profile; });
+        });
       });
     });
   };
@@ -3279,6 +3345,7 @@ var PROFILE: any = (function () {
     var h = Math.max(0, Math.floor(Number(height) || 0));
     var c = Math.max(0, Math.floor(Number(runCoins) || 0));
     var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
+    var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
     var item: any = {
       runId: makeRunId(),
       height: h,
@@ -3287,7 +3354,7 @@ var PROFILE: any = (function () {
       mode: (meta && meta.mode) || "solo",
       map: (meta && meta.map) || "",
       ver: (meta && meta.ver) || "0.6",
-      estAward: estRunAward(h, c, b),
+      estAward: pre,
       createdAt: Date.now()
     };
     var q = getRunQueue();
@@ -3331,17 +3398,23 @@ var PROFILE: any = (function () {
 
   P.getToken = getToken;
   P.apiOrigin = apiOrigin;
+  P.computeAward = computeAward;
+  P.noteAward = noteAward;
+  P.pendingBuyKeys = pendingBuyKeys;
   P.getState = function () {
+    var prof = P.profile;
     return {
       st: P.st,
-      profile: P.profile,
+      profile: prof,
       tokenPresent: !!getToken(),
       queueLen: getRunQueue().length,
       pendingBuysLen: getPendingBuys().length,
       pendingSpend: pendingSpend(),
       queuedEst: queuedEst(),
       buySupported: P.buySupported,
-      apiOrigin: apiOrigin()
+      apiOrigin: apiOrigin(),
+      tgTried: !!P.tgTried,
+      telegramId: prof && prof.telegramId ? String(prof.telegramId) : ""
     };
   };
   return P;
@@ -3565,11 +3638,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var s = sc || 1;
     drawText(ctx, label, x + w / 2, y + Math.round((h - 7 * s) / 2) + (on ? 1 : 0), tcol || C.cream, s, "center");
   }
-  function coinsLabel(x: number, y: number, n: number, align?: string) {
+  function telegramLinked(): boolean {
+    try {
+      return !!(typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState().telegramId);
+    } catch (_e) { return false; }
+  }
+  function coinsLabel(x: number, y: number, n: number, align?: string, showTg?: boolean) {
     var s = String(n), w = textWidth(s, 1) + 9;
     var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
+    var tg = !!showTg && telegramLinked();
+    var tgW = tg ? textWidth("TG", 1) + 3 : 0;
+    if (tg && align === "right") drawText(ctx, "TG", x0 - tgW, y - 0.5, "#6ec8ff", 1, "left");
     drawCoin(ctx, x0, y, ui);
     drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
+    if (tg && align !== "right") drawText(ctx, "TG", x0 + w + 3, y - 0.5, "#6ec8ff", 1, "left");
   }
   function drawBuy(id: string, x: number, y: number, w: number, h: number, price: number) {
     addHit(id, x, y, w, h);
@@ -3624,9 +3706,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.paid = true;
     var me = world.players[0];
     var mtr = metersOf(me);
-    world.earnH = Math.floor(mtr / 25);
-    world.earnC = world.runCoins + (world.bonusCoins || 0);
-    world.earned = world.earnH + world.earnC;
+    var runC = world.runCoins || 0;
+    var bonC = world.bonusCoins || 0;
+    world.earnH = Math.floor(Math.max(0, Math.min(20000, mtr)) / 25);
+    world.earnC = Math.max(0, Math.min(80, runC)) + Math.max(0, Math.min(40, bonC));
+    var plan = (typeof PROFILE !== "undefined" && PROFILE && PROFILE.computeAward)
+      ? PROFILE.computeAward(mtr, runC, bonC)
+      : { awarded: Math.max(0, Math.min(200, world.earnH + world.earnC)), want: world.earnH + world.earnC, limited: "" };
+    world.earned = plan.awarded;
+    world.limited = plan.limited || "";
     world.coinFrom = save.coins;
     var mi = mapIdx(world.map);
     world.prevMapBest = mapBest(mi);
@@ -3637,12 +3725,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (mtr > save.best) save.best = mtr;
     world.best = save.best;
     writeSave(save);
-    if (typeof PROFILE !== "undefined" && PROFILE && (mtr > 0 || (world.runCoins || 0) > 0 || (world.bonusCoins || 0) > 0)) {
-      PROFILE.finishRun(mtr, world.runCoins || 0, world.bonusCoins || 0, world, {
-        mode: world.net ? "online" : mode,
-        map: world.map,
-        ver: "0.6"
-      });
+    if (typeof PROFILE !== "undefined" && PROFILE) {
+      if (PROFILE.noteAward) PROFILE.noteAward(world.earned);
+      if (mtr > 0 || runC > 0 || bonC > 0) {
+        PROFILE.finishRun(mtr, runC, bonC, world, {
+          mode: world.net ? "online" : mode,
+          map: world.map,
+          ver: "0.6",
+          awarded: world.earned
+        });
+      }
     }
   }
   function goMenu() { phase = "menu"; world = null; showSet = false; campCard = -1; paused = false; landPause = false; manualPause = false; fieldLocked = false; resize(); }
@@ -3861,7 +3953,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function plaque() {
     var x = colX();
     box(ctx, x, 48, 152, 14, C.navy, C.gold);
-    coinsLabel(x + 4, 51, save.coins);
+    coinsLabel(x + 4, 51, save.coins, undefined, true);
     drawText(ctx, "РЕКОРД " + (save.best || 0) + " М", x + 148, 51, C.cream, 1, "right");
   }
   function gear(x: number, y: number) {
@@ -3878,7 +3970,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBig(ctx, "ХОППАК", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
     gear(LW - 22, 4);
     drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 41, C.cream, "center");
-    coinsLabel(x, 52, save.coins);
+    coinsLabel(x, 52, save.coins, undefined, true);
     var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + b + "/" + M.goal + " М") : (M.name + " · " + b + " М");
     var by = LH - 118;
@@ -3938,7 +4030,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
     header("МАГАЗИН", 2);
-    coinsLabel(LW - 6, 12, save.coins, "right");
+    coinsLabel(LW - 6, 12, save.coins, "right", true);
     var pw = 22, gap = 4, sx = Math.round(LW / 2 - (6 * pw + 5 * gap) / 2);
     for (var k = 0; k < 6; k++) {
       var bx = sx + k * (pw + gap), by = 36, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
@@ -3986,7 +4078,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dimView(ctx, "rgba(18,14,44,0.34)");
     var x = colX();
     header("КАМПАНИЯ", 2);
-    coinsLabel(LW - 6, 12, save.coins, "right");
+    coinsLabel(LW - 6, 12, save.coins, "right", true);
     box(ctx, x, 36, 152, 22, "#1a1430", C.mint);
     drawText(ctx, "ДОЙДИ ДО ЦЕЛИ →", LW / 2, 39, C.cream, 1, "center");
     drawText(ctx, "ОТКРОЙ ЗА МОНЕТЫ", LW / 2, 49, C.mint, 1, "center");
@@ -4598,6 +4690,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (typeof prof.best === "number" && prof.best > (save.best || 0)) save.best = prof.best;
       if (prof.purchases && typeof prof.purchases === "object") {
         for (var k in prof.purchases) if (prof.purchases[k]) save.owned[k] = 1;
+        var pend: any = {};
+        try { if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.pendingBuyKeys) pend = PROFILE.pendingBuyKeys() || {}; } catch (_e) {}
+        for (var ok in save.owned) {
+          if (save.owned[ok] && !prof.purchases[ok] && !pend[ok]) delete save.owned[ok];
+        }
+        if (!heroOwned(save.char)) save.char = 0;
+        var bi = mapIdx(save.bg);
+        if (bi > 0 && !mapOpen(bi)) save.bg = MAPS[0].id;
       }
       if (wRef && world === wRef && typeof awarded === "number") {
         wRef.earned = awarded;

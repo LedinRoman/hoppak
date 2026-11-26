@@ -25,6 +25,7 @@ function argVal(name, def) {
 }
 
 let mode = argVal('mode', '2284797');
+let tgAuth = argVal('tgAuth', '503'); /* ok | 503 | 401 | 409 */
 const port = Number(argVal('port', process.env.PORT || 8799));
 const staticDir = path.resolve(argVal('static', path.join(__dirname, '..', 'game', 'site')));
 const cooldownMs = Number(argVal('cooldown', 8000));
@@ -132,14 +133,20 @@ function createServer() {
     if (urlPath === '/__mock/admin' && req.method === 'POST') {
       const b = await readBody(req);
       if (b.mode) mode = b.mode;
+      if (b.tgAuth) tgAuth = b.tgAuth;
       if (b.resetCooldown) {
         for (const p of playersByHash.values()) p.lastFinishAt = 0;
       }
+      if (b.setCoins != null) {
+        const tok = b.token;
+        const pl = tok ? playersByHash.get(sha256(tok)) : null;
+        if (pl) pl.coins = Math.max(0, Math.floor(Number(b.setCoins) || 0));
+      }
       if (b.clearLog) requestLog.length = 0;
-      return json(res, 200, { ok: true, mode, players: playersByHash.size, log: requestLog.slice() });
+      return json(res, 200, { ok: true, mode, tgAuth, players: playersByHash.size, log: requestLog.slice() });
     }
     if (urlPath === '/__mock/log' && req.method === 'GET') {
-      return json(res, 200, { ok: true, mode, log: requestLog.slice() });
+      return json(res, 200, { ok: true, mode, tgAuth, log: requestLog.slice() });
     }
 
     if (urlPath === '/api/health' && req.method === 'GET') {
@@ -177,7 +184,59 @@ function createServer() {
       }
 
       if (urlPath === '/api/auth/telegram' && req.method === 'POST') {
-        return json(res, 503, { ok: false, error: 'TELEGRAM_AUTH_UNAVAILABLE' });
+        if (tgAuth === '503' || mode === '503') {
+          return json(res, 503, { ok: false, error: 'TELEGRAM_AUTH_UNAVAILABLE' });
+        }
+        if (tgAuth === '401') {
+          return json(res, 401, { ok: false, error: 'INVALID_INIT_DATA' });
+        }
+        const b = await readBody(req);
+        let telegramId = '10001';
+        try {
+          const params = new URLSearchParams(typeof b.initData === 'string' ? b.initData : '');
+          const user = JSON.parse(params.get('user') || 'null');
+          if (user && user.id != null) telegramId = String(user.id);
+        } catch {}
+        const tok = bearer(req);
+        const guest = tok ? playersByHash.get(sha256(tok)) : null;
+        if (tgAuth === '409') {
+          return json(res, 409, { ok: false, error: 'GUEST_ALREADY_LINKED' });
+        }
+        const existing = [...playersByHash.values()].find((pl) => pl.telegramId && String(pl.telegramId) === telegramId);
+        if (existing) {
+          if (guest && guest.id === existing.id && tok) {
+            return json(res, 201, { ok: true, token: tok, profile: toPublic(existing), linked: false });
+          }
+          const nextToken = crypto.randomBytes(32).toString('hex');
+          playersByHash.delete(existing.guestTokenHash);
+          existing.guestTokenHash = sha256(nextToken);
+          playersByHash.set(existing.guestTokenHash, existing);
+          return json(res, 201, { ok: true, token: nextToken, profile: toPublic(existing), linked: false });
+        }
+        if (guest) {
+          if (guest.telegramId && String(guest.telegramId) !== telegramId) {
+            return json(res, 409, { ok: false, error: 'GUEST_ALREADY_LINKED' });
+          }
+          const linked = !guest.telegramId;
+          guest.telegramId = telegramId;
+          return json(res, 201, { ok: true, token: tok, profile: toPublic(guest), linked });
+        }
+        const token = crypto.randomBytes(32).toString('hex');
+        const pnew = {
+          id: crypto.randomUUID(),
+          guestTokenHash: sha256(token),
+          coins: 0,
+          best: 0,
+          purchases: {},
+          migratedAt: null,
+          createdAt: new Date().toISOString(),
+          lastFinishAt: 0,
+          windowStartedAt: 0,
+          awardedInWindow: 0,
+          telegramId,
+        };
+        playersByHash.set(pnew.guestTokenHash, pnew);
+        return json(res, 201, { ok: true, token, profile: toPublic(pnew), linked: true });
       }
 
       const tok = bearer(req);
