@@ -3176,18 +3176,64 @@
   }
   var SHIELD_BLINK_T = 90;
   var WALL_BLINK_T = 60;
-  function drawNinjaWallCol(ctx, x, y0, y1, camI, outX) {
+  var NINJA_WALL_TILE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAQCAYAAAArij59AAAAxElEQVR4nJWRrQrCABSFv8GaCwaLYDT6AD6EYWXFZzD6GEafwWIxGCwaBGGI4ISBoks6VESHuA1EBxrGfhWcN13uOZdz7rlCQSq9+r0W36omNxEBJG2AszESYGeyB/AJ2nAOgH5wqRRzCaIIMN3Z4SDeAwiZPNBt+xOlEfVxidnyjHnzkBU4Xu4AjFZWRFhbj3AjAP7z8DMHQ9VRjSvVch7HfX6aDHTT+tk9JG5PZSECjBcnAEzHo66AsbXDyMUAiFf8H28u114h4LlTRwAAAABJRU5ErkJggg==";
+  var NINJA_WALL_CAP = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAYAAACzzX7wAAAAS0lEQVR4nGMU4ZH5z4AHsDAwMDDsKLNg4ODiYfhy+w5CQlqCwaPrBETBnSvPGBgYGBj+fP7KcOX5VwYDNTGGY0fPMTAwMDAwErICANZaE3BP+jYWAAAAAElFTkSuQmCC";
+  var ninjaWallCache = {};
+  function ninjaWallSprite(kind) {
+    if (ninjaWallCache[kind] !== void 0) return ninjaWallCache[kind];
+    var src = kind === "cap" ? NINJA_WALL_CAP : NINJA_WALL_TILE;
+    var cv = pngToCanvas(src);
+    ninjaWallCache[kind] = cv || null;
+    return ninjaWallCache[kind];
+  }
+  function drawNinjaWallCapAt(ctx, left, y, flipV) {
+    var cap = ninjaWallSprite("cap");
+    if (!cap) return;
+    ctx.save();
+    if (!left) {
+      ctx.translate(LW, 0);
+      ctx.scale(-1, 1);
+    }
+    if (flipV) {
+      ctx.translate(0, y + 4);
+      ctx.scale(1, -1);
+      ctx.drawImage(cap, 0, 0);
+    } else ctx.drawImage(cap, 0, y);
+    ctx.restore();
+  }
+  function drawNinjaWallCol(ctx, left, y0, y1, camI, withCaps) {
+    var tile = ninjaWallSprite("tile");
     y0 = Math.floor(y0);
     y1 = Math.ceil(y1);
     if (y1 <= y0) return;
-    rect(ctx, outX, y0, 1, y1 - y0, INK);
-    rect(ctx, x, y0 - 1, 2, 1, INK);
-    rect(ctx, x, y1, 2, 1, INK);
-    var yy = y0;
-    while (yy < y1) {
-      var wy = yy + camI, seg = Math.floor(wy / 4), next = Math.min(y1, (seg + 1) * 4 - camI);
-      rect(ctx, x, yy, 2, next - yy, seg & 1 ? "#d82a2a" : C.cream);
-      yy = next;
+    ctx.save();
+    if (!left) {
+      ctx.translate(LW, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.beginPath();
+    ctx.rect(0, y0, 8, y1 - y0);
+    ctx.clip();
+    if (tile) {
+      var sy = Math.floor((y0 + camI) / 16) * 16 - camI;
+      while (sy < y1) {
+        ctx.drawImage(tile, 0, sy);
+        sy += 16;
+      }
+    } else {
+      var yy = y0;
+      while (yy < y1) {
+        var wy = yy + camI, seg = Math.floor(wy / 4), next = Math.min(y1, (seg + 1) * 4 - camI);
+        rect(ctx, 0, yy, 8, next - yy, seg & 1 ? "#d82a2a" : C.cream);
+        yy = next;
+      }
+      rect(ctx, 0, y0, 1, y1 - y0, INK);
+      rect(ctx, 7, y0, 1, y1 - y0, INK);
+    }
+    ctx.restore();
+    if (withCaps) {
+      drawNinjaWallCapAt(ctx, left, y0 - 3, false);
+      drawNinjaWallCapAt(ctx, left, y1 - 1, true);
     }
   }
   function drawNinjaWalls(ctx, p, sy, cam, tick, full, bottom) {
@@ -3195,8 +3241,8 @@
     if (p.wallT <= WALL_BLINK_T && ((p.remote ? tick : p.wallT) >> 2) % 2) return;
     var camI = Math.round(cam);
     var y0 = full ? 0 : Math.max(0, Math.round(sy) - 36), y1 = full ? bottom : Math.min(bottom, Math.round(sy) + PH + 36);
-    drawNinjaWallCol(ctx, 0, y0, y1, camI, 2);
-    drawNinjaWallCol(ctx, LW - 2, y0, y1, camI, LW - 3);
+    drawNinjaWallCol(ctx, true, y0, y1, camI, !full);
+    drawNinjaWallCol(ctx, false, y0, y1, camI, !full);
   }
   var SHIELD_FRAMES = null;
   function buildShieldFrames() {
@@ -5368,7 +5414,8 @@
           var ox = p.x;
           p.x = xx;
           drawFxBack(p, sy, cam);
-          drawJumper(ctx, p.x, sy, p.look, p.face, pose, blink, p.alive);
+          var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
+          drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
           if (p.id === 0) drawReadyPip(p, sy);
           drawFxFront(p, sy, w.tick);
           p.x = ox;

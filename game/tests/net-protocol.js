@@ -1,6 +1,16 @@
 /* Protocol-level test with headless node clients (no browser): rooms, errors, relay rates, events,
    results, reconnect grace and room cleanup.  Usage: node game/tests/net-protocol.js [ws://localhost:8787/ws] */
-const WebSocket = require('/workspace/jumper/server/node_modules/ws');
+const path = require('path');
+function loadWs() {
+  const roots = [
+    path.resolve(__dirname, '../../server/node_modules'),
+    path.resolve(__dirname, '../../../jumper-bluegreen/server/node_modules'),
+    path.resolve(__dirname, '../../../jumper/server/node_modules')
+  ];
+  try { return require(require.resolve('ws', { paths: roots })); }
+  catch (_e) { return require('ws'); }
+}
+const WebSocket = loadWs();
 const URL_ = process.argv[2] || 'ws://localhost:8787/ws';
 const HTTP = URL_.replace(/^ws/, 'http').replace(/\/ws$/, '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

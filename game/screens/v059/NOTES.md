@@ -13,5 +13,7 @@
 A procedural coral-orange ray remains only as a decode fallback.
 
 ## Ninja walls
-2 px cream/red hazard stripes (4 px world-anchored segments) + 1 px #140c1c outline, own hero full height, other players
-a segment around their hero; blink last 60 ticks (1.2 s). Net bits 8192 (wall ability on) and 16384 (blink); old clients ignore them.
+Design's 8×16 brick tile (ninja_wall_tile_8x16.png) as a data-URI, world-anchored, right wall mirrored.
+Own hero: full-height columns. Other players: a short segment with 8×4 caps (1 px overlap, bottom cap flipped).
+Blink last 60 ticks and net bits 8192/16384 unchanged. Hero is drawn on top of the walls.
+While clinging, facing into the field is render-only: p.face is used by dash/kick and is synced, so sim is unchanged.

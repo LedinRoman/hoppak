@@ -861,7 +861,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var drawHeroAt = function (xx: number) {
         var ox = p.x; p.x = xx;
         drawFxBack(p, sy, cam);
-        drawJumper(ctx, p.x, sy, p.look, p.face, pose, blink, p.alive);
+        /* Render-only: while clinging, face into the field. p.face is used by dash/kick/net, so sim stays as-is. */
+        var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
+        drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
         if (p.id === 0) drawReadyPip(p, sy);
         drawFxFront(p, sy, w.tick);
         p.x = ox;

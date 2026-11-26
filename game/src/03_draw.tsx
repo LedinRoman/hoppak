@@ -650,19 +650,53 @@ function drawItem(ctx: Ctx, it: any, cam: number, tick: number) {
 
 var SHIELD_BLINK_T = 90; /* last 1.8 s at 50 ticks/s */
 var WALL_BLINK_T = 60; /* v0.59: ninja walls blink for the last 1.2 s before they vanish */
-/* v0.59 ninja walls (0.56 style): 2 px hazard stripes (cream / ninja red, 4 px segments anchored to the world so they
-   scroll) + a 1 px #140c1c outline on the inner side and caps. 1×1 world pixels, alpha 1. full: whole visible column
-   (own hero); otherwise a segment around another player's hero so it reads as theirs. */
-function drawNinjaWallCol(ctx: Ctx, x: number, y0: number, y1: number, camI: number, outX: number) {
+/* v0.59 ninja walls: Design's 8×16 brick tile (left wall, x=0 = outer edge, x=7 = #140c1c).
+   Right wall is a horizontal mirror. Tiles are locked to world y so they scroll with the camera.
+   Own hero: full-height columns. Other players: a short segment with 8×4 caps (1 px overlap).
+   Blink and net flags are unchanged. */
+var NINJA_WALL_TILE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAQCAYAAAArij59AAAAxElEQVR4nJWRrQrCABSFv8GaCwaLYDT6AD6EYWXFZzD6GEafwWIxGCwaBGGI4ISBoks6VESHuA1EBxrGfhWcN13uOZdz7rlCQSq9+r0W36omNxEBJG2AszESYGeyB/AJ2nAOgH5wqRRzCaIIMN3Z4SDeAwiZPNBt+xOlEfVxidnyjHnzkBU4Xu4AjFZWRFhbj3AjAP7z8DMHQ9VRjSvVch7HfX6aDHTT+tk9JG5PZSECjBcnAEzHo66AsbXDyMUAiFf8H28u114h4LlTRwAAAABJRU5ErkJggg==";
+var NINJA_WALL_CAP = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAECAYAAACzzX7wAAAAS0lEQVR4nGMU4ZH5z4AHsDAwMDDsKLNg4ODiYfhy+w5CQlqCwaPrBETBnSvPGBgYGBj+fP7KcOX5VwYDNTGGY0fPMTAwMDAwErICANZaE3BP+jYWAAAAAElFTkSuQmCC";
+var ninjaWallCache: any = {};
+function ninjaWallSprite(kind: string) {
+  if (ninjaWallCache[kind] !== undefined) return ninjaWallCache[kind];
+  var src = kind === "cap" ? NINJA_WALL_CAP : NINJA_WALL_TILE;
+  var cv = pngToCanvas(src);
+  ninjaWallCache[kind] = cv || null;
+  return ninjaWallCache[kind];
+}
+function drawNinjaWallCapAt(ctx: Ctx, left: boolean, y: number, flipV: boolean) {
+  var cap = ninjaWallSprite("cap");
+  if (!cap) return;
+  ctx.save();
+  if (!left) { ctx.translate(LW, 0); ctx.scale(-1, 1); }
+  if (flipV) { ctx.translate(0, y + 4); ctx.scale(1, -1); ctx.drawImage(cap, 0, 0); }
+  else ctx.drawImage(cap, 0, y);
+  ctx.restore();
+}
+function drawNinjaWallCol(ctx: Ctx, left: boolean, y0: number, y1: number, camI: number, withCaps: boolean) {
+  var tile = ninjaWallSprite("tile");
   y0 = Math.floor(y0); y1 = Math.ceil(y1);
   if (y1 <= y0) return;
-  rect(ctx, outX, y0, 1, y1 - y0, INK);
-  rect(ctx, x, y0 - 1, 2, 1, INK); rect(ctx, x, y1, 2, 1, INK);
-  var yy = y0;
-  while (yy < y1) {
-    var wy = yy + camI, seg = Math.floor(wy / 4), next = Math.min(y1, (seg + 1) * 4 - camI);
-    rect(ctx, x, yy, 2, next - yy, (seg & 1) ? "#d82a2a" : C.cream);
-    yy = next;
+  ctx.save();
+  if (!left) { ctx.translate(LW, 0); ctx.scale(-1, 1); }
+  ctx.beginPath(); ctx.rect(0, y0, 8, y1 - y0); ctx.clip();
+  if (tile) {
+    var sy = Math.floor((y0 + camI) / 16) * 16 - camI;
+    while (sy < y1) { ctx.drawImage(tile, 0, sy); sy += 16; }
+  } else {
+    /* decode fallback: cream/red stripes, same world-anchored period */
+    var yy = y0;
+    while (yy < y1) {
+      var wy = yy + camI, seg = Math.floor(wy / 4), next = Math.min(y1, (seg + 1) * 4 - camI);
+      rect(ctx, 0, yy, 8, next - yy, (seg & 1) ? "#d82a2a" : C.cream);
+      yy = next;
+    }
+    rect(ctx, 0, y0, 1, y1 - y0, INK); rect(ctx, 7, y0, 1, y1 - y0, INK);
+  }
+  ctx.restore();
+  if (withCaps) {
+    drawNinjaWallCapAt(ctx, left, y0 - 3, false);
+    drawNinjaWallCapAt(ctx, left, y1 - 1, true);
   }
 }
 function drawNinjaWalls(ctx: Ctx, p: any, sy: number, cam: number, tick: number, full: boolean, bottom: number) {
@@ -670,8 +704,8 @@ function drawNinjaWalls(ctx: Ctx, p: any, sy: number, cam: number, tick: number,
   if (p.wallT <= WALL_BLINK_T && (((p.remote ? tick : p.wallT) >> 2) % 2)) return;
   var camI = Math.round(cam);
   var y0 = full ? 0 : Math.max(0, Math.round(sy) - 36), y1 = full ? bottom : Math.min(bottom, Math.round(sy) + PH + 36);
-  drawNinjaWallCol(ctx, 0, y0, y1, camI, 2);
-  drawNinjaWallCol(ctx, LW - 2, y0, y1, camI, LW - 3);
+  drawNinjaWallCol(ctx, true, y0, y1, camI, !full);
+  drawNinjaWallCol(ctx, false, y0, y1, camI, !full);
 }
 var SHIELD_FRAMES: any = null;
 function buildShieldFrames() {
