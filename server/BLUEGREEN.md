@@ -96,6 +96,13 @@
    - **BUG-36:** кадры `st`/`ev` вне комнаты (например, пока идёт слепой `resume`) молча отбрасываются, без тоста «Ты не в комнате».
    - **Правило «переключать при 0 комнат»** остаётся страховкой в `release.sh` (Producer): см. шаг 5 в разделе 6.
 
+### Heartbeat (BUG-50): один серверный `ws.ping()`
+
+- **Единственная реализация** — `BlueGreenService.sweepHeartbeats()` (`src/bluegreen/bluegreen.service.ts`): один `setInterval` на процесс, раз в `WS_PING_MS` (25000) шлёт `ws.ping()` каждому сокету и закрывает (`terminate()`) сокет, от которого не было `pong` дольше `WS_PONG_TIMEOUT_MS` (60000). Таймер `unref()` и очищается в `onModuleDestroy`.
+- Покрывает: публичные сокеты v1 и v2 (регистрируются в `setupSocket` → `registerClient`), внутренние `/internal/ws` сокеты (тот же `setupSocket`) и исходящие upstream-сокеты прокси v1 (`proxyUpstreams`), на обоих слотах (blue и green).
+- Хотфикс прод-сервера (`22efb22`, heartbeat в `GameGateway`) влит merge-коммитом, но **его дубль в `game.gateway.ts` убран**: heartbeat там не нужен, иначе каждый сокет получал бы два пинга за интервал. Клиенту (браузер) pong отвечает сам; v2-клиентский прикладной `{event:'ping'}` — отдельный механизм (RTT/AFK) и серверный `ws.ping()` не заменяет.
+- Проверки: `test:bluegreen` (п. 19: v1/v2/прокси живут, «немой» сокет закрывается), `node scripts/smoke-ws-ping.mjs` (одиночный сервер), `node scripts/smoke-ws-ping-count.mjs [секунды]` (на двух слотах с `WS_PING_MS=1000` считает пинги за ~60 с: ожидаем ≈60 на сокет, а не ≈120), `node scripts/smoke-ws-ping.mjs --long` (11 минут idle при дефолтных 25 с).
+
 ## 6. Интеграция для Devops
 
 1. **Порты и сеть:**
@@ -174,6 +181,8 @@
 ```bash
 npm run build
 npm run test:bluegreen
+node scripts/smoke-ws-ping.mjs          # BUG-50 быстрый
+node scripts/smoke-ws-ping-count.mjs 60 # BUG-50: один пинг за интервал на сокет
 ```
 Порты тестовых слотов берутся из env (`BLUE_PUB`, `BLUE_INT`, `GREEN_PUB`, `GREEN_INT`), остальные (одиночные серверы для SIGTERM/поля/токенов) — свободные порты ОС; `INTERNAL_TOKEN` тоже из env (по умолчанию `smoke-secret-token`).
 
