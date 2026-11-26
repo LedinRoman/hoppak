@@ -6,7 +6,7 @@ import { PlayerRun } from './player-run.entity';
 import { hashToken, newGuestToken } from './auth';
 import { parseAndVerifyInitData } from './telegram';
 import {
-  FINISH_INTERVAL_MS, HOUR_AWARD_MAX, ITEM_PRICES, MIGRATE_COINS_MAX, RUN_HEIGHT_MAX,
+  ITEM_PRICES, MIGRATE_COINS_MAX, RUN_HEIGHT_MAX,
   awardForRun, clamp, mergePurchases, sanitizePurchases, sanitizeRunId,
 } from './limits';
 
@@ -145,28 +145,13 @@ export class ProfileService {
       if (runId && runRepo) {
         const dup = await runRepo.findOne({ where: { playerId: fresh.id, runId } });
         if (dup) {
-          return { awarded: dup.awarded, duplicate: true, profile: this.toPublic(fresh) };
+          return { awarded: dup.awarded, duplicate: true, limited: 'DUPLICATE', profile: this.toPublic(fresh) };
         }
       }
 
-      const now = new Date();
-      if (fresh.lastFinishAt && now.getTime() - fresh.lastFinishAt.getTime() < FINISH_INTERVAL_MS) {
-        throw new HttpException({ ok: false, error: 'RATE_LIMIT' }, HttpStatus.TOO_MANY_REQUESTS);
-      }
-      const hourAgo = now.getTime() - 60 * 60 * 1000;
-      if (!fresh.windowStartedAt || fresh.windowStartedAt.getTime() < hourAgo) {
-        fresh.windowStartedAt = now;
-        fresh.awardedInWindow = 0;
-      }
-
+      const grant = awardForRun(Number(height) || 0, Number(runCoins) || 0, Number(bonusCoins) || 0);
+      const awarded = grant.awarded;
       const h = clamp(Math.floor(Number(height) || 0), 0, RUN_HEIGHT_MAX);
-      const want = awardForRun(h, Number(runCoins) || 0, Number(bonusCoins) || 0);
-      const room = Math.max(0, HOUR_AWARD_MAX - (fresh.awardedInWindow || 0));
-      const awarded = Math.min(want, room);
-      fresh.coins = (fresh.coins || 0) + awarded;
-      fresh.best = Math.max(fresh.best || 0, h);
-      fresh.awardedInWindow = (fresh.awardedInWindow || 0) + awarded;
-      fresh.lastFinishAt = now;
 
       if (runId && runRepo) {
         const rec = runRepo.create({ playerId: fresh.id, runId, awarded });
@@ -175,17 +160,19 @@ export class ProfileService {
         } catch (err: any) {
           if (err && (err.code === '23505' || err.code === 'SQLITE_CONSTRAINT')) {
             const dup = await runRepo.findOne({ where: { playerId: fresh.id, runId } });
-            return { awarded: dup ? dup.awarded : 0, duplicate: true, profile: this.toPublic(fresh) };
+            return { awarded: dup ? dup.awarded : 0, duplicate: true, limited: 'DUPLICATE', profile: this.toPublic(fresh) };
           }
           throw err;
         }
       }
 
+      fresh.coins = (fresh.coins || 0) + awarded;
+      fresh.best = Math.max(fresh.best || 0, h);
       await playerRepo.save(fresh);
       return {
         awarded,
         profile: this.toPublic(fresh),
-        limited: awarded < want ? 'HOUR_CAP' : undefined,
+        limited: grant.limited,
       };
     };
 

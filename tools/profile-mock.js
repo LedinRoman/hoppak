@@ -285,30 +285,27 @@ function createServer() {
           let pr = runsByPlayer.get(p.id);
           if (!pr) { pr = new Map(); runsByPlayer.set(p.id, pr); }
           if (pr.has(runId)) {
-            return json(res, 201, { ok: true, awarded: pr.get(runId), duplicate: true, profile: toPublic(p) });
+            return json(res, 201, { ok: true, awarded: pr.get(runId), duplicate: true, limited: 'DUPLICATE', profile: toPublic(p) });
           }
         }
-        const now = Date.now();
-        if (p.lastFinishAt && now - p.lastFinishAt < cooldownMs) {
-          return json(res, 429, { ok: false, error: 'RATE_LIMIT' });
-        }
-        if (!p.windowStartedAt || p.windowStartedAt < now - 3600000) {
-          p.windowStartedAt = now;
-          p.awardedInWindow = 0;
-        }
-        const h = clamp(Math.floor(Number(b.height) || 0), 0, 20000);
-        const c = clamp(Math.floor(Number(b.runCoins) || 0), 0, 80);
-        const bc = clamp(Math.floor(Number(b.bonusCoins) || 0), 0, 40);
-        const want = clamp(Math.floor(h / 25) + c + bc, 0, 200);
-        const room = Math.max(0, 400 - p.awardedInWindow);
-        const awarded = Math.min(want, room);
+        const rawH = Math.floor(Number(b.height) || 0);
+        const rawC = Math.floor(Number(b.runCoins) || 0);
+        const rawB = Math.floor(Number(b.bonusCoins) || 0);
+        const h = clamp(rawH, 0, 20000);
+        const c = clamp(rawC, 0, 15801);
+        const bc = clamp(rawB, 0, 2500);
+        const heightPay = h >= 100 ? Math.floor(h / 25) : 0;
+        const awarded = heightPay + c + bc;
+        let limited;
+        if (rawH > 20000) limited = 'HEIGHT_CAP';
+        else if (rawC > 15801) limited = 'COINS_CAP';
+        else if (rawB > 2500) limited = 'BONUS_CAP';
+        else if (h < 100) limited = 'HEIGHT_MIN';
         p.coins += awarded;
         if (mode === 'v06') p.best = Math.max(p.best || 0, h);
-        p.awardedInWindow += awarded;
-        p.lastFinishAt = now;
         if (mode === 'v06' && runId) runsByPlayer.get(p.id).set(runId, awarded);
         const out = { ok: true, awarded, profile: toPublic(p) };
-        if (awarded < want) out.limited = 'HOUR_CAP';
+        if (limited) out.limited = limited;
         return json(res, 201, out);
       }
 

@@ -9,7 +9,7 @@ const { ProfileController } = require('../dist/profile/profile.controller');
 const { ProfileService } = require('../dist/profile/profile.service');
 const { Player } = require('../dist/profile/player.entity');
 const { PlayerRun } = require('../dist/profile/player-run.entity');
-const { ITEM_PRICES } = require('../dist/profile/limits');
+const { ITEM_PRICES, RUN_COINS_MAX, RUN_BONUS_MAX, HEIGHT_AWARD_MIN } = require('../dist/profile/limits');
 const { AddBestBuyRunId1795642000000 } = require('../dist/db/migrations/1795642000000-AddBestBuyRunId');
 const { AddMergedInto1795643000000 } = require('../dist/db/migrations/1795643000000-AddMergedInto');
 
@@ -247,20 +247,7 @@ async function testProfileFlow() {
     assert.strictEqual(r1Dup.data.awarded, 35);
     assert.strictEqual(r1Dup.data.profile.coins, 235);
 
-    // Different run within 8s -> 429 RATE_LIMIT
-    const r2Fast = await req(base, 'POST', '/api/run/finish', {
-      runId: 'run-abc-2',
-      height: 100,
-      runCoins: 1,
-      bonusCoins: 0,
-    }, token);
-    assert.strictEqual(r2Fast.status, 429);
-    assert.strictEqual(r2Fast.data.error, 'RATE_LIMIT');
-
-    // Advance lastFinishAt > 8s ago and run smaller height (best stays 500)
-    const stored = players.get(g1.data.profile.id);
-    stored.lastFinishAt = new Date(Date.now() - 10000);
-    await playerRepo.save(stored);
+    // A second finish in the same second is credited. There is no 8s gap.
     const r2 = await req(base, 'POST', '/api/run/finish', {
       runId: 'run-abc-2',
       height: 250,
@@ -473,6 +460,74 @@ async function testTelegramMerge() {
   console.log('PASS telegram merge (guest cap, union, max best, repeat, race, 400 buy)');
 }
 
+async function testAwardSeries() {
+  const { app, base } = await startTestApp();
+  process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
+  try {
+    assert.strictEqual(HEIGHT_AWARD_MIN, 100);
+    assert.strictEqual(RUN_COINS_MAX, 15801);
+    assert.strictEqual(RUN_BONUS_MAX, 2500);
+    async function prove(label, token) {
+      let coins = 100;
+      for (let i = 0; i < 10; i++) {
+        const r = await req(base, 'POST', '/api/run/finish', {
+          runId: label + '-s' + i, height: 2500, runCoins: 0, bonusCoins: 0,
+        }, token);
+        assert.strictEqual(r.status, 201, label + ' ' + i + ' ' + JSON.stringify(r.data));
+        assert.strictEqual(r.data.awarded, 100);
+        assert.ok(!r.data.limited);
+        coins += 100;
+        assert.strictEqual(r.data.profile.coins, coins);
+      }
+      const long = await req(base, 'POST', '/api/run/finish', {
+        runId: label + '-long', height: 7500, runCoins: 0, bonusCoins: 0,
+      }, token);
+      assert.strictEqual(long.data.awarded, 300);
+      coins += 300;
+      assert.strictEqual(long.data.profile.coins, coins);
+      const low = await req(base, 'POST', '/api/run/finish', {
+        runId: label + '-99', height: 99, runCoins: 5, bonusCoins: 0,
+      }, token);
+      assert.strictEqual(low.data.awarded, 5);
+      assert.strictEqual(low.data.limited, 'HEIGHT_MIN');
+      coins += 5;
+      const edge = await req(base, 'POST', '/api/run/finish', {
+        runId: label + '-100', height: 100, runCoins: 0, bonusCoins: 0,
+      }, token);
+      assert.strictEqual(edge.data.awarded, 4);
+      assert.ok(!edge.data.limited);
+      coins += 4;
+      assert.strictEqual(edge.data.profile.coins, coins);
+      const cut = await req(base, 'POST', '/api/run/finish', {
+        runId: label + '-cut', height: 100, runCoins: RUN_COINS_MAX + 50, bonusCoins: 0,
+      }, token);
+      assert.strictEqual(cut.data.limited, 'COINS_CAP');
+      assert.strictEqual(cut.data.awarded, 4 + RUN_COINS_MAX);
+      const dup = await req(base, 'POST', '/api/run/finish', {
+        runId: label + '-long', height: 7500, runCoins: 0, bonusCoins: 0,
+      }, token);
+      assert.strictEqual(dup.data.duplicate, true);
+      assert.strictEqual(dup.data.limited, 'DUPLICATE');
+      assert.strictEqual(dup.data.profile.coins, cut.data.profile.coins);
+    }
+    const g = await req(base, 'POST', '/api/profile/guest');
+    await req(base, 'POST', '/api/profile/migrate', { coins: 100, best: 0, purchases: {} }, g.data.token);
+    await prove('guest', g.data.token);
+    const g2 = await req(base, 'POST', '/api/profile/guest');
+    await req(base, 'POST', '/api/profile/migrate', { coins: 100, best: 0, purchases: {} }, g2.data.token);
+    const linked = await req(base, 'POST', '/api/auth/telegram', {
+      initData: makeInitData(TEST_BOT_TOKEN, 5150),
+    }, g2.data.token);
+    assert.strictEqual(String(linked.data.profile.telegramId), '5150');
+    assert.strictEqual(linked.data.profile.coins, 100);
+    await prove('tg', linked.data.token);
+  } finally {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    await app.close();
+  }
+  console.log('PASS award series, no hour/run/interval caps, guest and telegram');
+}
+
 async function testMigrationSql() {
   const m = new AddBestBuyRunId1795642000000();
   const upSql = [];
@@ -501,6 +556,7 @@ async function testMigrationSql() {
   await testWithoutDb();
   await testProfileFlow();
   await testTelegramMerge();
+  await testAwardSeries();
   await testMigrationSql();
   console.log('ALL SERVER PROFILE TESTS PASS');
 })().catch((e) => {

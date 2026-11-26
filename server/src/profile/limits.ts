@@ -6,23 +6,28 @@ export const MIGRATE_COINS_MAX = 8000;
 /** Highest height (metres) accepted from a run. Space has no goal; 20_000 is a hard cap. */
 export const RUN_HEIGHT_MAX = 20000;
 
-/** Max coins collected during one run (map pickups). */
-export const RUN_COINS_MAX = 80;
+/**
+ * Max map-pickup coins in one run.
+ * Generator ceiling up to RUN_HEIGHT_MAX (01_core / 02_world, physics unchanged):
+ * PX_PER_M = 8, the 3-coin cluster needs gap >= 30px and maxGap is always >= 40,
+ * so every row can be 30px (3.75 m) and drop 3 coins. Bonus rows are mandatory
+ * (no skip): latest first bonus is 240 m, then +300 m, which is 66 rows with no
+ * map coins. The other 5_267 rows × 3 = 15_801. The old cap of 80 cut ordinary runs.
+ */
+export const RUN_COINS_MAX = 15801;
 
-/** Max bonus coins from one run (chests etc.). */
-export const RUN_BONUS_MAX = 40;
+/**
+ * Max bonus coins in one run. A bonus row is at least every 200 m after the first
+ * at 160 m (nextBonusM), and each КЛАД is BIGCOIN = 25. Up to 20_000 m that is
+ * 100 × 25 = 2_500. The old cap of 40 was one or two chests.
+ */
+export const RUN_BONUS_MAX = 2500;
 
-/** Height-to-coin conversion, same formula as the current client: floor(height / 25). */
+/** Height-to-coin conversion: floor(height / 25), and only when height >= HEIGHT_AWARD_MIN. */
 export const COINS_PER_HEIGHT = 25;
 
-/** Hard cap on coins granted for a single /run/finish, after the formula. */
-export const RUN_AWARD_MAX = 200;
-
-/** Minimum interval between two /run/finish calls for the same player. */
-export const FINISH_INTERVAL_MS = 8000;
-
-/** Max coins granted to one player in a rolling hour. */
-export const HOUR_AWARD_MAX = 400;
+/** Metres required before the height part of the award is paid. */
+export const HEIGHT_AWARD_MIN = 100;
 
 /** Server-authoritative item prices, matching client CHARS (01_core.tsx:44-51) and MAPS (01_core.tsx:263-270). */
 export const ITEM_PRICES: Record<string, number> = {
@@ -64,11 +69,24 @@ export function mergePurchases(a: Record<string, number>, b: Record<string, numb
   return { ...a, ...b };
 }
 
-export function awardForRun(height: number, runCoins: number, bonusCoins: number): number {
-  const h = clamp(Math.floor(height), 0, RUN_HEIGHT_MAX);
-  const c = clamp(Math.floor(runCoins), 0, RUN_COINS_MAX);
-  const b = clamp(Math.floor(bonusCoins), 0, RUN_BONUS_MAX);
-  return clamp(Math.floor(h / COINS_PER_HEIGHT) + c + b, 0, RUN_AWARD_MAX);
+export function awardForRun(
+  height: number,
+  runCoins: number,
+  bonusCoins: number,
+): { awarded: number; limited?: string } {
+  const rawH = Math.floor(Number(height) || 0);
+  const rawC = Math.floor(Number(runCoins) || 0);
+  const rawB = Math.floor(Number(bonusCoins) || 0);
+  const h = clamp(rawH, 0, RUN_HEIGHT_MAX);
+  const c = clamp(rawC, 0, RUN_COINS_MAX);
+  const b = clamp(rawB, 0, RUN_BONUS_MAX);
+  const heightPay = h >= HEIGHT_AWARD_MIN ? Math.floor(h / COINS_PER_HEIGHT) : 0;
+  let limited: string | undefined;
+  if (rawH > RUN_HEIGHT_MAX) limited = 'HEIGHT_CAP';
+  else if (rawC > RUN_COINS_MAX) limited = 'COINS_CAP';
+  else if (rawB > RUN_BONUS_MAX) limited = 'BONUS_CAP';
+  else if (h < HEIGHT_AWARD_MIN) limited = 'HEIGHT_MIN';
+  return { awarded: heightPay + c + b, limited };
 }
 
 export function clamp(n: number, lo: number, hi: number): number {

@@ -84,18 +84,16 @@ Credit coins after a completed run (note path: `/api/run/finish`, not `/api/prof
   { "height": 420, "runCoins": 12, "bonusCoins": 5 }
   ```
   *(Extra fields like `runId`, `mode`, `map`, `ver` are ignored by `2284797` because no `ValidationPipe` whitelist is enabled.)*
-- **Server calculation & anti-spam caps (`limits.ts`, labelled assumptions):**
-  - `h = clamp(floor(height), 0, 20000)` → height reward `floor(h / 25)`
-  - `c = clamp(floor(runCoins), 0, 80)`
-  - `b = clamp(floor(bonusCoins), 0, 40)`
-  - `want = clamp(floor(h / 25) + c + b, 0, 200)` (`RUN_AWARD_MAX = 200`)
-  - Minimum interval between finishes: `FINISH_INTERVAL_MS = 8000` (8 s) → `429` `RATE_LIMIT`.
-  - Rolling 1-hour award cap per player: `HOUR_AWARD_MAX = 400`. If remaining hourly room `< want`, only remaining room is granted and `"limited": "HOUR_CAP"` is returned.
+- **Server calculation (`limits.ts`):**
+  - `h = clamp(floor(height), 0, 20000)`. Height reward `floor(h / 25)` only when `h >= 100`, otherwise 0 (`limited: "HEIGHT_MIN"`).
+  - `c = clamp(floor(runCoins), 0, 15801)`, `b = clamp(floor(bonusCoins), 0, 2500)`. Those ceilings are the generator maximum up to 20_000 m (3 coins per 30 px row, minus mandatory bonus rows; КЛАД 25 every 200 m). A value above the ceiling is clamped and `limited` is `COINS_CAP`, `BONUS_CAP`, or `HEIGHT_CAP`.
+  - There is no per-run total cap, no hourly window, and no minimum gap between finishes. `awardedInWindow` / `windowStartedAt` columns stay in the database and are not read.
+  - Same `runId` returns `duplicate: true`, `limited: "DUPLICATE"`, and does not add coins again.
 - **Response (`201`):**
   ```json
-  { "ok": true, "awarded": 33, "profile": { ...PublicProfile }, "limited": "HOUR_CAP" }
+  { "ok": true, "awarded": 33, "profile": { ...PublicProfile }, "limited": "HEIGHT_MIN" }
   ```
-  (`limited` omitted unless capped.)
+  (`limited` omitted when nothing was clamped and height is at least 100 m.)
 
 ### `POST /api/auth/telegram`
 
@@ -146,7 +144,7 @@ Credit coins after a completed run (note path: `/api/run/finish`, not `/api/prof
   - `ALTER TABLE "player" ADD COLUMN "best" integer NOT NULL DEFAULT 0`
   - `CREATE TABLE "player_run" ("player_id" uuid, "run_id" varchar(64), "awarded" int, "created_at" timestamptz, PK(player_id, run_id), FK -> player.id)`
 - **`PublicProfile.best`:** returned on all profile endpoints; updated on `POST /api/profile/migrate` (optional `best?: number`) and `POST /api/run/finish` (`best = max(best, height)`).
-- **Optional `runId` on `POST /api/run/finish`:** when provided (1–64 chars `[a-zA-Z0-9_.:-]+`), duplicates return `{ ok: true, awarded, duplicate: true, profile }` idempotently (bypassing `429 RATE_LIMIT` and without double-crediting). Invalid format → `400 INVALID_RUN_ID`.
+- **Optional `runId` on `POST /api/run/finish`:** when provided (1–64 chars `[a-zA-Z0-9_.:-]+`), duplicates return `{ ok: true, awarded, duplicate: true, limited: "DUPLICATE", profile }` and do not add coins again. Invalid format → `400 INVALID_RUN_ID`. Finishes are not spaced by 8 s and are not capped per hour or per run total.
 - **`POST /api/profile/buy` `{ key: string }`:**
   - Authoritative price table matching `game/src/01_core.tsx` (`CHARS` & `MAPS`):
     - Heroes: `char:0` (0), `char:1` (150), `char:2` (200), `char:3` (240), `char:4` (280), `char:5` (320)

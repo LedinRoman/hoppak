@@ -359,11 +359,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var mtr = metersOf(me);
     var runC = world.runCoins || 0;
     var bonC = world.bonusCoins || 0;
-    world.earnH = Math.floor(Math.max(0, Math.min(20000, mtr)) / 25);
-    world.earnC = Math.max(0, Math.min(80, runC)) + Math.max(0, Math.min(40, bonC));
     var plan = (typeof PROFILE !== "undefined" && PROFILE && PROFILE.computeAward)
       ? PROFILE.computeAward(mtr, runC, bonC)
-      : { awarded: Math.max(0, Math.min(200, world.earnH + world.earnC)), want: world.earnH + world.earnC, limited: "" };
+      : { awarded: (mtr >= 100 ? Math.floor(Math.max(0, Math.min(20000, mtr)) / 25) : 0) + Math.max(0, runC) + Math.max(0, bonC), limited: mtr < 100 ? "HEIGHT_MIN" : "" };
+    world.earnH = mtr >= 100 ? Math.floor(Math.max(0, Math.min(20000, mtr)) / 25) : 0;
+    world.earnC = Math.max(0, plan.awarded - world.earnH);
     world.earned = plan.awarded;
     world.limited = plan.limited || "";
     world.coinFrom = save.coins;
@@ -377,7 +377,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.best = save.best;
     writeSave(save);
     if (typeof PROFILE !== "undefined" && PROFILE) {
-      if (PROFILE.noteAward) PROFILE.noteAward(world.earned);
       if (mtr > 0 || runC > 0 || bonC > 0) {
         PROFILE.finishRun(mtr, runC, bonC, world, {
           mode: world.net ? "online" : mode,
@@ -1214,6 +1213,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (var i = 0; i < CHARS.length; i++) if (!heroOwned(i)) return { i: i, H: CHARS[i], left: Math.max(0, CHARS[i].price - save.coins) };
     return null;
   }
+  function limitLabel(code: string) {
+    if (code === "HEIGHT_MIN") return "ЗА ВЫСОТУ · С 100 М";
+    if (code === "HEIGHT_CAP") return "ВЫСОТА СРЕЗАНА";
+    if (code === "COINS_CAP") return "МОНЕТЫ СРЕЗАНЫ";
+    if (code === "BONUS_CAP") return "БОНУС СРЕЗАН";
+    if (code === "DUPLICATE") return "УЖЕ ЗАСЧИТАН";
+    if (code === "OFFLINE") return "НЕТ СЕТИ";
+    if (code === "FAST") return "СЛИШКОМ БЫСТРО";
+    if (code === "REJECTED") return "НЕ ПРИНЯТО";
+    return "";
+  }
   function drawResults() {
     hits = [];
     drawBg(ctx, world.cameraY, ui, world.map);
@@ -1253,7 +1263,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     var rec = save.mapBest[world.map] || world.best || 0;
-    box(ctx, x, y, 152, 56, C.navy, C.gold);
+    var note = limitLabel(world.limited);
+    box(ctx, x, y, 152, note ? 68 : 56, C.navy, C.gold);
     drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 4, C.cream, 1, "left"); coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
     drawText(ctx, "СОБРАНО", x + 6, y + 15, C.cream, 1, "left"); coinsLabel(x + 146, y + 15, world.earnC || 0, "right");
     rect(ctx, x + 6, y + 25, 140, 1, "#5a4a7a");
@@ -1265,7 +1276,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var shownTot = (world.coinFrom != null ? world.coinFrom : (save.coins - (world.earned || 0))) + shownEarn;
     if (k < 1 && (ui % 4 === 0)) hopSfx("tick");
     drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
-    y += 60;
+    if (note) drawText(ctx, note, LW / 2, y + 48, C.cream, 1, "center");
+    y += note ? 72 : 60;
     if (world.net && typeof NET !== "undefined" && NET.drawEvening) y = NET.drawEvening(ctx, x, y);
     if (world.newBest) { box(ctx, x, y, 152, 13, C.navy, C.gold); drawText(ctx, "НОВЫЙ РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 3, C.gold, 1, "center"); y += 16; }
     else { drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 2, C.cream, 1, "center"); y += 14; }
@@ -1388,7 +1400,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     save: function () { return save; },
     saveNow: function () { writeSave(save); },
     say: function (s: string) { say(s); },
-    apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number) {
+    apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number, limited?: string) {
       if (!prof) return;
       if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
       else if (typeof prof.coins === "number" && prof.coins >= 0) save.coins = prof.coins;
@@ -1408,6 +1420,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         wRef.earned = awarded;
         wRef.coinFrom = Math.max(0, save.coins - awarded);
         wRef.best = save.best;
+        if (typeof limited === "string") wRef.limited = limited;
       }
       writeSave(save);
     }

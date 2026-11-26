@@ -4614,13 +4614,11 @@
     var QUEUE_KEY = "hoppak_profile_queue";
     var BUYS_KEY = "hoppak_profile_buys";
     var CACHE_KEY = "hoppak_profile_cache";
-    var HOUR_KEY = "hoppak_profile_hour";
     var REQ_MS = 5e3;
-    var FINISH_COOLDOWN_MS = 8200;
-    var RATE_RETRY_MS = 8500;
-    var RUN_AWARD_MAX = 200;
-    var HOUR_AWARD_MAX = 400;
-    var HOUR_MS = 36e5;
+    var RUN_HEIGHT_MAX = 2e4;
+    var RUN_COINS_MAX = 15801;
+    var RUN_BONUS_MAX = 2500;
+    var HEIGHT_AWARD_MIN = 100;
     var P = {
       st: "idle",
       /* idle | syncing | ready | offline | unavailable */
@@ -4629,8 +4627,6 @@
       queue: null,
       buySupported: null,
       /* null = unknown | true | false (404 on 2284797) */
-      lastFinishOkAt: 0,
-      nextRunAt: 0,
       backoffMs: 5e3,
       retryTimer: 0,
       onlineBound: false,
@@ -4718,34 +4714,21 @@
       }
       return tot;
     }
-    function estRunAward(height, runCoins, bonusCoins) {
-      var h = Math.max(0, Math.min(2e4, Math.floor(Number(height) || 0)));
-      var c = Math.max(0, Math.min(80, Math.floor(Number(runCoins) || 0)));
-      var b = Math.max(0, Math.min(40, Math.floor(Number(bonusCoins) || 0)));
-      return Math.max(0, Math.min(RUN_AWARD_MAX, Math.floor(h / 25) + c + b));
-    }
-    function hourState() {
-      var now = Date.now();
-      var s = readJson(HOUR_KEY, null);
-      if (!s || typeof s !== "object" || !s.startedAt || now - s.startedAt >= HOUR_MS) {
-        s = { startedAt: now, awarded: 0 };
-        writeJson(HOUR_KEY, s);
-      }
-      return s;
-    }
     function computeAward(height, runCoins, bonusCoins) {
-      var want = estRunAward(height, runCoins, bonusCoins);
-      var hs = hourState();
-      var room = Math.max(0, HOUR_AWARD_MAX - Math.max(0, Math.floor(Number(hs.awarded) || 0)));
-      var awarded = Math.min(want, room);
-      return { want, awarded, limited: awarded < want ? "HOUR_CAP" : "" };
-    }
-    function noteAward(awarded) {
-      var n = Math.max(0, Math.floor(Number(awarded) || 0));
-      if (!n) return;
-      var hs = hourState();
-      hs.awarded = Math.max(0, Math.floor(Number(hs.awarded) || 0)) + n;
-      writeJson(HOUR_KEY, hs);
+      var rawH = Math.max(0, Math.floor(Number(height) || 0));
+      var rawC = Math.max(0, Math.floor(Number(runCoins) || 0));
+      var rawB = Math.max(0, Math.floor(Number(bonusCoins) || 0));
+      var h = Math.min(rawH, RUN_HEIGHT_MAX);
+      var c = Math.min(rawC, RUN_COINS_MAX);
+      var b = Math.min(rawB, RUN_BONUS_MAX);
+      var heightPay = h >= HEIGHT_AWARD_MIN ? Math.floor(h / 25) : 0;
+      var limited = "";
+      if (rawH > RUN_HEIGHT_MAX) limited = "HEIGHT_CAP";
+      else if (rawC > RUN_COINS_MAX) limited = "COINS_CAP";
+      else if (rawB > RUN_BONUS_MAX) limited = "BONUS_CAP";
+      else if (h < HEIGHT_AWARD_MIN) limited = "HEIGHT_MIN";
+      var awarded = heightPay + c + b;
+      return { want: awarded, awarded, limited };
     }
     function pendingBuyKeys() {
       var out = {};
@@ -4923,13 +4906,13 @@
         return { status: 0, ok: false, data: null };
       });
     }
-    function applyProfile(prof, wRef, awarded) {
+    function applyProfile(prof, wRef, awarded, limited) {
       if (!prof) return;
       P.profile = prof;
       writeJson(CACHE_KEY, prof);
       pruneConfirmedBuys(prof);
       var effectiveCoins = Math.max(0, (prof.coins || 0) - pendingSpend()) + queuedEst();
-      if (P.api && P.api.apply) P.api.apply(prof, wRef, awarded, effectiveCoins);
+      if (P.api && P.api.apply) P.api.apply(prof, wRef, awarded, effectiveCoins, limited);
     }
     function handleStatus(res) {
       if (res.status === 503 || res.data && res.data.error === "PROFILE_UNAVAILABLE") {
@@ -5032,14 +5015,22 @@
         if (rest.length) return flushBuysOnce(tok);
       });
     }
+    var runRefs = {};
+    function worldOf(head) {
+      if (!head) return null;
+      return head._wRef || runRefs[head.runId] || null;
+    }
+    function markRun(head, code) {
+      var w = worldOf(head);
+      if (w) w.limited = code;
+    }
+    function markQueued(code) {
+      var q = getRunQueue();
+      for (var i = 0; i < q.length; i++) markRun(q[i], code);
+    }
     function flushRunsStep(tok, authRetried) {
       var q = getRunQueue();
       if (!q.length) return Promise.resolve(null);
-      var now = Date.now();
-      if (now < P.nextRunAt) {
-        scheduleRetry(P.nextRunAt - now);
-        return Promise.resolve(null);
-      }
       var head = q[0];
       var body = {
         runId: head.runId,
@@ -5062,25 +5053,28 @@
           return null;
         }
         if (res.status === 429 || res.data && res.data.error === "RATE_LIMIT") {
-          P.nextRunAt = Date.now() + RATE_RETRY_MS;
-          scheduleRetry(RATE_RETRY_MS);
+          markRun(head, "FAST");
+          scheduleRetry(P.backoffMs);
           return null;
         }
         if (res.status === 400) {
-          var dropped = getRunQueue();
-          dropped.shift();
+          var dropped = getRunQueue().filter(function(x) {
+            return x && x.runId !== head.runId;
+          });
           setRunQueue(dropped);
+          if (P.profile) applyProfile(P.profile, worldOf(head), 0, "REJECTED");
+          else markRun(head, "REJECTED");
+          if (head && head.runId) delete runRefs[head.runId];
           return dropped.length ? flushRunsStep(tok, authRetried) : null;
         }
         if (!handleStatus(res)) {
+          markRun(head, "OFFLINE");
           var wait = P.backoffMs;
           P.backoffMs = Math.min(6e4, P.backoffMs * 2);
           scheduleRetry(wait);
           return null;
         }
         P.backoffMs = 5e3;
-        P.lastFinishOkAt = Date.now();
-        P.nextRunAt = P.lastFinishOkAt + FINISH_COOLDOWN_MS;
         var curQ = getRunQueue();
         if (curQ.length && curQ[0].runId === head.runId) curQ.shift();
         else curQ = curQ.filter(function(x) {
@@ -5088,8 +5082,10 @@
         });
         setRunQueue(curQ);
         P.st = "ready";
-        applyProfile(res.data.profile, head._wRef, res.data.awarded);
-        if (curQ.length) scheduleRetry(FINISH_COOLDOWN_MS);
+        var done = worldOf(head);
+        if (head && head.runId) delete runRefs[head.runId];
+        applyProfile(res.data.profile, done, res.data.awarded, res.data.limited || "");
+        if (curQ.length) return flushRunsStep(tok, authRetried);
         return res.data;
       });
     }
@@ -5106,6 +5102,7 @@
       return ready.then(function(t) {
         if (!t) {
           if (getRunQueue().length || getPendingBuys().length) {
+            markQueued("OFFLINE");
             var wait = P.backoffMs;
             P.backoffMs = Math.min(6e4, P.backoffMs * 2);
             scheduleRetry(wait);
@@ -5174,13 +5171,7 @@
       q.push(item);
       setRunQueue(q);
       return enqueue(function() {
-        var cur = getRunQueue();
-        for (var i = 0; i < cur.length; i++) {
-          if (cur[i].runId === item.runId) {
-            cur[i]._wRef = worldRef;
-            break;
-          }
-        }
+        if (worldRef) runRefs[item.runId] = worldRef;
         return flushAll(true);
       });
     };
@@ -5221,7 +5212,8 @@
     P.getToken = getToken;
     P.apiOrigin = apiOrigin;
     P.computeAward = computeAward;
-    P.noteAward = noteAward;
+    P.noteAward = function() {
+    };
     P.pendingBuyKeys = pendingBuyKeys;
     P.getState = function() {
       var prof = P.profile;
@@ -5694,9 +5686,9 @@
       var mtr = metersOf(me);
       var runC = world.runCoins || 0;
       var bonC = world.bonusCoins || 0;
-      world.earnH = Math.floor(Math.max(0, Math.min(2e4, mtr)) / 25);
-      world.earnC = Math.max(0, Math.min(80, runC)) + Math.max(0, Math.min(40, bonC));
-      var plan = typeof PROFILE !== "undefined" && PROFILE && PROFILE.computeAward ? PROFILE.computeAward(mtr, runC, bonC) : { awarded: Math.max(0, Math.min(200, world.earnH + world.earnC)), want: world.earnH + world.earnC, limited: "" };
+      var plan = typeof PROFILE !== "undefined" && PROFILE && PROFILE.computeAward ? PROFILE.computeAward(mtr, runC, bonC) : { awarded: (mtr >= 100 ? Math.floor(Math.max(0, Math.min(2e4, mtr)) / 25) : 0) + Math.max(0, runC) + Math.max(0, bonC), limited: mtr < 100 ? "HEIGHT_MIN" : "" };
+      world.earnH = mtr >= 100 ? Math.floor(Math.max(0, Math.min(2e4, mtr)) / 25) : 0;
+      world.earnC = Math.max(0, plan.awarded - world.earnH);
       world.earned = plan.awarded;
       world.limited = plan.limited || "";
       world.coinFrom = save.coins;
@@ -5711,7 +5703,6 @@
       world.best = save.best;
       writeSave(save);
       if (typeof PROFILE !== "undefined" && PROFILE) {
-        if (PROFILE.noteAward) PROFILE.noteAward(world.earned);
         if (mtr > 0 || runC > 0 || bonC > 0) {
           PROFILE.finishRun(mtr, runC, bonC, world, {
             mode: world.net ? "online" : mode,
@@ -6862,6 +6853,17 @@
       for (var i = 0; i < CHARS.length; i++) if (!heroOwned(i)) return { i, H: CHARS[i], left: Math.max(0, CHARS[i].price - save.coins) };
       return null;
     }
+    function limitLabel(code) {
+      if (code === "HEIGHT_MIN") return "\u0417\u0410 \u0412\u042B\u0421\u041E\u0422\u0423 \xB7 \u0421 100 \u041C";
+      if (code === "HEIGHT_CAP") return "\u0412\u042B\u0421\u041E\u0422\u0410 \u0421\u0420\u0415\u0417\u0410\u041D\u0410";
+      if (code === "COINS_CAP") return "\u041C\u041E\u041D\u0415\u0422\u042B \u0421\u0420\u0415\u0417\u0410\u041D\u042B";
+      if (code === "BONUS_CAP") return "\u0411\u041E\u041D\u0423\u0421 \u0421\u0420\u0415\u0417\u0410\u041D";
+      if (code === "DUPLICATE") return "\u0423\u0416\u0415 \u0417\u0410\u0421\u0427\u0418\u0422\u0410\u041D";
+      if (code === "OFFLINE") return "\u041D\u0415\u0422 \u0421\u0415\u0422\u0418";
+      if (code === "FAST") return "\u0421\u041B\u0418\u0428\u041A\u041E\u041C \u0411\u042B\u0421\u0422\u0420\u041E";
+      if (code === "REJECTED") return "\u041D\u0415 \u041F\u0420\u0418\u041D\u042F\u0422\u041E";
+      return "";
+    }
     function drawResults() {
       hits = [];
       drawBg(ctx, world.cameraY, ui, world.map);
@@ -6907,7 +6909,8 @@
         }
       }
       var rec = save.mapBest[world.map] || world.best || 0;
-      box(ctx, x, y, 152, 56, C.navy, C.gold);
+      var note = limitLabel(world.limited);
+      box(ctx, x, y, 152, note ? 68 : 56, C.navy, C.gold);
       drawText(ctx, "\u0412\u042B\u0421\u041E\u0422\u0410 " + mtr + " \u041C", x + 6, y + 4, C.cream, 1, "left");
       coinsLabel(x + 146, y + 4, world.earnH || 0, "right");
       drawText(ctx, "\u0421\u041E\u0411\u0420\u0410\u041D\u041E", x + 6, y + 15, C.cream, 1, "left");
@@ -6921,7 +6924,8 @@
       var shownTot = (world.coinFrom != null ? world.coinFrom : save.coins - (world.earned || 0)) + shownEarn;
       if (k < 1 && ui % 4 === 0) hopSfx("tick");
       drawText(ctx, "+" + shownEarn + " \u2192 " + shownTot, LW / 2, y + 30, C.gold, 2, "center");
-      y += 60;
+      if (note) drawText(ctx, note, LW / 2, y + 48, C.cream, 1, "center");
+      y += note ? 72 : 60;
       if (world.net && typeof NET !== "undefined" && NET.drawEvening) y = NET.drawEvening(ctx, x, y);
       if (world.newBest) {
         box(ctx, x, y, 152, 13, C.navy, C.gold);
@@ -7105,7 +7109,7 @@
       say: function(s) {
         say(s);
       },
-      apply: function(prof, wRef, awarded, effectiveCoins) {
+      apply: function(prof, wRef, awarded, effectiveCoins, limited) {
         if (!prof) return;
         if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
         else if (typeof prof.coins === "number" && prof.coins >= 0) save.coins = prof.coins;
@@ -7128,6 +7132,7 @@
           wRef.earned = awarded;
           wRef.coinFrom = Math.max(0, save.coins - awarded);
           wRef.best = save.best;
+          if (typeof limited === "string") wRef.limited = limited;
         }
         writeSave(save);
       }

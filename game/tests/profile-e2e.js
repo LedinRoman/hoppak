@@ -186,50 +186,28 @@ async function admin(base, body) {
         window.__hoppak.profile.buySupported = null;
         await window.__hoppak.profile.flush();
       });
-      const midFlush = await pg.evaluate(() => ({
-        st: window.__hoppak.profile.getState(),
-        save: window.__hoppak.getSave(),
-      }));
-      // After buy (-80 => 50) + first queued run (+12 => 62), 1 run (+8) still in queue => effective save.coins = 70!
-      assert.strictEqual(midFlush.st.profile.coins, 62);
-      assert.strictEqual(midFlush.st.profile.purchases['map:jungle'], 1);
-      assert.strictEqual(midFlush.st.queueLen, 1);
-      assert.strictEqual(midFlush.save.coins, 70);
-
-      // Verify 429 RATE_LIMIT keeps item in queue, then after cooldown resets it flushes cleanly
-      await pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
-      assert.strictEqual((await pg.evaluate(() => window.__hoppak.profile.getState())).queueLen, 1);
-
-      await admin(base, { resetCooldown: true });
-      // Reload to clear nextRunAt client timer and flush remaining queued run cleanly
-      await pg.reload();
-      await sleep(500);
       const finalState = await pg.evaluate(() => ({
         st: window.__hoppak.profile.getState(),
         save: window.__hoppak.getSave(),
       }));
+      // Buy (-80 => 50) and both queued runs (+12 and +8) land in one flush. No 8s gap.
+      assert.strictEqual(finalState.st.profile.coins, 70);
+      assert.strictEqual(finalState.st.profile.purchases['map:jungle'], 1);
       assert.strictEqual(finalState.st.queueLen, 0);
       assert.strictEqual(finalState.st.pendingBuysLen, 0);
-      assert.strictEqual(finalState.st.profile.coins, 70);
       assert.strictEqual(finalState.save.coins, 70);
-      assert.strictEqual(finalState.st.profile.best, 200); // migrated under 2284797 (no best), then 200m synced under v06
-      assert.strictEqual(finalState.save.best, 240); // local best preserved monotonically
+      assert.strictEqual(finalState.st.profile.best, 200);
+      assert.strictEqual(finalState.save.best, 240);
 
-      // Finish one higher run (350m) -> updates server best=350 and local best=350
-      await admin(base, { resetCooldown: true });
-      await pg.evaluate(() => {
+      await pg.evaluate(async () => {
         const g = window.__hoppak;
         g.start('solo', 10, 'city');
         const w = g.getWorld();
         w.players[0].maxH = 350 * 8; // +14
         w.runCoins = 1; // +15 => 85
         g.forceResults();
+        await g.profile.flush();
       });
-      await sleep(300);
-      const queuedFast = await pg.evaluate(() => window.__hoppak.profile.getState());
-      assert.strictEqual(queuedFast.queueLen, 1); // client defers <8.2s finish instead of spamming 429
-      await pg.reload();
-      await sleep(500);
       const bestState = await pg.evaluate(() => window.__hoppak.profile.getState());
       assert.strictEqual(bestState.queueLen, 0);
       assert.strictEqual(bestState.profile.best, 350);
@@ -390,7 +368,7 @@ async function admin(base, body) {
       console.log('PASS 5c: 401 INVALID_INIT_DATA falls back to guest, no retry');
     }
 
-    // 6. Offline local payout respects 200/run and 400/hour caps
+    // 6. Height threshold, no per-run 200 cap, offline failure is labelled
     {
       await admin(base, { mode: '503', clearLog: true });
       const ctx = await browser.createBrowserContext();
@@ -401,34 +379,34 @@ async function admin(base, body) {
       await pg.evaluate(() => localStorage.clear());
       await pg.reload();
       await sleep(400);
-      const caps = await pg.evaluate(() => {
+      const caps = await pg.evaluate(async () => {
         const g = window.__hoppak;
-        const out = [];
-        function bigRun() {
-          g.start('solo', 1, 'city');
-          const w = g.getWorld();
-          w.players[0].maxH = 20000 * 8;
-          w.runCoins = 80;
-          w.bonusCoins = 40;
-          g.forceResults();
-          const save = g.getSave();
-          const world = g.getWorld();
-          out.push({ coins: save.coins, earned: world && world.earned, limited: world && world.limited });
-        }
-        bigRun();
-        bigRun();
-        bigRun();
-        return out;
+        const formula = {
+          low: g.profile.computeAward(99, 3, 0),
+          edge: g.profile.computeAward(100, 0, 0),
+          long: g.profile.computeAward(7500, 0, 0),
+          coins: g.profile.computeAward(100, 20000, 0),
+        };
+        g.start('solo', 1, 'city');
+        const w = g.getWorld();
+        w.players[0].maxH = 99 * 8;
+        w.runCoins = 3;
+        g.forceResults();
+        await g.profile.flush();
+        return { formula, earned: g.getWorld().earned, limited: g.getWorld().limited, coins: g.getSave().coins };
       });
-      assert.strictEqual(caps[0].earned, 200);
-      assert.strictEqual(caps[0].coins, 200);
-      assert.strictEqual(caps[1].earned, 200);
-      assert.strictEqual(caps[1].coins, 400);
-      assert.strictEqual(caps[2].earned, 0);
-      assert.strictEqual(caps[2].coins, 400);
-      assert.strictEqual(caps[2].limited, 'HOUR_CAP');
+      assert.strictEqual(caps.formula.low.awarded, 3);
+      assert.strictEqual(caps.formula.low.limited, 'HEIGHT_MIN');
+      assert.strictEqual(caps.formula.edge.awarded, 4);
+      assert.strictEqual(caps.formula.edge.limited, '');
+      assert.strictEqual(caps.formula.long.awarded, 300);
+      assert.strictEqual(caps.formula.coins.limited, 'COINS_CAP');
+      assert.strictEqual(caps.formula.coins.awarded, 4 + 15801);
+      assert.strictEqual(caps.earned, 3);
+      assert.strictEqual(caps.coins, 3);
+      assert.strictEqual(caps.limited, 'OFFLINE');
       await ctx.close();
-      console.log('PASS 6: offline payout caps 200/run and 400/hour');
+      console.log('PASS 6: height threshold, full long award, offline reason');
     }
 
     // 7. 400 from /buy rolls back optimistic owned flag and restores coins
@@ -469,6 +447,79 @@ async function admin(base, body) {
       assert.strictEqual(st.st.pendingBuysLen, 0);
       await ctx.close();
       console.log('PASS 7: 400 INSUFFICIENT_COINS rolls back optimistic owned');
+    }
+
+    // 8. Balance already >= 100, then a run like Roman's and eleven more, guest and Telegram.
+    {
+      async function series(label, origin, tg) {
+        const ctx = await browser.createBrowserContext();
+        const pg = await ctx.newPage();
+        pg.on('pageerror', (e) => errs.push(label + ' pageerror: ' + e.message));
+        if (tg) {
+          const initData = 'user=' + encodeURIComponent(JSON.stringify({ id: 7771, first_name: 'Roman' })) + '&auth_date=1&hash=00';
+          await pg.evaluateOnNewDocument((d) => { window.Telegram = { WebApp: { initData: d } }; }, initData);
+        }
+        await pg.goto(origin + '/index.html');
+        await settle(pg);
+        await pg.evaluate(() => {
+          localStorage.clear();
+          localStorage.setItem('hoppak_save', JSON.stringify({
+            v5: 1, coins: 100, best: 0, mapBest: { city: 0 },
+            owned: {}, char: 0, bg: 'city', sfx: true, vib: true
+          }));
+        });
+        await pg.reload();
+        await sleep(500);
+        await pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
+        const seeded = await pg.evaluate(() => window.__hoppak.profile.getState());
+        assert.strictEqual(seeded.st, 'ready', label + ' profile');
+        assert.strictEqual(seeded.profile.coins, 100, label + ' start coins');
+        if (tg) assert.strictEqual(String(seeded.profile.telegramId), '7771');
+        else assert.ok(!seeded.profile.telegramId);
+        await pg.evaluate(async () => {
+          const g = window.__hoppak;
+          function finish(h, coins) {
+            g.start('solo', 3, 'city');
+            const w = g.getWorld();
+            w.players[0].maxH = h * 8;
+            w.runCoins = coins;
+            w.bonusCoins = 0;
+            g.forceResults();
+          }
+          for (let i = 0; i < 10; i++) finish(2500, 0);
+          finish(7500, 0);
+          finish(100, 0);
+          finish(99, 5);
+          await g.profile.flush();
+        });
+        const last = await pg.evaluate(() => {
+          const st = window.__hoppak.profile.getState();
+          const w = window.__hoppak.getWorld();
+          return { q: st.queueLen, coins: st.profile && st.profile.coins, save: window.__hoppak.getSave().coins, earned: w && w.earned, limited: w && w.limited };
+        });
+        assert.strictEqual(last.q, 0, label + ' queue ' + JSON.stringify(last));
+        assert.strictEqual(last.coins, 1409, label + ' coins ' + JSON.stringify(last));
+        assert.strictEqual(last.save, 1409, label + ' save');
+        assert.strictEqual(last.earned, 5, label + ' 99m keeps pickup coins');
+        assert.strictEqual(last.limited, 'HEIGHT_MIN', label);
+        const tok = await pg.evaluate(() => window.__hoppak.profile.getToken());
+        const post = (runId) => fetch(origin + '/api/run/finish', {
+          method: 'POST',
+          headers: { authorization: 'Bearer ' + tok, 'content-type': 'application/json' },
+          body: JSON.stringify({ runId, height: 2500, runCoins: 0, bonusCoins: 0 }),
+        }).then((r) => r.json());
+        const first = await post(label + '-dup');
+        const again = await post(label + '-dup');
+        assert.strictEqual(first.awarded, 100, label + ' dup first');
+        assert.strictEqual(again.duplicate, true, label);
+        assert.strictEqual(again.limited, 'DUPLICATE');
+        assert.strictEqual(again.profile.coins, first.profile.coins);
+        await ctx.close();
+        console.log('PASS 8 ' + label + ': 10x100 + 300 + 4 + 5, duplicate ignored');
+      }
+      await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
+      await series('guest', base, false);
+      await series('telegram', base, true);
     }
 
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));

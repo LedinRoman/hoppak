@@ -11,21 +11,17 @@ var PROFILE: any = (function () {
   var QUEUE_KEY = "hoppak_profile_queue";
   var BUYS_KEY = "hoppak_profile_buys";
   var CACHE_KEY = "hoppak_profile_cache";
-  var HOUR_KEY = "hoppak_profile_hour";
   var REQ_MS = 5000;
-  var FINISH_COOLDOWN_MS = 8200;
-  var RATE_RETRY_MS = 8500;
-  var RUN_AWARD_MAX = 200;
-  var HOUR_AWARD_MAX = 400;
-  var HOUR_MS = 3600000;
+  var RUN_HEIGHT_MAX = 20000;
+  var RUN_COINS_MAX = 15801;
+  var RUN_BONUS_MAX = 2500;
+  var HEIGHT_AWARD_MIN = 100;
   var P: any = {
     st: "idle", /* idle | syncing | ready | offline | unavailable */
     profile: null as any,
     api: null as any,
     queue: null as any,
     buySupported: null as any, /* null = unknown | true | false (404 on 2284797) */
-    lastFinishOkAt: 0,
-    nextRunAt: 0,
     backoffMs: 5000,
     retryTimer: 0,
     onlineBound: false,
@@ -107,37 +103,21 @@ var PROFILE: any = (function () {
     return tot;
   }
 
-  function estRunAward(height: number, runCoins: number, bonusCoins: number): number {
-    var h = Math.max(0, Math.min(20000, Math.floor(Number(height) || 0)));
-    var c = Math.max(0, Math.min(80, Math.floor(Number(runCoins) || 0)));
-    var b = Math.max(0, Math.min(40, Math.floor(Number(bonusCoins) || 0)));
-    return Math.max(0, Math.min(RUN_AWARD_MAX, Math.floor(h / 25) + c + b));
-  }
-
-  function hourState(): any {
-    var now = Date.now();
-    var s = readJson(HOUR_KEY, null);
-    if (!s || typeof s !== "object" || !s.startedAt || now - s.startedAt >= HOUR_MS) {
-      s = { startedAt: now, awarded: 0 };
-      writeJson(HOUR_KEY, s);
-    }
-    return s;
-  }
-
   function computeAward(height: number, runCoins: number, bonusCoins: number): any {
-    var want = estRunAward(height, runCoins, bonusCoins);
-    var hs = hourState();
-    var room = Math.max(0, HOUR_AWARD_MAX - Math.max(0, Math.floor(Number(hs.awarded) || 0)));
-    var awarded = Math.min(want, room);
-    return { want: want, awarded: awarded, limited: awarded < want ? "HOUR_CAP" : "" };
-  }
-
-  function noteAward(awarded: number) {
-    var n = Math.max(0, Math.floor(Number(awarded) || 0));
-    if (!n) return;
-    var hs = hourState();
-    hs.awarded = Math.max(0, Math.floor(Number(hs.awarded) || 0)) + n;
-    writeJson(HOUR_KEY, hs);
+    var rawH = Math.max(0, Math.floor(Number(height) || 0));
+    var rawC = Math.max(0, Math.floor(Number(runCoins) || 0));
+    var rawB = Math.max(0, Math.floor(Number(bonusCoins) || 0));
+    var h = Math.min(rawH, RUN_HEIGHT_MAX);
+    var c = Math.min(rawC, RUN_COINS_MAX);
+    var b = Math.min(rawB, RUN_BONUS_MAX);
+    var heightPay = h >= HEIGHT_AWARD_MIN ? Math.floor(h / 25) : 0;
+    var limited = "";
+    if (rawH > RUN_HEIGHT_MAX) limited = "HEIGHT_CAP";
+    else if (rawC > RUN_COINS_MAX) limited = "COINS_CAP";
+    else if (rawB > RUN_BONUS_MAX) limited = "BONUS_CAP";
+    else if (h < HEIGHT_AWARD_MIN) limited = "HEIGHT_MIN";
+    var awarded = heightPay + c + b;
+    return { want: awarded, awarded: awarded, limited: limited };
   }
 
   function pendingBuyKeys(): any {
@@ -281,13 +261,13 @@ var PROFILE: any = (function () {
     });
   }
 
-  function applyProfile(prof: any, wRef?: any, awarded?: number) {
+  function applyProfile(prof: any, wRef?: any, awarded?: number, limited?: string) {
     if (!prof) return;
     P.profile = prof;
     writeJson(CACHE_KEY, prof);
     pruneConfirmedBuys(prof);
     var effectiveCoins = Math.max(0, (prof.coins || 0) - pendingSpend()) + queuedEst();
-    if (P.api && P.api.apply) P.api.apply(prof, wRef, awarded, effectiveCoins);
+    if (P.api && P.api.apply) P.api.apply(prof, wRef, awarded, effectiveCoins, limited);
   }
 
   function handleStatus(res: any): boolean {
@@ -391,14 +371,23 @@ var PROFILE: any = (function () {
     });
   }
 
+  var runRefs: any = {};
+  function worldOf(head: any) {
+    if (!head) return null;
+    return head._wRef || runRefs[head.runId] || null;
+  }
+  function markRun(head: any, code: string) {
+    var w = worldOf(head);
+    if (w) w.limited = code;
+  }
+  function markQueued(code: string) {
+    var q = getRunQueue();
+    for (var i = 0; i < q.length; i++) markRun(q[i], code);
+  }
+
   function flushRunsStep(tok: string, authRetried?: boolean): Promise<any> {
     var q = getRunQueue();
     if (!q.length) return Promise.resolve(null);
-    var now = Date.now();
-    if (now < P.nextRunAt) {
-      scheduleRetry(P.nextRunAt - now);
-      return Promise.resolve(null);
-    }
     var head = q[0];
     var body: any = {
       runId: head.runId,
@@ -422,32 +411,35 @@ var PROFILE: any = (function () {
         return null;
       }
       if (res.status === 429 || (res.data && res.data.error === "RATE_LIMIT")) {
-        P.nextRunAt = Date.now() + RATE_RETRY_MS;
-        scheduleRetry(RATE_RETRY_MS);
+        markRun(head, "FAST");
+        scheduleRetry(P.backoffMs);
         return null;
       }
       if (res.status === 400) {
-        var dropped = getRunQueue();
-        dropped.shift();
+        var dropped = getRunQueue().filter(function (x: any) { return x && x.runId !== head.runId; });
         setRunQueue(dropped);
+        if (P.profile) applyProfile(P.profile, worldOf(head), 0, "REJECTED");
+        else markRun(head, "REJECTED");
+        if (head && head.runId) delete runRefs[head.runId];
         return dropped.length ? flushRunsStep(tok, authRetried) : null;
       }
       if (!handleStatus(res)) {
+        markRun(head, "OFFLINE");
         var wait = P.backoffMs;
         P.backoffMs = Math.min(60000, P.backoffMs * 2);
         scheduleRetry(wait);
         return null;
       }
       P.backoffMs = 5000;
-      P.lastFinishOkAt = Date.now();
-      P.nextRunAt = P.lastFinishOkAt + FINISH_COOLDOWN_MS;
       var curQ = getRunQueue();
       if (curQ.length && curQ[0].runId === head.runId) curQ.shift();
       else curQ = curQ.filter(function (x: any) { return x && x.runId !== head.runId; });
       setRunQueue(curQ);
       P.st = "ready";
-      applyProfile(res.data.profile, head._wRef, res.data.awarded);
-      if (curQ.length) scheduleRetry(FINISH_COOLDOWN_MS);
+      var done = worldOf(head);
+      if (head && head.runId) delete runRefs[head.runId];
+      applyProfile(res.data.profile, done, res.data.awarded, res.data.limited || "");
+      if (curQ.length) return flushRunsStep(tok, authRetried);
       return res.data;
     });
   }
@@ -463,6 +455,7 @@ var PROFILE: any = (function () {
     return ready.then(function (t: string) {
       if (!t) {
         if (getRunQueue().length || getPendingBuys().length) {
+          markQueued("OFFLINE");
           var wait = P.backoffMs;
           P.backoffMs = Math.min(60000, P.backoffMs * 2);
           scheduleRetry(wait);
@@ -529,10 +522,7 @@ var PROFILE: any = (function () {
     setRunQueue(q);
     /* Attach transient ref only on in-memory handoff for results screen coin roll-up */
     return enqueue(function () {
-      var cur = getRunQueue();
-      for (var i = 0; i < cur.length; i++) {
-        if (cur[i].runId === item.runId) { cur[i]._wRef = worldRef; break; }
-      }
+      if (worldRef) runRefs[item.runId] = worldRef;
       return flushAll(true);
     });
   };
@@ -566,7 +556,7 @@ var PROFILE: any = (function () {
   P.getToken = getToken;
   P.apiOrigin = apiOrigin;
   P.computeAward = computeAward;
-  P.noteAward = noteAward;
+  P.noteAward = function () {};
   P.pendingBuyKeys = pendingBuyKeys;
   P.getState = function () {
     var prof = P.profile;
