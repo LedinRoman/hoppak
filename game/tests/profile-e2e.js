@@ -812,6 +812,88 @@ async function admin(base, body) {
       console.log('PASS 10: two devices share one profile, max records, server coins');
     }
 
+    // 11. Prod page: guests never touch telegram.org; a Mini App hash + mock SDK still links.
+    {
+      const mockSdk = [
+        '(function () {',
+        '  var q = String(location.hash || "").replace(/^#/, "");',
+        '  var params = new URLSearchParams(q);',
+        '  var data = params.get("tgWebAppData") || "";',
+        '  var user = null;',
+        '  try { user = JSON.parse(new URLSearchParams(data).get("user") || "null"); } catch (e) {}',
+        '  window.Telegram = { WebApp: {',
+        '    initData: data,',
+        '    initDataUnsafe: { user: user },',
+        '    ready: function () {}, expand: function () {},',
+        '    onEvent: function () {}, offEvent: function () {},',
+        '    BackButton: { isVisible: false, onClick: function () {} }',
+        '  } };',
+        '})();',
+      ].join('\n');
+
+      await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
+      const ctxA = await browser.createBrowserContext();
+      const a = await ctxA.newPage();
+      a.on('pageerror', (e) => errs.push('tgboot-a pageerror: ' + e.message));
+      const hitsA = [];
+      a.on('request', (rq) => { if (/telegram\.org/i.test(rq.url())) hitsA.push(rq.url()); });
+      const t0 = Date.now();
+      await a.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
+      const guest = await a.evaluate(async () => {
+        const ready = await Promise.race([
+          window.__tgReady,
+          new Promise(function (r) { setTimeout(function () { r('timeout'); }, 50); }),
+        ]);
+        await window.__hoppak.profile.flush();
+        const st = window.__hoppak.profile.getState();
+        return { ready: ready, st: st.st, tg: st.telegramId || (st.profile && st.profile.telegramId) || null };
+      });
+      assert.strictEqual(hitsA.length, 0, 'browser guest must not request telegram.org: ' + hitsA.join(' '));
+      assert.strictEqual(guest.ready, false);
+      assert.strictEqual(guest.st, 'ready');
+      assert.ok(!guest.tg, 'guest must stay unlinked ' + JSON.stringify(guest));
+      assert.ok(Date.now() - t0 < 3000, 'guest start waited on the SDK');
+      await ctxA.close();
+      console.log('PASS 11a: prod page without tgWebApp stays a guest and skips telegram.org');
+
+      const initData = 'user=' + encodeURIComponent(JSON.stringify({ id: 9091, first_name: 'Roman' })) + '&auth_date=1&hash=00';
+      await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
+      const ctxB = await browser.createBrowserContext();
+      const b = await ctxB.newPage();
+      b.on('pageerror', (e) => errs.push('tgboot-b pageerror: ' + e.message));
+      const hitsB = [];
+      await b.setRequestInterception(true);
+      b.on('request', (rq) => {
+        const u = rq.url();
+        if (/telegram\.org/i.test(u)) {
+          hitsB.push(u);
+          if (/telegram-web-app\.js/.test(u)) {
+            rq.respond({ status: 200, contentType: 'application/javascript', body: mockSdk });
+          } else rq.abort();
+          return;
+        }
+        rq.continue();
+      });
+      await b.goto(base + '/index.html#tgWebAppData=' + encodeURIComponent(initData), { waitUntil: 'domcontentloaded' });
+      const linked = await b.evaluate(async () => {
+        const ready = await Promise.race([
+          window.__tgReady,
+          new Promise(function (r) { setTimeout(function () { r('timeout'); }, 2000); }),
+        ]);
+        await window.__hoppak.profile.flush();
+        const st = window.__hoppak.profile.getState();
+        return { ready: ready, st: st.st, tg: String(st.telegramId || (st.profile && st.profile.telegramId) || '') };
+      });
+      assert.ok(hitsB.some((u) => /telegram-web-app\.js/.test(u)), 'hash must load the SDK');
+      assert.strictEqual(linked.ready, true);
+      assert.strictEqual(linked.st, 'ready');
+      assert.strictEqual(linked.tg, '9091', JSON.stringify(linked));
+      const logB = await (await fetch(base + '/__mock/log')).json();
+      assert.strictEqual(logB.log.filter((x) => x.path === '/api/auth/telegram').length, 1);
+      await ctxB.close();
+      console.log('PASS 11b: #tgWebAppData plus mock SDK runs Telegram auth');
+    }
+
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));
     console.log('ALL CLIENT PROFILE E2E TESTS PASS');
   } finally {

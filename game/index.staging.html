@@ -36,21 +36,7 @@
 </head>
 <body>
   <div id="wrap"><canvas id="c" tabindex="0"></canvas><div id="desk-hint" style="display:none;position:fixed;bottom:6px;left:0;right:0;text-align:center;font:600 11px/1 monospace;color:#9a8ab8;letter-spacing:0.4px;pointer-events:none;">← → / A D — движение · ↑ / Пробел — способность · Esc — пауза</div></div>
-  <script>
-    /* Telegram SDK loads async so a slow telegram.org does not block first paint.
-       window.__tgReady resolves when the SDK loads, fails, or after 4 s. */
-    (function () {
-      var done, p = new Promise(function (r) { done = r; });
-      window.__tgReady = p;
-      var s = document.createElement("script");
-      s.src = "https://telegram.org/js/telegram-web-app.js";
-      s.async = true;
-      s.onload = function () { try { window.Telegram && Telegram.WebApp && Telegram.WebApp.ready(); } catch (e) {} done(true); };
-      s.onerror = function () { done(false); };
-      setTimeout(function () { done(false); }, 4000);
-      document.head.appendChild(s);
-    })();
-  </script>
+  <script src="tg-boot.js"></script>
   <script src="hoppak.js"></script>
 </body>
 </html>

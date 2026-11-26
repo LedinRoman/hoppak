@@ -57,7 +57,7 @@ if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
   DEFS="--define:HOP_SERVER=\"${SITE_ORIGIN}\""
   HTML_SRC="index.html"
   if [ -n "${HOP_API:-}" ]; then DEFS="${DEFS} --define:HOP_API=\"${HOP_API}\""; fi
-  # Staging (/v/0.6rc/) is the only build that loads telegram-web-app.js and the alpha toggle.
+  # tg-boot.js loads telegram.org only inside Telegram. HOP_STAGING is the alpha toggle, not login.
   # The visible label is v0.6 on the prod page and v0.6rc on staging. Room admission
   # stays NET_GEN ("0.6") and NET_PROTO (1); this label is not that check.
   VER_LABEL="v0.6"
@@ -82,6 +82,7 @@ print("site js", Path("site/hoppak.js").stat().st_size, "bytes")
 PY
   # fix the printed origin (the heredoc was unquoted wrongly for the env var)
   echo "site origin ${SITE_ORIGIN}"
+  cp tg-boot.js site/tg-boot.js
   rm -rf site/audio
   mkdir -p site/audio
   cp -R audio/. site/audio/
