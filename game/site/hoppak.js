@@ -1,4 +1,4 @@
-/* Хоппак v0.59 site — HOP_SERVER baked in, do not edit */
+/* Хоппак v0.6rc site — HOP_SERVER baked in, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;
@@ -26,6 +26,7 @@
     rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col);
   }
   var PX_PER_M = 8;
+  var REMOTE_ALPHA = 0.8;
   var PW = 12;
   var PH = 16;
   var GRAVITY = 0.19;
@@ -70,12 +71,12 @@
     roof: "#342a4e"
   };
   var CHARS = [
-    { id: "pilot", name: "\u041A\u0430\u043F\u0438\u0442\u0430\u043D", hood: "#2c3a5c", price: 0, ab: "dash", abName: "\u0420\u042B\u0412\u041E\u041A", type: "\u0411\u0410\u0417\u041E\u0412\u042B\u0419", abDesc: ["\u041A\u041E\u0420\u041E\u0422\u041A\u0418\u0419 \u0411\u042B\u0421\u0422\u0420\u042B\u0419", "\u0412\u0417\u041B\u0401\u0422 \u041D\u0410 \u0420\u0410\u041D\u0426\u0415"], charge: "time", need: 250 },
+    { id: "pilot", name: "\u041A\u0430\u043F\u0438\u0442\u0430\u043D", hood: "#2c3a5c", price: 0, ab: "dash", abName: "\u0420\u042B\u0412\u041E\u041A", type: "\u0411\u0410\u0417\u041E\u0412\u042B\u0419", abDesc: ["\u041A\u041E\u0420\u041E\u0422\u041A\u0418\u0419 \u0411\u042B\u0421\u0422\u0420\u042B\u0419", "\u0412\u0417\u041B\u0401\u0422 \u041D\u0410 \u0420\u0410\u041D\u0426\u0415"], charge: "time", need: 400 },
     { id: "pirate", name: "\u041F\u0438\u0440\u0430\u0442", hood: "#a8282c", price: 150, ab: "hook", abName: "\u041A\u0420\u042E\u041A", type: "\u041C\u0410\u041D\u0401\u0412\u0420", abDesc: ["\u041A\u0420\u042E\u041A \u041A \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0415", "\u0418\u041B\u0418 \u041C\u041E\u041D\u0415\u0422\u0415, \u0411\u042C\u0401\u0422 \u041C\u041E\u0411\u041E\u0412"], charge: "time", need: 400 },
     { id: "ninja", name: "\u041D\u0438\u043D\u0434\u0437\u044F", hood: "#26305a", price: 200, ab: "wall", abName: "\u0421\u0422\u0415\u041D\u042B", type: "\u041F\u0410\u0420\u041A\u0423\u0420", abDesc: ["6 \u0421\u0415\u041A \u0426\u0415\u041F\u041B\u042F\u0415\u0422\u0421\u042F \u0417\u0410 \u041A\u0420\u0410\u0419,", "\u0422\u0410\u041F - \u041F\u0420\u042B\u0416\u041E\u041A \u041E\u0422 \u0421\u0422\u0415\u041D\u042B"], charge: "time", need: 500 },
     { id: "robot", name: "\u0420\u043E\u0431\u043E\u0442", hood: "#d8dce8", price: 240, ab: "dome", abName: "\u041A\u041E\u0421\u041C\u041E\u0429\u0418\u0422", type: "\u0417\u0410\u0429\u0418\u0422\u0410", abDesc: ["\u0429\u0418\u0422 4 \u0421\u0415\u041A, \u0421\u041F\u0410\u0421\u0401\u0422", "\u041E\u0422 \u041F\u0410\u0414\u0415\u041D\u0418\u042F"], charge: "height", need: 200 },
-    { id: "mage", name: "\u041C\u0430\u0433", hood: "#7a3ac8", price: 280, ab: "tele", abName: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", type: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", abDesc: ["\u041C\u0418\u0413\u041E\u041C \u041D\u0410 \u041D\u0410\u0414\u0401\u0416\u041D\u0423\u042E", "\u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0423 \u0412\u042B\u0428\u0415"], charge: "coins", need: 12 },
-    { id: "knight", name: "\u0420\u044B\u0446\u0430\u0440\u044C", hood: "#c02a2a", price: 320, ab: "pound", abName: "\u0422\u0410\u0420\u0410\u041D", type: "\u0410\u0422\u0410\u041A\u0410", abDesc: ["\u041F\u0418\u041A\u0415 \u0429\u0418\u0422\u041E\u041C \u0412\u041D\u0418\u0417,", "\u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u0421\u0423\u041F\u0415\u0420\u041F\u0420\u042B\u0416\u041E\u041A"], charge: "kills", need: 2 }
+    { id: "mage", name: "\u041C\u0430\u0433", hood: "#7a3ac8", price: 280, ab: "tele", abName: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", type: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", abDesc: ["\u041C\u0418\u0413\u041E\u041C \u041D\u0410 \u041D\u0410\u0414\u0401\u0416\u041D\u0423\u042E", "\u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0423 \u0412\u042B\u0428\u0415"], charge: "coins", need: 5 },
+    { id: "knight", name: "\u0420\u044B\u0446\u0430\u0440\u044C", hood: "#c02a2a", price: 320, ab: "pound", abName: "\u0422\u0410\u0420\u0410\u041D", type: "\u0410\u0422\u0410\u041A\u0410", abDesc: ["\u041F\u0418\u041A\u0415 \u0429\u0418\u0422\u041E\u041C \u0412\u041D\u0418\u0417,", "\u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u0421\u0423\u041F\u0415\u0420\u041F\u0420\u042B\u0416\u041E\u041A"], charge: "kills", need: 1 }
   ];
   var SPR_CW = 36;
   var SPR_CH = 32;
@@ -388,6 +389,32 @@
     "7": [31, 1, 2, 4, 8, 8, 8],
     "8": [14, 17, 17, 14, 17, 17, 14],
     "9": [14, 17, 17, 15, 1, 1, 14],
+    "A": [14, 17, 17, 31, 17, 17, 17],
+    "B": [30, 17, 17, 30, 17, 17, 30],
+    "C": [14, 17, 16, 16, 16, 17, 14],
+    "D": [30, 17, 17, 17, 17, 17, 30],
+    "E": [31, 16, 16, 30, 16, 16, 31],
+    "F": [31, 16, 16, 30, 16, 16, 16],
+    "G": [14, 17, 16, 23, 17, 17, 14],
+    "H": [17, 17, 17, 31, 17, 17, 17],
+    "I": [14, 4, 4, 4, 4, 4, 14],
+    "J": [7, 2, 2, 2, 18, 18, 12],
+    "K": [17, 18, 20, 24, 20, 18, 17],
+    "L": [16, 16, 16, 16, 16, 16, 31],
+    "M": [17, 27, 21, 21, 17, 17, 17],
+    "N": [17, 25, 21, 19, 17, 17, 17],
+    "O": [14, 17, 17, 17, 17, 17, 14],
+    "P": [30, 17, 17, 30, 16, 16, 16],
+    "Q": [14, 17, 17, 17, 21, 18, 13],
+    "R": [30, 17, 17, 30, 20, 18, 17],
+    "S": [14, 17, 16, 14, 1, 17, 14],
+    "T": [31, 4, 4, 4, 4, 4, 4],
+    "U": [17, 17, 17, 17, 17, 17, 14],
+    "V": [17, 17, 17, 17, 17, 10, 4],
+    "W": [17, 17, 17, 21, 21, 27, 17],
+    "X": [17, 17, 10, 4, 10, 17, 17],
+    "Y": [17, 17, 10, 4, 4, 4, 4],
+    "Z": [31, 1, 2, 4, 8, 16, 31],
     " ": [0, 0, 0, 0, 0, 0, 0],
     ".": [0, 0, 0, 0, 0, 12, 12],
     ":": [0, 12, 12, 0, 12, 12, 0],
@@ -533,6 +560,15 @@
     if (!s.seen || typeof s.seen !== "object") s.seen = {};
     sfxOn = !!s.sfx;
     vibOn = !!s.vib;
+    if (typeof s.sfxVol !== "number") s.sfxVol = 0.8;
+    s.sfxVol = clamp(s.sfxVol, 0, 1);
+    if (typeof s.music !== "number") s.music = 0.55;
+    s.music = clamp(s.music, 0, 1);
+    if (s.musicOn !== false) s.musicOn = true;
+    else s.musicOn = false;
+    sfxVol = s.sfxVol;
+    musicVol = s.music;
+    musicOn = !!s.musicOn;
     return s;
   }
   function writeSave(s) {
@@ -541,20 +577,62 @@
   var audioCtx = null;
   var sfxOn = true;
   var vibOn = true;
+  var sfxVol = 0.8;
+  var musicOn = true;
+  var musicVol = 0.55;
+  var audioUnlocked = false;
+  var audioExt = "";
+  var sfxPool = {};
+  var sfxCursor = {};
+  var SFX_GAIN = { jump: 0.32, coin: 0.7, bonus: 0.75, shield: 0.7, death: 0.8, warn: 0.5, deny: 0.48, tick: 0.22, hit: 0.6 };
+  var MUSIC_TRACKS = {
+    hush: { ogg: "audio/hush.ogg", mp3: "audio/hush.mp3" }
+  };
+  var MUSIC_CUES = [
+    { track: "hush", screens: ["*"], maps: ["*"] }
+  ];
+  var musicDeck = [null, null];
+  var musicIdx = 0;
+  var musicCur = "";
+  var musicFade = null;
   function audioUnlock() {
+    audioUnlocked = true;
     try {
       var AC = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
-      if (!AC) return;
-      if (!audioCtx) audioCtx = new AC();
-      if (audioCtx.state === "suspended") audioCtx.resume();
+      if (AC) {
+        if (!audioCtx) audioCtx = new AC();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+      }
     } catch (_e) {
     }
+    hopMusic(musicCur || musicCue("menu", "city"));
   }
   function hopVib(ms) {
     if (!vibOn) return;
     try {
       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms);
     } catch (_e) {
+    }
+  }
+  function pickAudioExt() {
+    if (audioExt) return audioExt;
+    audioExt = "mp3";
+    try {
+      var a = typeof document !== "undefined" && document.createElement("audio");
+      if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"')) audioExt = "ogg";
+    } catch (_e) {
+    }
+    return audioExt;
+  }
+  function makeAudio(src) {
+    try {
+      if (typeof Audio === "undefined") return null;
+      var a = new Audio();
+      a.preload = "none";
+      a.src = src;
+      return a;
+    } catch (_e) {
+      return null;
     }
   }
   function beep(freq, dur, vol, type, slide) {
@@ -565,7 +643,7 @@
       osc.frequency.setValueAtTime(freq, t0);
       if (slide) osc.frequency.linearRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
       g.gain.setValueAtTime(1e-4, t0);
-      g.gain.exponentialRampToValueAtTime(vol, t0 + 8e-3);
+      g.gain.exponentialRampToValueAtTime(Math.max(2e-4, vol * sfxVol), t0 + 8e-3);
       g.gain.exponentialRampToValueAtTime(1e-4, t0 + dur);
       osc.connect(g);
       g.connect(audioCtx.destination);
@@ -575,31 +653,124 @@
     }
   }
   function hopSfx(kind) {
-    if (!sfxOn) return;
-    audioUnlock();
-    if (!audioCtx) return;
-    if (kind === "jump") {
-      beep(200 + Math.random() * 36, 0.045, 0.045, "sine", 40);
-    } else if (kind === "coin") {
+    if (!sfxOn || sfxVol <= 0) return;
+    if (kind === "bonus") hopVib(18);
+    else if (kind === "hit") hopVib(30);
+    else if (kind === "death") hopVib([40, 40, 60]);
+    else if (kind === "deny") hopVib(12);
+    if (!audioUnlocked) return;
+    var ext = pickAudioExt();
+    var pool = sfxPool[kind];
+    if (!pool) {
+      pool = [];
+      sfxPool[kind] = pool;
+      sfxCursor[kind] = 0;
+      for (var i = 0; i < 3; i++) {
+        var el = makeAudio("audio/" + kind + "." + ext);
+        if (el) pool.push(el);
+      }
+    }
+    if (!pool.length) {
+      beepFallback(kind);
+      return;
+    }
+    var n = sfxCursor[kind] % pool.length;
+    sfxCursor[kind] = n + 1;
+    var node = pool[n];
+    try {
+      node.volume = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
+      node.currentTime = 0;
+      var p = node.play();
+      if (p && p.catch) p.catch(function() {
+        beepFallback(kind);
+      });
+    } catch (_e) {
+      beepFallback(kind);
+    }
+  }
+  function beepFallback(kind) {
+    if (kind === "jump") beep(200, 0.045, 0.045, "sine", 40);
+    else if (kind === "coin") {
       beep(880, 0.04, 0.05, "square");
       beep(1170, 0.06, 0.04, "square");
-    } else if (kind === "bonus") {
-      beep(520, 0.06, 0.06, "triangle", 200);
-      beep(780, 0.1, 0.05, "triangle");
-      hopVib(18);
-    } else if (kind === "hit") {
-      beep(140, 0.1, 0.08, "sawtooth", -80);
-      hopVib(30);
-    } else if (kind === "death") {
-      beep(220, 0.22, 0.08, "sawtooth", -160);
-      hopVib([40, 40, 60]);
-    } else if (kind === "warn") {
-      beep(160, 0.08, 0.05, "square", -20);
-    } else if (kind === "deny") {
-      beep(110, 0.07, 0.05, "square");
-      hopVib(12);
-    } else if (kind === "tick") {
-      beep(940, 0.02, 0.03, "square");
+    } else if (kind === "bonus" || kind === "shield") beep(520, 0.06, 0.06, "triangle", 200);
+    else if (kind === "hit") beep(140, 0.1, 0.08, "sawtooth", -80);
+    else if (kind === "death") beep(220, 0.22, 0.08, "sawtooth", -160);
+    else if (kind === "warn") beep(160, 0.08, 0.05, "square", -20);
+    else if (kind === "deny") beep(110, 0.07, 0.05, "square");
+    else if (kind === "tick") beep(940, 0.02, 0.03, "square");
+  }
+  function musicCue(screen, map) {
+    for (var i = 0; i < MUSIC_CUES.length; i++) {
+      var c = MUSIC_CUES[i];
+      var scr = c.screens || ["*"];
+      var maps = c.maps || ["*"];
+      if ((scr.indexOf("*") >= 0 || scr.indexOf(screen) >= 0) && (maps.indexOf("*") >= 0 || maps.indexOf(map) >= 0)) return c.track;
+    }
+    return "";
+  }
+  function musicSrc(id) {
+    var t = MUSIC_TRACKS[id];
+    if (!t) return "";
+    return pickAudioExt() === "ogg" ? t.ogg : t.mp3;
+  }
+  function musicTarget() {
+    return musicOn && musicVol > 0 ? musicVol : 0;
+  }
+  function hopMusic(id) {
+    if (!audioUnlocked || typeof Audio === "undefined") {
+      musicCur = id || "";
+      return;
+    }
+    var want = musicOn && musicVol > 0 ? id || "" : "";
+    if (want === musicCur && (musicDeck[musicIdx] || !want)) {
+      var live = musicDeck[musicIdx];
+      if (live) live.volume = musicTarget();
+      return;
+    }
+    var prev = musicDeck[musicIdx];
+    var nextI = 1 - musicIdx;
+    var nxt = musicDeck[nextI];
+    if (want) {
+      var src = musicSrc(want);
+      if (!nxt || nxt.getAttribute("data-src") !== src) {
+        nxt = makeAudio(src);
+        if (!nxt) return;
+        nxt.loop = true;
+        nxt.setAttribute("data-src", src);
+        musicDeck[nextI] = nxt;
+      }
+      try {
+        nxt.volume = 0;
+        nxt.currentTime = 0;
+        var pr = nxt.play();
+        if (pr && pr.catch) pr.catch(function() {
+        });
+      } catch (_e) {
+      }
+    }
+    musicFade = { from: prev, to: want ? nxt : null, t: 0, dur: 36 };
+    musicIdx = want ? nextI : musicIdx;
+    musicCur = want;
+  }
+  function hopMusicTick() {
+    if (!musicFade) return;
+    musicFade.t++;
+    var u = clamp(musicFade.t / musicFade.dur, 0, 1);
+    var goal = musicTarget();
+    try {
+      if (musicFade.from) musicFade.from.volume = clamp(goal * (1 - u), 0, 1);
+      if (musicFade.to) musicFade.to.volume = clamp(goal * u, 0, 1);
+    } catch (_e) {
+    }
+    if (u >= 1) {
+      try {
+        if (musicFade.from && musicFade.from !== musicFade.to) {
+          musicFade.from.pause();
+        }
+      } catch (_e2) {
+      }
+      musicFade = null;
     }
   }
   var FIRST_TOAST = {
@@ -607,18 +778,25 @@
     goal: "\u0414\u041E\u041F\u0420\u042B\u0413\u041D\u0418 \u0414\u041E \u0426\u0415\u041B\u0418",
     record: "\u0422\u0412\u041E\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 - \u041F\u041E\u0411\u0415\u0419!"
   };
+  function drawableChars(s) {
+    s = String(s).toUpperCase();
+    var out = "";
+    for (var i = 0; i < s.length; i++) if (FONT[s[i]]) out += s[i];
+    return out;
+  }
   function textWidth(s, sc) {
-    return String(s).length * 6 * sc;
+    var n = drawableChars(s).length;
+    return n ? n * 6 * sc : 0;
   }
   function drawText(ctx, s, x, y, color, sc, align) {
     var k = sc || 1;
-    s = String(s).toUpperCase();
-    var w = textWidth(s, k) - k;
+    s = drawableChars(s);
+    var w = s.length ? textWidth(s, k) - k : 0;
     var xx = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
     y = Math.round(y);
     ctx.fillStyle = color;
     for (var i = 0; i < s.length; i++) {
-      var g = FONT[s[i]] || FONT["?"];
+      var g = FONT[s[i]];
       for (var r = 0; r < 7; r++) for (var c = 0; c < 5; c++) if (g[r] & 1 << 4 - c) ctx.fillRect(xx + c * k, y + r * k, k, k);
       xx += 6 * k;
     }
@@ -726,7 +904,8 @@
   var BIGF = { 2: {}, 3: {} };
   function bigGlyph(ch, k) {
     if (BIGF[k][ch]) return BIGF[k][ch];
-    var g = FONT[ch] || FONT["?"];
+    var g = FONT[ch];
+    if (!g) return [];
     function P(r2, c5) {
       return r2 >= 0 && r2 < 7 && c5 >= 0 && c5 < 5 && !!(g[r2] & 1 << 4 - c5) ? 1 : 0;
     }
@@ -760,10 +939,11 @@
     return out;
   }
   function bigWidth(s, k) {
-    return String(s).length * 6 * k - k;
+    var n = drawableChars(s).length;
+    return n ? n * 6 * k - k : 0;
   }
   function drawBig(ctx, s, x, y, face, k, align, outline, shadow) {
-    s = String(s).toUpperCase();
+    s = drawableChars(s);
     var w = bigWidth(s, k);
     var x0 = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
     y = Math.round(y);
@@ -836,7 +1016,22 @@
     return t === "normal" || t === "move" || t === "ice" || t === "bounce" || t === "grav";
   }
   function mkPlat(x, y, w, type, row) {
-    return { x, y, w, type, vx: 0, broken: false, breakT: 0, respawnT: 0, spring: false, springT: 0, row };
+    return { x, y, w, type, vx: 0, broken: false, breakT: 0, respawnT: 0, restoreT: 0, spring: false, springT: 0, row, seq: 0 };
+  }
+  function stampPlat(w, pl) {
+    pl.seq = w.platSeq++;
+    var pending = w.netBreaks && w.netBreaks[pl.seq];
+    if (pending && pl.type === "break") {
+      delete w.netBreaks[pl.seq];
+      if (pending === "brk") {
+        pl.broken = true;
+        pl.breakT = 0;
+      } else {
+        pl.broken = false;
+        pl.restoreT = 16;
+      }
+    }
+    return pl;
   }
   function findX(r, pw, row) {
     for (var t = 0; t < 24; t++) {
@@ -1176,7 +1371,7 @@
       }
     }
     w.lastKind = isMove ? "move" : "static";
-    for (var j = 0; j < row.length; j++) w.platforms.push(row[j]);
+    for (var j = 0; j < row.length; j++) w.platforms.push(stampPlat(w, row[j]));
     var gT = clamp((m + 90 * h059) / 700, 0, 1);
     var minG054 = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
     var maxG054 = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
@@ -1303,6 +1498,8 @@
       particles: [],
       nextY: -24,
       rowN: 1,
+      platSeq: 0,
+      netBreaks: {},
       lastKind: "",
       lastMobRow: {},
       cameraY: -LH + 70,
@@ -1323,7 +1520,7 @@
       warnSfxT: 0
     };
     w.nextBonusM = randInt(w.rng, 160, 240);
-    w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
+    w.platforms.push(stampPlat(w, mkPlat(8, 0, LW - 16, "normal", 0)));
     var xs = mode === "squad" ? [74, 22, 124, 48] : [74];
     w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
     if (mode === "squad") {
@@ -1461,6 +1658,7 @@
     if (p.id === 0) {
       w.shake = 4;
       toast(w, "\u0429\u0418\u0422 \u0421\u041F\u0410\u0421!");
+      hopSfx("shield");
     }
     return true;
   }
@@ -1499,7 +1697,6 @@
     p.y = pl.y - PH;
     p.baseY = pl.y;
     p.squash = 7;
-    if (p.id === 0) hopSfx("jump");
     var spr = pl.spring && overlapsX(p.x + 2, PW - 4, pl.x + pl.w / 2 - 5, 10);
     if (spr) {
       p.vy = SPRING_V;
@@ -1547,9 +1744,11 @@
     if (pl.type === "break" && !pl.broken) {
       pl.broken = true;
       pl.breakT = 14;
+      if (w.net) pl.netTell = 1;
       spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
       spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
     }
+    if (p.id === 0) hopSfx("jump");
   }
   function killMob(w, mo, p, noBounce) {
     if (!mo.alive) return;
@@ -1563,7 +1762,10 @@
     addCharge(p, "kills", 1);
     var pal = MOBPAL[mo.kind] || ["#ffd070"];
     spawnParts(w, mo.x + mo.w / 2, mo.y + 4, 12, pal[0], 2.6, 0.15);
-    if (p.id === 0) w.shake = 5;
+    if (p.id === 0) {
+      w.shake = 5;
+      hopSfx("hit");
+    }
   }
   function mobBox(mo) {
     if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
@@ -1665,7 +1867,7 @@
     } else if (H.ab === "dome") {
       p.domeT = 200;
       p.domeSave = true;
-      spawnParts(w, p.x + 6, p.y + 8, 14, "#7ad8ff", 2.6, 0, 1);
+      spawnParts(w, p.x + 6, p.y + 8, 14, "#c89bff", 2.6, 0, 1);
     } else if (H.ab === "pound") {
       p.poundT = 1;
       p.vy = 7.5;
@@ -1703,7 +1905,7 @@
     toast(w, B.id === "bigcoin" ? "\u041A\u041B\u0410\u0414 +" + BIGCOIN : B.name + "!");
     if (p.id === 0) {
       w.shake = 3;
-      hopSfx("bonus");
+      hopSfx(B.id === "shield" ? "shield" : "bonus");
     }
   }
   function tickWorld(w, inputs) {
@@ -1728,6 +1930,7 @@
         }
       }
       if (pl.broken && pl.breakT > 0) pl.breakT--;
+      if (pl.restoreT > 0) pl.restoreT--;
       if (pl.respawnT > 0 && --pl.respawnT === 0) {
         pl.broken = false;
         spawnParts(w, pl.x + pl.w / 2, pl.y, 4, "#88f8ff", 1.2, -0.02, 1);
@@ -2068,6 +2271,7 @@
             if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) {
               q.broken = true;
               q.breakT = 14;
+              if (w.net && q.type === "break") q.netTell = 1;
               spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2);
               if (p.id === 0) w.shake = 3;
               continue;
@@ -2575,6 +2779,18 @@
       rect(ctx, x + 6, y - 3, 6, 2, "#ffffff");
       rect(ctx, x + w - 13, y - 3, 7, 2, "#ffffff");
       rect(ctx, x + 1, y + 3, w - 2, 1, "#a8c8f0");
+      ctx.globalAlpha = 1;
+      return;
+    }
+    if (p.restoreT > 0) {
+      var u = 1 - p.restoreT / 16;
+      var gap = Math.round((1 - u) * 8);
+      var mid = Math.floor(w / 2);
+      ctx.globalAlpha = 0.45 + 0.55 * u;
+      rect(ctx, x - gap, y, Math.max(2, mid - 1), 5, C.brk);
+      rect(ctx, x + mid + 1 + gap, y, Math.max(2, w - mid - 1), 5, C.brkD);
+      rect(ctx, x - gap, y, Math.max(2, mid - 1), 1, C.brkRim);
+      rect(ctx, x + mid + 1 + gap, y, Math.max(2, w - mid - 1), 1, C.brkRim);
       ctx.globalAlpha = 1;
       return;
     }
@@ -3316,6 +3532,7 @@
     }
   }
   var NET_PROTO = 1;
+  var NET_GEN = "0.6";
   var NET_SEND_MS = 66;
   var NET_DELAY_MS = 150;
   var NET_GRACE_MS = 1e4;
@@ -3590,7 +3807,7 @@
         N.helloTimer = 0;
       }
       N.st = "unsupported";
-      N.err = "\u041E\u041D\u041B\u0410\u0419\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418";
+      N.err = "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418";
       N.room = null;
       var ws = N.ws;
       N.ws = null;
@@ -3693,13 +3910,55 @@
         N.results = d;
         noteResults(d);
       } else if (ev === "err") {
+        if (d.code === "GEN") {
+          N.st = "update";
+          N.err = "\u041E\u0411\u041D\u041E\u0412\u0418 \u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423";
+          N.room = null;
+          N.sub = "update";
+          return;
+        }
         N.err = d.msg || d.code;
         if (d.code === "NO_SESSION") giveUp("\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410");
         if (N.api) N.api.say(cleanText(N.err, 24) || "\u041E\u0428\u0418\u0411\u041A\u0410");
+      } else if (ev === "kicked") {
+        var code = d && d.code || N.room && N.room.code || "";
+        rememberKick(code);
+        N.room = null;
+        N.you = null;
+        N.token = "";
+        N.startInfo = null;
+        store("hoppak.net.token", null);
+        N.sub = "home";
+        N.st = N.ws ? "online" : "off";
+        if (N.api) {
+          N.api.goMenu();
+          N.api.say("\u0422\u0415\u0411\u042F \u0412\u042B\u0413\u041D\u0410\u041B\u0418");
+        }
       }
     }
+    function kickedCodes() {
+      try {
+        var raw = sessionStorage.getItem("hoppak.net.kicked");
+        var a = raw ? JSON.parse(raw) : [];
+        return Array.isArray(a) ? a : [];
+      } catch (_e) {
+        return [];
+      }
+    }
+    function rememberKick(code) {
+      if (!code) return;
+      var a = kickedCodes();
+      if (a.indexOf(code) < 0) a.push(code);
+      try {
+        sessionStorage.setItem("hoppak.net.kicked", JSON.stringify(a));
+      } catch (_e) {
+      }
+    }
+    function wasKicked(code) {
+      return kickedCodes().indexOf(String(code || "")) >= 0;
+    }
     function me() {
-      return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0 };
+      return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN };
     }
     N.create = function() {
       N.connect(function(ok) {
@@ -3710,6 +3969,13 @@
       });
     };
     N.join = function(code) {
+      if (wasKicked(code)) {
+        if (N.api) {
+          N.api.goMenu();
+          N.api.say("\u0422\u0415\u0411\u042F \u0412\u042B\u0413\u041D\u0410\u041B\u0418");
+        }
+        return;
+      }
       N.connect(function(ok) {
         if (ok) {
           var m = me();
@@ -3814,10 +4080,12 @@
         me0.name = mine.name;
         me0.pid = mine.pid;
       }
+      var hostSim = N.isHost();
       for (var k = 0; k < others.length; k++) {
         var o = others[k];
-        var p = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], false);
-        p.remote = true;
+        var mineBot = !!(o.bot && hostSim);
+        var p = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], mineBot);
+        p.remote = !mineBot;
         p.pid = o.pid;
         p.name = o.name;
         p.react = 1;
@@ -3825,6 +4093,7 @@
         w.players.push(p);
       }
       N.lastSend = 0;
+      N.lastBot = 0;
       N.events = [];
       N.buf = {};
       N.stats.startedAt = now();
@@ -3909,6 +4178,27 @@
         send("st", { x: me0.x, y: me0.y, vx: 0, vy: me0.vy, f: me0.face, a: 0, m: Math.round(me0.maxH), ps: 0, tk: w.tick });
         send("ev", { e: "dead", m: metersOf(me0), why: me0.why });
       }
+      if (N.isHost() && t - N.lastBot >= NET_SEND_MS && w.tick > 0) {
+        N.lastBot = t;
+        var rows = [];
+        for (var bpi = 0; bpi < w.players.length; bpi++) {
+          var bp2 = w.players[bpi];
+          if (!bp2.isBot || bp2.remote) continue;
+          rows.push({ b: bp2.pid, x: Math.round(bp2.x * 10) / 10, y: Math.round(bp2.y * 10) / 10, vx: Math.round(bp2.vx * 100) / 100, vy: Math.round(bp2.vy * 100) / 100, f: bp2.face, a: bp2.alive ? 1 : 0, m: Math.round(bp2.maxH), ps: flags(bp2) });
+          if (!bp2.alive && !bp2.netDead) {
+            bp2.netDead = true;
+            send("ev", { e: "dead", b: bp2.pid, m: metersOf(bp2), why: bp2.why || "fall" });
+          }
+        }
+        if (rows.length) send("sb", { s: rows });
+      }
+      for (var bi = 0; bi < w.platforms.length; bi++) {
+        var bp = w.platforms[bi];
+        if (bp.netTell) {
+          bp.netTell = 0;
+          send("ev", { e: "brk", id: bp.seq });
+        }
+      }
       for (var k = 0; k < w.monsters.length; k++) {
         var mo = w.monsters[k];
         if (!mo.alive && !mo.netSent) {
@@ -3945,7 +4235,7 @@
         } else if (e.e === "left" && rp) {
           rp.alive = false;
           rp.why = "left";
-        }
+        } else if (e.e === "brk" || e.e === "rst") applyPlatNet(w, e.id, e.e);
       }
       if (!me0.alive) {
         var best = null;
@@ -3972,6 +4262,32 @@
         }
       }
     };
+    function applyPlatNet(w, id, kind) {
+      var idn = id | 0;
+      if (idn < 0) return;
+      var pl = null;
+      for (var i = 0; i < w.platforms.length; i++) if (w.platforms[i].seq === idn) {
+        pl = w.platforms[i];
+        break;
+      }
+      if (!pl) {
+        if (!w.netBreaks) w.netBreaks = {};
+        w.netBreaks[idn] = kind === "rst" ? "rst" : "brk";
+        return;
+      }
+      if (pl.type !== "break") return;
+      if (kind === "brk") {
+        if (pl.broken) return;
+        pl.broken = true;
+        pl.breakT = 14;
+        spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 8, C.brk, 2, 0.2, 2);
+      } else {
+        pl.broken = false;
+        pl.breakT = 0;
+        pl.restoreT = 16;
+        spawnParts(w, pl.x + pl.w / 2, pl.y, 6, C.brkRim, 1.4, -0.04, 1);
+      }
+    }
     function byPid(w, pid) {
       if (pid === N.you) return w.players[0];
       for (var i = 1; i < w.players.length; i++) if (w.players[i].pid === pid) return w.players[i];
@@ -3996,6 +4312,7 @@
     N.open = function(api) {
       N.api = api;
       N.err = "";
+      if (N.st === "update") N.st = N.ws ? "online" : "off";
       if (N.room) {
         N.sub = "room";
         return;
@@ -4012,20 +4329,21 @@
       if (N.st === "online") return { t: "\u0421\u0415\u0420\u0412\u0415\u0420 \u041D\u0410 \u0421\u0412\u042F\u0417\u0418", c: C.mint };
       if (N.st === "connecting") return { t: "\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", c: C.gold };
       if (N.st === "reconnecting") return { t: "\u041F\u0415\u0420\u0415\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", c: C.gold };
-      if (N.st === "unsupported") return { t: N.err || "\u041E\u041D\u041B\u0410\u0419\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", c: C.red, two: true };
+      if (N.st === "unsupported") return { t: N.err || "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", c: C.red, two: true };
       return { t: N.err || "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418", c: C.red };
     }
     N.draw = function(api) {
       N.api = api;
       var ctx = api.ctx, x = api.colX(), sl = statusLine();
       api.bg();
+      if (N.sub === "update" || N.st === "update") return drawUpdate(api, x);
       if (N.sub === "room" && N.room) return drawRoom(api, x);
       if (N.sub === "code") return drawCode(api, x);
-      api.header("\u041E\u041D\u041B\u0410\u0419\u041D \u0421 \u0414\u0420\u0423\u0417\u042C\u042F\u041C\u0418", 1);
+      api.header("\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", 1);
       drawText(ctx, "\u0414\u041E 4 \u0418\u0413\u0420\u041E\u041A\u041E\u0412 \u041D\u0410 \u041E\u0414\u041D\u041E\u0419 \u041A\u0410\u0420\u0422\u0415", LW / 2, 34, C.cream, 1, "center");
       if (sl.two) {
         box(ctx, x, 48, 152, 24, C.navy, sl.c);
-        drawText(ctx, "\u041E\u041D\u041B\u0410\u0419\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D", LW / 2, 51, sl.c, 1, "center");
+        drawText(ctx, "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D", LW / 2, 51, sl.c, 1, "center");
         drawText(ctx, "\u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", LW / 2, 61, sl.c, 1, "center");
       } else {
         box(ctx, x, 48, 152, 13, C.navy, sl.c);
@@ -4037,10 +4355,17 @@
       var ok = N.st === "online";
       api.btn("net:create", x, y, 152, 30, ok ? C.mint : "#3a3450", "\u0421\u041E\u0417\u0414\u0410\u0422\u042C \u041A\u041E\u041C\u041D\u0410\u0422\u0423", INK, 1);
       api.btn("net:enter", x, y + 36, 152, 30, ok ? C.gold : "#3a3450", "\u0412\u041E\u0419\u0422\u0418 \u041F\u041E \u041A\u041E\u0414\u0423", INK, 1);
-      if (!ok && N.st !== "connecting") api.btn("net:retry", x, y + 72, 72, 20, C.navy, "\u0415\u0429\u0401 \u0420\u0410\u0417");
-      if (!ok && N.st !== "connecting") api.btn("net:bots", x + 80, y + 72, 72, 20, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
+      if (!ok && N.st !== "connecting") api.btn("net:retry", x + 26, y + 72, 100, 20, C.navy, "\u0415\u0429\u0401 \u0420\u0410\u0417");
       api.btn("net:back", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
     };
+    function drawUpdate(api, x) {
+      var ctx = api.ctx;
+      api.header("\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", 1);
+      box(ctx, x, Math.round(LH / 2 - 40), 152, 64, C.navy, C.gold);
+      drawText(ctx, "\u041E\u0411\u041D\u041E\u0412\u0418", LW / 2, Math.round(LH / 2 - 28), C.gold, 2, "center");
+      drawText(ctx, "\u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423", LW / 2, Math.round(LH / 2 - 10), C.gold, 2, "center");
+      api.btn("net:back", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
+    }
     function drawCode(api, x) {
       var ctx = api.ctx;
       api.header("\u041A\u041E\u0414 \u041A\u041E\u041C\u041D\u0410\u0422\u042B", 1);
@@ -4069,18 +4394,22 @@
       for (var i = 0; i < 4; i++) {
         var y = 56 + i * 26, p = sorted[i];
         if (!p) {
-          box(ctx, x, y, 152, 23, "#141030", "#3a3450");
-          drawText(ctx, "\u0421\u0412\u041E\u0411\u041E\u0414\u041D\u041E", LW / 2, y + 8, "#5a4c82", 1, "center");
+          if (host) api.btn("net:addbot", x, y, 152, 23, "#1a1430", "\u0411\u041E\u0422 +", C.cream);
+          else {
+            box(ctx, x, y, 152, 23, "#141030", "#3a3450");
+            drawText(ctx, "\u0421\u0412\u041E\u0411\u041E\u0414\u041D\u041E", LW / 2, y + 8, "#5a4c82", 1, "center");
+          }
           continue;
         }
         var isMe = p.pid === N.you;
         box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, isMe ? C.gold : C.cream);
         drawJumper(ctx, x + 6, y + 5, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
         drawText(ctx, cleanNick(p.name) || "\u0418\u0413\u0420\u041E\u041A", x + 28, y + 3, C.cream, 1, "left");
-        var tag = !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
-        var tc = !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
+        var tag = p.bot ? "\u0411\u041E\u0422" : !p.on ? NET_TAGS.off : p.pid === R.host ? NET_TAGS.host : p.ready ? NET_TAGS.ready : NET_TAGS.wait;
+        var tc = p.bot ? C.mint : !p.on ? C.red : p.pid === R.host ? C.gold : p.ready ? C.mint : "#9a8ab8";
         drawText(ctx, tag + (isMe ? " \xB7 \u0422\u042B" : ""), x + 28, y + 13, tc, 1, "left");
-        drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
+        if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
+        else drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
       }
       var my = 56 + 4 * 26 + 4;
       if (host) {
@@ -4095,7 +4424,7 @@
       var by = Math.max(evY + 4, LH - 66);
       if (host) {
         var others = R.players.filter(function(q) {
-          return q.pid !== R.host && q.on;
+          return q.pid !== R.host && q.on && !q.bot;
         });
         var allReady = others.every(function(q) {
           return q.ready;
@@ -4125,8 +4454,12 @@
         N.connect();
         return;
       }
-      if (id === "net:bots") {
-        api.bots();
+      if (id === "net:addbot") {
+        send("bot", {});
+        return;
+      }
+      if (id.indexOf("net:kick") === 0) {
+        send("kick", { pid: parseInt(id.slice(8), 10) });
         return;
       }
       if (id === "net:name") {
@@ -4227,6 +4560,638 @@
     };
     return N;
   })();
+  var PROFILE = (function() {
+    var TOKEN_KEY = "hoppak_guest_token";
+    var QUEUE_KEY = "hoppak_profile_queue";
+    var BUYS_KEY = "hoppak_profile_buys";
+    var CACHE_KEY = "hoppak_profile_cache";
+    var HOUR_KEY = "hoppak_profile_hour";
+    var REQ_MS = 5e3;
+    var FINISH_COOLDOWN_MS = 8200;
+    var RATE_RETRY_MS = 8500;
+    var RUN_AWARD_MAX = 200;
+    var HOUR_AWARD_MAX = 400;
+    var HOUR_MS = 36e5;
+    var P = {
+      st: "idle",
+      /* idle | syncing | ready | offline | unavailable */
+      profile: null,
+      api: null,
+      queue: null,
+      buySupported: null,
+      /* null = unknown | true | false (404 on 2284797) */
+      lastFinishOkAt: 0,
+      nextRunAt: 0,
+      backoffMs: 5e3,
+      retryTimer: 0,
+      onlineBound: false,
+      tgTried: false
+    };
+    function lsGet(k) {
+      try {
+        return typeof localStorage !== "undefined" && localStorage.getItem(k) || "";
+      } catch (_e) {
+        return "";
+      }
+    }
+    function lsSet(k, v) {
+      try {
+        if (typeof localStorage === "undefined") return;
+        if (v) localStorage.setItem(k, v);
+        else localStorage.removeItem(k);
+      } catch (_e) {
+      }
+    }
+    function readJson(k, def) {
+      try {
+        var raw = lsGet(k);
+        if (!raw) return def;
+        var parsed = JSON.parse(raw);
+        return parsed == null ? def : parsed;
+      } catch (_e) {
+        return def;
+      }
+    }
+    function writeJson(k, val) {
+      try {
+        lsSet(k, JSON.stringify(val));
+      } catch (_e) {
+      }
+    }
+    function getToken() {
+      return lsGet(TOKEN_KEY);
+    }
+    function setToken(t) {
+      lsSet(TOKEN_KEY, t);
+    }
+    function getRunQueue() {
+      var q = readJson(QUEUE_KEY, []);
+      return Array.isArray(q) ? q : [];
+    }
+    function setRunQueue(q) {
+      if (q.length > 50) q = q.slice(q.length - 50);
+      writeJson(QUEUE_KEY, q);
+    }
+    function getPendingBuys() {
+      var b = readJson(BUYS_KEY, []);
+      return Array.isArray(b) ? b : [];
+    }
+    function setPendingBuys(b) {
+      writeJson(BUYS_KEY, b);
+    }
+    function pruneConfirmedBuys(prof) {
+      var owned = prof && prof.purchases || {};
+      var buys = getPendingBuys();
+      var next = [];
+      var seen = {};
+      for (var i = 0; i < buys.length; i++) {
+        var it = buys[i];
+        if (!it || !it.key || seen[it.key] || owned[it.key]) continue;
+        seen[it.key] = 1;
+        next.push(it);
+      }
+      if (next.length !== buys.length) setPendingBuys(next);
+      return next;
+    }
+    function pendingSpend() {
+      var buys = getPendingBuys();
+      var tot = 0;
+      for (var i = 0; i < buys.length; i++) {
+        tot += Math.max(0, Math.floor(Number(buys[i] && buys[i].price) || 0));
+      }
+      return tot;
+    }
+    function queuedEst() {
+      var q = getRunQueue();
+      var tot = 0;
+      for (var i = 0; i < q.length; i++) {
+        tot += Math.max(0, Math.floor(Number(q[i] && q[i].estAward) || 0));
+      }
+      return tot;
+    }
+    function estRunAward(height, runCoins, bonusCoins) {
+      var h = Math.max(0, Math.min(2e4, Math.floor(Number(height) || 0)));
+      var c = Math.max(0, Math.min(80, Math.floor(Number(runCoins) || 0)));
+      var b = Math.max(0, Math.min(40, Math.floor(Number(bonusCoins) || 0)));
+      return Math.max(0, Math.min(RUN_AWARD_MAX, Math.floor(h / 25) + c + b));
+    }
+    function hourState() {
+      var now = Date.now();
+      var s = readJson(HOUR_KEY, null);
+      if (!s || typeof s !== "object" || !s.startedAt || now - s.startedAt >= HOUR_MS) {
+        s = { startedAt: now, awarded: 0 };
+        writeJson(HOUR_KEY, s);
+      }
+      return s;
+    }
+    function computeAward(height, runCoins, bonusCoins) {
+      var want = estRunAward(height, runCoins, bonusCoins);
+      var hs = hourState();
+      var room = Math.max(0, HOUR_AWARD_MAX - Math.max(0, Math.floor(Number(hs.awarded) || 0)));
+      var awarded = Math.min(want, room);
+      return { want, awarded, limited: awarded < want ? "HOUR_CAP" : "" };
+    }
+    function noteAward(awarded) {
+      var n = Math.max(0, Math.floor(Number(awarded) || 0));
+      if (!n) return;
+      var hs = hourState();
+      hs.awarded = Math.max(0, Math.floor(Number(hs.awarded) || 0)) + n;
+      writeJson(HOUR_KEY, hs);
+    }
+    function pendingBuyKeys() {
+      var out = {};
+      var buys = getPendingBuys();
+      for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key) out[buys[i].key] = 1;
+      return out;
+    }
+    function readInitData() {
+      try {
+        var w = typeof window !== "undefined" ? window : null;
+        var d = w && w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initData;
+        if (typeof d === "string" && d) return d;
+      } catch (_e) {
+      }
+      return "";
+    }
+    function waitTelegramSdk() {
+      try {
+        var w = typeof window !== "undefined" ? window : null;
+        if (w && w.__tgReady && typeof w.__tgReady.then === "function") return w.__tgReady;
+      } catch (_e) {
+      }
+      return Promise.resolve(null);
+    }
+    function tryTelegramAuth(token) {
+      if (P.tgPending) return P.tgPending;
+      if (P.tgTried) return Promise.resolve(null);
+      var run = function() {
+        return tryTelegramAuthNow(token);
+      };
+      P.tgPending = waitTelegramSdk().then(run, run).then(function(r) {
+        P.tgPending = null;
+        return r;
+      }, function(e) {
+        P.tgPending = null;
+        throw e;
+      });
+      return P.tgPending;
+    }
+    function tryTelegramAuthNow(token) {
+      if (P.tgTried) return Promise.resolve(null);
+      var initData = readInitData();
+      if (!initData || !token) return Promise.resolve(null);
+      P.tgTried = true;
+      return req("POST", "/api/auth/telegram", { initData }, token).then(function(res) {
+        if (!res || !res.ok || !res.data || !res.data.ok || !res.data.profile) return null;
+        if (res.data.token) setToken(res.data.token);
+        P.st = "ready";
+        applyProfile(res.data.profile);
+        if (res.data.merged && P.api && P.api.say) P.api.say("\u041F\u0420\u041E\u0413\u0420\u0415\u0421\u0421 \u041E\u0411\u042A\u0415\u0414\u0418\u041D\u0401\u041D");
+        return res.data.profile;
+      });
+    }
+    function makeRunId() {
+      var r = "";
+      try {
+        if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+          var u = new Uint32Array(2);
+          crypto.getRandomValues(u);
+          r = u[0].toString(36) + u[1].toString(36);
+        }
+      } catch (_e) {
+      }
+      if (!r) r = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+      return "r_" + Date.now().toString(36) + "_" + r;
+    }
+    function normalizeOrigin(raw) {
+      var o = String(raw || "").trim();
+      if (!o) return "";
+      if (o.indexOf("wss://") === 0) o = "https://" + o.slice(6);
+      else if (o.indexOf("ws://") === 0) o = "http://" + o.slice(5);
+      if (o.indexOf("https://") !== 0 && o.indexOf("http://") !== 0) return "";
+      o = o.replace(/\/+$/, "");
+      if (o.length > 3 && o.slice(-3) === "/ws") o = o.slice(0, -3);
+      if (o.length > 4 && o.slice(-4) === "/api") o = o.slice(0, -4);
+      return o.replace(/\/+$/, "");
+    }
+    function apiOrigin() {
+      var w = typeof window !== "undefined" ? window : null;
+      if (!w) return "";
+      try {
+        var sp = new URLSearchParams(w.location.search);
+        var qa = sp.get("api") || sp.get("profileApi");
+        if (qa) {
+          var qan = normalizeOrigin(qa);
+          if (qan) return qan;
+        }
+        if (w.HOPPAK_API) {
+          var wan = normalizeOrigin(w.HOPPAK_API);
+          if (wan) return wan;
+        }
+        var lsa = w.localStorage && w.localStorage.getItem("hoppak.api");
+        if (lsa) {
+          var lsan = normalizeOrigin(lsa);
+          if (lsan) return lsan;
+        }
+      } catch (_e) {
+      }
+      try {
+        if (typeof HOP_API !== "undefined" && HOP_API) {
+          var ban = normalizeOrigin(String(HOP_API));
+          if (ban) return ban;
+        }
+      } catch (_e1) {
+      }
+      var isPage = false;
+      try {
+        isPage = typeof HOP_PAGE !== "undefined" && !!HOP_PAGE;
+      } catch (_e2) {
+      }
+      if (!isPage) {
+        try {
+          var pr = w.location && w.location.protocol;
+          if (pr === "http:" || pr === "https:") return w.location.origin;
+        } catch (_e3) {
+        }
+      }
+      try {
+        var qs = new URLSearchParams(w.location.search).get("server");
+        if (qs) {
+          var qn = normalizeOrigin(qs);
+          if (qn) return qn;
+        }
+        if (w.HOPPAK_SERVER) {
+          var wn = normalizeOrigin(w.HOPPAK_SERVER);
+          if (wn) return wn;
+        }
+        var ls = w.localStorage && w.localStorage.getItem("hoppak.server");
+        if (ls) {
+          var ln = normalizeOrigin(ls);
+          if (ln) return ln;
+        }
+        if (isPage && true && "https://76-13-250-251.sslip.io") {
+          var bn = normalizeOrigin(String("https://76-13-250-251.sslip.io"));
+          if (bn) return bn;
+        }
+      } catch (_e4) {
+      }
+      return "";
+    }
+    function req(method, path, body, token) {
+      var base = apiOrigin();
+      if (!base || typeof fetch === "undefined") {
+        return Promise.resolve({ status: 0, ok: false, data: null });
+      }
+      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      var to = setTimeout(function() {
+        try {
+          if (ctrl) ctrl.abort();
+        } catch (_e) {
+        }
+      }, REQ_MS);
+      var headers = {};
+      if (token) headers["Authorization"] = "Bearer " + token;
+      var sameOrig = false;
+      try {
+        sameOrig = typeof window !== "undefined" && window.location && window.location.origin === base;
+      } catch (_e0) {
+      }
+      var opts = { method, headers, cache: "no-store", mode: sameOrig ? "same-origin" : "cors" };
+      if (body !== void 0) {
+        headers["Content-Type"] = "application/json";
+        opts.body = JSON.stringify(body);
+      }
+      if (ctrl) opts.signal = ctrl.signal;
+      return fetch(base + path, opts).then(function(r) {
+        clearTimeout(to);
+        return r.json().catch(function() {
+          return null;
+        }).then(function(data) {
+          return { status: r.status, ok: !!r.ok, data };
+        });
+      }).catch(function() {
+        clearTimeout(to);
+        return { status: 0, ok: false, data: null };
+      });
+    }
+    function applyProfile(prof, wRef, awarded) {
+      if (!prof) return;
+      P.profile = prof;
+      writeJson(CACHE_KEY, prof);
+      pruneConfirmedBuys(prof);
+      var effectiveCoins = Math.max(0, (prof.coins || 0) - pendingSpend()) + queuedEst();
+      if (P.api && P.api.apply) P.api.apply(prof, wRef, awarded, effectiveCoins);
+    }
+    function handleStatus(res) {
+      if (res.status === 503 || res.data && res.data.error === "PROFILE_UNAVAILABLE") {
+        P.st = "unavailable";
+        return false;
+      }
+      if (!res.ok || !res.data || !res.data.ok) {
+        if (res.status === 0 || res.status >= 500) P.st = "offline";
+        return false;
+      }
+      return true;
+    }
+    function scheduleRetry(delayMs) {
+      if (typeof setTimeout === "undefined") return;
+      if (P.retryTimer) {
+        clearTimeout(P.retryTimer);
+        P.retryTimer = 0;
+      }
+      var d = Math.max(250, delayMs);
+      P.retryTimer = setTimeout(function() {
+        P.retryTimer = 0;
+        P.flush();
+      }, d);
+    }
+    function syncMigrate(token, prof) {
+      if (!prof || prof.migratedAt) {
+        P.st = "ready";
+        applyProfile(prof);
+        return Promise.resolve(prof);
+      }
+      var s = P.api && P.api.save ? P.api.save() : null;
+      var rawCoins = s && typeof s.coins === "number" ? Math.max(0, Math.floor(s.coins)) : 0;
+      var coins = Math.max(0, rawCoins - queuedEst());
+      var purchases = s && s.owned && typeof s.owned === "object" ? s.owned : {};
+      var best = s && typeof s.best === "number" ? Math.max(0, Math.floor(s.best)) : 0;
+      return req("POST", "/api/profile/migrate", { coins, purchases, best }, token).then(function(res) {
+        if (!handleStatus(res)) return null;
+        P.st = "ready";
+        applyProfile(res.data.profile);
+        return res.data.profile;
+      });
+    }
+    function createGuestAndMigrate() {
+      return req("POST", "/api/profile/guest").then(function(res) {
+        if (!handleStatus(res)) return null;
+        if (res.data.token) setToken(res.data.token);
+        return syncMigrate(res.data.token || getToken(), res.data.profile);
+      });
+    }
+    function ensureProfile() {
+      var base = apiOrigin();
+      if (!base || typeof fetch === "undefined") {
+        P.st = "offline";
+        return Promise.resolve(null);
+      }
+      P.st = "syncing";
+      var tok = getToken();
+      if (tok) {
+        return req("GET", "/api/profile", void 0, tok).then(function(res) {
+          if (res.status === 401) {
+            setToken("");
+            return createGuestAndMigrate();
+          }
+          if (!handleStatus(res)) return null;
+          return syncMigrate(tok, res.data.profile);
+        });
+      }
+      return createGuestAndMigrate();
+    }
+    function flushBuysOnce(tok) {
+      if (P.buySupported === false) return Promise.resolve();
+      var buys = getPendingBuys();
+      if (!buys.length || !tok) return Promise.resolve();
+      var item = buys[0];
+      return req("POST", "/api/profile/buy", { key: item.key }, tok).then(function(res) {
+        if (res.status === 404 || res.status === 405 || res.status === 501) {
+          P.buySupported = false;
+          return;
+        }
+        if (res.status === 401) {
+          setToken("");
+          return;
+        }
+        if (res.status === 400) {
+          var cur = getPendingBuys().filter(function(x) {
+            return x && x.key !== item.key;
+          });
+          setPendingBuys(cur);
+          if (P.profile) applyProfile(P.profile);
+          return flushBuysOnce(tok);
+        }
+        if (!handleStatus(res)) return;
+        P.buySupported = true;
+        P.st = "ready";
+        var rest = getPendingBuys().filter(function(x) {
+          return x && x.key !== item.key;
+        });
+        setPendingBuys(rest);
+        applyProfile(res.data.profile);
+        if (rest.length) return flushBuysOnce(tok);
+      });
+    }
+    function flushRunsStep(tok, authRetried) {
+      var q = getRunQueue();
+      if (!q.length) return Promise.resolve(null);
+      var now = Date.now();
+      if (now < P.nextRunAt) {
+        scheduleRetry(P.nextRunAt - now);
+        return Promise.resolve(null);
+      }
+      var head = q[0];
+      var body = {
+        runId: head.runId,
+        height: head.height,
+        runCoins: head.runCoins,
+        bonusCoins: head.bonusCoins
+      };
+      if (head.mode) body.mode = head.mode;
+      if (head.map) body.map = head.map;
+      if (head.ver) body.ver = head.ver;
+      return req("POST", "/api/run/finish", body, tok).then(function(res) {
+        if (res.status === 401) {
+          setToken("");
+          if (!authRetried) {
+            return ensureProfile().then(function() {
+              var nt = getToken();
+              return nt ? flushRunsStep(nt, true) : null;
+            });
+          }
+          return null;
+        }
+        if (res.status === 429 || res.data && res.data.error === "RATE_LIMIT") {
+          P.nextRunAt = Date.now() + RATE_RETRY_MS;
+          scheduleRetry(RATE_RETRY_MS);
+          return null;
+        }
+        if (res.status === 400) {
+          var dropped = getRunQueue();
+          dropped.shift();
+          setRunQueue(dropped);
+          return dropped.length ? flushRunsStep(tok, authRetried) : null;
+        }
+        if (!handleStatus(res)) {
+          var wait = P.backoffMs;
+          P.backoffMs = Math.min(6e4, P.backoffMs * 2);
+          scheduleRetry(wait);
+          return null;
+        }
+        P.backoffMs = 5e3;
+        P.lastFinishOkAt = Date.now();
+        P.nextRunAt = P.lastFinishOkAt + FINISH_COOLDOWN_MS;
+        var curQ = getRunQueue();
+        if (curQ.length && curQ[0].runId === head.runId) curQ.shift();
+        else curQ = curQ.filter(function(x) {
+          return x && x.runId !== head.runId;
+        });
+        setRunQueue(curQ);
+        P.st = "ready";
+        applyProfile(res.data.profile, head._wRef, res.data.awarded);
+        if (curQ.length) scheduleRetry(FINISH_COOLDOWN_MS);
+        return res.data;
+      });
+    }
+    function flushAll(allowInit) {
+      var base = apiOrigin();
+      if (!base || typeof fetch === "undefined") {
+        P.st = "offline";
+        return Promise.resolve(null);
+      }
+      var tok = getToken();
+      var ready = tok ? Promise.resolve(tok) : allowInit ? ensureProfile().then(function() {
+        return getToken();
+      }) : Promise.resolve("");
+      return ready.then(function(t) {
+        if (!t) {
+          if (getRunQueue().length || getPendingBuys().length) {
+            var wait = P.backoffMs;
+            P.backoffMs = Math.min(6e4, P.backoffMs * 2);
+            scheduleRetry(wait);
+          }
+          return null;
+        }
+        return flushBuysOnce(t).then(function() {
+          return flushRunsStep(t);
+        });
+      });
+    }
+    function enqueue(fn) {
+      var prev = P.queue || Promise.resolve(null);
+      var next = prev.then(function() {
+        return fn();
+      }, function() {
+        return fn();
+      });
+      P.queue = next;
+      return next;
+    }
+    P.init = function(api) {
+      P.api = api;
+      if (!P.onlineBound && typeof window !== "undefined" && window.addEventListener) {
+        P.onlineBound = true;
+        window.addEventListener("online", function() {
+          P.backoffMs = 5e3;
+          P.flush();
+        });
+      }
+      return enqueue(function() {
+        return ensureProfile().then(function(prof) {
+          if (!prof) {
+            var cached = readJson(CACHE_KEY, null);
+            if (cached) P.profile = cached;
+            if (getRunQueue().length || getPendingBuys().length) {
+              scheduleRetry(P.backoffMs);
+            }
+            return null;
+          }
+          return flushAll(false).then(function() {
+            return tryTelegramAuth(getToken()).then(function() {
+              return P.profile;
+            });
+          });
+        });
+      });
+    };
+    P.finishRun = function(height, runCoins, bonusCoins, worldRef, meta) {
+      var h = Math.max(0, Math.floor(Number(height) || 0));
+      var c = Math.max(0, Math.floor(Number(runCoins) || 0));
+      var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
+      var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
+      var item = {
+        runId: makeRunId(),
+        height: h,
+        runCoins: c,
+        bonusCoins: b,
+        mode: meta && meta.mode || "solo",
+        map: meta && meta.map || "",
+        ver: meta && meta.ver || "0.6",
+        estAward: pre,
+        createdAt: Date.now()
+      };
+      var q = getRunQueue();
+      q.push(item);
+      setRunQueue(q);
+      return enqueue(function() {
+        var cur = getRunQueue();
+        for (var i = 0; i < cur.length; i++) {
+          if (cur[i].runId === item.runId) {
+            cur[i]._wRef = worldRef;
+            break;
+          }
+        }
+        return flushAll(true);
+      });
+    };
+    P.buy = function(key, price) {
+      if (!key) return Promise.resolve(null);
+      var buys = getPendingBuys();
+      var found = false;
+      for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key === key) {
+        found = true;
+        break;
+      }
+      if (!found) {
+        buys.push({ key, price: Math.max(0, Math.floor(Number(price) || 0)), at: Date.now() });
+        setPendingBuys(buys);
+      }
+      return enqueue(function() {
+        if (P.buySupported === false) return null;
+        var base = apiOrigin();
+        if (!base || typeof fetch === "undefined") {
+          P.st = "offline";
+          return null;
+        }
+        var tok = getToken();
+        var ready = tok ? Promise.resolve(tok) : ensureProfile().then(function() {
+          return getToken();
+        });
+        return ready.then(function(t) {
+          if (!t) return null;
+          return flushBuysOnce(t);
+        });
+      });
+    };
+    P.flush = function() {
+      return enqueue(function() {
+        return flushAll(true);
+      });
+    };
+    P.getToken = getToken;
+    P.apiOrigin = apiOrigin;
+    P.computeAward = computeAward;
+    P.noteAward = noteAward;
+    P.pendingBuyKeys = pendingBuyKeys;
+    P.getState = function() {
+      var prof = P.profile;
+      return {
+        st: P.st,
+        profile: prof,
+        tokenPresent: !!getToken(),
+        queueLen: getRunQueue().length,
+        pendingBuysLen: getPendingBuys().length,
+        pendingSpend: pendingSpend(),
+        queuedEst: queuedEst(),
+        buySupported: P.buySupported,
+        apiOrigin: apiOrigin(),
+        tgTried: !!P.tgTried,
+        telegramId: prof && prof.telegramId ? String(prof.telegramId) : ""
+      };
+    };
+    return P;
+  })();
   function startHoppak(canvas) {
     var raw = canvas.getContext("2d");
     var noop = function() {
@@ -4240,6 +5205,7 @@
     var mode = "solo";
     var room = { round: 0 };
     var shopHero = save.char;
+    var abHintRun = false;
     var abTap = false;
     var lobbyMap = save.bg;
     var flash = "", flashT = 0, flashPh = "";
@@ -4541,11 +5507,56 @@
       var s = sc || 1;
       drawText(ctx, label, x + w / 2, y + Math.round((h - 7 * s) / 2) + (on ? 1 : 0), tcol || C.cream, s, "center");
     }
-    function coinsLabel(x, y, n, align) {
+    function telegramLinked() {
+      try {
+        var w = window;
+        if (w.__hopTg && w.__hopTg.linked && location.protocol === "file:") return true;
+        return !!(typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState().telegramId);
+      } catch (_e) {
+        return false;
+      }
+    }
+    function tgName() {
+      var raw2 = "";
+      try {
+        var w = window;
+        if (w.__hopTg && w.__hopTg.name && location.protocol === "file:") raw2 = String(w.__hopTg.name);
+        else {
+          var u = w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initDataUnsafe && w.Telegram.WebApp.initDataUnsafe.user;
+          if (u && u.first_name) raw2 = String(u.first_name);
+        }
+      } catch (_e) {
+        raw2 = "";
+      }
+      raw2 = String(raw2).toUpperCase();
+      var out = "";
+      for (var i = 0; i < raw2.length && out.length < 10; i++) if (FONT[raw2[i]]) out += raw2[i];
+      return out;
+    }
+    function tgMark() {
+      if (!telegramLinked()) return "";
+      var n = tgName();
+      return n ? "\u0422\u0413 " + n : "\u0422\u0413";
+    }
+    function coinsLabel(x, y, n, align, showTg) {
       var s = String(n), w = textWidth(s, 1) + 9;
+      var mark = showTg ? tgMark() : "";
+      var tgW = mark ? textWidth(mark, 1) + 4 : 0;
       var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
+      if (mark && align === "right") drawText(ctx, mark, x0 - tgW, y - 0.5, C.mov, 1, "left");
       drawCoin(ctx, x0, y, ui);
       drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
+      if (mark && align !== "right") drawText(ctx, mark, x0 + w + 4, y - 0.5, C.mov, 1, "left");
+    }
+    function drawWallet() {
+      var s = String(save.coins);
+      var w = textWidth(s, 1) + 9;
+      var x = LW - 4 - w;
+      rect(ctx, x - 3, 1, w + 6, 11, INK);
+      rect(ctx, x - 2, 2, w + 4, 9, C.navy);
+      coinsLabel(LW - 4, 3, save.coins, "right", false);
+      var mark = tgMark();
+      if (mark) drawText(ctx, mark, 4, 1, C.mov, 1, "left");
     }
     function drawBuy(id, x, y, w, h, price) {
       addHit(id, x, y, w, h);
@@ -4619,6 +5630,12 @@
       } catch (_e) {
       }
       VIEW_SHIFT = 0;
+      abHintRun = !!(world.players[0] && heroHasAb(world.players[0]) && !(save.seen && save.seen.abHint));
+      if (abHintRun) {
+        if (!save.seen) save.seen = {};
+        save.seen.abHint = 1;
+        writeSave(save);
+      }
       resize();
     }
     function payout() {
@@ -4626,9 +5643,13 @@
       world.paid = true;
       var me = world.players[0];
       var mtr = metersOf(me);
-      world.earnH = Math.floor(mtr / 25);
-      world.earnC = world.runCoins + (world.bonusCoins || 0);
-      world.earned = world.earnH + world.earnC;
+      var runC = world.runCoins || 0;
+      var bonC = world.bonusCoins || 0;
+      world.earnH = Math.floor(Math.max(0, Math.min(2e4, mtr)) / 25);
+      world.earnC = Math.max(0, Math.min(80, runC)) + Math.max(0, Math.min(40, bonC));
+      var plan = typeof PROFILE !== "undefined" && PROFILE && PROFILE.computeAward ? PROFILE.computeAward(mtr, runC, bonC) : { awarded: Math.max(0, Math.min(200, world.earnH + world.earnC)), want: world.earnH + world.earnC, limited: "" };
+      world.earned = plan.awarded;
+      world.limited = plan.limited || "";
       world.coinFrom = save.coins;
       var mi = mapIdx(world.map);
       world.prevMapBest = mapBest(mi);
@@ -4640,6 +5661,17 @@
       if (mtr > save.best) save.best = mtr;
       world.best = save.best;
       writeSave(save);
+      if (typeof PROFILE !== "undefined" && PROFILE) {
+        if (PROFILE.noteAward) PROFILE.noteAward(world.earned);
+        if (mtr > 0 || runC > 0 || bonC > 0) {
+          PROFILE.finishRun(mtr, runC, bonC, world, {
+            mode: world.net ? "online" : mode,
+            map: world.map,
+            ver: "0.6rc",
+            awarded: world.earned
+          });
+        }
+      }
     }
     function goMenu() {
       phase = "menu";
@@ -4665,6 +5697,7 @@
         save.owned["char:" + i] = 1;
         save.char = i;
         say("\u041A\u0423\u041F\u041B\u0415\u041D\u041E!");
+        if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("char:" + i, CHARS[i].price);
       });
     }
     function activate(id) {
@@ -4730,11 +5763,23 @@
         showSet = !showSet;
         return;
       }
+      if (id === "ralpha" && stagingBuild()) {
+        cycleRemoteAlpha();
+        return;
+      }
       if (id === "tilt") {
         toggleTilt();
         return;
       }
-      if (id === "sfx") {
+      if (id === "mus:mute") {
+        musicOn = !musicOn;
+        save.musicOn = musicOn;
+        writeSave(save);
+        hopMusic(musicCue(phase, world && world.map || save.bg));
+        if (musicOn) hopSfx("tick");
+        return;
+      }
+      if (id === "sfx:mute") {
         sfxOn = !sfxOn;
         save.sfx = sfxOn;
         writeSave(save);
@@ -4791,19 +5836,10 @@
       }
     }
     function campTap(key) {
-      if (key === "play") {
-        if (campCard >= 0 && mapOpen(campCard)) {
-          save.bg = MAPS[campCard].id;
-          writeSave(save);
-          mode = "solo";
-          startRun();
-        }
-        return;
-      }
+      if (key === "play") return;
       if (key === "open" || key.indexOf("open:") === 0) {
-        var i2 = key.indexOf("open:") === 0 ? parseInt(key.slice(5), 10) : campCard >= 0 ? campCard : nextClosable();
+        var i2 = key.indexOf("open:") === 0 ? parseInt(key.slice(5), 10) : nextClosable();
         if (i2 < 0 || isNaN(i2)) return;
-        if (key === "open" && campCard < 0) campCard = i2;
         unlockMap(i2, key === "open" ? "camp:open" : "camp:open:" + i2);
         return;
       }
@@ -4812,7 +5848,6 @@
       var M = MAPS[i];
       flashT = 0;
       if (mapOpen(i)) {
-        campCard = i;
         if (save.bg !== M.id) {
           save.bg = M.id;
           writeSave(save);
@@ -4827,7 +5862,6 @@
         say("\u0414\u041E\u0419\u0414\u0418 \u0414\u041E " + MAPS[i - 1].goal + " \u041C " + WHERE[i - 1]);
         return;
       }
-      campCard = i;
     }
     function nextClosable() {
       for (var i = 1; i < MAPS.length; i++) if (!mapOpen(i) && mapGoalMet(i)) return i;
@@ -4841,7 +5875,26 @@
         save.owned["map:" + M.id] = 1;
         save.bg = M.id;
         say(mapOpened(M));
+        if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("map:" + M.id, M.price);
       });
+    }
+    function stagingBuild() {
+      try {
+        return typeof HOP_STAGING !== "undefined" && !!HOP_STAGING;
+      } catch (_e) {
+        return false;
+      }
+    }
+    function remoteAlpha() {
+      if (!stagingBuild()) return REMOTE_ALPHA;
+      var s = storageGet("hoppak_remote_alpha") || "";
+      if (s === "0.7" || s === "0.8" || s === "0.9") return Number(s);
+      return REMOTE_ALPHA;
+    }
+    function cycleRemoteAlpha() {
+      var opts = [0.7, 0.8, 0.9];
+      var i = opts.indexOf(remoteAlpha());
+      storageSet("hoppak_remote_alpha", String(opts[(i + 1) % opts.length]));
     }
     function toggleTilt() {
       if (!tiltAvail || tiltDenied) {
@@ -4887,6 +5940,41 @@
       held.left = l;
       held.right = r;
     }
+    var musGeom = { x: 0, w: 1 }, sfxGeom = { x: 0, w: 1 };
+    function setSlider(id, x) {
+      var g = id === "mus" ? musGeom : sfxGeom;
+      var v = Math.round(clamp((x - g.x) / Math.max(1, g.w), 0, 1) * 10) / 10;
+      if (id === "mus") {
+        musicVol = v;
+        save.music = v;
+        if (v > 0 && !musicOn) {
+          musicOn = true;
+          save.musicOn = true;
+        }
+        hopMusic(musicCue(phase, world && world.map || save.bg));
+      } else {
+        sfxVol = v;
+        save.sfxVol = v;
+        if (v > 0 && !sfxOn) {
+          sfxOn = true;
+          save.sfx = true;
+        }
+      }
+      writeSave(save);
+    }
+    function volRow(id, x, y, w, label, vol, on) {
+      drawText(ctx, label, x, y, on ? C.cream : "#9a8ab8", 1, "left");
+      btn(id + ":mute", x + w - 36, y - 2, 36, 12, on ? C.mint : "#1a1430", on ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B", on ? INK : C.cream);
+      var bx = x, bw = w, by = y + 12;
+      addHit(id, bx, by, bw, 8);
+      if (id === "mus") musGeom = { x: bx, w: bw };
+      else sfxGeom = { x: bx, w: bw };
+      rect(ctx, bx, by, bw, 5, "#120c28");
+      var fw = Math.max(0, Math.round(bw * (on ? vol : 0)));
+      if (fw > 0) rect(ctx, bx, by, fw, 5, C.mint);
+      rect(ctx, bx, by, bw, 1, on ? C.cream : "#5a5668");
+      rect(ctx, bx + Math.min(bw - 1, fw), by - 1, 1, 7, C.gold);
+    }
     function onPtrDown(e) {
       e.preventDefault();
       audioUnlock();
@@ -4901,6 +5989,10 @@
       var loc = toLogic(e.clientX, e.clientY);
       var id = hitAt(loc.x, loc.y);
       pressId = id;
+      if (id === "mus" || id === "sfx") {
+        setSlider(id, loc.x);
+        return;
+      }
       if (phase === "results") coinSkip = true;
       if (phase !== "play") return;
       if (paused) return;
@@ -4910,6 +6002,10 @@
     }
     function onPtrMove(e) {
       var loc = toLogic(e.clientX, e.clientY);
+      if (pressId === "mus" || pressId === "sfx") {
+        setSlider(pressId, loc.x);
+        return;
+      }
       if (phase !== "play" || paused) return;
       var pid = e.pointerId != null ? e.pointerId : 1;
       var p = pointers[pid];
@@ -4937,6 +6033,8 @@
         else if (id === "ab" && pressId === "ab") requestAbility();
         delete pointers[e.pointerId != null ? e.pointerId : 1];
         recomputeHold();
+      } else if (pressId === "mus" || pressId === "sfx") {
+        if (id === pressId) setSlider(pressId, loc.x);
       } else if (id && id === pressId) activate(id);
       pressId = null;
     }
@@ -5035,26 +6133,15 @@
     function plaque() {
       var x = colX();
       box(ctx, x, 48, 152, 14, C.navy, C.gold);
-      coinsLabel(x + 4, 51, save.coins);
+      coinsLabel(x + 4, 51, save.coins, void 0, true);
       drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + (save.best || 0) + " \u041C", x + 148, 51, C.cream, 1, "right");
-    }
-    function gear(x, y) {
-      addHit("set", x, y, 18, 18);
-      var on = pressId === "set";
-      box(ctx, x, y, 18, 18, on ? "#3a4a7a" : C.navy, C.cream);
-      rect(ctx, x + 7, y + 3, 4, 12, C.cream);
-      rect(ctx, x + 3, y + 7, 12, 4, C.cream);
-      rect(ctx, x + 6, y + 6, 6, 6, C.navy);
-      rect(ctx, x + 8, y + 8, 2, 2, C.cream);
     }
     function drawMenu() {
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
       dimView(ctx, "rgba(18,14,44,0.14)");
       var x = colX();
       drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
-      gear(LW - 22, 4);
       drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 41, C.cream, "center");
-      coinsLabel(x, 52, save.coins);
       var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
       var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
       var by = LH - 118;
@@ -5074,20 +6161,26 @@
       if (isPageBuild()) {
         btn("camp", x, by + 40, 152, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
         btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
-        btn("mp", x + 80, by + 66, 72, 22, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
+        btn("set", x + 80, by + 66, 72, 22, C.navy, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418");
       } else {
         btn("camp", x, by + 40, 72, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
-        btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "\u041E\u041D\u041B\u0410\u0419\u041D", C.cream, 1, C.mint);
+        btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", C.cream, 1, C.mint);
         btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
-        btn("mp", x + 80, by + 66, 72, 22, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
+        btn("set", x + 80, by + 66, 72, 22, C.navy, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418");
       }
       if (showSet) {
-        box(ctx, x, 70, 152, 128, C.navy, C.cream);
-        drawText(ctx, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", LW / 2, 76, C.gold, 1, "center");
-        btn("tilt", x + 8, 94, 136, 22, tiltOn ? C.mint : "#1a1430", "\u041D\u0410\u041A\u041B\u041E\u041D: " + (tiltOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), tiltOn ? INK : C.cream);
-        btn("sfx", x + 8, 120, 136, 22, sfxOn ? C.mint : "#1a1430", "\u0417\u0412\u0423\u041A: " + (sfxOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), sfxOn ? INK : C.cream);
-        btn("vib", x + 8, 146, 136, 22, vibOn ? C.mint : "#1a1430", "\u0412\u0418\u0411\u0420\u041E: " + (vibOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), vibOn ? INK : C.cream);
-        btn("set", x + 26, 174, 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
+        hits = [];
+        dimView(ctx, "rgba(8,6,20,0.62)");
+        var stg = stagingBuild();
+        var py0 = 50;
+        box(ctx, x, py0, 152, stg ? 168 : 144, C.navy, C.cream);
+        drawText(ctx, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", LW / 2, py0 + 6, C.gold, 1, "center");
+        btn("tilt", x + 8, py0 + 20, 136, 20, tiltOn ? C.mint : "#1a1430", "\u041D\u0410\u041A\u041B\u041E\u041D: " + (tiltOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), tiltOn ? INK : C.cream);
+        volRow("mus", x + 8, py0 + 44, 136, "\u041C\u0423\u0417\u042B\u041A\u0410", musicVol, musicOn);
+        volRow("sfx", x + 8, py0 + 68, 136, "\u0417\u0412\u0423\u041A\u0418", sfxVol, sfxOn);
+        btn("vib", x + 8, py0 + 94, 136, 20, vibOn ? C.mint : "#1a1430", "\u0412\u0418\u0411\u0420\u041E: " + (vibOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), vibOn ? INK : C.cream);
+        if (stg) btn("ralpha", x + 8, py0 + 118, 136, 20, "#1a1430", "\u0427\u0423\u0416\u0418\u0415: " + remoteAlpha(), C.cream);
+        btn("set", x + 26, py0 + (stg ? 144 : 120), 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
       }
       drawFlash();
     }
@@ -5124,7 +6217,6 @@
       dimView(ctx, "rgba(18,14,44,0.32)");
       var x = colX();
       header("\u041C\u0410\u0413\u0410\u0417\u0418\u041D", 2);
-      coinsLabel(LW - 6, 12, save.coins, "right");
       var pw = 22, gap = 4, sx = Math.round(LW / 2 - (6 * pw + 5 * gap) / 2);
       for (var k = 0; k < 6; k++) {
         var bx = sx + k * (pw + gap), by = 36, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
@@ -5158,10 +6250,9 @@
       var tw = textWidth(H2.abName, 1) + 10;
       box(ctx, Math.round(LW / 2 - tw / 2), mid + 34, tw, 12, "#3a4ac8", C.cream);
       drawText(ctx, H2.abName, LW / 2, mid + 37, C.cream, 1, "center");
-      drawText(ctx, H2.type, LW / 2, mid + 50, C.gold, 1, "center");
-      drawText(ctx, H2.abDesc[0], LW / 2, mid + 62, C.cream, 1, "center");
-      drawText(ctx, H2.abDesc[1], LW / 2, mid + 72, C.cream, 1, "center");
-      drawChargeLine(LW / 2, mid + 84, H2, "#9a8ab8");
+      drawText(ctx, H2.abDesc[0], LW / 2, mid + 52, C.cream, 1, "center");
+      drawText(ctx, H2.abDesc[1], LW / 2, mid + 62, C.cream, 1, "center");
+      drawChargeLine(LW / 2, mid + 76, H2, "#9a8ab8");
       var byb = y0 + ch - 28;
       if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "\u0412\u042B\u0411\u0420\u0410\u041D", C.gold, 1, C.gold);
       else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "\u0412\u042B\u0411\u0420\u0410\u0422\u042C", INK);
@@ -5178,7 +6269,6 @@
       dimView(ctx, "rgba(18,14,44,0.34)");
       var x = colX();
       header("\u041A\u0410\u041C\u041F\u0410\u041D\u0418\u042F", 2);
-      coinsLabel(LW - 6, 12, save.coins, "right");
       box(ctx, x, 36, 152, 22, "#1a1430", C.mint);
       drawText(ctx, "\u0414\u041E\u0419\u0414\u0418 \u0414\u041E \u0426\u0415\u041B\u0418 \u2192", LW / 2, 39, C.cream, 1, "center");
       drawText(ctx, "\u041E\u0422\u041A\u0420\u041E\u0419 \u0417\u0410 \u041C\u041E\u041D\u0415\u0422\u042B", LW / 2, 49, C.mint, 1, "center");
@@ -5210,30 +6300,7 @@
         }
       }
       btn("back", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
-      if (campCard >= 0) drawCampCard();
       drawFlash();
-    }
-    function drawCampCard() {
-      var i = campCard, M = MAPS[i], open = mapOpen(i), can = !open && mapGoalMet(i);
-      var x = colX(), y = Math.round(LH / 2 - 70);
-      dimView(ctx, "rgba(8,6,20,0.55)");
-      box(ctx, x, y, 152, 140, C.navy, open ? C.gold : can ? C.mint : C.cream);
-      drawBgSwatch(x + 8, y + 8, 36, 28, M.id);
-      drawText(ctx, M.name, x + 50, y + 10, C.cream, 2, "left");
-      var tip = mapTip(M.id);
-      if (tip) drawText(ctx, tip, x + 50, y + 26, C.gold, 1, "left");
-      drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + mapBest(i) + " \u041C", x + 8, y + 42, C.cream, 1, "left");
-      if (M.goal) {
-        var b = mapBest(i);
-        drawText(ctx, "\u0426\u0415\u041B\u042C " + M.goal + " \u041C", x + 8, y + 54, C.gold, 1, "left");
-        bar(x + 8, y + 66, 136, 6, b / M.goal, b >= M.goal ? C.mint : C.gold);
-        drawText(ctx, b + "/" + M.goal, x + 144, y + 54, C.cream, 1, "right");
-      }
-      if (open) btn("camp:play", x + 8, y + 104, 136, 26, C.mint, "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", INK, 2);
-      else if (can) drawBuy("camp:open", x + 8, y + 104, 136, 26, M.price);
-      else drawText(ctx, "\u0421\u041D\u0410\u0427\u0410\u041B\u0410 " + MAPS[i - 1].goal + " \u041C " + WHERE[i - 1], LW / 2, y + 112, "#c8b8e0", 1, "center");
-      addHit("back", 0, 0, LW, y);
-      addHit("back", 0, y + 140, LW, LH - y - 140);
     }
     function drawLobby() {
       drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
@@ -5415,7 +6482,10 @@
           p.x = xx;
           drawFxBack(p, sy, cam);
           var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
+          ctx.save();
+          if (p.remote) ctx.globalAlpha = remoteAlpha();
           drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
+          ctx.restore();
           if (p.id === 0) drawReadyPip(p, sy);
           drawFxFront(p, sy, w.tick);
           p.x = ox;
@@ -5447,7 +6517,18 @@
       ctx.restore();
       var me = w.players[0];
       var wantPause = wantTouchPause();
-      drawTextO(ctx, metersOf(me) + " \u041C", 80, hudY(6), C.cream, "center");
+      var meter = metersOf(me) + " \u041C";
+      var meterX = 80;
+      if (heroHasAb(me) && me.alive && me.abCharge >= CHARS[me.kind].need) {
+        var ab = abBar();
+        var labRight = ab.x + ab.w + 3 + textWidth("\u0413\u041E\u0422\u041E\u0412", 1) - 1;
+        var half = (textWidth(meter, 1) - 1) / 2;
+        var need = Math.round(labRight + 4 + half);
+        if (need > meterX) meterX = need;
+        var cap = Math.round((wantPause ? 136 : LW - 2) - half);
+        if (meterX > cap) meterX = cap;
+      }
+      drawTextO(ctx, meter, meterX, hudY(6), C.cream, "center");
       coinsLabel(5, hudY(6), w.runCoins);
       if (w.mode === "squad") {
         var place = 1, lead = me, leadM = metersOf(me);
@@ -5481,9 +6562,9 @@
       }
       if (w.tick < 170 && !(w.toastT > 0)) {
         ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
-        var hasAb = heroHasAb(me), Hn = CHARS[me.kind];
-        var line1 = !isPhone ? hasAb ? "\u2190 \u2192 \u0425\u041E\u0414 \xB7 \u2191 " + Hn.abName : "\u2190 \u2192 \u0425\u041E\u0414" : "\u0422\u0410\u041F \u0421\u041B\u0415\u0412\u0410 / \u0421\u041F\u0420\u0410\u0412\u0410";
-        var line2 = isPhone && hasAb ? "\u0421\u0412\u0410\u0419\u041F \u2191 - " + Hn.abName : "";
+        var Hn = CHARS[me.kind];
+        var line1 = !isPhone ? "\u2190 \u2192 \u0425\u041E\u0414" : "\u0422\u0410\u041F \u0421\u041B\u0415\u0412\u0410 / \u0421\u041F\u0420\u0410\u0412\u0410";
+        var line2 = abHintRun ? !isPhone ? "\u2191 " + Hn.abName : "\u0421\u0412\u0410\u0419\u041F \u2191 " + Hn.abName : "";
         var htw = textWidth(line1, 1);
         if (line2) htw = Math.max(htw, textWidth(line2, 1));
         var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
@@ -5553,6 +6634,28 @@
         ctx.globalAlpha = 1;
       }
     }
+    function drawDome(p, cx, cy, tick) {
+      if (!(p.domeT > 0)) return;
+      var left = p.domeT;
+      if (left <= 55 && (left >> 2) % 2 === 0) return;
+      var flash2 = left > 188;
+      var col = "#c89bff", edge = "#5a2ea8", hot = "#f4e8ff";
+      var rad = flash2 ? 16 : 15;
+      ring(cx, cy, rad, col, 0.95);
+      ring(cx, cy, rad - 2, edge, 0.9);
+      ring(cx, cy, rad + 2, hot, flash2 ? 0.9 : 0.4);
+      if (flash2) {
+        ctx.globalAlpha = 0.34;
+        rect(ctx, cx - 11, cy - 11, 22, 22, col);
+        ctx.globalAlpha = 1;
+      }
+      var sparks = flash2 ? 10 : 8;
+      var orbit = flash2 ? 18 : 17;
+      for (var k = 0; k < sparks; k++) {
+        var a = k / sparks * Math.PI * 2 + tick * 0.18;
+        rect(ctx, Math.round(cx + Math.cos(a) * orbit), Math.round(cy + Math.sin(a) * orbit), 1, 1, k % 2 ? hot : col);
+      }
+    }
     function ring(cx, cy, r, col, alpha) {
       ctx.globalAlpha = alpha;
       for (var k = 0; k < 28; k++) {
@@ -5565,13 +6668,7 @@
       if (!p.alive) return;
       var cx = Math.round(p.x + 6), cy = Math.round(sy + 6);
       if (p.shieldT > 0) drawShieldAura(ctx, p, sy, tick);
-      if (p.domeT > 0 && (p.domeT > 50 || (p.domeT >> 2) % 2)) {
-        ring(cx, cy, 15, "#7ad8ff", 0.9);
-        ring(cx, cy, 14, "#c8f4ff", 0.35);
-        ctx.globalAlpha = 0.12;
-        rect(ctx, cx - 10, cy - 10, 20, 20, "#7ad8ff");
-        ctx.globalAlpha = 1;
-      }
+      drawDome(p, cx, cy, tick);
       if (p.freezeT > 0) {
         ctx.globalAlpha = 0.45;
         rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff");
@@ -5698,8 +6795,11 @@
       fillDisc(cx, cy, 7, ready ? C.gold : "#3a4a7a");
       fillDisc(cx, cy, 6, "#1a1430");
       if (active) strokeArc(cx, cy, 6, C.cream, rs.f != null ? rs.f : 1);
-      else if (ready) strokeArc(cx, cy, 6, C.gold, 1);
-      else strokeArc(cx, cy, 6, "#5ec8ff", f);
+      else if (ready) {
+        strokeArc(cx, cy, 6, C.gold, 1);
+        strokeArc(cx, cy, 8, (ui >> 3) % 2 ? C.gold : "#fff2a8", 1);
+      } else strokeArc(cx, cy, 6, "#5ec8ff", f);
+      if (ready) drawText(ctx, "\u0413\u041E\u0422\u041E\u0412", b.x + b.w + 3, b.y + 4, C.gold, 1, "left");
       ctx.globalAlpha = ready || active || rf > 0 ? 1 : 0.55;
       drawAbIcon(H.ab, cx - 6, cy - 6);
       ctx.globalAlpha = 1;
@@ -5895,7 +6995,9 @@
         hits = [];
         NET.draw(netApi);
         drawFlash();
-      } else {
+      }
+      if (phase !== "play") drawWallet();
+      else {
         drawPlay();
         if (world && world.net) NET.overlay(netApi, world);
       }
@@ -5915,6 +7017,8 @@
         ctx.restore();
       }
       if (netFixedLW() !== netLW || (fieldLocked && phase === "play" && !isWide) !== lastFill) resize();
+      hopMusicTick();
+      if (audioUnlocked) hopMusic(musicCue(phase, phase === "play" && world && world.map || save.bg || "city"));
       if (running && !driving) raf = requestAnimationFrame(frame);
     }
     var netApi = {
@@ -5955,6 +7059,44 @@
     };
     NET.bind(netApi);
     NET.tryResume(netApi);
+    var profileApi = {
+      save: function() {
+        return save;
+      },
+      saveNow: function() {
+        writeSave(save);
+      },
+      say: function(s) {
+        say(s);
+      },
+      apply: function(prof, wRef, awarded, effectiveCoins) {
+        if (!prof) return;
+        if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
+        else if (typeof prof.coins === "number" && prof.coins >= 0) save.coins = prof.coins;
+        if (typeof prof.best === "number" && prof.best > (save.best || 0)) save.best = prof.best;
+        if (prof.purchases && typeof prof.purchases === "object") {
+          for (var k in prof.purchases) if (prof.purchases[k]) save.owned[k] = 1;
+          var pend = {};
+          try {
+            if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.pendingBuyKeys) pend = PROFILE.pendingBuyKeys() || {};
+          } catch (_e) {
+          }
+          for (var ok in save.owned) {
+            if (save.owned[ok] && !prof.purchases[ok] && !pend[ok]) delete save.owned[ok];
+          }
+          if (!heroOwned(save.char)) save.char = 0;
+          var bi = mapIdx(save.bg);
+          if (bi > 0 && !mapOpen(bi)) save.bg = MAPS[0].id;
+        }
+        if (wRef && world === wRef && typeof awarded === "number") {
+          wRef.earned = awarded;
+          wRef.coinFrom = Math.max(0, save.coins - awarded);
+          wRef.best = save.best;
+        }
+        writeSave(save);
+      }
+    };
+    if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.init(profileApi);
     function onVis() {
       acc = 0;
       uiAcc = 0;
@@ -6043,8 +7185,12 @@
         return world;
       },
       net: NET,
+      profile: typeof PROFILE !== "undefined" ? PROFILE : null,
       getSave: function() {
         return save;
+      },
+      getFlash: function() {
+        return flash;
       },
       getSize: function() {
         return { lw: LW, lh: LH, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };

@@ -3538,7 +3538,7 @@
   var NET_GRACE_MS = 1e4;
   var NET_XS = [74, 22, 124, 48];
   var NET_TAGS = { host: "\u0425\u041E\u0421\u0422", ready: "\u0413\u041E\u0422\u041E\u0412", wait: "\u0416\u0414\u0401\u041C", off: "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418" };
-  var NET = function() {
+  var NET = (function() {
     var N = {
       ws: null,
       st: "off",
@@ -4559,8 +4559,8 @@
       N.connect();
     };
     return N;
-  }();
-  var PROFILE = function() {
+  })();
+  var PROFILE = (function() {
     var TOKEN_KEY = "hoppak_guest_token";
     var QUEUE_KEY = "hoppak_profile_queue";
     var BUYS_KEY = "hoppak_profile_buys";
@@ -4713,7 +4713,30 @@
       }
       return "";
     }
+    function waitTelegramSdk() {
+      try {
+        var w = typeof window !== "undefined" ? window : null;
+        if (w && w.__tgReady && typeof w.__tgReady.then === "function") return w.__tgReady;
+      } catch (_e) {
+      }
+      return Promise.resolve(null);
+    }
     function tryTelegramAuth(token) {
+      if (P.tgPending) return P.tgPending;
+      if (P.tgTried) return Promise.resolve(null);
+      var run = function() {
+        return tryTelegramAuthNow(token);
+      };
+      P.tgPending = waitTelegramSdk().then(run, run).then(function(r) {
+        P.tgPending = null;
+        return r;
+      }, function(e) {
+        P.tgPending = null;
+        throw e;
+      });
+      return P.tgPending;
+    }
+    function tryTelegramAuthNow(token) {
       if (P.tgTried) return Promise.resolve(null);
       var initData = readInitData();
       if (!initData || !token) return Promise.resolve(null);
@@ -5168,7 +5191,7 @@
       };
     };
     return P;
-  }();
+  })();
   function startHoppak(canvas) {
     var raw = canvas.getContext("2d");
     var noop = function() {

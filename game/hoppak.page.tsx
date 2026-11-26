@@ -3435,7 +3435,24 @@ var PROFILE: any = (function () {
   }
 
   /* Once per session. 503 / 401 / 409 / network: stay on the guest profile, do not loop. */
+  /* index.staging.html loads the Telegram SDK async and exposes window.__tgReady. */
+  function waitTelegramSdk(): Promise<any> {
+    try {
+      var w: any = typeof window !== "undefined" ? window : null;
+      if (w && w.__tgReady && typeof w.__tgReady.then === "function") return w.__tgReady;
+    } catch (_e) {}
+    return Promise.resolve(null);
+  }
+
   function tryTelegramAuth(token: string): Promise<any> {
+    if (P.tgPending) return P.tgPending;
+    if (P.tgTried) return Promise.resolve(null);
+    var run = function () { return tryTelegramAuthNow(token); };
+    P.tgPending = waitTelegramSdk().then(run, run).then(function (r: any) { P.tgPending = null; return r; }, function (e: any) { P.tgPending = null; throw e; });
+    return P.tgPending;
+  }
+
+  function tryTelegramAuthNow(token: string): Promise<any> {
     if (P.tgTried) return Promise.resolve(null);
     var initData = readInitData();
     if (!initData || !token) return Promise.resolve(null);
