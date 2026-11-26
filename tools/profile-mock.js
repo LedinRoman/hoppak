@@ -237,8 +237,8 @@ function createServer() {
           let merged = false;
           let mergedCoins = 0;
           if (guest && guest.id !== existing.id && !guest.telegramId && !guest.mergedInto) {
-            /* Server wallet only. A second device must not add its local coins. */
-            mergedCoins = 0;
+            mergedCoins = clamp(Math.floor(Number(guest.coins) || 0), 0, 8000);
+            existing.coins = (existing.coins || 0) + mergedCoins;
             existing.best = Math.max(existing.best || 0, Math.max(0, Math.floor(Number(guest.best) || 0)));
             existing.purchases = { ...existing.purchases, ...sanitizePurchases(guest.purchases) };
             existing.campaign = mergeCampaign(existing.campaign, guest.campaign);

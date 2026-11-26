@@ -353,9 +353,9 @@ async function testTelegramMerge() {
     assert.strictEqual(merged.status, 201, 'merge: ' + JSON.stringify(merged.data));
     assert.strictEqual(merged.data.merged, true);
     assert.strictEqual(merged.data.linked, false);
-    // Coins stay on the Telegram row. The guest wallet is not added.
-    assert.strictEqual(merged.data.mergedCoins, 0);
-    assert.strictEqual(merged.data.profile.coins, 7000);
+    // Guest server wallet transfers once, capped. 7000 + 2000.
+    assert.strictEqual(merged.data.mergedCoins, 2000);
+    assert.strictEqual(merged.data.profile.coins, 9000);
     assert.strictEqual(merged.data.profile.best, 900);
     assert.strictEqual(merged.data.profile.id, pId);
     assert.strictEqual(merged.data.profile.purchases['char:1'], 1);
@@ -373,7 +373,7 @@ async function testTelegramMerge() {
 
     const live = await req(base, 'GET', '/api/profile', undefined, pTok2);
     assert.strictEqual(live.status, 200);
-    assert.strictEqual(live.data.profile.coins, 7000);
+    assert.strictEqual(live.data.profile.coins, 9000);
     assert.strictEqual(live.data.profile.id, pId);
 
     const gRow = players.get(gId);
@@ -386,11 +386,11 @@ async function testTelegramMerge() {
     assert.strictEqual(again.status, 201);
     assert.ok(again.data.merged !== true);
     const againLive = await req(base, 'GET', '/api/profile', undefined, again.data.token);
-    assert.strictEqual(againLive.data.profile.coins, 7000);
+    assert.strictEqual(againLive.data.profile.coins, 9000);
     assert.strictEqual(againLive.data.profile.best, 900);
     assert.strictEqual(againLive.data.profile.id, pId);
 
-    // Guest coins are not added onto the Telegram balance.
+    // Guest part capped at 8000. Telegram coins above that stay.
     const p2g = await req(base, 'POST', '/api/profile/guest');
     await req(base, 'POST', '/api/profile/migrate', { coins: 100, best: 10, purchases: {} }, p2g.data.token);
     const p2link = await req(base, 'POST', '/api/auth/telegram', { initData: init(777) }, p2g.data.token);
@@ -405,8 +405,8 @@ async function testTelegramMerge() {
     const mCap = await req(base, 'POST', '/api/auth/telegram', { initData: init(777) }, g2.data.token);
     assert.strictEqual(mCap.status, 201);
     assert.strictEqual(mCap.data.merged, true);
-    assert.strictEqual(mCap.data.mergedCoins, 0);
-    assert.strictEqual(mCap.data.profile.coins, 10000);
+    assert.strictEqual(mCap.data.mergedCoins, 8000);
+    assert.strictEqual(mCap.data.profile.coins, 18000);
     assert.strictEqual(mCap.data.profile.best, 10);
     assert.strictEqual(mCap.data.profile.purchases['char:2'], 1);
 
@@ -439,7 +439,7 @@ async function testTelegramMerge() {
     // The later auth rotates the Telegram token, so one Bearer may already be 401.
     assert.ok(lives.length >= 1, 'a returned token must still open the merged profile');
     for (const p of lives) {
-      assert.strictEqual(p.coins, 100);
+      assert.strictEqual(p.coins, 500);
       assert.strictEqual(p.purchases['map:ice'], 1);
     }
     const dead3 = await req(base, 'GET', '/api/profile', undefined, g3Tok);
@@ -564,7 +564,7 @@ async function testMigrationSql() {
 
 async function testTwoDevices() {
   process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
-  const { app, base } = await startTestApp();
+  const { app, base, players } = await startTestApp();
   const init = (uid) => makeInitData(TEST_BOT_TOKEN, uid);
   try {
     const pc = await req(base, 'POST', '/api/profile/guest');
@@ -586,14 +586,12 @@ async function testTwoDevices() {
 
     const phone = await req(base, 'POST', '/api/profile/guest');
     const phTok = phone.data.token;
-    await req(base, 'POST', '/api/profile/migrate', {
-      coins: 99999, best: 40, purchases: { 'map:aqua': 1 },
-    }, phTok);
+    // 99999 is only a localStorage cache. It is not posted, so it cannot become a guest wallet.
     const upPh = await req(base, 'POST', '/api/profile/campaign', {
       mapBest: { aqua: 40, city: 10, space: 900 },
       open: { 'map:aqua': 1 },
     }, phTok);
-    assert.strictEqual(upPh.data.profile.coins, 8000);
+    assert.strictEqual(upPh.data.profile.coins, 0);
     const merged = await req(base, 'POST', '/api/auth/telegram', { initData: init(4242) }, phTok);
     assert.strictEqual(merged.data.merged, true);
     assert.strictEqual(merged.data.mergedCoins, 0);
@@ -606,21 +604,35 @@ async function testTwoDevices() {
     assert.strictEqual(prof.purchases['map:aqua'], 1);
     assert.strictEqual(prof.best, 20000);
 
+    const richGuest = await req(base, 'POST', '/api/profile/guest');
+    await req(base, 'POST', '/api/profile/migrate', { coins: 200, best: 1, purchases: {} }, richGuest.data.token);
+    const moved = await req(base, 'POST', '/api/auth/telegram', { initData: init(4242) }, richGuest.data.token);
+    assert.strictEqual(moved.data.merged, true);
+    assert.strictEqual(moved.data.mergedCoins, 200);
+    assert.strictEqual(moved.data.profile.coins, 1615);
+    const closed = players.get(richGuest.data.profile.id);
+    assert.strictEqual(closed.coins, 0);
+    assert.strictEqual(closed.mergedInto, prof.id);
+    const repeat = await req(base, 'POST', '/api/auth/telegram', { initData: init(4242) }, richGuest.data.token);
+    assert.ok(repeat.data.merged !== true);
+    const repeatLive = await req(base, 'GET', '/api/profile', undefined, repeat.data.token);
+    assert.strictEqual(repeatLive.data.profile.coins, 1615);
+
     const fin = await req(base, 'POST', '/api/run/finish', {
       height: 400, runCoins: 0, bonusCoins: 0, runId: 'map-lava-1', map: 'lava',
-    }, merged.data.token);
+    }, repeat.data.token);
     assert.strictEqual(fin.data.profile.campaign.best.lava, 20000);
     const coinsAfter = fin.data.profile.coins;
     const again = await req(base, 'POST', '/api/run/finish', {
       height: 18000, runCoins: 0, bonusCoins: 0, runId: 'map-lava-1', map: 'lava',
-    }, merged.data.token);
+    }, repeat.data.token);
     assert.strictEqual(again.data.duplicate, true);
     assert.strictEqual(again.data.profile.coins, coinsAfter);
     assert.strictEqual(again.data.profile.campaign.best.lava, 20000);
 
     const live = await req(base, 'POST', '/api/run/finish', {
       height: 250, runCoins: 0, bonusCoins: 0, runId: 'map-city-2', map: 'city',
-    }, merged.data.token);
+    }, repeat.data.token);
     assert.strictEqual(live.data.profile.campaign.best.city, 250);
     assert.strictEqual(live.data.profile.campaign.best.space, 900);
   } finally {

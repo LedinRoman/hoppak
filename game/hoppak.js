@@ -4833,7 +4833,7 @@
         P.st = "ready";
         applyProfile(res.data.profile);
         if (res.data.merged && P.api && P.api.say) P.api.say("\u041F\u0420\u041E\u0413\u0420\u0415\u0421\u0421 \u041E\u0411\u042A\u0415\u0414\u0418\u041D\u0401\u041D");
-        return res.data.profile;
+        return res.data;
       });
     }
     function makeRunId() {
@@ -4999,8 +4999,8 @@
       for (var k in owned) if (owned[k] && String(k).indexOf("map:") === 0) open[k] = 1;
       return { mapBest, open };
     }
-    function syncCampaign(token, fallback) {
-      var body = localCampaign();
+    function syncCampaign(token, fallback, bodySnap) {
+      var body = bodySnap || localCampaign();
       return req("POST", "/api/profile/campaign", body, token).then(function(res) {
         if (!handleStatus(res) || !res.data || !res.data.profile) {
           if (fallback) {
@@ -5014,9 +5014,9 @@
         return res.data.profile;
       });
     }
-    function syncMigrate(token, prof) {
+    function syncMigrate(token, prof, coinSnap) {
       var s = P.api && P.api.save ? P.api.save() : null;
-      var rawCoins = s && typeof s.coins === "number" ? Math.max(0, Math.floor(s.coins)) : 0;
+      var rawCoins = typeof coinSnap === "number" ? coinSnap : s && typeof s.coins === "number" ? Math.max(0, Math.floor(s.coins)) : 0;
       var coins = Math.max(0, rawCoins - queuedEst());
       var purchases = s && s.owned && typeof s.owned === "object" ? s.owned : {};
       var best = s && typeof s.best === "number" ? Math.max(0, Math.floor(s.best)) : 0;
@@ -5030,14 +5030,14 @@
         return syncCampaign(token, ready);
       });
     }
-    function createGuestAndMigrate() {
+    function createGuest() {
       return req("POST", "/api/profile/guest").then(function(res) {
         if (!handleStatus(res)) return null;
         if (res.data.token) setToken(res.data.token);
-        return syncMigrate(res.data.token || getToken(), res.data.profile);
+        return { token: res.data.token || getToken(), profile: res.data.profile };
       });
     }
-    function ensureProfile() {
+    function ensureProfile(deferCoins) {
       var base = apiOrigin();
       if (!base || typeof fetch === "undefined") {
         P.st = "offline";
@@ -5045,17 +5045,26 @@
       }
       P.st = "syncing";
       var tok = getToken();
+      var finish2 = function(token, prof) {
+        return deferCoins ? Promise.resolve(prof) : syncMigrate(token, prof);
+      };
       if (tok) {
         return req("GET", "/api/profile", void 0, tok).then(function(res) {
           if (res.status === 401) {
             setToken("");
-            return createGuestAndMigrate();
+            return createGuest().then(function(made) {
+              if (!made) return null;
+              return finish2(made.token, made.profile);
+            });
           }
           if (!handleStatus(res)) return null;
-          return syncMigrate(tok, res.data.profile);
+          return finish2(tok, res.data.profile);
         });
       }
-      return createGuestAndMigrate();
+      return createGuest().then(function(made) {
+        if (!made) return null;
+        return finish2(made.token, made.profile);
+      });
     }
     function flushBuysOnce(tok) {
       if (P.buySupported === false) return Promise.resolve();
@@ -5209,7 +5218,16 @@
         });
       }
       return enqueue(function() {
-        return ensureProfile().then(function(prof) {
+        var deferCoins = !!readInitData();
+        var coinSnap = 0;
+        var campSnap = null;
+        try {
+          var early = P.api && P.api.save ? P.api.save() : null;
+          if (early && typeof early.coins === "number") coinSnap = Math.max(0, Math.floor(early.coins));
+          campSnap = localCampaign();
+        } catch (_eSnap) {
+        }
+        return ensureProfile(deferCoins).then(function(prof) {
           if (!prof) {
             var cached = readJson(CACHE_KEY, null);
             if (cached) P.profile = cached;
@@ -5219,8 +5237,9 @@
             return null;
           }
           return flushAll(false).then(function() {
-            return tryTelegramAuth(getToken()).then(function() {
-              return P.profile;
+            return tryTelegramAuth(getToken()).then(function(auth) {
+              if (auth && auth.merged) return syncCampaign(getToken(), auth.profile || P.profile, campSnap);
+              return syncMigrate(getToken(), auth && auth.profile || P.profile || prof, coinSnap);
             });
           });
         });

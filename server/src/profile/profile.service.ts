@@ -223,9 +223,14 @@ export class ProfileService {
     return execute(repo, this.runs);
   }
 
+  /** Guest server wallet folded into an existing Telegram player. Local caches are not part of this number. */
+  private guestCoinPart(guest: Player): number {
+    return clamp(Math.floor(Number(guest.coins) || 0), 0, MIGRATE_COINS_MAX);
+  }
+
   private applyMerge(target: Player, guest: Player): number {
-    /* Coins stay on the Telegram row. Adding the guest wallet duplicates a
-       second device that already mirrored the same balance in localStorage. */
+    const incoming = this.guestCoinPart(guest);
+    target.coins = (target.coins || 0) + incoming;
     target.best = Math.max(target.best || 0, clamp(Math.floor(Number(guest.best) || 0), 0, RUN_HEIGHT_MAX));
     target.purchases = mergePurchases(target.purchases || {}, sanitizePurchases(guest.purchases));
     target.campaign = mergeCampaign(target.campaign, guest.campaign);
@@ -233,7 +238,7 @@ export class ProfileService {
     const best = (target.campaign && target.campaign.best) || {};
     for (const id of Object.keys(best)) top = Math.max(top, best[id] || 0);
     target.best = top;
-    return 0;
+    return incoming;
   }
 
   /** Revoke the guest token and mark the row closed so a retry cannot add coins again. */
