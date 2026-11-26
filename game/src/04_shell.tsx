@@ -417,6 +417,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       room = room || { round: 0 }; phase = "lobby"; return;
     }
     if (id === "set") { showSet = !showSet; return; }
+    if (id === "ralpha" && stagingBuild()) { cycleRemoteAlpha(); return; }
     if (id === "tilt") { toggleTilt(); return; }
     if (id === "sfx") { sfxOn = !sfxOn; save.sfx = sfxOn; writeSave(save); if (sfxOn) { audioUnlock(); hopSfx("tick"); } return; }
     if (id === "vib") { vibOn = !vibOn; save.vib = vibOn; writeSave(save); if (vibOn) hopVib(18); return; }
@@ -459,6 +460,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       save.coins -= M.price; save.owned["map:" + M.id] = 1; save.bg = M.id; say(mapOpened(M));
       if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("map:" + M.id, M.price);
     });
+  }
+  function stagingBuild(): boolean {
+    try { return typeof HOP_STAGING !== "undefined" && !!HOP_STAGING; } catch (_e) { return false; }
+  }
+  function remoteAlpha(): number {
+    if (!stagingBuild()) return REMOTE_ALPHA;
+    var s = storageGet("hoppak_remote_alpha") || "";
+    if (s === "0.7" || s === "0.8" || s === "0.9") return Number(s);
+    return REMOTE_ALPHA;
+  }
+  function cycleRemoteAlpha() {
+    var opts = [0.7, 0.8, 0.9];
+    var i = opts.indexOf(remoteAlpha());
+    storageSet("hoppak_remote_alpha", String(opts[(i + 1) % opts.length]));
   }
   function toggleTilt() {
     if (!tiltAvail || tiltDenied) { say("НАКЛОН НЕДОСТУПЕН"); return; }
@@ -632,12 +647,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
     }
     if (showSet) {
-      box(ctx, x, 70, 152, 128, C.navy, C.cream);
+      var stg = stagingBuild();
+      box(ctx, x, 70, 152, stg ? 154 : 128, C.navy, C.cream);
       drawText(ctx, "НАСТРОЙКИ", LW / 2, 76, C.gold, 1, "center");
       btn("tilt", x + 8, 94, 136, 22, tiltOn ? C.mint : "#1a1430", "НАКЛОН: " + (tiltOn ? "ВКЛ" : "ВЫКЛ"), tiltOn ? INK : C.cream);
       btn("sfx", x + 8, 120, 136, 22, sfxOn ? C.mint : "#1a1430", "ЗВУК: " + (sfxOn ? "ВКЛ" : "ВЫКЛ"), sfxOn ? INK : C.cream);
       btn("vib", x + 8, 146, 136, 22, vibOn ? C.mint : "#1a1430", "ВИБРО: " + (vibOn ? "ВКЛ" : "ВЫКЛ"), vibOn ? INK : C.cream);
-      btn("set", x + 26, 174, 100, 16, C.navy, "ЗАКРЫТЬ");
+      if (stg) btn("ralpha", x + 8, 172, 136, 22, "#1a1430", "ЧУЖИЕ: " + remoteAlpha(), C.cream);
+      btn("set", x + 26, stg ? 200 : 174, 100, 16, C.navy, "ЗАКРЫТЬ");
     }
     drawFlash();
   }
@@ -893,7 +910,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         drawFxBack(p, sy, cam);
         /* Render-only: while clinging, face into the field. p.face is used by dash/kick/net, so sim stays as-is. */
         var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
+        ctx.save();
+        if (p.remote) ctx.globalAlpha = remoteAlpha();
         drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
+        ctx.restore();
         if (p.id === 0) drawReadyPip(p, sy);
         drawFxFront(p, sy, w.tick);
         p.x = ox;

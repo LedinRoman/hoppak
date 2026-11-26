@@ -21,6 +21,8 @@ function viewBotMax(lh: number) { return Math.max(0, Math.floor(lh - (lh * 0.42 
 var TOP_CROP_MAX = 80;
 function dimView(ctx: Ctx, col: string) { rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col); }
 var PX_PER_M = 8;
+/* Online: other players. 1 would be opaque. Staging cycles 0.7 / 0.8 / 0.9. */
+var REMOTE_ALPHA = 0.8;
 var PW = 12;
 var PH = 16;
 var GRAVITY = 0.19;
