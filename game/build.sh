@@ -13,7 +13,7 @@
 set -e
 cd "$(dirname "$0")"
 ESB=/tmp/esb/node_modules/.bin/esbuild
-cat src/01_core.tsx src/02_world.tsx src/03_draw.tsx src/net.tsx src/04_shell.tsx > hoppak.page.tsx
+cat src/01_core.tsx src/02_world.tsx src/03_draw.tsx src/net.tsx src/profile.tsx src/04_shell.tsx > hoppak.page.tsx
 python3 - << 'PY'
 src = open("hoppak.page.tsx").read()
 game = src.split("/* @@APP */")[0]
@@ -21,13 +21,13 @@ game = game.split("\n", 1)[1]  # drop grok/canvas import
 open("/tmp/hoppak.game.ts", "w").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
 PY
 $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --outfile=hoppak.js --log-level=warning
-sed -i '1i /* Хоппак v0.59 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
+sed -i '1i /* Хоппак v0.6rc — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
 $ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --outfile=/tmp/hop.min.tsx --log-level=warning
 python3 - << 'PY'
 import re
 t = open("/tmp/hop.min.tsx").read().strip()
-m = re.search(r"export\{([\$\w]+) as default\};?\s*$", t)
+m = re.search(r"export\{([A-Za-z_$][\w$]*) as default\};?\s*$", t)
 t = t[:m.start()] + "export default " + m.group(1) + ";"
 # esbuild --line-limit wraps strings with backslash+newline. The Canvas TSX
 # compiler may not honour that, which would corrupt data-URI sprite sheets.
@@ -51,20 +51,27 @@ print("page bytes", len(t.encode()))
 PY
 node --check hoppak.js && echo "js ok $(wc -c < hoppak.js) bytes"
 
-if [ "${1:-}" = "site" ]; then
+if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
   SITE_ORIGIN="${HOP_SERVER:-https://76-13-250-251.sslip.io}"
   mkdir -p site
+  DEFS="--define:HOP_SERVER=\"${SITE_ORIGIN}\""
+  HTML_SRC="index.html"
+  if [ -n "${HOP_API:-}" ]; then DEFS="${DEFS} --define:HOP_API=\"${HOP_API}\""; fi
+  # Staging (/v/0.6rc/) is the only build that loads telegram-web-app.js and the alpha toggle.
+  if [ "${1:-}" = "staging" ]; then
+    DEFS="${DEFS} --define:HOP_STAGING=true"
+    HTML_SRC="index.staging.html"
+  fi
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
-    --define:HOP_SERVER="\"${SITE_ORIGIN}\"" \
+    ${DEFS} \
     --outfile=site/hoppak.js --log-level=warning
-  sed -i '1i /* Хоппак v0.59 site — HOP_SERVER baked in, do not edit */' site/hoppak.js
+  sed -i '1i /* Хоппак v0.6rc site — HOP_SERVER baked in, do not edit */' site/hoppak.js
   python3 - << PY
 from pathlib import Path
-html = Path("index.html").read_text()
-html = html.replace("Хоппак v0.54", "Хоппак v0.59").replace("Хоппак v0.57", "Хоппак v0.59")
-# if source title already bumped, leave it
+html = Path("${HTML_SRC}").read_text()
+html = html.replace("Хоппак v0.59", "Хоппак v0.6rc").replace("Хоппак v0.58", "Хоппак v0.6rc")
 Path("site/index.html").write_text(html)
-print("site origin ${SITE_ORIGIN}")
+print("site html", "${HTML_SRC}")
 print("site js", Path("site/hoppak.js").stat().st_size, "bytes")
 PY
   # fix the printed origin (the heredoc was unquoted wrongly for the env var)

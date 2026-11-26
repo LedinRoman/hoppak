@@ -309,7 +309,17 @@ var FONT: any = {
   "0": [14, 17, 19, 21, 25, 17, 14], "1": [4, 12, 4, 4, 4, 4, 14], "2": [14, 17, 1, 2, 4, 8, 31],
   "3": [14, 17, 1, 6, 1, 17, 14], "4": [2, 6, 10, 18, 31, 2, 2], "5": [31, 16, 30, 1, 1, 17, 14],
   "6": [14, 16, 16, 30, 17, 17, 14], "7": [31, 1, 2, 4, 8, 8, 8], "8": [14, 17, 17, 14, 17, 17, 14],
-  "9": [14, 17, 17, 15, 1, 1, 14], " ": [0, 0, 0, 0, 0, 0, 0], ".": [0, 0, 0, 0, 0, 12, 12],
+  "9": [14, 17, 17, 15, 1, 1, 14],
+  "A": [14, 17, 17, 31, 17, 17, 17], "B": [30, 17, 17, 30, 17, 17, 30], "C": [14, 17, 16, 16, 16, 17, 14],
+  "D": [30, 17, 17, 17, 17, 17, 30], "E": [31, 16, 16, 30, 16, 16, 31], "F": [31, 16, 16, 30, 16, 16, 16],
+  "G": [14, 17, 16, 23, 17, 17, 14], "H": [17, 17, 17, 31, 17, 17, 17], "I": [14, 4, 4, 4, 4, 4, 14],
+  "J": [7, 2, 2, 2, 18, 18, 12], "K": [17, 18, 20, 24, 20, 18, 17], "L": [16, 16, 16, 16, 16, 16, 31],
+  "M": [17, 27, 21, 21, 17, 17, 17], "N": [17, 25, 21, 19, 17, 17, 17], "O": [14, 17, 17, 17, 17, 17, 14],
+  "P": [30, 17, 17, 30, 16, 16, 16], "Q": [14, 17, 17, 17, 21, 18, 13], "R": [30, 17, 17, 30, 20, 18, 17],
+  "S": [14, 17, 16, 14, 1, 17, 14], "T": [31, 4, 4, 4, 4, 4, 4], "U": [17, 17, 17, 17, 17, 17, 14],
+  "V": [17, 17, 17, 17, 17, 10, 4], "W": [17, 17, 17, 21, 21, 27, 17], "X": [17, 17, 10, 4, 10, 17, 17],
+  "Y": [17, 17, 10, 4, 4, 4, 4], "Z": [31, 1, 2, 4, 8, 16, 31],
+  " ": [0, 0, 0, 0, 0, 0, 0], ".": [0, 0, 0, 0, 0, 12, 12],
   ":": [0, 12, 12, 0, 12, 12, 0], ",": [0, 0, 0, 0, 12, 4, 8], "-": [0, 0, 0, 14, 0, 0, 0],
   "+": [0, 4, 4, 31, 4, 4, 0], "?": [14, 17, 1, 2, 4, 0, 4], "!": [4, 4, 4, 4, 4, 0, 4],
   "<": [1, 2, 4, 8, 4, 2, 1], ">": [16, 8, 4, 2, 4, 8, 16], "/": [1, 1, 2, 4, 8, 16, 16], "(": [2, 4, 8, 8, 8, 4, 2], ")": [8, 4, 2, 2, 2, 4, 8],
@@ -450,16 +460,26 @@ var FIRST_TOAST: any = {
 };
 
 
-function textWidth(s: string, sc: number) { return String(s).length * 6 * sc; }
+/* Uppercase, then drop any glyph the font does not have. Never substitute '?'. */
+function drawableChars(s: string) {
+  s = String(s).toUpperCase();
+  var out = "";
+  for (var i = 0; i < s.length; i++) if (FONT[s[i]]) out += s[i];
+  return out;
+}
+function textWidth(s: string, sc: number) {
+  var n = drawableChars(s).length;
+  return n ? n * 6 * sc : 0;
+}
 function drawText(ctx: Ctx, s: string, x: number, y: number, color: string, sc?: number, align?: string) {
   var k = sc || 1;
-  s = String(s).toUpperCase();
-  var w = textWidth(s, k) - k;
+  s = drawableChars(s);
+  var w = s.length ? textWidth(s, k) - k : 0;
   var xx = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
   y = Math.round(y);
   ctx.fillStyle = color;
   for (var i = 0; i < s.length; i++) {
-    var g = FONT[s[i]] || FONT["?"];
+    var g = FONT[s[i]];
     for (var r = 0; r < 7; r++) for (var c = 0; c < 5; c++) if (g[r] & (1 << (4 - c))) ctx.fillRect(xx + c * k, y + r * k, k, k);
     xx += 6 * k;
   }
@@ -534,7 +554,8 @@ function drawHudIcon(ctx: Ctx, kind: string, x: number, y: number) {
 var BIGF: any = { 2: {}, 3: {} };
 function bigGlyph(ch: string, k: number) {
   if (BIGF[k][ch]) return BIGF[k][ch];
-  var g = FONT[ch] || FONT["?"];
+  var g = FONT[ch];
+  if (!g) return [];
   function P(r: number, c: number) { return r >= 0 && r < 7 && c >= 0 && c < 5 && !!(g[r] & (1 << (4 - c))) ? 1 : 0; }
   var W = 5 * k, H = 7 * k, out: number[][] = [];
   for (var y = 0; y < H; y++) { out.push([]); for (var x = 0; x < W; x++) out[y].push(0); }
@@ -553,9 +574,12 @@ function bigGlyph(ch: string, k: number) {
   }
   BIGF[k][ch] = out; return out;
 }
-function bigWidth(s: string, k: number) { return String(s).length * 6 * k - k; }
+function bigWidth(s: string, k: number) {
+  var n = drawableChars(s).length;
+  return n ? n * 6 * k - k : 0;
+}
 function drawBig(ctx: Ctx, s: string, x: number, y: number, face: string, k: number, align: string, outline?: string, shadow?: string) {
-  s = String(s).toUpperCase();
+  s = drawableChars(s);
   var w = bigWidth(s, k);
   var x0 = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x); y = Math.round(y);
   function pass(dx: number, dy: number, col: string) {
@@ -3020,6 +3044,577 @@ var NET: any = (function () {
   return N;
 })();
 
+/* ---------------- Player profile (guest token + server sync) ----------------
+   Targets feat/profile-db @ 2284797 and supports feat/profile-server-v06
+   (best, runId, /api/profile/buy, POST /api/auth/telegram). Keeps local save
+   working offline or on 503. Telegram Mini App login runs once per session
+   when Telegram.WebApp.initData is present; errors stay on the guest profile.
+   All logic lives here; 04_shell.tsx only calls PROFILE.init / finishRun / buy. */
+
+var PROFILE: any = (function () {
+  var TOKEN_KEY = "hoppak_guest_token";
+  var QUEUE_KEY = "hoppak_profile_queue";
+  var BUYS_KEY = "hoppak_profile_buys";
+  var CACHE_KEY = "hoppak_profile_cache";
+  var HOUR_KEY = "hoppak_profile_hour";
+  var REQ_MS = 5000;
+  var FINISH_COOLDOWN_MS = 8200;
+  var RATE_RETRY_MS = 8500;
+  var RUN_AWARD_MAX = 200;
+  var HOUR_AWARD_MAX = 400;
+  var HOUR_MS = 3600000;
+  var P: any = {
+    st: "idle", /* idle | syncing | ready | offline | unavailable */
+    profile: null as any,
+    api: null as any,
+    queue: null as any,
+    buySupported: null as any, /* null = unknown | true | false (404 on 2284797) */
+    lastFinishOkAt: 0,
+    nextRunAt: 0,
+    backoffMs: 5000,
+    retryTimer: 0,
+    onlineBound: false,
+    tgTried: false
+  };
+
+  function lsGet(k: string): string {
+    try { return (typeof localStorage !== "undefined" && localStorage.getItem(k)) || ""; } catch (_e) { return ""; }
+  }
+  function lsSet(k: string, v: string) {
+    try {
+      if (typeof localStorage === "undefined") return;
+      if (v) localStorage.setItem(k, v);
+      else localStorage.removeItem(k);
+    } catch (_e) {}
+  }
+  function readJson(k: string, def: any) {
+    try {
+      var raw = lsGet(k);
+      if (!raw) return def;
+      var parsed = JSON.parse(raw);
+      return parsed == null ? def : parsed;
+    } catch (_e) { return def; }
+  }
+  function writeJson(k: string, val: any) {
+    try { lsSet(k, JSON.stringify(val)); } catch (_e) {}
+  }
+
+  function getToken(): string { return lsGet(TOKEN_KEY); }
+  function setToken(t: string) { lsSet(TOKEN_KEY, t); }
+
+  function getRunQueue(): any[] {
+    var q = readJson(QUEUE_KEY, []);
+    return Array.isArray(q) ? q : [];
+  }
+  function setRunQueue(q: any[]) {
+    if (q.length > 50) q = q.slice(q.length - 50);
+    writeJson(QUEUE_KEY, q);
+  }
+
+  function getPendingBuys(): any[] {
+    var b = readJson(BUYS_KEY, []);
+    return Array.isArray(b) ? b : [];
+  }
+  function setPendingBuys(b: any[]) {
+    writeJson(BUYS_KEY, b);
+  }
+
+  function pruneConfirmedBuys(prof: any) {
+    var owned = (prof && prof.purchases) || {};
+    var buys = getPendingBuys();
+    var next: any[] = [];
+    var seen: any = {};
+    for (var i = 0; i < buys.length; i++) {
+      var it = buys[i];
+      if (!it || !it.key || seen[it.key] || owned[it.key]) continue;
+      seen[it.key] = 1;
+      next.push(it);
+    }
+    if (next.length !== buys.length) setPendingBuys(next);
+    return next;
+  }
+
+  function pendingSpend(): number {
+    var buys = getPendingBuys();
+    var tot = 0;
+    for (var i = 0; i < buys.length; i++) {
+      tot += Math.max(0, Math.floor(Number(buys[i] && buys[i].price) || 0));
+    }
+    return tot;
+  }
+
+  function queuedEst(): number {
+    var q = getRunQueue();
+    var tot = 0;
+    for (var i = 0; i < q.length; i++) {
+      tot += Math.max(0, Math.floor(Number(q[i] && q[i].estAward) || 0));
+    }
+    return tot;
+  }
+
+  function estRunAward(height: number, runCoins: number, bonusCoins: number): number {
+    var h = Math.max(0, Math.min(20000, Math.floor(Number(height) || 0)));
+    var c = Math.max(0, Math.min(80, Math.floor(Number(runCoins) || 0)));
+    var b = Math.max(0, Math.min(40, Math.floor(Number(bonusCoins) || 0)));
+    return Math.max(0, Math.min(RUN_AWARD_MAX, Math.floor(h / 25) + c + b));
+  }
+
+  function hourState(): any {
+    var now = Date.now();
+    var s = readJson(HOUR_KEY, null);
+    if (!s || typeof s !== "object" || !s.startedAt || now - s.startedAt >= HOUR_MS) {
+      s = { startedAt: now, awarded: 0 };
+      writeJson(HOUR_KEY, s);
+    }
+    return s;
+  }
+
+  function computeAward(height: number, runCoins: number, bonusCoins: number): any {
+    var want = estRunAward(height, runCoins, bonusCoins);
+    var hs = hourState();
+    var room = Math.max(0, HOUR_AWARD_MAX - Math.max(0, Math.floor(Number(hs.awarded) || 0)));
+    var awarded = Math.min(want, room);
+    return { want: want, awarded: awarded, limited: awarded < want ? "HOUR_CAP" : "" };
+  }
+
+  function noteAward(awarded: number) {
+    var n = Math.max(0, Math.floor(Number(awarded) || 0));
+    if (!n) return;
+    var hs = hourState();
+    hs.awarded = Math.max(0, Math.floor(Number(hs.awarded) || 0)) + n;
+    writeJson(HOUR_KEY, hs);
+  }
+
+  function pendingBuyKeys(): any {
+    var out: any = {};
+    var buys = getPendingBuys();
+    for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key) out[buys[i].key] = 1;
+    return out;
+  }
+
+  function readInitData(): string {
+    try {
+      var w: any = typeof window !== "undefined" ? window : null;
+      var d = w && w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initData;
+      if (typeof d === "string" && d) return d;
+    } catch (_e) {}
+    return "";
+  }
+
+  /* Once per session. 503 / 401 / 409 / network: stay on the guest profile, do not loop. */
+  function tryTelegramAuth(token: string): Promise<any> {
+    if (P.tgTried) return Promise.resolve(null);
+    var initData = readInitData();
+    if (!initData || !token) return Promise.resolve(null);
+    P.tgTried = true;
+    return req("POST", "/api/auth/telegram", { initData: initData }, token).then(function (res: any) {
+      if (!res || !res.ok || !res.data || !res.data.ok || !res.data.profile) return null;
+      if (res.data.token) setToken(res.data.token);
+      P.st = "ready";
+      applyProfile(res.data.profile);
+      if (res.data.merged && P.api && P.api.say) P.api.say("ПРОГРЕСС ОБЪЕДИНЁН");
+      return res.data.profile;
+    });
+  }
+
+  function makeRunId(): string {
+    var r = "";
+    try {
+      if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+        var u = new Uint32Array(2);
+        crypto.getRandomValues(u);
+        r = u[0].toString(36) + u[1].toString(36);
+      }
+    } catch (_e) {}
+    if (!r) r = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+    return "r_" + Date.now().toString(36) + "_" + r;
+  }
+
+  function normalizeOrigin(raw: string): string {
+    var o = String(raw || "").trim();
+    if (!o) return "";
+    if (o.indexOf("wss://") === 0) o = "https://" + o.slice(6);
+    else if (o.indexOf("ws://") === 0) o = "http://" + o.slice(5);
+    if (o.indexOf("https://") !== 0 && o.indexOf("http://") !== 0) return "";
+    o = o.replace(/\/+$/, "");
+    if (o.length > 3 && o.slice(-3) === "/ws") o = o.slice(0, -3);
+    if (o.length > 4 && o.slice(-4) === "/api") o = o.slice(0, -4);
+    return o.replace(/\/+$/, "");
+  }
+
+  function apiOrigin(): string {
+    var w: any = typeof window !== "undefined" ? window : null;
+    if (!w) return "";
+    try {
+      var sp = new URLSearchParams(w.location.search);
+      var qa = sp.get("api") || sp.get("profileApi");
+      if (qa) { var qan = normalizeOrigin(qa); if (qan) return qan; }
+      if (w.HOPPAK_API) { var wan = normalizeOrigin(w.HOPPAK_API); if (wan) return wan; }
+      var lsa = w.localStorage && w.localStorage.getItem("hoppak.api");
+      if (lsa) { var lsan = normalizeOrigin(lsa); if (lsan) return lsan; }
+    } catch (_e) {}
+    try {
+      if (typeof HOP_API !== "undefined" && HOP_API) {
+        var ban = normalizeOrigin(String(HOP_API));
+        if (ban) return ban;
+      }
+    } catch (_e1) {}
+    var isPage = false;
+    try { isPage = typeof HOP_PAGE !== "undefined" && !!HOP_PAGE; } catch (_e2) {}
+    if (!isPage) {
+      try {
+        var pr = w.location && w.location.protocol;
+        if (pr === "http:" || pr === "https:") return w.location.origin;
+      } catch (_e3) {}
+    }
+    try {
+      var qs = new URLSearchParams(w.location.search).get("server");
+      if (qs) { var qn = normalizeOrigin(qs); if (qn) return qn; }
+      if (w.HOPPAK_SERVER) { var wn = normalizeOrigin(w.HOPPAK_SERVER); if (wn) return wn; }
+      var ls = w.localStorage && w.localStorage.getItem("hoppak.server");
+      if (ls) { var ln = normalizeOrigin(ls); if (ln) return ln; }
+      if (isPage && typeof HOP_SERVER !== "undefined" && HOP_SERVER) {
+        var bn = normalizeOrigin(String(HOP_SERVER));
+        if (bn) return bn;
+      }
+    } catch (_e4) {}
+    return "";
+  }
+
+  function req(method: string, path: string, body?: any, token?: string) {
+    var base = apiOrigin();
+    if (!base || typeof fetch === "undefined") {
+      return Promise.resolve({ status: 0, ok: false, data: null });
+    }
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var to = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, REQ_MS);
+    var headers: any = {};
+    if (token) headers["Authorization"] = "Bearer " + token;
+    var sameOrig = false;
+    try { sameOrig = typeof window !== "undefined" && window.location && window.location.origin === base; } catch (_e0) {}
+    var opts: any = { method: method, headers: headers, cache: "no-store", mode: sameOrig ? "same-origin" : "cors" };
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    if (ctrl) opts.signal = ctrl.signal;
+    return fetch(base + path, opts).then(function (r: any) {
+      clearTimeout(to);
+      return r.json().catch(function () { return null; }).then(function (data: any) {
+        return { status: r.status, ok: !!r.ok, data: data };
+      });
+    }).catch(function () {
+      clearTimeout(to);
+      return { status: 0, ok: false, data: null };
+    });
+  }
+
+  function applyProfile(prof: any, wRef?: any, awarded?: number) {
+    if (!prof) return;
+    P.profile = prof;
+    writeJson(CACHE_KEY, prof);
+    pruneConfirmedBuys(prof);
+    var effectiveCoins = Math.max(0, (prof.coins || 0) - pendingSpend()) + queuedEst();
+    if (P.api && P.api.apply) P.api.apply(prof, wRef, awarded, effectiveCoins);
+  }
+
+  function handleStatus(res: any): boolean {
+    if (res.status === 503 || (res.data && res.data.error === "PROFILE_UNAVAILABLE")) {
+      P.st = "unavailable";
+      return false;
+    }
+    if (!res.ok || !res.data || !res.data.ok) {
+      if (res.status === 0 || res.status >= 500) P.st = "offline";
+      return false;
+    }
+    return true;
+  }
+
+  function scheduleRetry(delayMs: number) {
+    if (typeof setTimeout === "undefined") return;
+    if (P.retryTimer) { clearTimeout(P.retryTimer); P.retryTimer = 0; }
+    var d = Math.max(250, delayMs);
+    P.retryTimer = setTimeout(function () {
+      P.retryTimer = 0;
+      P.flush();
+    }, d);
+  }
+
+  function syncMigrate(token: string, prof: any) {
+    if (!prof || prof.migratedAt) {
+      P.st = "ready";
+      applyProfile(prof);
+      return Promise.resolve(prof);
+    }
+    var s = P.api && P.api.save ? P.api.save() : null;
+    var rawCoins = s && typeof s.coins === "number" ? Math.max(0, Math.floor(s.coins)) : 0;
+    var coins = Math.max(0, rawCoins - queuedEst());
+    var purchases = (s && s.owned && typeof s.owned === "object") ? s.owned : {};
+    var best = s && typeof s.best === "number" ? Math.max(0, Math.floor(s.best)) : 0;
+    return req("POST", "/api/profile/migrate", { coins: coins, purchases: purchases, best: best }, token).then(function (res: any) {
+      if (!handleStatus(res)) return null;
+      P.st = "ready";
+      applyProfile(res.data.profile);
+      return res.data.profile;
+    });
+  }
+
+  function createGuestAndMigrate() {
+    return req("POST", "/api/profile/guest").then(function (res: any) {
+      if (!handleStatus(res)) return null;
+      if (res.data.token) setToken(res.data.token);
+      return syncMigrate(res.data.token || getToken(), res.data.profile);
+    });
+  }
+
+  function ensureProfile() {
+    var base = apiOrigin();
+    if (!base || typeof fetch === "undefined") {
+      P.st = "offline";
+      return Promise.resolve(null);
+    }
+    P.st = "syncing";
+    var tok = getToken();
+    if (tok) {
+      return req("GET", "/api/profile", undefined, tok).then(function (res: any) {
+        if (res.status === 401) {
+          setToken("");
+          return createGuestAndMigrate();
+        }
+        if (!handleStatus(res)) return null;
+        return syncMigrate(tok, res.data.profile);
+      });
+    }
+    return createGuestAndMigrate();
+  }
+
+  function flushBuysOnce(tok: string): Promise<void> {
+    if (P.buySupported === false) return Promise.resolve();
+    var buys = getPendingBuys();
+    if (!buys.length || !tok) return Promise.resolve();
+    var item = buys[0];
+    return req("POST", "/api/profile/buy", { key: item.key }, tok).then(function (res: any) {
+      if (res.status === 404 || res.status === 405 || res.status === 501) {
+        P.buySupported = false;
+        return;
+      }
+      if (res.status === 401) {
+        setToken("");
+        return;
+      }
+      if (res.status === 400) {
+        // INVALID_ITEM or INSUFFICIENT_COINS — drop stale pending buy and re-sync
+        var cur = getPendingBuys().filter(function (x: any) { return x && x.key !== item.key; });
+        setPendingBuys(cur);
+        if (P.profile) applyProfile(P.profile);
+        return flushBuysOnce(tok);
+      }
+      if (!handleStatus(res)) return;
+      P.buySupported = true;
+      P.st = "ready";
+      var rest = getPendingBuys().filter(function (x: any) { return x && x.key !== item.key; });
+      setPendingBuys(rest);
+      applyProfile(res.data.profile);
+      if (rest.length) return flushBuysOnce(tok);
+    });
+  }
+
+  function flushRunsStep(tok: string, authRetried?: boolean): Promise<any> {
+    var q = getRunQueue();
+    if (!q.length) return Promise.resolve(null);
+    var now = Date.now();
+    if (now < P.nextRunAt) {
+      scheduleRetry(P.nextRunAt - now);
+      return Promise.resolve(null);
+    }
+    var head = q[0];
+    var body: any = {
+      runId: head.runId,
+      height: head.height,
+      runCoins: head.runCoins,
+      bonusCoins: head.bonusCoins
+    };
+    if (head.mode) body.mode = head.mode;
+    if (head.map) body.map = head.map;
+    if (head.ver) body.ver = head.ver;
+
+    return req("POST", "/api/run/finish", body, tok).then(function (res: any) {
+      if (res.status === 401) {
+        setToken("");
+        if (!authRetried) {
+          return ensureProfile().then(function () {
+            var nt = getToken();
+            return nt ? flushRunsStep(nt, true) : null;
+          });
+        }
+        return null;
+      }
+      if (res.status === 429 || (res.data && res.data.error === "RATE_LIMIT")) {
+        P.nextRunAt = Date.now() + RATE_RETRY_MS;
+        scheduleRetry(RATE_RETRY_MS);
+        return null;
+      }
+      if (res.status === 400) {
+        var dropped = getRunQueue();
+        dropped.shift();
+        setRunQueue(dropped);
+        return dropped.length ? flushRunsStep(tok, authRetried) : null;
+      }
+      if (!handleStatus(res)) {
+        var wait = P.backoffMs;
+        P.backoffMs = Math.min(60000, P.backoffMs * 2);
+        scheduleRetry(wait);
+        return null;
+      }
+      P.backoffMs = 5000;
+      P.lastFinishOkAt = Date.now();
+      P.nextRunAt = P.lastFinishOkAt + FINISH_COOLDOWN_MS;
+      var curQ = getRunQueue();
+      if (curQ.length && curQ[0].runId === head.runId) curQ.shift();
+      else curQ = curQ.filter(function (x: any) { return x && x.runId !== head.runId; });
+      setRunQueue(curQ);
+      P.st = "ready";
+      applyProfile(res.data.profile, head._wRef, res.data.awarded);
+      if (curQ.length) scheduleRetry(FINISH_COOLDOWN_MS);
+      return res.data;
+    });
+  }
+
+  function flushAll(allowInit: boolean) {
+    var base = apiOrigin();
+    if (!base || typeof fetch === "undefined") {
+      P.st = "offline";
+      return Promise.resolve(null);
+    }
+    var tok = getToken();
+    var ready = tok ? Promise.resolve(tok) : (allowInit ? ensureProfile().then(function () { return getToken(); }) : Promise.resolve(""));
+    return ready.then(function (t: string) {
+      if (!t) {
+        if (getRunQueue().length || getPendingBuys().length) {
+          var wait = P.backoffMs;
+          P.backoffMs = Math.min(60000, P.backoffMs * 2);
+          scheduleRetry(wait);
+        }
+        return null;
+      }
+      return flushBuysOnce(t).then(function () {
+        return flushRunsStep(t);
+      });
+    });
+  }
+
+  function enqueue(fn: any) {
+    var prev = P.queue || Promise.resolve(null);
+    var next = prev.then(function () { return fn(); }, function () { return fn(); });
+    P.queue = next;
+    return next;
+  }
+
+  P.init = function (api: any) {
+    P.api = api;
+    if (!P.onlineBound && typeof window !== "undefined" && window.addEventListener) {
+      P.onlineBound = true;
+      window.addEventListener("online", function () {
+        P.backoffMs = 5000;
+        P.flush();
+      });
+    }
+    return enqueue(function () {
+      return ensureProfile().then(function (prof: any) {
+        if (!prof) {
+          var cached = readJson(CACHE_KEY, null);
+          if (cached) P.profile = cached;
+          if (getRunQueue().length || getPendingBuys().length) {
+            scheduleRetry(P.backoffMs);
+          }
+          return null;
+        }
+        return flushAll(false).then(function () {
+          return tryTelegramAuth(getToken()).then(function () { return P.profile; });
+        });
+      });
+    });
+  };
+
+  P.finishRun = function (height: number, runCoins: number, bonusCoins: number, worldRef?: any, meta?: any) {
+    var h = Math.max(0, Math.floor(Number(height) || 0));
+    var c = Math.max(0, Math.floor(Number(runCoins) || 0));
+    var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
+    var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
+    var item: any = {
+      runId: makeRunId(),
+      height: h,
+      runCoins: c,
+      bonusCoins: b,
+      mode: (meta && meta.mode) || "solo",
+      map: (meta && meta.map) || "",
+      ver: (meta && meta.ver) || "0.6",
+      estAward: pre,
+      createdAt: Date.now()
+    };
+    var q = getRunQueue();
+    q.push(item);
+    setRunQueue(q);
+    /* Attach transient ref only on in-memory handoff for results screen coin roll-up */
+    return enqueue(function () {
+      var cur = getRunQueue();
+      for (var i = 0; i < cur.length; i++) {
+        if (cur[i].runId === item.runId) { cur[i]._wRef = worldRef; break; }
+      }
+      return flushAll(true);
+    });
+  };
+
+  P.buy = function (key: string, price: number) {
+    if (!key) return Promise.resolve(null);
+    var buys = getPendingBuys();
+    var found = false;
+    for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key === key) { found = true; break; }
+    if (!found) {
+      buys.push({ key: key, price: Math.max(0, Math.floor(Number(price) || 0)), at: Date.now() });
+      setPendingBuys(buys);
+    }
+    return enqueue(function () {
+      if (P.buySupported === false) return null;
+      var base = apiOrigin();
+      if (!base || typeof fetch === "undefined") { P.st = "offline"; return null; }
+      var tok = getToken();
+      var ready = tok ? Promise.resolve(tok) : ensureProfile().then(function () { return getToken(); });
+      return ready.then(function (t: string) {
+        if (!t) return null;
+        return flushBuysOnce(t);
+      });
+    });
+  };
+
+  P.flush = function () {
+    return enqueue(function () { return flushAll(true); });
+  };
+
+  P.getToken = getToken;
+  P.apiOrigin = apiOrigin;
+  P.computeAward = computeAward;
+  P.noteAward = noteAward;
+  P.pendingBuyKeys = pendingBuyKeys;
+  P.getState = function () {
+    var prof = P.profile;
+    return {
+      st: P.st,
+      profile: prof,
+      tokenPresent: !!getToken(),
+      queueLen: getRunQueue().length,
+      pendingBuysLen: getPendingBuys().length,
+      pendingSpend: pendingSpend(),
+      queuedEst: queuedEst(),
+      buySupported: P.buySupported,
+      apiOrigin: apiOrigin(),
+      tgTried: !!P.tgTried,
+      telegramId: prof && prof.telegramId ? String(prof.telegramId) : ""
+    };
+  };
+  return P;
+})();
+
 /* ---------------- Game shell: screens, input, loop ---------------- */
 function startHoppak(canvas: HTMLCanvasElement): any {
   var raw = canvas.getContext("2d");
@@ -3267,11 +3862,42 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var s = sc || 1;
     drawText(ctx, label, x + w / 2, y + Math.round((h - 7 * s) / 2) + (on ? 1 : 0), tcol || C.cream, s, "center");
   }
-  function coinsLabel(x: number, y: number, n: number, align?: string) {
+  function telegramLinked(): boolean {
+    try {
+      var w: any = window as any;
+      if (w.__hopTg && w.__hopTg.linked && location.protocol === "file:") return true;
+      return !!(typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState().telegramId);
+    } catch (_e) { return false; }
+  }
+  function tgName(): string {
+    var raw = "";
+    try {
+      var w: any = window as any;
+      if (w.__hopTg && w.__hopTg.name && location.protocol === "file:") raw = String(w.__hopTg.name);
+      else {
+        var u = w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initDataUnsafe && w.Telegram.WebApp.initDataUnsafe.user;
+        if (u && u.first_name) raw = String(u.first_name);
+      }
+    } catch (_e) { raw = ""; }
+    raw = String(raw).toUpperCase();
+    var out = "";
+    for (var i = 0; i < raw.length && out.length < 10; i++) if (FONT[raw[i]]) out += raw[i];
+    return out;
+  }
+  function tgMark(): string {
+    if (!telegramLinked()) return "";
+    var n = tgName();
+    return n ? ("ТГ " + n) : "ТГ";
+  }
+  function coinsLabel(x: number, y: number, n: number, align?: string, showTg?: boolean) {
     var s = String(n), w = textWidth(s, 1) + 9;
+    var mark = showTg ? tgMark() : "";
+    var tgW = mark ? textWidth(mark, 1) + 4 : 0;
     var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
+    if (mark && align === "right") drawText(ctx, mark, x0 - tgW, y - 0.5, C.mov, 1, "left");
     drawCoin(ctx, x0, y, ui);
     drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
+    if (mark && align !== "right") drawText(ctx, mark, x0 + w + 4, y - 0.5, C.mov, 1, "left");
   }
   function drawBuy(id: string, x: number, y: number, w: number, h: number, price: number) {
     addHit(id, x, y, w, h);
@@ -3328,9 +3954,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.paid = true;
     var me = world.players[0];
     var mtr = metersOf(me);
-    world.earnH = Math.floor(mtr / 25);
-    world.earnC = world.runCoins + (world.bonusCoins || 0);
-    world.earned = world.earnH + world.earnC;
+    var runC = world.runCoins || 0;
+    var bonC = world.bonusCoins || 0;
+    world.earnH = Math.floor(Math.max(0, Math.min(20000, mtr)) / 25);
+    world.earnC = Math.max(0, Math.min(80, runC)) + Math.max(0, Math.min(40, bonC));
+    var plan = (typeof PROFILE !== "undefined" && PROFILE && PROFILE.computeAward)
+      ? PROFILE.computeAward(mtr, runC, bonC)
+      : { awarded: Math.max(0, Math.min(200, world.earnH + world.earnC)), want: world.earnH + world.earnC, limited: "" };
+    world.earned = plan.awarded;
+    world.limited = plan.limited || "";
     world.coinFrom = save.coins;
     var mi = mapIdx(world.map);
     world.prevMapBest = mapBest(mi);
@@ -3341,6 +3973,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (mtr > save.best) save.best = mtr;
     world.best = save.best;
     writeSave(save);
+    if (typeof PROFILE !== "undefined" && PROFILE) {
+      if (PROFILE.noteAward) PROFILE.noteAward(world.earned);
+      if (mtr > 0 || runC > 0 || bonC > 0) {
+        PROFILE.finishRun(mtr, runC, bonC, world, {
+          mode: world.net ? "online" : mode,
+          map: world.map,
+          ver: "0.6rc",
+          awarded: world.earned
+        });
+      }
+    }
   }
   function goMenu() { phase = "menu"; world = null; showSet = false; campCard = -1; paused = false; landPause = false; manualPause = false; fieldLocked = false; resize(); }
 
@@ -3349,7 +3992,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var i = parseInt(key.slice(5), 10);
     if (isNaN(i) || i < 0 || i >= CHARS.length) return;
     if (heroOwned(i)) { save.char = i; writeSave(save); say("ВЫБРАН"); }
-    else tryBuy("hero:act", CHARS[i].price, function () { save.coins -= CHARS[i].price; save.owned["char:" + i] = 1; save.char = i; say("КУПЛЕНО!"); });
+    else tryBuy("hero:act", CHARS[i].price, function () {
+      save.coins -= CHARS[i].price; save.owned["char:" + i] = 1; save.char = i; say("КУПЛЕНО!");
+      if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("char:" + i, CHARS[i].price);
+    });
   }
 
   function activate(id: string | null) {
@@ -3422,6 +4068,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (mapOpen(i) || !mapGoalMet(i)) return;
     tryBuy(buyId || ("camp:open:" + i), M.price, function () {
       save.coins -= M.price; save.owned["map:" + M.id] = 1; save.bg = M.id; say(mapOpened(M));
+      if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("map:" + M.id, M.price);
     });
   }
   function toggleTilt() {
@@ -3554,7 +4201,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function plaque() {
     var x = colX();
     box(ctx, x, 48, 152, 14, C.navy, C.gold);
-    coinsLabel(x + 4, 51, save.coins);
+    coinsLabel(x + 4, 51, save.coins, undefined, true);
     drawText(ctx, "РЕКОРД " + (save.best || 0) + " М", x + 148, 51, C.cream, 1, "right");
   }
   function gear(x: number, y: number) {
@@ -3571,7 +4218,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBig(ctx, "ХОППАК", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
     gear(LW - 22, 4);
     drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 41, C.cream, "center");
-    coinsLabel(x, 52, save.coins);
+    coinsLabel(x, 52, save.coins, undefined, true);
     var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + b + "/" + M.goal + " М") : (M.name + " · " + b + " М");
     var by = LH - 118;
@@ -3631,7 +4278,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
     header("МАГАЗИН", 2);
-    coinsLabel(LW - 6, 12, save.coins, "right");
+    coinsLabel(LW - 6, 12, save.coins, "right", true);
     var pw = 22, gap = 4, sx = Math.round(LW / 2 - (6 * pw + 5 * gap) / 2);
     for (var k = 0; k < 6; k++) {
       var bx = sx + k * (pw + gap), by = 36, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
@@ -3679,7 +4326,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dimView(ctx, "rgba(18,14,44,0.34)");
     var x = colX();
     header("КАМПАНИЯ", 2);
-    coinsLabel(LW - 6, 12, save.coins, "right");
+    coinsLabel(LW - 6, 12, save.coins, "right", true);
     box(ctx, x, 36, 152, 22, "#1a1430", C.mint);
     drawText(ctx, "ДОЙДИ ДО ЦЕЛИ →", LW / 2, 39, C.cream, 1, "center");
     drawText(ctx, "ОТКРОЙ ЗА МОНЕТЫ", LW / 2, 49, C.mint, 1, "center");
@@ -4292,6 +4939,35 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   };
   NET.bind(netApi);
   NET.tryResume(netApi);
+  var profileApi: any = {
+    save: function () { return save; },
+    saveNow: function () { writeSave(save); },
+    say: function (s: string) { say(s); },
+    apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number) {
+      if (!prof) return;
+      if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
+      else if (typeof prof.coins === "number" && prof.coins >= 0) save.coins = prof.coins;
+      if (typeof prof.best === "number" && prof.best > (save.best || 0)) save.best = prof.best;
+      if (prof.purchases && typeof prof.purchases === "object") {
+        for (var k in prof.purchases) if (prof.purchases[k]) save.owned[k] = 1;
+        var pend: any = {};
+        try { if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.pendingBuyKeys) pend = PROFILE.pendingBuyKeys() || {}; } catch (_e) {}
+        for (var ok in save.owned) {
+          if (save.owned[ok] && !prof.purchases[ok] && !pend[ok]) delete save.owned[ok];
+        }
+        if (!heroOwned(save.char)) save.char = 0;
+        var bi = mapIdx(save.bg);
+        if (bi > 0 && !mapOpen(bi)) save.bg = MAPS[0].id;
+      }
+      if (wRef && world === wRef && typeof awarded === "number") {
+        wRef.earned = awarded;
+        wRef.coinFrom = Math.max(0, save.coins - awarded);
+        wRef.best = save.best;
+      }
+      writeSave(save);
+    }
+  };
+  if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.init(profileApi);
   function onVis() {
     acc = 0; uiAcc = 0; lastT = -1;
     if (document.hidden && phase === "play") paused = true;
@@ -4354,7 +5030,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dbgToast: function (s: string) { if (world) { world.toast = s; world.toastT = 70; } },
     getWorld: function () { return world; },
     net: NET,
+    profile: typeof PROFILE !== "undefined" ? PROFILE : null,
     getSave: function () { return save; },
+    getFlash: function () { return flash; },
     getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },

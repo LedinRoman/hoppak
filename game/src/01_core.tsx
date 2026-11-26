@@ -309,7 +309,17 @@ var FONT: any = {
   "0": [14, 17, 19, 21, 25, 17, 14], "1": [4, 12, 4, 4, 4, 4, 14], "2": [14, 17, 1, 2, 4, 8, 31],
   "3": [14, 17, 1, 6, 1, 17, 14], "4": [2, 6, 10, 18, 31, 2, 2], "5": [31, 16, 30, 1, 1, 17, 14],
   "6": [14, 16, 16, 30, 17, 17, 14], "7": [31, 1, 2, 4, 8, 8, 8], "8": [14, 17, 17, 14, 17, 17, 14],
-  "9": [14, 17, 17, 15, 1, 1, 14], " ": [0, 0, 0, 0, 0, 0, 0], ".": [0, 0, 0, 0, 0, 12, 12],
+  "9": [14, 17, 17, 15, 1, 1, 14],
+  "A": [14, 17, 17, 31, 17, 17, 17], "B": [30, 17, 17, 30, 17, 17, 30], "C": [14, 17, 16, 16, 16, 17, 14],
+  "D": [30, 17, 17, 17, 17, 17, 30], "E": [31, 16, 16, 30, 16, 16, 31], "F": [31, 16, 16, 30, 16, 16, 16],
+  "G": [14, 17, 16, 23, 17, 17, 14], "H": [17, 17, 17, 31, 17, 17, 17], "I": [14, 4, 4, 4, 4, 4, 14],
+  "J": [7, 2, 2, 2, 18, 18, 12], "K": [17, 18, 20, 24, 20, 18, 17], "L": [16, 16, 16, 16, 16, 16, 31],
+  "M": [17, 27, 21, 21, 17, 17, 17], "N": [17, 25, 21, 19, 17, 17, 17], "O": [14, 17, 17, 17, 17, 17, 14],
+  "P": [30, 17, 17, 30, 16, 16, 16], "Q": [14, 17, 17, 17, 21, 18, 13], "R": [30, 17, 17, 30, 20, 18, 17],
+  "S": [14, 17, 16, 14, 1, 17, 14], "T": [31, 4, 4, 4, 4, 4, 4], "U": [17, 17, 17, 17, 17, 17, 14],
+  "V": [17, 17, 17, 17, 17, 10, 4], "W": [17, 17, 17, 21, 21, 27, 17], "X": [17, 17, 10, 4, 10, 17, 17],
+  "Y": [17, 17, 10, 4, 4, 4, 4], "Z": [31, 1, 2, 4, 8, 16, 31],
+  " ": [0, 0, 0, 0, 0, 0, 0], ".": [0, 0, 0, 0, 0, 12, 12],
   ":": [0, 12, 12, 0, 12, 12, 0], ",": [0, 0, 0, 0, 12, 4, 8], "-": [0, 0, 0, 14, 0, 0, 0],
   "+": [0, 4, 4, 31, 4, 4, 0], "?": [14, 17, 1, 2, 4, 0, 4], "!": [4, 4, 4, 4, 4, 0, 4],
   "<": [1, 2, 4, 8, 4, 2, 1], ">": [16, 8, 4, 2, 4, 8, 16], "/": [1, 1, 2, 4, 8, 16, 16], "(": [2, 4, 8, 8, 8, 4, 2], ")": [8, 4, 2, 2, 2, 4, 8],
@@ -450,16 +460,26 @@ var FIRST_TOAST: any = {
 };
 
 
-function textWidth(s: string, sc: number) { return String(s).length * 6 * sc; }
+/* Uppercase, then drop any glyph the font does not have. Never substitute '?'. */
+function drawableChars(s: string) {
+  s = String(s).toUpperCase();
+  var out = "";
+  for (var i = 0; i < s.length; i++) if (FONT[s[i]]) out += s[i];
+  return out;
+}
+function textWidth(s: string, sc: number) {
+  var n = drawableChars(s).length;
+  return n ? n * 6 * sc : 0;
+}
 function drawText(ctx: Ctx, s: string, x: number, y: number, color: string, sc?: number, align?: string) {
   var k = sc || 1;
-  s = String(s).toUpperCase();
-  var w = textWidth(s, k) - k;
+  s = drawableChars(s);
+  var w = s.length ? textWidth(s, k) - k : 0;
   var xx = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
   y = Math.round(y);
   ctx.fillStyle = color;
   for (var i = 0; i < s.length; i++) {
-    var g = FONT[s[i]] || FONT["?"];
+    var g = FONT[s[i]];
     for (var r = 0; r < 7; r++) for (var c = 0; c < 5; c++) if (g[r] & (1 << (4 - c))) ctx.fillRect(xx + c * k, y + r * k, k, k);
     xx += 6 * k;
   }
@@ -534,7 +554,8 @@ function drawHudIcon(ctx: Ctx, kind: string, x: number, y: number) {
 var BIGF: any = { 2: {}, 3: {} };
 function bigGlyph(ch: string, k: number) {
   if (BIGF[k][ch]) return BIGF[k][ch];
-  var g = FONT[ch] || FONT["?"];
+  var g = FONT[ch];
+  if (!g) return [];
   function P(r: number, c: number) { return r >= 0 && r < 7 && c >= 0 && c < 5 && !!(g[r] & (1 << (4 - c))) ? 1 : 0; }
   var W = 5 * k, H = 7 * k, out: number[][] = [];
   for (var y = 0; y < H; y++) { out.push([]); for (var x = 0; x < W; x++) out[y].push(0); }
@@ -553,9 +574,12 @@ function bigGlyph(ch: string, k: number) {
   }
   BIGF[k][ch] = out; return out;
 }
-function bigWidth(s: string, k: number) { return String(s).length * 6 * k - k; }
+function bigWidth(s: string, k: number) {
+  var n = drawableChars(s).length;
+  return n ? n * 6 * k - k : 0;
+}
 function drawBig(ctx: Ctx, s: string, x: number, y: number, face: string, k: number, align: string, outline?: string, shadow?: string) {
-  s = String(s).toUpperCase();
+  s = drawableChars(s);
   var w = bigWidth(s, k);
   var x0 = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x); y = Math.round(y);
   function pass(dx: number, dy: number, col: string) {

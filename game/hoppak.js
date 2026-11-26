@@ -1,4 +1,4 @@
-/* Хоппак v0.59 — generated from hoppak.page.tsx by build.sh, do not edit */
+/* Хоппак v0.6rc — generated from hoppak.page.tsx by build.sh, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;
@@ -388,6 +388,32 @@
     "7": [31, 1, 2, 4, 8, 8, 8],
     "8": [14, 17, 17, 14, 17, 17, 14],
     "9": [14, 17, 17, 15, 1, 1, 14],
+    "A": [14, 17, 17, 31, 17, 17, 17],
+    "B": [30, 17, 17, 30, 17, 17, 30],
+    "C": [14, 17, 16, 16, 16, 17, 14],
+    "D": [30, 17, 17, 17, 17, 17, 30],
+    "E": [31, 16, 16, 30, 16, 16, 31],
+    "F": [31, 16, 16, 30, 16, 16, 16],
+    "G": [14, 17, 16, 23, 17, 17, 14],
+    "H": [17, 17, 17, 31, 17, 17, 17],
+    "I": [14, 4, 4, 4, 4, 4, 14],
+    "J": [7, 2, 2, 2, 18, 18, 12],
+    "K": [17, 18, 20, 24, 20, 18, 17],
+    "L": [16, 16, 16, 16, 16, 16, 31],
+    "M": [17, 27, 21, 21, 17, 17, 17],
+    "N": [17, 25, 21, 19, 17, 17, 17],
+    "O": [14, 17, 17, 17, 17, 17, 14],
+    "P": [30, 17, 17, 30, 16, 16, 16],
+    "Q": [14, 17, 17, 17, 21, 18, 13],
+    "R": [30, 17, 17, 30, 20, 18, 17],
+    "S": [14, 17, 16, 14, 1, 17, 14],
+    "T": [31, 4, 4, 4, 4, 4, 4],
+    "U": [17, 17, 17, 17, 17, 17, 14],
+    "V": [17, 17, 17, 17, 17, 10, 4],
+    "W": [17, 17, 17, 21, 21, 27, 17],
+    "X": [17, 17, 10, 4, 10, 17, 17],
+    "Y": [17, 17, 10, 4, 4, 4, 4],
+    "Z": [31, 1, 2, 4, 8, 16, 31],
     " ": [0, 0, 0, 0, 0, 0, 0],
     ".": [0, 0, 0, 0, 0, 12, 12],
     ":": [0, 12, 12, 0, 12, 12, 0],
@@ -607,18 +633,25 @@
     goal: "\u0414\u041E\u041F\u0420\u042B\u0413\u041D\u0418 \u0414\u041E \u0426\u0415\u041B\u0418",
     record: "\u0422\u0412\u041E\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 - \u041F\u041E\u0411\u0415\u0419!"
   };
+  function drawableChars(s) {
+    s = String(s).toUpperCase();
+    var out = "";
+    for (var i = 0; i < s.length; i++) if (FONT[s[i]]) out += s[i];
+    return out;
+  }
   function textWidth(s, sc) {
-    return String(s).length * 6 * sc;
+    var n = drawableChars(s).length;
+    return n ? n * 6 * sc : 0;
   }
   function drawText(ctx, s, x, y, color, sc, align) {
     var k = sc || 1;
-    s = String(s).toUpperCase();
-    var w = textWidth(s, k) - k;
+    s = drawableChars(s);
+    var w = s.length ? textWidth(s, k) - k : 0;
     var xx = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
     y = Math.round(y);
     ctx.fillStyle = color;
     for (var i = 0; i < s.length; i++) {
-      var g = FONT[s[i]] || FONT["?"];
+      var g = FONT[s[i]];
       for (var r = 0; r < 7; r++) for (var c = 0; c < 5; c++) if (g[r] & 1 << 4 - c) ctx.fillRect(xx + c * k, y + r * k, k, k);
       xx += 6 * k;
     }
@@ -726,7 +759,8 @@
   var BIGF = { 2: {}, 3: {} };
   function bigGlyph(ch, k) {
     if (BIGF[k][ch]) return BIGF[k][ch];
-    var g = FONT[ch] || FONT["?"];
+    var g = FONT[ch];
+    if (!g) return [];
     function P(r2, c5) {
       return r2 >= 0 && r2 < 7 && c5 >= 0 && c5 < 5 && !!(g[r2] & 1 << 4 - c5) ? 1 : 0;
     }
@@ -760,10 +794,11 @@
     return out;
   }
   function bigWidth(s, k) {
-    return String(s).length * 6 * k - k;
+    var n = drawableChars(s).length;
+    return n ? n * 6 * k - k : 0;
   }
   function drawBig(ctx, s, x, y, face, k, align, outline, shadow) {
-    s = String(s).toUpperCase();
+    s = drawableChars(s);
     var w = bigWidth(s, k);
     var x0 = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
     y = Math.round(y);
@@ -3321,7 +3356,7 @@
   var NET_GRACE_MS = 1e4;
   var NET_XS = [74, 22, 124, 48];
   var NET_TAGS = { host: "\u0425\u041E\u0421\u0422", ready: "\u0413\u041E\u0422\u041E\u0412", wait: "\u0416\u0414\u0401\u041C", off: "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418" };
-  var NET = (function() {
+  var NET = function() {
     var N = {
       ws: null,
       st: "off",
@@ -4226,7 +4261,616 @@
       N.connect();
     };
     return N;
-  })();
+  }();
+  var PROFILE = function() {
+    var TOKEN_KEY = "hoppak_guest_token";
+    var QUEUE_KEY = "hoppak_profile_queue";
+    var BUYS_KEY = "hoppak_profile_buys";
+    var CACHE_KEY = "hoppak_profile_cache";
+    var HOUR_KEY = "hoppak_profile_hour";
+    var REQ_MS = 5e3;
+    var FINISH_COOLDOWN_MS = 8200;
+    var RATE_RETRY_MS = 8500;
+    var RUN_AWARD_MAX = 200;
+    var HOUR_AWARD_MAX = 400;
+    var HOUR_MS = 36e5;
+    var P = {
+      st: "idle",
+      /* idle | syncing | ready | offline | unavailable */
+      profile: null,
+      api: null,
+      queue: null,
+      buySupported: null,
+      /* null = unknown | true | false (404 on 2284797) */
+      lastFinishOkAt: 0,
+      nextRunAt: 0,
+      backoffMs: 5e3,
+      retryTimer: 0,
+      onlineBound: false,
+      tgTried: false
+    };
+    function lsGet(k) {
+      try {
+        return typeof localStorage !== "undefined" && localStorage.getItem(k) || "";
+      } catch (_e) {
+        return "";
+      }
+    }
+    function lsSet(k, v) {
+      try {
+        if (typeof localStorage === "undefined") return;
+        if (v) localStorage.setItem(k, v);
+        else localStorage.removeItem(k);
+      } catch (_e) {
+      }
+    }
+    function readJson(k, def) {
+      try {
+        var raw = lsGet(k);
+        if (!raw) return def;
+        var parsed = JSON.parse(raw);
+        return parsed == null ? def : parsed;
+      } catch (_e) {
+        return def;
+      }
+    }
+    function writeJson(k, val) {
+      try {
+        lsSet(k, JSON.stringify(val));
+      } catch (_e) {
+      }
+    }
+    function getToken() {
+      return lsGet(TOKEN_KEY);
+    }
+    function setToken(t) {
+      lsSet(TOKEN_KEY, t);
+    }
+    function getRunQueue() {
+      var q = readJson(QUEUE_KEY, []);
+      return Array.isArray(q) ? q : [];
+    }
+    function setRunQueue(q) {
+      if (q.length > 50) q = q.slice(q.length - 50);
+      writeJson(QUEUE_KEY, q);
+    }
+    function getPendingBuys() {
+      var b = readJson(BUYS_KEY, []);
+      return Array.isArray(b) ? b : [];
+    }
+    function setPendingBuys(b) {
+      writeJson(BUYS_KEY, b);
+    }
+    function pruneConfirmedBuys(prof) {
+      var owned = prof && prof.purchases || {};
+      var buys = getPendingBuys();
+      var next = [];
+      var seen = {};
+      for (var i = 0; i < buys.length; i++) {
+        var it = buys[i];
+        if (!it || !it.key || seen[it.key] || owned[it.key]) continue;
+        seen[it.key] = 1;
+        next.push(it);
+      }
+      if (next.length !== buys.length) setPendingBuys(next);
+      return next;
+    }
+    function pendingSpend() {
+      var buys = getPendingBuys();
+      var tot = 0;
+      for (var i = 0; i < buys.length; i++) {
+        tot += Math.max(0, Math.floor(Number(buys[i] && buys[i].price) || 0));
+      }
+      return tot;
+    }
+    function queuedEst() {
+      var q = getRunQueue();
+      var tot = 0;
+      for (var i = 0; i < q.length; i++) {
+        tot += Math.max(0, Math.floor(Number(q[i] && q[i].estAward) || 0));
+      }
+      return tot;
+    }
+    function estRunAward(height, runCoins, bonusCoins) {
+      var h = Math.max(0, Math.min(2e4, Math.floor(Number(height) || 0)));
+      var c = Math.max(0, Math.min(80, Math.floor(Number(runCoins) || 0)));
+      var b = Math.max(0, Math.min(40, Math.floor(Number(bonusCoins) || 0)));
+      return Math.max(0, Math.min(RUN_AWARD_MAX, Math.floor(h / 25) + c + b));
+    }
+    function hourState() {
+      var now = Date.now();
+      var s = readJson(HOUR_KEY, null);
+      if (!s || typeof s !== "object" || !s.startedAt || now - s.startedAt >= HOUR_MS) {
+        s = { startedAt: now, awarded: 0 };
+        writeJson(HOUR_KEY, s);
+      }
+      return s;
+    }
+    function computeAward(height, runCoins, bonusCoins) {
+      var want = estRunAward(height, runCoins, bonusCoins);
+      var hs = hourState();
+      var room = Math.max(0, HOUR_AWARD_MAX - Math.max(0, Math.floor(Number(hs.awarded) || 0)));
+      var awarded = Math.min(want, room);
+      return { want, awarded, limited: awarded < want ? "HOUR_CAP" : "" };
+    }
+    function noteAward(awarded) {
+      var n = Math.max(0, Math.floor(Number(awarded) || 0));
+      if (!n) return;
+      var hs = hourState();
+      hs.awarded = Math.max(0, Math.floor(Number(hs.awarded) || 0)) + n;
+      writeJson(HOUR_KEY, hs);
+    }
+    function pendingBuyKeys() {
+      var out = {};
+      var buys = getPendingBuys();
+      for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key) out[buys[i].key] = 1;
+      return out;
+    }
+    function readInitData() {
+      try {
+        var w = typeof window !== "undefined" ? window : null;
+        var d = w && w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initData;
+        if (typeof d === "string" && d) return d;
+      } catch (_e) {
+      }
+      return "";
+    }
+    function tryTelegramAuth(token) {
+      if (P.tgTried) return Promise.resolve(null);
+      var initData = readInitData();
+      if (!initData || !token) return Promise.resolve(null);
+      P.tgTried = true;
+      return req("POST", "/api/auth/telegram", { initData }, token).then(function(res) {
+        if (!res || !res.ok || !res.data || !res.data.ok || !res.data.profile) return null;
+        if (res.data.token) setToken(res.data.token);
+        P.st = "ready";
+        applyProfile(res.data.profile);
+        if (res.data.merged && P.api && P.api.say) P.api.say("\u041F\u0420\u041E\u0413\u0420\u0415\u0421\u0421 \u041E\u0411\u042A\u0415\u0414\u0418\u041D\u0401\u041D");
+        return res.data.profile;
+      });
+    }
+    function makeRunId() {
+      var r = "";
+      try {
+        if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+          var u = new Uint32Array(2);
+          crypto.getRandomValues(u);
+          r = u[0].toString(36) + u[1].toString(36);
+        }
+      } catch (_e) {
+      }
+      if (!r) r = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+      return "r_" + Date.now().toString(36) + "_" + r;
+    }
+    function normalizeOrigin(raw) {
+      var o = String(raw || "").trim();
+      if (!o) return "";
+      if (o.indexOf("wss://") === 0) o = "https://" + o.slice(6);
+      else if (o.indexOf("ws://") === 0) o = "http://" + o.slice(5);
+      if (o.indexOf("https://") !== 0 && o.indexOf("http://") !== 0) return "";
+      o = o.replace(/\/+$/, "");
+      if (o.length > 3 && o.slice(-3) === "/ws") o = o.slice(0, -3);
+      if (o.length > 4 && o.slice(-4) === "/api") o = o.slice(0, -4);
+      return o.replace(/\/+$/, "");
+    }
+    function apiOrigin() {
+      var w = typeof window !== "undefined" ? window : null;
+      if (!w) return "";
+      try {
+        var sp = new URLSearchParams(w.location.search);
+        var qa = sp.get("api") || sp.get("profileApi");
+        if (qa) {
+          var qan = normalizeOrigin(qa);
+          if (qan) return qan;
+        }
+        if (w.HOPPAK_API) {
+          var wan = normalizeOrigin(w.HOPPAK_API);
+          if (wan) return wan;
+        }
+        var lsa = w.localStorage && w.localStorage.getItem("hoppak.api");
+        if (lsa) {
+          var lsan = normalizeOrigin(lsa);
+          if (lsan) return lsan;
+        }
+      } catch (_e) {
+      }
+      try {
+        if (typeof HOP_API !== "undefined" && HOP_API) {
+          var ban = normalizeOrigin(String(HOP_API));
+          if (ban) return ban;
+        }
+      } catch (_e1) {
+      }
+      var isPage = false;
+      try {
+        isPage = typeof HOP_PAGE !== "undefined" && !!HOP_PAGE;
+      } catch (_e2) {
+      }
+      if (!isPage) {
+        try {
+          var pr = w.location && w.location.protocol;
+          if (pr === "http:" || pr === "https:") return w.location.origin;
+        } catch (_e3) {
+        }
+      }
+      try {
+        var qs = new URLSearchParams(w.location.search).get("server");
+        if (qs) {
+          var qn = normalizeOrigin(qs);
+          if (qn) return qn;
+        }
+        if (w.HOPPAK_SERVER) {
+          var wn = normalizeOrigin(w.HOPPAK_SERVER);
+          if (wn) return wn;
+        }
+        var ls = w.localStorage && w.localStorage.getItem("hoppak.server");
+        if (ls) {
+          var ln = normalizeOrigin(ls);
+          if (ln) return ln;
+        }
+        if (isPage && typeof HOP_SERVER !== "undefined" && HOP_SERVER) {
+          var bn = normalizeOrigin(String(HOP_SERVER));
+          if (bn) return bn;
+        }
+      } catch (_e4) {
+      }
+      return "";
+    }
+    function req(method, path, body, token) {
+      var base = apiOrigin();
+      if (!base || typeof fetch === "undefined") {
+        return Promise.resolve({ status: 0, ok: false, data: null });
+      }
+      var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+      var to = setTimeout(function() {
+        try {
+          if (ctrl) ctrl.abort();
+        } catch (_e) {
+        }
+      }, REQ_MS);
+      var headers = {};
+      if (token) headers["Authorization"] = "Bearer " + token;
+      var sameOrig = false;
+      try {
+        sameOrig = typeof window !== "undefined" && window.location && window.location.origin === base;
+      } catch (_e0) {
+      }
+      var opts = { method, headers, cache: "no-store", mode: sameOrig ? "same-origin" : "cors" };
+      if (body !== void 0) {
+        headers["Content-Type"] = "application/json";
+        opts.body = JSON.stringify(body);
+      }
+      if (ctrl) opts.signal = ctrl.signal;
+      return fetch(base + path, opts).then(function(r) {
+        clearTimeout(to);
+        return r.json().catch(function() {
+          return null;
+        }).then(function(data) {
+          return { status: r.status, ok: !!r.ok, data };
+        });
+      }).catch(function() {
+        clearTimeout(to);
+        return { status: 0, ok: false, data: null };
+      });
+    }
+    function applyProfile(prof, wRef, awarded) {
+      if (!prof) return;
+      P.profile = prof;
+      writeJson(CACHE_KEY, prof);
+      pruneConfirmedBuys(prof);
+      var effectiveCoins = Math.max(0, (prof.coins || 0) - pendingSpend()) + queuedEst();
+      if (P.api && P.api.apply) P.api.apply(prof, wRef, awarded, effectiveCoins);
+    }
+    function handleStatus(res) {
+      if (res.status === 503 || res.data && res.data.error === "PROFILE_UNAVAILABLE") {
+        P.st = "unavailable";
+        return false;
+      }
+      if (!res.ok || !res.data || !res.data.ok) {
+        if (res.status === 0 || res.status >= 500) P.st = "offline";
+        return false;
+      }
+      return true;
+    }
+    function scheduleRetry(delayMs) {
+      if (typeof setTimeout === "undefined") return;
+      if (P.retryTimer) {
+        clearTimeout(P.retryTimer);
+        P.retryTimer = 0;
+      }
+      var d = Math.max(250, delayMs);
+      P.retryTimer = setTimeout(function() {
+        P.retryTimer = 0;
+        P.flush();
+      }, d);
+    }
+    function syncMigrate(token, prof) {
+      if (!prof || prof.migratedAt) {
+        P.st = "ready";
+        applyProfile(prof);
+        return Promise.resolve(prof);
+      }
+      var s = P.api && P.api.save ? P.api.save() : null;
+      var rawCoins = s && typeof s.coins === "number" ? Math.max(0, Math.floor(s.coins)) : 0;
+      var coins = Math.max(0, rawCoins - queuedEst());
+      var purchases = s && s.owned && typeof s.owned === "object" ? s.owned : {};
+      var best = s && typeof s.best === "number" ? Math.max(0, Math.floor(s.best)) : 0;
+      return req("POST", "/api/profile/migrate", { coins, purchases, best }, token).then(function(res) {
+        if (!handleStatus(res)) return null;
+        P.st = "ready";
+        applyProfile(res.data.profile);
+        return res.data.profile;
+      });
+    }
+    function createGuestAndMigrate() {
+      return req("POST", "/api/profile/guest").then(function(res) {
+        if (!handleStatus(res)) return null;
+        if (res.data.token) setToken(res.data.token);
+        return syncMigrate(res.data.token || getToken(), res.data.profile);
+      });
+    }
+    function ensureProfile() {
+      var base = apiOrigin();
+      if (!base || typeof fetch === "undefined") {
+        P.st = "offline";
+        return Promise.resolve(null);
+      }
+      P.st = "syncing";
+      var tok = getToken();
+      if (tok) {
+        return req("GET", "/api/profile", void 0, tok).then(function(res) {
+          if (res.status === 401) {
+            setToken("");
+            return createGuestAndMigrate();
+          }
+          if (!handleStatus(res)) return null;
+          return syncMigrate(tok, res.data.profile);
+        });
+      }
+      return createGuestAndMigrate();
+    }
+    function flushBuysOnce(tok) {
+      if (P.buySupported === false) return Promise.resolve();
+      var buys = getPendingBuys();
+      if (!buys.length || !tok) return Promise.resolve();
+      var item = buys[0];
+      return req("POST", "/api/profile/buy", { key: item.key }, tok).then(function(res) {
+        if (res.status === 404 || res.status === 405 || res.status === 501) {
+          P.buySupported = false;
+          return;
+        }
+        if (res.status === 401) {
+          setToken("");
+          return;
+        }
+        if (res.status === 400) {
+          var cur = getPendingBuys().filter(function(x) {
+            return x && x.key !== item.key;
+          });
+          setPendingBuys(cur);
+          if (P.profile) applyProfile(P.profile);
+          return flushBuysOnce(tok);
+        }
+        if (!handleStatus(res)) return;
+        P.buySupported = true;
+        P.st = "ready";
+        var rest = getPendingBuys().filter(function(x) {
+          return x && x.key !== item.key;
+        });
+        setPendingBuys(rest);
+        applyProfile(res.data.profile);
+        if (rest.length) return flushBuysOnce(tok);
+      });
+    }
+    function flushRunsStep(tok, authRetried) {
+      var q = getRunQueue();
+      if (!q.length) return Promise.resolve(null);
+      var now = Date.now();
+      if (now < P.nextRunAt) {
+        scheduleRetry(P.nextRunAt - now);
+        return Promise.resolve(null);
+      }
+      var head = q[0];
+      var body = {
+        runId: head.runId,
+        height: head.height,
+        runCoins: head.runCoins,
+        bonusCoins: head.bonusCoins
+      };
+      if (head.mode) body.mode = head.mode;
+      if (head.map) body.map = head.map;
+      if (head.ver) body.ver = head.ver;
+      return req("POST", "/api/run/finish", body, tok).then(function(res) {
+        if (res.status === 401) {
+          setToken("");
+          if (!authRetried) {
+            return ensureProfile().then(function() {
+              var nt = getToken();
+              return nt ? flushRunsStep(nt, true) : null;
+            });
+          }
+          return null;
+        }
+        if (res.status === 429 || res.data && res.data.error === "RATE_LIMIT") {
+          P.nextRunAt = Date.now() + RATE_RETRY_MS;
+          scheduleRetry(RATE_RETRY_MS);
+          return null;
+        }
+        if (res.status === 400) {
+          var dropped = getRunQueue();
+          dropped.shift();
+          setRunQueue(dropped);
+          return dropped.length ? flushRunsStep(tok, authRetried) : null;
+        }
+        if (!handleStatus(res)) {
+          var wait = P.backoffMs;
+          P.backoffMs = Math.min(6e4, P.backoffMs * 2);
+          scheduleRetry(wait);
+          return null;
+        }
+        P.backoffMs = 5e3;
+        P.lastFinishOkAt = Date.now();
+        P.nextRunAt = P.lastFinishOkAt + FINISH_COOLDOWN_MS;
+        var curQ = getRunQueue();
+        if (curQ.length && curQ[0].runId === head.runId) curQ.shift();
+        else curQ = curQ.filter(function(x) {
+          return x && x.runId !== head.runId;
+        });
+        setRunQueue(curQ);
+        P.st = "ready";
+        applyProfile(res.data.profile, head._wRef, res.data.awarded);
+        if (curQ.length) scheduleRetry(FINISH_COOLDOWN_MS);
+        return res.data;
+      });
+    }
+    function flushAll(allowInit) {
+      var base = apiOrigin();
+      if (!base || typeof fetch === "undefined") {
+        P.st = "offline";
+        return Promise.resolve(null);
+      }
+      var tok = getToken();
+      var ready = tok ? Promise.resolve(tok) : allowInit ? ensureProfile().then(function() {
+        return getToken();
+      }) : Promise.resolve("");
+      return ready.then(function(t) {
+        if (!t) {
+          if (getRunQueue().length || getPendingBuys().length) {
+            var wait = P.backoffMs;
+            P.backoffMs = Math.min(6e4, P.backoffMs * 2);
+            scheduleRetry(wait);
+          }
+          return null;
+        }
+        return flushBuysOnce(t).then(function() {
+          return flushRunsStep(t);
+        });
+      });
+    }
+    function enqueue(fn) {
+      var prev = P.queue || Promise.resolve(null);
+      var next = prev.then(function() {
+        return fn();
+      }, function() {
+        return fn();
+      });
+      P.queue = next;
+      return next;
+    }
+    P.init = function(api) {
+      P.api = api;
+      if (!P.onlineBound && typeof window !== "undefined" && window.addEventListener) {
+        P.onlineBound = true;
+        window.addEventListener("online", function() {
+          P.backoffMs = 5e3;
+          P.flush();
+        });
+      }
+      return enqueue(function() {
+        return ensureProfile().then(function(prof) {
+          if (!prof) {
+            var cached = readJson(CACHE_KEY, null);
+            if (cached) P.profile = cached;
+            if (getRunQueue().length || getPendingBuys().length) {
+              scheduleRetry(P.backoffMs);
+            }
+            return null;
+          }
+          return flushAll(false).then(function() {
+            return tryTelegramAuth(getToken()).then(function() {
+              return P.profile;
+            });
+          });
+        });
+      });
+    };
+    P.finishRun = function(height, runCoins, bonusCoins, worldRef, meta) {
+      var h = Math.max(0, Math.floor(Number(height) || 0));
+      var c = Math.max(0, Math.floor(Number(runCoins) || 0));
+      var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
+      var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
+      var item = {
+        runId: makeRunId(),
+        height: h,
+        runCoins: c,
+        bonusCoins: b,
+        mode: meta && meta.mode || "solo",
+        map: meta && meta.map || "",
+        ver: meta && meta.ver || "0.6",
+        estAward: pre,
+        createdAt: Date.now()
+      };
+      var q = getRunQueue();
+      q.push(item);
+      setRunQueue(q);
+      return enqueue(function() {
+        var cur = getRunQueue();
+        for (var i = 0; i < cur.length; i++) {
+          if (cur[i].runId === item.runId) {
+            cur[i]._wRef = worldRef;
+            break;
+          }
+        }
+        return flushAll(true);
+      });
+    };
+    P.buy = function(key, price) {
+      if (!key) return Promise.resolve(null);
+      var buys = getPendingBuys();
+      var found = false;
+      for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key === key) {
+        found = true;
+        break;
+      }
+      if (!found) {
+        buys.push({ key, price: Math.max(0, Math.floor(Number(price) || 0)), at: Date.now() });
+        setPendingBuys(buys);
+      }
+      return enqueue(function() {
+        if (P.buySupported === false) return null;
+        var base = apiOrigin();
+        if (!base || typeof fetch === "undefined") {
+          P.st = "offline";
+          return null;
+        }
+        var tok = getToken();
+        var ready = tok ? Promise.resolve(tok) : ensureProfile().then(function() {
+          return getToken();
+        });
+        return ready.then(function(t) {
+          if (!t) return null;
+          return flushBuysOnce(t);
+        });
+      });
+    };
+    P.flush = function() {
+      return enqueue(function() {
+        return flushAll(true);
+      });
+    };
+    P.getToken = getToken;
+    P.apiOrigin = apiOrigin;
+    P.computeAward = computeAward;
+    P.noteAward = noteAward;
+    P.pendingBuyKeys = pendingBuyKeys;
+    P.getState = function() {
+      var prof = P.profile;
+      return {
+        st: P.st,
+        profile: prof,
+        tokenPresent: !!getToken(),
+        queueLen: getRunQueue().length,
+        pendingBuysLen: getPendingBuys().length,
+        pendingSpend: pendingSpend(),
+        queuedEst: queuedEst(),
+        buySupported: P.buySupported,
+        apiOrigin: apiOrigin(),
+        tgTried: !!P.tgTried,
+        telegramId: prof && prof.telegramId ? String(prof.telegramId) : ""
+      };
+    };
+    return P;
+  }();
   function startHoppak(canvas) {
     var raw = canvas.getContext("2d");
     var noop = function() {
@@ -4541,11 +5185,46 @@
       var s = sc || 1;
       drawText(ctx, label, x + w / 2, y + Math.round((h - 7 * s) / 2) + (on ? 1 : 0), tcol || C.cream, s, "center");
     }
-    function coinsLabel(x, y, n, align) {
+    function telegramLinked() {
+      try {
+        var w = window;
+        if (w.__hopTg && w.__hopTg.linked && location.protocol === "file:") return true;
+        return !!(typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState().telegramId);
+      } catch (_e) {
+        return false;
+      }
+    }
+    function tgName() {
+      var raw2 = "";
+      try {
+        var w = window;
+        if (w.__hopTg && w.__hopTg.name && location.protocol === "file:") raw2 = String(w.__hopTg.name);
+        else {
+          var u = w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initDataUnsafe && w.Telegram.WebApp.initDataUnsafe.user;
+          if (u && u.first_name) raw2 = String(u.first_name);
+        }
+      } catch (_e) {
+        raw2 = "";
+      }
+      raw2 = String(raw2).toUpperCase();
+      var out = "";
+      for (var i = 0; i < raw2.length && out.length < 10; i++) if (FONT[raw2[i]]) out += raw2[i];
+      return out;
+    }
+    function tgMark() {
+      if (!telegramLinked()) return "";
+      var n = tgName();
+      return n ? "\u0422\u0413 " + n : "\u0422\u0413";
+    }
+    function coinsLabel(x, y, n, align, showTg) {
       var s = String(n), w = textWidth(s, 1) + 9;
+      var mark = showTg ? tgMark() : "";
+      var tgW = mark ? textWidth(mark, 1) + 4 : 0;
       var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
+      if (mark && align === "right") drawText(ctx, mark, x0 - tgW, y - 0.5, C.mov, 1, "left");
       drawCoin(ctx, x0, y, ui);
       drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
+      if (mark && align !== "right") drawText(ctx, mark, x0 + w + 4, y - 0.5, C.mov, 1, "left");
     }
     function drawBuy(id, x, y, w, h, price) {
       addHit(id, x, y, w, h);
@@ -4626,9 +5305,13 @@
       world.paid = true;
       var me = world.players[0];
       var mtr = metersOf(me);
-      world.earnH = Math.floor(mtr / 25);
-      world.earnC = world.runCoins + (world.bonusCoins || 0);
-      world.earned = world.earnH + world.earnC;
+      var runC = world.runCoins || 0;
+      var bonC = world.bonusCoins || 0;
+      world.earnH = Math.floor(Math.max(0, Math.min(2e4, mtr)) / 25);
+      world.earnC = Math.max(0, Math.min(80, runC)) + Math.max(0, Math.min(40, bonC));
+      var plan = typeof PROFILE !== "undefined" && PROFILE && PROFILE.computeAward ? PROFILE.computeAward(mtr, runC, bonC) : { awarded: Math.max(0, Math.min(200, world.earnH + world.earnC)), want: world.earnH + world.earnC, limited: "" };
+      world.earned = plan.awarded;
+      world.limited = plan.limited || "";
       world.coinFrom = save.coins;
       var mi = mapIdx(world.map);
       world.prevMapBest = mapBest(mi);
@@ -4640,6 +5323,17 @@
       if (mtr > save.best) save.best = mtr;
       world.best = save.best;
       writeSave(save);
+      if (typeof PROFILE !== "undefined" && PROFILE) {
+        if (PROFILE.noteAward) PROFILE.noteAward(world.earned);
+        if (mtr > 0 || runC > 0 || bonC > 0) {
+          PROFILE.finishRun(mtr, runC, bonC, world, {
+            mode: world.net ? "online" : mode,
+            map: world.map,
+            ver: "0.6rc",
+            awarded: world.earned
+          });
+        }
+      }
     }
     function goMenu() {
       phase = "menu";
@@ -4665,6 +5359,7 @@
         save.owned["char:" + i] = 1;
         save.char = i;
         say("\u041A\u0423\u041F\u041B\u0415\u041D\u041E!");
+        if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("char:" + i, CHARS[i].price);
       });
     }
     function activate(id) {
@@ -4841,6 +5536,7 @@
         save.owned["map:" + M.id] = 1;
         save.bg = M.id;
         say(mapOpened(M));
+        if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("map:" + M.id, M.price);
       });
     }
     function toggleTilt() {
@@ -5035,7 +5731,7 @@
     function plaque() {
       var x = colX();
       box(ctx, x, 48, 152, 14, C.navy, C.gold);
-      coinsLabel(x + 4, 51, save.coins);
+      coinsLabel(x + 4, 51, save.coins, void 0, true);
       drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + (save.best || 0) + " \u041C", x + 148, 51, C.cream, 1, "right");
     }
     function gear(x, y) {
@@ -5054,7 +5750,7 @@
       drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
       gear(LW - 22, 4);
       drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 41, C.cream, "center");
-      coinsLabel(x, 52, save.coins);
+      coinsLabel(x, 52, save.coins, void 0, true);
       var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
       var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
       var by = LH - 118;
@@ -5124,7 +5820,7 @@
       dimView(ctx, "rgba(18,14,44,0.32)");
       var x = colX();
       header("\u041C\u0410\u0413\u0410\u0417\u0418\u041D", 2);
-      coinsLabel(LW - 6, 12, save.coins, "right");
+      coinsLabel(LW - 6, 12, save.coins, "right", true);
       var pw = 22, gap = 4, sx = Math.round(LW / 2 - (6 * pw + 5 * gap) / 2);
       for (var k = 0; k < 6; k++) {
         var bx = sx + k * (pw + gap), by = 36, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
@@ -5178,7 +5874,7 @@
       dimView(ctx, "rgba(18,14,44,0.34)");
       var x = colX();
       header("\u041A\u0410\u041C\u041F\u0410\u041D\u0418\u042F", 2);
-      coinsLabel(LW - 6, 12, save.coins, "right");
+      coinsLabel(LW - 6, 12, save.coins, "right", true);
       box(ctx, x, 36, 152, 22, "#1a1430", C.mint);
       drawText(ctx, "\u0414\u041E\u0419\u0414\u0418 \u0414\u041E \u0426\u0415\u041B\u0418 \u2192", LW / 2, 39, C.cream, 1, "center");
       drawText(ctx, "\u041E\u0422\u041A\u0420\u041E\u0419 \u0417\u0410 \u041C\u041E\u041D\u0415\u0422\u042B", LW / 2, 49, C.mint, 1, "center");
@@ -5955,6 +6651,44 @@
     };
     NET.bind(netApi);
     NET.tryResume(netApi);
+    var profileApi = {
+      save: function() {
+        return save;
+      },
+      saveNow: function() {
+        writeSave(save);
+      },
+      say: function(s) {
+        say(s);
+      },
+      apply: function(prof, wRef, awarded, effectiveCoins) {
+        if (!prof) return;
+        if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
+        else if (typeof prof.coins === "number" && prof.coins >= 0) save.coins = prof.coins;
+        if (typeof prof.best === "number" && prof.best > (save.best || 0)) save.best = prof.best;
+        if (prof.purchases && typeof prof.purchases === "object") {
+          for (var k in prof.purchases) if (prof.purchases[k]) save.owned[k] = 1;
+          var pend = {};
+          try {
+            if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.pendingBuyKeys) pend = PROFILE.pendingBuyKeys() || {};
+          } catch (_e) {
+          }
+          for (var ok in save.owned) {
+            if (save.owned[ok] && !prof.purchases[ok] && !pend[ok]) delete save.owned[ok];
+          }
+          if (!heroOwned(save.char)) save.char = 0;
+          var bi = mapIdx(save.bg);
+          if (bi > 0 && !mapOpen(bi)) save.bg = MAPS[0].id;
+        }
+        if (wRef && world === wRef && typeof awarded === "number") {
+          wRef.earned = awarded;
+          wRef.coinFrom = Math.max(0, save.coins - awarded);
+          wRef.best = save.best;
+        }
+        writeSave(save);
+      }
+    };
+    if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.init(profileApi);
     function onVis() {
       acc = 0;
       uiAcc = 0;
@@ -6043,8 +6777,12 @@
         return world;
       },
       net: NET,
+      profile: typeof PROFILE !== "undefined" ? PROFILE : null,
       getSave: function() {
         return save;
+      },
+      getFlash: function() {
+        return flash;
       },
       getSize: function() {
         return { lw: LW, lh: LH, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
