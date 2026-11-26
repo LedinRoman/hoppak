@@ -8,9 +8,10 @@ var LW = 160;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
 var VIEW_CROP = 0; /* world px cropped from the top when play fills the phone width; render-only */
+var HUD_INSET = 0; /* world px pushed down so the play HUD clears the notch and the Telegram bar */
 function viewX0() { return -VIEW_PAD; }
 function viewW() { return LW + VIEW_PAD * 2; }
-function hudY(y: number) { return y + VIEW_CROP; }
+function hudY(y: number) { return y + VIEW_CROP + HUD_INSET; }
 var VIEW_BOT = 0; /* v0.59: world px hidden at the BOTTOM when play fills the phone width; render-only (sim view stays LH) */
 var VIEW_SHIFT = 0; /* v0.59: render-only look-down offset (0..VIEW_BOT) so a falling hero stays on screen until the sim death line */
 function viewBottom() { return LH - VIEW_BOT; } /* screen y (world px) of the visible bottom edge during play */
@@ -422,7 +423,6 @@ function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
 /* ---- audio: files under audio/, started only after a gesture. Beeps remain if a file cannot play. ---- */
 var audioCtx: any = null, sfxOn = true, vibOn = true, sfxVol = 0.8, musicOn = true, musicVol = 0.55;
 var audioUnlocked = false, audioExt = "";
-var sfxPool: any = {}, sfxCursor: any = {};
 /* Relative loudness. Jump and the results tick fire constantly, so they stay quieter than a coin. */
 var SFX_GAIN: any = { jump: 0.32, coin: 0.7, bonus: 0.75, shield: 0.7, death: 0.8, warn: 0.5, deny: 0.48, tick: 0.22, hit: 0.6 };
 /* Track id -> files. Add a row here, then a row in MUSIC_CUES, to bring in another loop. */
@@ -435,15 +435,42 @@ var MUSIC_CUES: any[] = [
 ];
 var musicDeck: any[] = [null, null], musicIdx = 0, musicCur = "", musicFade: any = null;
 
-function audioUnlock() {
-  audioUnlocked = true;
+var sfxBuf: any = {}, sfxLoading: any = {}, sfxLive: any[] = [];
+var sfxStat: any = { calls: {}, sources: {} };
+var SFX_CAP = 6;
+function ensureCtx() {
   try {
     var AC: any = (typeof window !== "undefined") && ((window as any).AudioContext || (window as any).webkitAudioContext);
-    if (AC) {
-      if (!audioCtx) audioCtx = new AC();
-      if (audioCtx.state === "suspended") audioCtx.resume();
+    if (!AC) return null;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === "suspended" || audioCtx.state === "interrupted") {
+      var resumed = audioCtx.resume();
+      if (resumed && resumed.catch) resumed.catch(function () {});
     }
-  } catch (_e) {}
+    return audioCtx;
+  } catch (_e) { return null; }
+}
+function loadSfx(kind: string) {
+  if (sfxBuf[kind] || sfxLoading[kind] || !audioCtx || typeof fetch === "undefined") return;
+  sfxLoading[kind] = 1;
+  var ctx = audioCtx;
+  var src = "audio/" + kind + "." + pickAudioExt();
+  fetch(src).then(function (r: any) {
+    if (!r.ok) throw 0;
+    return r.arrayBuffer();
+  }).then(function (b: any) { return ctx.decodeAudioData(b); }).then(function (buf: any) {
+    sfxBuf[kind] = buf;
+    sfxLoading[kind] = 0;
+  }).catch(function () { sfxLoading[kind] = 0; });
+}
+function preloadSfx() {
+  var kinds = ["jump", "coin", "bonus", "shield", "death", "warn", "deny", "tick", "hit"];
+  for (var i = 0; i < kinds.length; i++) loadSfx(kinds[i]);
+}
+function audioUnlock() {
+  audioUnlocked = true;
+  ensureCtx();
+  preloadSfx();
   hopMusic(musicCur || musicCue("menu", "city"));
 }
 function hopVib(ms: any) {
@@ -454,8 +481,11 @@ function pickAudioExt() {
   if (audioExt) return audioExt;
   audioExt = "mp3";
   try {
+    var ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+    if (/iPhone|iPad|iPod/i.test(ua)) return audioExt;
     var a = (typeof document !== "undefined") && document.createElement("audio");
-    if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"')) audioExt = "ogg";
+    /* "maybe" is a lie in some WebViews: they advertise ogg and then drop it. */
+    if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"') === "probably") audioExt = "ogg";
   } catch (_e) {}
   return audioExt;
 }
@@ -488,28 +518,33 @@ function hopSfx(kind: string) {
   else if (kind === "hit") hopVib(30);
   else if (kind === "death") hopVib([40, 40, 60]);
   else if (kind === "deny") hopVib(12);
+  sfxStat.calls[kind] = (sfxStat.calls[kind] || 0) + 1;
   if (!audioUnlocked) return;
-  var ext = pickAudioExt();
-  var pool = sfxPool[kind];
-  if (!pool) {
-    pool = [];
-    sfxPool[kind] = pool;
-    sfxCursor[kind] = 0;
-    for (var i = 0; i < 3; i++) {
-      var el = makeAudio("audio/" + kind + "." + ext);
-      if (el) pool.push(el);
-    }
+  var ctx = ensureCtx();
+  if (!ctx) { beepFallback(kind); return; }
+  var buf = sfxBuf[kind];
+  if (!buf) { loadSfx(kind); beepFallback(kind); return; }
+  /* A fresh buffer source per play. iOS will not reliably rewind one HTMLAudioElement. */
+  var now = ctx.currentTime, i;
+  for (i = sfxLive.length - 1; i >= 0; i--) if (sfxLive[i].until <= now) sfxLive.splice(i, 1);
+  if (sfxLive.length >= SFX_CAP) {
+    if (kind !== "jump") return;
+    var idx = 0;
+    for (i = 0; i < sfxLive.length; i++) if (sfxLive[i].kind !== "jump") { idx = i; break; }
+    try { sfxLive[idx].node.stop(); } catch (_e) {}
+    sfxLive.splice(idx, 1);
   }
-  if (!pool.length) { beepFallback(kind); return; }
-  var n = sfxCursor[kind] % pool.length;
-  sfxCursor[kind] = n + 1;
-  var node = pool[n];
   try {
-    node.volume = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
-    node.currentTime = 0;
-    var p = node.play();
-    if (p && p.catch) p.catch(function () { beepFallback(kind); });
-  } catch (_e) { beepFallback(kind); }
+    var node = ctx.createBufferSource();
+    var g = ctx.createGain();
+    node.buffer = buf;
+    var vol = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
+    g.gain.setValueAtTime(Math.max(0.0001, vol), now);
+    node.connect(g); g.connect(ctx.destination);
+    node.start(now);
+    sfxStat.sources[kind] = (sfxStat.sources[kind] || 0) + 1;
+    sfxLive.push({ node: node, kind: kind, until: now + (buf.duration || 0.25) + 0.02 });
+  } catch (_e2) { beepFallback(kind); }
 }
 function beepFallback(kind: string) {
   if (kind === "jump") beep(200, 0.045, 0.045, "sine", 40);

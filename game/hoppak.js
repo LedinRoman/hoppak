@@ -4,6 +4,7 @@
   var LH = 346;
   var VIEW_PAD = 0;
   var VIEW_CROP = 0;
+  var HUD_INSET = 0;
   function viewX0() {
     return -VIEW_PAD;
   }
@@ -11,7 +12,7 @@
     return LW + VIEW_PAD * 2;
   }
   function hudY(y) {
-    return y + VIEW_CROP;
+    return y + VIEW_CROP + HUD_INSET;
   }
   var VIEW_BOT = 0;
   var VIEW_SHIFT = 0;
@@ -582,8 +583,6 @@
   var musicVol = 0.55;
   var audioUnlocked = false;
   var audioExt = "";
-  var sfxPool = {};
-  var sfxCursor = {};
   var SFX_GAIN = { jump: 0.32, coin: 0.7, bonus: 0.75, shield: 0.7, death: 0.8, warn: 0.5, deny: 0.48, tick: 0.22, hit: 0.6 };
   var MUSIC_TRACKS = {
     hush: { ogg: "audio/hush.ogg", mp3: "audio/hush.mp3" }
@@ -595,16 +594,51 @@
   var musicIdx = 0;
   var musicCur = "";
   var musicFade = null;
-  function audioUnlock() {
-    audioUnlocked = true;
+  var sfxBuf = {};
+  var sfxLoading = {};
+  var sfxLive = [];
+  var sfxStat = { calls: {}, sources: {} };
+  var SFX_CAP = 6;
+  function ensureCtx() {
     try {
       var AC = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
-      if (AC) {
-        if (!audioCtx) audioCtx = new AC();
-        if (audioCtx.state === "suspended") audioCtx.resume();
+      if (!AC) return null;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === "suspended" || audioCtx.state === "interrupted") {
+        var resumed = audioCtx.resume();
+        if (resumed && resumed.catch) resumed.catch(function() {
+        });
       }
+      return audioCtx;
     } catch (_e) {
+      return null;
     }
+  }
+  function loadSfx(kind) {
+    if (sfxBuf[kind] || sfxLoading[kind] || !audioCtx || typeof fetch === "undefined") return;
+    sfxLoading[kind] = 1;
+    var ctx = audioCtx;
+    var src = "audio/" + kind + "." + pickAudioExt();
+    fetch(src).then(function(r) {
+      if (!r.ok) throw 0;
+      return r.arrayBuffer();
+    }).then(function(b) {
+      return ctx.decodeAudioData(b);
+    }).then(function(buf) {
+      sfxBuf[kind] = buf;
+      sfxLoading[kind] = 0;
+    }).catch(function() {
+      sfxLoading[kind] = 0;
+    });
+  }
+  function preloadSfx() {
+    var kinds = ["jump", "coin", "bonus", "shield", "death", "warn", "deny", "tick", "hit"];
+    for (var i = 0; i < kinds.length; i++) loadSfx(kinds[i]);
+  }
+  function audioUnlock() {
+    audioUnlocked = true;
+    ensureCtx();
+    preloadSfx();
     hopMusic(musicCur || musicCue("menu", "city"));
   }
   function hopVib(ms) {
@@ -618,8 +652,10 @@
     if (audioExt) return audioExt;
     audioExt = "mp3";
     try {
+      var ua = typeof navigator !== "undefined" && navigator.userAgent || "";
+      if (/iPhone|iPad|iPod/i.test(ua)) return audioExt;
       var a = typeof document !== "undefined" && document.createElement("audio");
-      if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"')) audioExt = "ogg";
+      if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"') === "probably") audioExt = "ogg";
     } catch (_e) {
     }
     return audioExt;
@@ -658,33 +694,46 @@
     else if (kind === "hit") hopVib(30);
     else if (kind === "death") hopVib([40, 40, 60]);
     else if (kind === "deny") hopVib(12);
+    sfxStat.calls[kind] = (sfxStat.calls[kind] || 0) + 1;
     if (!audioUnlocked) return;
-    var ext = pickAudioExt();
-    var pool = sfxPool[kind];
-    if (!pool) {
-      pool = [];
-      sfxPool[kind] = pool;
-      sfxCursor[kind] = 0;
-      for (var i = 0; i < 3; i++) {
-        var el = makeAudio("audio/" + kind + "." + ext);
-        if (el) pool.push(el);
-      }
-    }
-    if (!pool.length) {
+    var ctx = ensureCtx();
+    if (!ctx) {
       beepFallback(kind);
       return;
     }
-    var n = sfxCursor[kind] % pool.length;
-    sfxCursor[kind] = n + 1;
-    var node = pool[n];
+    var buf = sfxBuf[kind];
+    if (!buf) {
+      loadSfx(kind);
+      beepFallback(kind);
+      return;
+    }
+    var now = ctx.currentTime, i;
+    for (i = sfxLive.length - 1; i >= 0; i--) if (sfxLive[i].until <= now) sfxLive.splice(i, 1);
+    if (sfxLive.length >= SFX_CAP) {
+      if (kind !== "jump") return;
+      var idx = 0;
+      for (i = 0; i < sfxLive.length; i++) if (sfxLive[i].kind !== "jump") {
+        idx = i;
+        break;
+      }
+      try {
+        sfxLive[idx].node.stop();
+      } catch (_e) {
+      }
+      sfxLive.splice(idx, 1);
+    }
     try {
-      node.volume = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
-      node.currentTime = 0;
-      var p = node.play();
-      if (p && p.catch) p.catch(function() {
-        beepFallback(kind);
-      });
-    } catch (_e) {
+      var node = ctx.createBufferSource();
+      var g = ctx.createGain();
+      node.buffer = buf;
+      var vol = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
+      g.gain.setValueAtTime(Math.max(1e-4, vol), now);
+      node.connect(g);
+      g.connect(ctx.destination);
+      node.start(now);
+      sfxStat.sources[kind] = (sfxStat.sources[kind] || 0) + 1;
+      sfxLive.push({ node, kind, until: now + (buf.duration || 0.25) + 0.02 });
+    } catch (_e2) {
       beepFallback(kind);
     }
   }
@@ -3538,7 +3587,7 @@
   var NET_GRACE_MS = 1e4;
   var NET_XS = [74, 22, 124, 48];
   var NET_TAGS = { host: "\u0425\u041E\u0421\u0422", ready: "\u0413\u041E\u0422\u041E\u0412", wait: "\u0416\u0414\u0401\u041C", off: "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418" };
-  var NET = (function() {
+  var NET = function() {
     var N = {
       ws: null,
       st: "off",
@@ -4559,8 +4608,8 @@
       N.connect();
     };
     return N;
-  })();
-  var PROFILE = (function() {
+  }();
+  var PROFILE = function() {
     var TOKEN_KEY = "hoppak_guest_token";
     var QUEUE_KEY = "hoppak_profile_queue";
     var BUYS_KEY = "hoppak_profile_buys";
@@ -5191,7 +5240,7 @@
       };
     };
     return P;
-  })();
+  }();
   function startHoppak(canvas) {
     var raw = canvas.getContext("2d");
     var noop = function() {
@@ -6366,10 +6415,10 @@
       var pp = dbg.ring && dbg.ring.pop != null ? dbg.ring.pop : popT;
       if (!heroHasAb(me) || pp < 0 || pp >= 36) return;
       var x = Math.round(me.x + PW / 2) - 2, y = Math.round(sy) - 9;
-      rect(ctx, x + 1, y, 1, 1, C.gold);
-      rect(ctx, x, y + 1, 3, 1, C.gold);
-      rect(ctx, x + 1, y + 2, 1, 1, C.gold);
-      rect(ctx, x + 1, y + 1, 1, 1, "#fff2a8");
+      rect(ctx, x + 1, y, 1, 1, "#3a6848");
+      rect(ctx, x, y + 1, 3, 1, "#3a6848");
+      rect(ctx, x + 1, y + 2, 1, 1, "#3a6848");
+      rect(ctx, x + 1, y + 1, 1, 1, "#d8e8d0");
     }
     function withWrapX(x, wdt, fn) {
       fn(x);
@@ -6483,7 +6532,7 @@
           drawFxBack(p, sy, cam);
           var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
           ctx.save();
-          if (p.remote) ctx.globalAlpha = remoteAlpha();
+          if (p.id !== 0) ctx.globalAlpha = remoteAlpha();
           drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
           ctx.restore();
           if (p.id === 0) drawReadyPip(p, sy);
@@ -6518,18 +6567,8 @@
       var me = w.players[0];
       var wantPause = wantTouchPause();
       var meter = metersOf(me) + " \u041C";
-      var meterX = 80;
-      if (heroHasAb(me) && me.alive && me.abCharge >= CHARS[me.kind].need) {
-        var ab = abBar();
-        var labRight = ab.x + ab.w + 3 + textWidth("\u0413\u041E\u0422\u041E\u0412", 1) - 1;
-        var half = (textWidth(meter, 1) - 1) / 2;
-        var need = Math.round(labRight + 4 + half);
-        if (need > meterX) meterX = need;
-        var cap = Math.round((wantPause ? 136 : LW - 2) - half);
-        if (meterX > cap) meterX = cap;
-      }
-      drawTextO(ctx, meter, meterX, hudY(6), C.cream, "center");
       coinsLabel(5, hudY(6), w.runCoins);
+      drawTextO(ctx, meter, wantPause ? 134 : LW - 4, hudY(6), C.cream, "right");
       if (w.mode === "squad") {
         var place = 1, lead = me, leadM = metersOf(me);
         for (i = 0; i < w.players.length; i++) {
@@ -6540,9 +6579,8 @@
             leadM = om;
           }
         }
-        drawTextO(ctx, place + "/" + w.players.length, 80, hudY(16), "#c8bfe0", "center");
-        var leadLab = lead.id === 0 ? "\u0422\u042B \u0412\u041F\u0415\u0420\u0415\u0414\u0418" : (lead.name || "\u0411\u041E\u0422").slice(0, 8) + " " + leadM + " \u041C";
-        drawTextO(ctx, leadLab, 80, hudY(26), lead.id === 0 ? C.gold : C.cream, "center");
+        var squadLab = place + "/" + w.players.length + (lead.id === 0 ? " \u0422\u042B" : " " + (lead.name || "\u0411\u041E\u0422").slice(0, 6) + " " + leadM);
+        drawTextO(ctx, squadLab, LW / 2, hudY(24), lead.id === 0 ? C.gold : C.cream, "center");
       }
       if (wantPause) {
         addHit("pause", 138, hudY(0), 22, 22);
@@ -6681,7 +6719,7 @@
     }
     var BON_HUD = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
     function drawBonusHud(me) {
-      var x = 3, y = hudY(22);
+      var x = 3, y = hudY(36);
       for (var i = 0; i < BON_HUD.length; i++) {
         var b = BON_HUD[i], t = me[b[0]];
         if (!(t > 0)) continue;
@@ -6792,14 +6830,11 @@
       var cx = b.x + 8 + shx, cy = b.y + 8;
       addHit("ab", b.x, b.y, b.w, b.h);
       fillDisc(cx, cy, 8, INK);
-      fillDisc(cx, cy, 7, ready ? C.gold : "#3a4a7a");
+      fillDisc(cx, cy, 7, ready ? "#3a6848" : "#3a4a7a");
       fillDisc(cx, cy, 6, "#1a1430");
       if (active) strokeArc(cx, cy, 6, C.cream, rs.f != null ? rs.f : 1);
-      else if (ready) {
-        strokeArc(cx, cy, 6, C.gold, 1);
-        strokeArc(cx, cy, 8, (ui >> 3) % 2 ? C.gold : "#fff2a8", 1);
-      } else strokeArc(cx, cy, 6, "#5ec8ff", f);
-      if (ready) drawText(ctx, "\u0413\u041E\u0422\u041E\u0412", b.x + b.w + 3, b.y + 4, C.gold, 1, "left");
+      else if (ready) strokeArc(cx, cy, 8, "#4e8a58", 1);
+      else strokeArc(cx, cy, 6, "#5ec8ff", f);
       ctx.globalAlpha = ready || active || rf > 0 ? 1 : 0.55;
       drawAbIcon(H.ab, cx - 6, cy - 6);
       ctx.globalAlpha = 1;
@@ -6967,6 +7002,7 @@
           }
         }
       }
+      HUD_INSET = phase === "play" ? Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) : 0;
       syncBackdrop(menuMap());
       if (phase === "play" && world && world.phase === "play" && !paused) {
         acc += dt;
@@ -7101,7 +7137,45 @@
       acc = 0;
       uiAcc = 0;
       lastT = -1;
+      if (!document.hidden && audioUnlocked) {
+        ensureCtx();
+        var live = musicDeck[musicIdx];
+        if (live && live.paused && musicOn && musicVol > 0) {
+          try {
+            var pr = live.play();
+            if (pr && pr.catch) pr.catch(function() {
+            });
+          } catch (_e) {
+          }
+        }
+      }
       if (document.hidden && phase === "play") paused = true;
+    }
+    var envInset = -1;
+    function insetTopCss() {
+      var n = 0;
+      try {
+        var tg = window.Telegram && window.Telegram.WebApp;
+        if (tg) {
+          var c = tg.contentSafeAreaInset, s = tg.safeAreaInset;
+          if (c && c.top) n = Math.max(n, Number(c.top) || 0);
+          if (s && s.top) n = Math.max(n, Number(s.top) || 0);
+        }
+      } catch (_e) {
+      }
+      if (envInset < 0) {
+        envInset = 0;
+        try {
+          var probe = document.createElement("div");
+          probe.style.cssText = "position:absolute;padding-top:env(safe-area-inset-top)";
+          document.body.appendChild(probe);
+          envInset = parseFloat(getComputedStyle(probe).paddingTop) || 0;
+          probe.remove();
+        } catch (_e2) {
+          envInset = 0;
+        }
+      }
+      return Math.max(n, envInset);
     }
     function wantTouchPause() {
       if (isPhone || !isWide) return true;
@@ -7146,7 +7220,11 @@
     document.addEventListener("gesturestart", noScroll);
     document.addEventListener("selectstart", noScroll);
     document.addEventListener("dragstart", noScroll);
-    canvas.addEventListener("touchstart", noScroll, { passive: false });
+    var onTouch = function(e) {
+      audioUnlock();
+      noScroll(e);
+    };
+    canvas.addEventListener("touchstart", onTouch, { passive: false });
     if (ptrRoot !== canvas) ptrRoot.addEventListener("touchstart", noScroll, { passive: false });
     raf = requestAnimationFrame(frame);
     return {
@@ -7170,7 +7248,7 @@
         document.removeEventListener("gesturestart", noScroll);
         document.removeEventListener("selectstart", noScroll);
         document.removeEventListener("dragstart", noScroll);
-        canvas.removeEventListener("touchstart", noScroll);
+        canvas.removeEventListener("touchstart", onTouch);
       },
       getPhase: function() {
         return phase;
@@ -7197,6 +7275,18 @@
       },
       tap: function(id) {
         activate(id);
+      },
+      audioUnlock: function() {
+        audioUnlock();
+      },
+      sfxPlay: function(k) {
+        hopSfx(k);
+      },
+      sfxStats: function() {
+        return sfxStat;
+      },
+      sfxReady: function(k) {
+        return !!sfxBuf[k];
       },
       screen: function(s) {
         phase = s;

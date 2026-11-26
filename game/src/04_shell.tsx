@@ -852,7 +852,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var dbg: any = (window as any).__dbg || {}; var pp = dbg.ring && dbg.ring.pop != null ? dbg.ring.pop : popT;
     if (!heroHasAb(me) || pp < 0 || pp >= 36) return;
     var x = Math.round(me.x + PW / 2) - 2, y = Math.round(sy) - 9;
-    rect(ctx, x + 1, y, 1, 1, C.gold); rect(ctx, x, y + 1, 3, 1, C.gold); rect(ctx, x + 1, y + 2, 1, 1, C.gold); rect(ctx, x + 1, y + 1, 1, 1, "#fff2a8");
+    rect(ctx, x + 1, y, 1, 1, "#3a6848"); rect(ctx, x, y + 1, 3, 1, "#3a6848"); rect(ctx, x + 1, y + 2, 1, 1, "#3a6848"); rect(ctx, x + 1, y + 1, 1, 1, "#d8e8d0");
   }
   function withWrapX(x: number, wdt: number, fn: any) {
     fn(x);
@@ -947,7 +947,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         /* Render-only: while clinging, face into the field. p.face is used by dash/kick/net, so sim stays as-is. */
         var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
         ctx.save();
-        if (p.remote) ctx.globalAlpha = remoteAlpha();
+        if (p.id !== 0) ctx.globalAlpha = remoteAlpha();
         drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
         ctx.restore();
         if (p.id === 0) drawReadyPip(p, sy);
@@ -981,19 +981,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var me = w.players[0];
     var wantPause = wantTouchPause();
     var meter = metersOf(me) + " М";
-    var meterX = 80;
-    /* "ГОТОВ" sits just right of the ability disc and would otherwise land on the height. */
-    if (heroHasAb(me) && me.alive && me.abCharge >= CHARS[me.kind].need) {
-      var ab = abBar();
-      var labRight = ab.x + ab.w + 3 + textWidth("ГОТОВ", 1) - 1;
-      var half = (textWidth(meter, 1) - 1) / 2;
-      var need = Math.round(labRight + 4 + half);
-      if (need > meterX) meterX = need;
-      var cap = Math.round((wantPause ? 136 : LW - 2) - half);
-      if (meterX > cap) meterX = cap;
-    }
-    drawTextO(ctx, meter, meterX, hudY(6), C.cream, "center");
     coinsLabel(5, hudY(6), w.runCoins);
+    drawTextO(ctx, meter, wantPause ? 134 : LW - 4, hudY(6), C.cream, "right");
     if (w.mode === "squad") {
       var place = 1, lead = me, leadM = metersOf(me);
       for (i = 0; i < w.players.length; i++) {
@@ -1001,9 +990,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (w.players[i] !== me && om > metersOf(me)) place++;
         if (om > leadM) { lead = w.players[i]; leadM = om; }
       }
-      drawTextO(ctx, place + "/" + w.players.length, 80, hudY(16), "#c8bfe0", "center");
-      var leadLab = lead.id === 0 ? "ТЫ ВПЕРЕДИ" : ((lead.name || "БОТ").slice(0, 8) + " " + leadM + " М");
-      drawTextO(ctx, leadLab, 80, hudY(26), lead.id === 0 ? C.gold : C.cream, "center");
+      var squadLab = place + "/" + w.players.length + (lead.id === 0 ? " ТЫ" : (" " + (lead.name || "БОТ").slice(0, 6) + " " + leadM));
+      drawTextO(ctx, squadLab, LW / 2, hudY(24), lead.id === 0 ? C.gold : C.cream, "center");
     }
     if (wantPause) {
       addHit("pause", 138, hudY(0), 22, 22);
@@ -1115,7 +1103,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
-    var x = 3, y = hudY(22);
+    var x = 3, y = hudY(36);
     for (var i = 0; i < BON_HUD.length; i++) {
       var b = BON_HUD[i], t = me[b[0]];
       if (!(t > 0)) continue;
@@ -1194,15 +1182,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var cx = b.x + 8 + shx, cy = b.y + 8;
     addHit("ab", b.x, b.y, b.w, b.h);
     fillDisc(cx, cy, 8, INK);
-    fillDisc(cx, cy, 7, ready ? C.gold : "#3a4a7a");
+    fillDisc(cx, cy, 7, ready ? "#3a6848" : "#3a4a7a");
     fillDisc(cx, cy, 6, "#1a1430");
     if (active) strokeArc(cx, cy, 6, C.cream, rs.f != null ? rs.f : 1);
-    else if (ready) {
-      strokeArc(cx, cy, 6, C.gold, 1);
-      strokeArc(cx, cy, 8, (ui >> 3) % 2 ? C.gold : "#fff2a8", 1);
-    }
+    else if (ready) strokeArc(cx, cy, 8, "#4e8a58", 1);
     else strokeArc(cx, cy, 6, "#5ec8ff", f);
-    if (ready) drawText(ctx, "ГОТОВ", b.x + b.w + 3, b.y + 4, C.gold, 1, "left");
     ctx.globalAlpha = ready || active || rf > 0 ? 1 : 0.55;
     drawAbIcon(H.ab, cx - 6, cy - 6);
     ctx.globalAlpha = 1;
@@ -1346,6 +1330,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (resumeCd <= 0) { paused = false; landPause = false; manualPause = false; acc = 0; uiAcc = 0; lastT = now; }
       }
     }
+    HUD_INSET = phase === "play" ? Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) : 0;
     syncBackdrop(menuMap());
     if (phase === "play" && world && world.phase === "play" && !paused) {
       acc += dt;
@@ -1430,7 +1415,37 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.init(profileApi);
   function onVis() {
     acc = 0; uiAcc = 0; lastT = -1;
+    if (!document.hidden && audioUnlocked) {
+      ensureCtx();
+      var live = musicDeck[musicIdx];
+      if (live && live.paused && musicOn && musicVol > 0) {
+        try { var pr = live.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (_e) {}
+      }
+    }
     if (document.hidden && phase === "play") paused = true;
+  }
+  var envInset = -1;
+  function insetTopCss() {
+    var n = 0;
+    try {
+      var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
+      if (tg) {
+        var c = tg.contentSafeAreaInset, s = tg.safeAreaInset;
+        if (c && c.top) n = Math.max(n, Number(c.top) || 0);
+        if (s && s.top) n = Math.max(n, Number(s.top) || 0);
+      }
+    } catch (_e) {}
+    if (envInset < 0) {
+      envInset = 0;
+      try {
+        var probe = document.createElement("div");
+        probe.style.cssText = "position:absolute;padding-top:env(safe-area-inset-top)";
+        document.body.appendChild(probe);
+        envInset = parseFloat(getComputedStyle(probe).paddingTop) || 0;
+        probe.remove();
+      } catch (_e2) { envInset = 0; }
+    }
+    return Math.max(n, envInset);
   }
   function wantTouchPause() {
     if (isPhone || !isWide) return true;
@@ -1459,7 +1474,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   document.addEventListener("gesturestart", noScroll);
   document.addEventListener("selectstart", noScroll);
   document.addEventListener("dragstart", noScroll);
-  canvas.addEventListener("touchstart", noScroll, { passive: false });
+  var onTouch = function (e: any) { audioUnlock(); noScroll(e); };
+  canvas.addEventListener("touchstart", onTouch, { passive: false });
   if (ptrRoot !== canvas) ptrRoot.addEventListener("touchstart", noScroll, { passive: false });
   raf = requestAnimationFrame(frame);
 
@@ -1484,7 +1500,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       document.removeEventListener("gesturestart", noScroll);
       document.removeEventListener("selectstart", noScroll);
       document.removeEventListener("dragstart", noScroll);
-      canvas.removeEventListener("touchstart", noScroll);
+      canvas.removeEventListener("touchstart", onTouch);
     },
     getPhase: function () { return phase; },
     dbgToast: function (s: string) { if (world) { world.toast = s; world.toastT = 70; } },
@@ -1495,6 +1511,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getFlash: function () { return flash; },
     getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
+    audioUnlock: function () { audioUnlock(); },
+    sfxPlay: function (k: string) { hopSfx(k); },
+    sfxStats: function () { return sfxStat; },
+    sfxReady: function (k: string) { return !!sfxBuf[k]; },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },
     setDir: function (d: number) { held.kl = d < 0; held.kr = d > 0; },

@@ -8,9 +8,10 @@ var LW = 160;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
 var VIEW_CROP = 0; /* world px cropped from the top when play fills the phone width; render-only */
+var HUD_INSET = 0; /* world px pushed down so the play HUD clears the notch and the Telegram bar */
 function viewX0() { return -VIEW_PAD; }
 function viewW() { return LW + VIEW_PAD * 2; }
-function hudY(y: number) { return y + VIEW_CROP; }
+function hudY(y: number) { return y + VIEW_CROP + HUD_INSET; }
 var VIEW_BOT = 0; /* v0.59: world px hidden at the BOTTOM when play fills the phone width; render-only (sim view stays LH) */
 var VIEW_SHIFT = 0; /* v0.59: render-only look-down offset (0..VIEW_BOT) so a falling hero stays on screen until the sim death line */
 function viewBottom() { return LH - VIEW_BOT; } /* screen y (world px) of the visible bottom edge during play */
@@ -422,7 +423,6 @@ function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
 /* ---- audio: files under audio/, started only after a gesture. Beeps remain if a file cannot play. ---- */
 var audioCtx: any = null, sfxOn = true, vibOn = true, sfxVol = 0.8, musicOn = true, musicVol = 0.55;
 var audioUnlocked = false, audioExt = "";
-var sfxPool: any = {}, sfxCursor: any = {};
 /* Relative loudness. Jump and the results tick fire constantly, so they stay quieter than a coin. */
 var SFX_GAIN: any = { jump: 0.32, coin: 0.7, bonus: 0.75, shield: 0.7, death: 0.8, warn: 0.5, deny: 0.48, tick: 0.22, hit: 0.6 };
 /* Track id -> files. Add a row here, then a row in MUSIC_CUES, to bring in another loop. */
@@ -435,15 +435,42 @@ var MUSIC_CUES: any[] = [
 ];
 var musicDeck: any[] = [null, null], musicIdx = 0, musicCur = "", musicFade: any = null;
 
-function audioUnlock() {
-  audioUnlocked = true;
+var sfxBuf: any = {}, sfxLoading: any = {}, sfxLive: any[] = [];
+var sfxStat: any = { calls: {}, sources: {} };
+var SFX_CAP = 6;
+function ensureCtx() {
   try {
     var AC: any = (typeof window !== "undefined") && ((window as any).AudioContext || (window as any).webkitAudioContext);
-    if (AC) {
-      if (!audioCtx) audioCtx = new AC();
-      if (audioCtx.state === "suspended") audioCtx.resume();
+    if (!AC) return null;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === "suspended" || audioCtx.state === "interrupted") {
+      var resumed = audioCtx.resume();
+      if (resumed && resumed.catch) resumed.catch(function () {});
     }
-  } catch (_e) {}
+    return audioCtx;
+  } catch (_e) { return null; }
+}
+function loadSfx(kind: string) {
+  if (sfxBuf[kind] || sfxLoading[kind] || !audioCtx || typeof fetch === "undefined") return;
+  sfxLoading[kind] = 1;
+  var ctx = audioCtx;
+  var src = "audio/" + kind + "." + pickAudioExt();
+  fetch(src).then(function (r: any) {
+    if (!r.ok) throw 0;
+    return r.arrayBuffer();
+  }).then(function (b: any) { return ctx.decodeAudioData(b); }).then(function (buf: any) {
+    sfxBuf[kind] = buf;
+    sfxLoading[kind] = 0;
+  }).catch(function () { sfxLoading[kind] = 0; });
+}
+function preloadSfx() {
+  var kinds = ["jump", "coin", "bonus", "shield", "death", "warn", "deny", "tick", "hit"];
+  for (var i = 0; i < kinds.length; i++) loadSfx(kinds[i]);
+}
+function audioUnlock() {
+  audioUnlocked = true;
+  ensureCtx();
+  preloadSfx();
   hopMusic(musicCur || musicCue("menu", "city"));
 }
 function hopVib(ms: any) {
@@ -454,8 +481,11 @@ function pickAudioExt() {
   if (audioExt) return audioExt;
   audioExt = "mp3";
   try {
+    var ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+    if (/iPhone|iPad|iPod/i.test(ua)) return audioExt;
     var a = (typeof document !== "undefined") && document.createElement("audio");
-    if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"')) audioExt = "ogg";
+    /* "maybe" is a lie in some WebViews: they advertise ogg and then drop it. */
+    if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"') === "probably") audioExt = "ogg";
   } catch (_e) {}
   return audioExt;
 }
@@ -488,28 +518,33 @@ function hopSfx(kind: string) {
   else if (kind === "hit") hopVib(30);
   else if (kind === "death") hopVib([40, 40, 60]);
   else if (kind === "deny") hopVib(12);
+  sfxStat.calls[kind] = (sfxStat.calls[kind] || 0) + 1;
   if (!audioUnlocked) return;
-  var ext = pickAudioExt();
-  var pool = sfxPool[kind];
-  if (!pool) {
-    pool = [];
-    sfxPool[kind] = pool;
-    sfxCursor[kind] = 0;
-    for (var i = 0; i < 3; i++) {
-      var el = makeAudio("audio/" + kind + "." + ext);
-      if (el) pool.push(el);
-    }
+  var ctx = ensureCtx();
+  if (!ctx) { beepFallback(kind); return; }
+  var buf = sfxBuf[kind];
+  if (!buf) { loadSfx(kind); beepFallback(kind); return; }
+  /* A fresh buffer source per play. iOS will not reliably rewind one HTMLAudioElement. */
+  var now = ctx.currentTime, i;
+  for (i = sfxLive.length - 1; i >= 0; i--) if (sfxLive[i].until <= now) sfxLive.splice(i, 1);
+  if (sfxLive.length >= SFX_CAP) {
+    if (kind !== "jump") return;
+    var idx = 0;
+    for (i = 0; i < sfxLive.length; i++) if (sfxLive[i].kind !== "jump") { idx = i; break; }
+    try { sfxLive[idx].node.stop(); } catch (_e) {}
+    sfxLive.splice(idx, 1);
   }
-  if (!pool.length) { beepFallback(kind); return; }
-  var n = sfxCursor[kind] % pool.length;
-  sfxCursor[kind] = n + 1;
-  var node = pool[n];
   try {
-    node.volume = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
-    node.currentTime = 0;
-    var p = node.play();
-    if (p && p.catch) p.catch(function () { beepFallback(kind); });
-  } catch (_e) { beepFallback(kind); }
+    var node = ctx.createBufferSource();
+    var g = ctx.createGain();
+    node.buffer = buf;
+    var vol = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
+    g.gain.setValueAtTime(Math.max(0.0001, vol), now);
+    node.connect(g); g.connect(ctx.destination);
+    node.start(now);
+    sfxStat.sources[kind] = (sfxStat.sources[kind] || 0) + 1;
+    sfxLive.push({ node: node, kind: kind, until: now + (buf.duration || 0.25) + 0.02 });
+  } catch (_e2) { beepFallback(kind); }
 }
 function beepFallback(kind: string) {
   if (kind === "jump") beep(200, 0.045, 0.045, "sine", 40);
@@ -4718,7 +4753,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var dbg: any = (window as any).__dbg || {}; var pp = dbg.ring && dbg.ring.pop != null ? dbg.ring.pop : popT;
     if (!heroHasAb(me) || pp < 0 || pp >= 36) return;
     var x = Math.round(me.x + PW / 2) - 2, y = Math.round(sy) - 9;
-    rect(ctx, x + 1, y, 1, 1, C.gold); rect(ctx, x, y + 1, 3, 1, C.gold); rect(ctx, x + 1, y + 2, 1, 1, C.gold); rect(ctx, x + 1, y + 1, 1, 1, "#fff2a8");
+    rect(ctx, x + 1, y, 1, 1, "#3a6848"); rect(ctx, x, y + 1, 3, 1, "#3a6848"); rect(ctx, x + 1, y + 2, 1, 1, "#3a6848"); rect(ctx, x + 1, y + 1, 1, 1, "#d8e8d0");
   }
   function withWrapX(x: number, wdt: number, fn: any) {
     fn(x);
@@ -4813,7 +4848,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         /* Render-only: while clinging, face into the field. p.face is used by dash/kick/net, so sim stays as-is. */
         var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
         ctx.save();
-        if (p.remote) ctx.globalAlpha = remoteAlpha();
+        if (p.id !== 0) ctx.globalAlpha = remoteAlpha();
         drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
         ctx.restore();
         if (p.id === 0) drawReadyPip(p, sy);
@@ -4847,19 +4882,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var me = w.players[0];
     var wantPause = wantTouchPause();
     var meter = metersOf(me) + " М";
-    var meterX = 80;
-    /* "ГОТОВ" sits just right of the ability disc and would otherwise land on the height. */
-    if (heroHasAb(me) && me.alive && me.abCharge >= CHARS[me.kind].need) {
-      var ab = abBar();
-      var labRight = ab.x + ab.w + 3 + textWidth("ГОТОВ", 1) - 1;
-      var half = (textWidth(meter, 1) - 1) / 2;
-      var need = Math.round(labRight + 4 + half);
-      if (need > meterX) meterX = need;
-      var cap = Math.round((wantPause ? 136 : LW - 2) - half);
-      if (meterX > cap) meterX = cap;
-    }
-    drawTextO(ctx, meter, meterX, hudY(6), C.cream, "center");
     coinsLabel(5, hudY(6), w.runCoins);
+    drawTextO(ctx, meter, wantPause ? 134 : LW - 4, hudY(6), C.cream, "right");
     if (w.mode === "squad") {
       var place = 1, lead = me, leadM = metersOf(me);
       for (i = 0; i < w.players.length; i++) {
@@ -4867,9 +4891,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (w.players[i] !== me && om > metersOf(me)) place++;
         if (om > leadM) { lead = w.players[i]; leadM = om; }
       }
-      drawTextO(ctx, place + "/" + w.players.length, 80, hudY(16), "#c8bfe0", "center");
-      var leadLab = lead.id === 0 ? "ТЫ ВПЕРЕДИ" : ((lead.name || "БОТ").slice(0, 8) + " " + leadM + " М");
-      drawTextO(ctx, leadLab, 80, hudY(26), lead.id === 0 ? C.gold : C.cream, "center");
+      var squadLab = place + "/" + w.players.length + (lead.id === 0 ? " ТЫ" : (" " + (lead.name || "БОТ").slice(0, 6) + " " + leadM));
+      drawTextO(ctx, squadLab, LW / 2, hudY(24), lead.id === 0 ? C.gold : C.cream, "center");
     }
     if (wantPause) {
       addHit("pause", 138, hudY(0), 22, 22);
@@ -4981,7 +5004,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
-    var x = 3, y = hudY(22);
+    var x = 3, y = hudY(36);
     for (var i = 0; i < BON_HUD.length; i++) {
       var b = BON_HUD[i], t = me[b[0]];
       if (!(t > 0)) continue;
@@ -5060,15 +5083,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var cx = b.x + 8 + shx, cy = b.y + 8;
     addHit("ab", b.x, b.y, b.w, b.h);
     fillDisc(cx, cy, 8, INK);
-    fillDisc(cx, cy, 7, ready ? C.gold : "#3a4a7a");
+    fillDisc(cx, cy, 7, ready ? "#3a6848" : "#3a4a7a");
     fillDisc(cx, cy, 6, "#1a1430");
     if (active) strokeArc(cx, cy, 6, C.cream, rs.f != null ? rs.f : 1);
-    else if (ready) {
-      strokeArc(cx, cy, 6, C.gold, 1);
-      strokeArc(cx, cy, 8, (ui >> 3) % 2 ? C.gold : "#fff2a8", 1);
-    }
+    else if (ready) strokeArc(cx, cy, 8, "#4e8a58", 1);
     else strokeArc(cx, cy, 6, "#5ec8ff", f);
-    if (ready) drawText(ctx, "ГОТОВ", b.x + b.w + 3, b.y + 4, C.gold, 1, "left");
     ctx.globalAlpha = ready || active || rf > 0 ? 1 : 0.55;
     drawAbIcon(H.ab, cx - 6, cy - 6);
     ctx.globalAlpha = 1;
@@ -5212,6 +5231,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (resumeCd <= 0) { paused = false; landPause = false; manualPause = false; acc = 0; uiAcc = 0; lastT = now; }
       }
     }
+    HUD_INSET = phase === "play" ? Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) : 0;
     syncBackdrop(menuMap());
     if (phase === "play" && world && world.phase === "play" && !paused) {
       acc += dt;
@@ -5296,7 +5316,37 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.init(profileApi);
   function onVis() {
     acc = 0; uiAcc = 0; lastT = -1;
+    if (!document.hidden && audioUnlocked) {
+      ensureCtx();
+      var live = musicDeck[musicIdx];
+      if (live && live.paused && musicOn && musicVol > 0) {
+        try { var pr = live.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (_e) {}
+      }
+    }
     if (document.hidden && phase === "play") paused = true;
+  }
+  var envInset = -1;
+  function insetTopCss() {
+    var n = 0;
+    try {
+      var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
+      if (tg) {
+        var c = tg.contentSafeAreaInset, s = tg.safeAreaInset;
+        if (c && c.top) n = Math.max(n, Number(c.top) || 0);
+        if (s && s.top) n = Math.max(n, Number(s.top) || 0);
+      }
+    } catch (_e) {}
+    if (envInset < 0) {
+      envInset = 0;
+      try {
+        var probe = document.createElement("div");
+        probe.style.cssText = "position:absolute;padding-top:env(safe-area-inset-top)";
+        document.body.appendChild(probe);
+        envInset = parseFloat(getComputedStyle(probe).paddingTop) || 0;
+        probe.remove();
+      } catch (_e2) { envInset = 0; }
+    }
+    return Math.max(n, envInset);
   }
   function wantTouchPause() {
     if (isPhone || !isWide) return true;
@@ -5325,7 +5375,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   document.addEventListener("gesturestart", noScroll);
   document.addEventListener("selectstart", noScroll);
   document.addEventListener("dragstart", noScroll);
-  canvas.addEventListener("touchstart", noScroll, { passive: false });
+  var onTouch = function (e: any) { audioUnlock(); noScroll(e); };
+  canvas.addEventListener("touchstart", onTouch, { passive: false });
   if (ptrRoot !== canvas) ptrRoot.addEventListener("touchstart", noScroll, { passive: false });
   raf = requestAnimationFrame(frame);
 
@@ -5350,7 +5401,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       document.removeEventListener("gesturestart", noScroll);
       document.removeEventListener("selectstart", noScroll);
       document.removeEventListener("dragstart", noScroll);
-      canvas.removeEventListener("touchstart", noScroll);
+      canvas.removeEventListener("touchstart", onTouch);
     },
     getPhase: function () { return phase; },
     dbgToast: function (s: string) { if (world) { world.toast = s; world.toastT = 70; } },
@@ -5361,6 +5412,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getFlash: function () { return flash; },
     getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
+    audioUnlock: function () { audioUnlock(); },
+    sfxPlay: function (k: string) { hopSfx(k); },
+    sfxStats: function () { return sfxStat; },
+    sfxReady: function (k: string) { return !!sfxBuf[k]; },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },
     setDir: function (d: number) { held.kl = d < 0; held.kr = d > 0; },
