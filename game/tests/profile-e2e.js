@@ -814,7 +814,7 @@ async function admin(base, body) {
 
     // 11. Prod page: guests never touch telegram.org; a Mini App hash + mock SDK still links.
     {
-      function mockSdk(version) {
+      function mockSdk(version, platform) {
         return [
           '(function () {',
           '  var q = String(location.hash || "").replace(/^#/, "");',
@@ -826,6 +826,7 @@ async function admin(base, body) {
           '  window.__sdkBooted = false;',
           '  function mark(name) { window.__tgCalls.push({ n: name, after: window.__sdkBooted }); }',
           '  var ver = ' + JSON.stringify(version) + ';',
+          '  var platform = ' + JSON.stringify(platform || 'ios') + ';',
           '  function atLeast(need) {',
           '    var pa = String(ver).split("."), pb = String(need).split(".");',
           '    for (var i = 0; i < 3; i++) {',
@@ -835,7 +836,7 @@ async function admin(base, body) {
           '    return true;',
           '  }',
           '  var app = {',
-          '    initData: data, platform: "ios", version: ver,',
+          '    initData: data, platform: platform, version: ver,',
           '    isVersionAtLeast: atLeast,',
           '    initDataUnsafe: { user: user },',
           '    ready: function () { mark("ready"); },',
@@ -843,8 +844,8 @@ async function admin(base, body) {
           '    onEvent: function () {}, offEvent: function () {},',
           '    BackButton: { isVisible: false, onClick: function () {} }',
           '  };',
-          '  if (atLeast("8.0")) app.requestFullscreen = function () { mark("requestFullscreen"); };',
-          '  if (atLeast("7.7")) app.disableVerticalSwipes = function () { mark("disableVerticalSwipes"); };',
+          '  app.requestFullscreen = function () { mark("requestFullscreen"); };',
+          '  app.disableVerticalSwipes = function () { mark("disableVerticalSwipes"); };',
           '  window.Telegram = { WebApp: app };',
           '  window.__sdkBooted = true;',
           '})();',
@@ -896,7 +897,7 @@ async function admin(base, body) {
         if (/telegram\.org/i.test(u)) {
           hitsB.push(u);
           if (/telegram-web-app\.js/.test(u)) {
-            rq.respond({ status: 200, contentType: 'application/javascript', body: mockSdk('8.0') });
+            rq.respond({ status: 200, contentType: 'application/javascript', body: mockSdk('8.0', 'ios') });
           } else rq.abort();
           return;
         }
@@ -949,7 +950,33 @@ async function admin(base, body) {
       });
       assert.deepStrictEqual(callCounts(oldCalls), { ready: 1, expand: 1 });
       await ctxOld.close();
-      console.log('PASS 11b: #tgWebAppData plus mock SDK runs Telegram auth and fullscreen once');
+
+      async function desk(platform) {
+        const ctx = await browser.createBrowserContext();
+        const pg = await ctx.newPage();
+        pg.on('pageerror', (e) => errs.push('tgboot-' + platform + ' pageerror: ' + e.message));
+        await pg.setRequestInterception(true);
+        pg.on('request', (rq) => {
+          const u = rq.url();
+          if (/telegram\.org/i.test(u)) {
+            if (/telegram-web-app\.js/.test(u)) {
+              rq.respond({ status: 200, contentType: 'application/javascript', body: mockSdk('8.0', platform) });
+            } else rq.abort();
+            return;
+          }
+          rq.continue();
+        });
+        await pg.goto(base + '/index.html#tgWebAppData=' + encodeURIComponent(initData), { waitUntil: 'domcontentloaded' });
+        const calls = await pg.evaluate(async () => {
+          await window.__tgReady;
+          return window.__tgCalls || [];
+        });
+        assert.deepStrictEqual(callCounts(calls), { ready: 1, expand: 1 }, platform);
+        await ctx.close();
+      }
+      await desk('tdesktop');
+      await desk('macos');
+      console.log('PASS 11b: ios fullscreen once; tdesktop and macos only ready and expand');
     }
 
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));

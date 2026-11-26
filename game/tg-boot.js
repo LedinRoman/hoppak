@@ -28,14 +28,17 @@
     opened = true;
     try { tg.ready(); } catch (e) {}
     try { tg.expand(); } catch (e) {}
-    var atLeast = function (v) {
-      try { return !!(tg.isVersionAtLeast && tg.isVersionAtLeast(v)); } catch (e) { return false; }
-    };
-    if (atLeast("8.0")) {
-      try { if (tg.requestFullscreen) tg.requestFullscreen(); } catch (e) {}
-    }
-    if (atLeast("7.7")) {
-      try { if (tg.disableVerticalSwipes) tg.disableVerticalSwipes(); } catch (e) {}
+    /* Fullscreen and swipe lock only on phones. Desktop and web clients stay in their window. */
+    if (platform === "ios" || platform === "android") {
+      var atLeast = function (v) {
+        try { return !!(tg.isVersionAtLeast && tg.isVersionAtLeast(v)); } catch (e) { return false; }
+      };
+      if (atLeast("8.0")) {
+        try { if (tg.requestFullscreen) tg.requestFullscreen(); } catch (e) {}
+      }
+      if (atLeast("7.7")) {
+        try { if (tg.disableVerticalSwipes) tg.disableVerticalSwipes(); } catch (e) {}
+      }
     }
   }
   var s = document.createElement("script");
