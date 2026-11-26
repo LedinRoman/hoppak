@@ -40,13 +40,25 @@ export class ProfileController {
     return { ok: true, ...result };
   }
 
+  @Post('profile/campaign')
+  async campaign(
+    @Headers('authorization') auth?: string,
+    @Body() body?: { mapBest?: Record<string, number>; open?: Record<string, number> },
+  ) {
+    const p = await this.profiles.requireByToken(bearerToken(auth));
+    const profile = await this.profiles.syncCampaign(p, body?.mapBest, body?.open);
+    return { ok: true, profile };
+  }
+
   @Post('run/finish')
   async finish(
     @Headers('authorization') auth?: string,
-    @Body() body?: { height?: number; runCoins?: number; bonusCoins?: number; runId?: string },
+    @Body() body?: { height?: number; runCoins?: number; bonusCoins?: number; runId?: string; map?: string },
   ) {
     const p = await this.profiles.requireByToken(bearerToken(auth));
-    const result = await this.profiles.finishRun(p, body?.height, body?.runCoins, body?.bonusCoins, body?.runId);
+    const result = await this.profiles.finishRun(
+      p, body?.height, body?.runCoins, body?.bonusCoins, body?.runId, body?.map,
+    );
     return { ok: true, ...result };
   }
 

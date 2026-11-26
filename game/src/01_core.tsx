@@ -22,8 +22,8 @@ function viewBotMax(lh: number) { return Math.max(0, Math.floor(lh - (lh * 0.42 
 var TOP_CROP_MAX = 80;
 function dimView(ctx: Ctx, col: string) { rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col); }
 var PX_PER_M = 8;
-/* Online: other players. 1 would be opaque. Staging cycles 0.7 / 0.8 / 0.9. */
-var REMOTE_ALPHA = 0.8;
+/* Online and bots. Fixed: the staging slider is gone. */
+var REMOTE_ALPHA = 0.84;
 var PW = 12;
 var PH = 16;
 var GRAVITY = 0.19;
@@ -409,19 +409,25 @@ function loadSave() {
   if (s.sfx !== false) s.sfx = true; else s.sfx = false;
   if (s.vib !== false) s.vib = true; else s.vib = false;
   if (!s.seen || typeof s.seen !== "object") s.seen = {};
-  sfxOn = !!s.sfx; vibOn = !!s.vib;
-  if (typeof s.sfxVol !== "number") s.sfxVol = 0.8;
-  s.sfxVol = clamp(s.sfxVol, 0, 1);
-  if (typeof s.music !== "number") s.music = 0.55;
-  s.music = clamp(s.music, 0, 1);
-  if (s.musicOn !== false) s.musicOn = true; else s.musicOn = false;
-  sfxVol = s.sfxVol; musicVol = s.music; musicOn = !!s.musicOn;
+  vibOn = !!s.vib;
+  /* One slider. Old music and sfx volumes become the louder of the two. */
+  if (typeof s.vol !== "number") {
+    var mv = typeof s.music === "number" ? clamp(s.music, 0, 1) : 0.55;
+    var sv = typeof s.sfxVol === "number" ? clamp(s.sfxVol, 0, 1) : 0.8;
+    s.vol = clamp(Math.max(mv, sv), 0, 1);
+  }
+  s.vol = clamp(s.vol, 0, 1);
+  if (s.audioOn !== true && s.audioOn !== false) s.audioOn = (s.musicOn !== false) || (s.sfx !== false);
+  s.music = s.vol; s.sfxVol = s.vol; s.musicOn = s.audioOn; s.sfx = s.audioOn;
+  masterVol = s.vol; audioOn = !!s.audioOn;
+  sfxVol = masterVol; musicVol = masterVol; sfxOn = audioOn; musicOn = audioOn;
   return s;
 }
 function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
 
 /* ---- audio: files under audio/, started only after a gesture. Beeps remain if a file cannot play. ---- */
 var audioCtx: any = null, sfxOn = true, vibOn = true, sfxVol = 0.8, musicOn = true, musicVol = 0.55;
+var masterVol = 0.8, audioOn = true;
 var audioUnlocked = false, audioExt = "";
 /* Relative loudness. Jump and the results tick fire constantly, so they stay quieter than a coin. */
 var SFX_GAIN: any = { jump: 0.32, coin: 0.7, bonus: 0.75, shield: 0.7, death: 0.8, warn: 0.5, deny: 0.48, tick: 0.22, hit: 0.6 };
@@ -433,7 +439,10 @@ var MUSIC_TRACKS: any = {
 var MUSIC_CUES: any[] = [
   { track: "hush", screens: ["*"], maps: ["*"] }
 ];
-var musicDeck: any[] = [null, null], musicIdx = 0, musicCur = "", musicFade: any = null;
+var musicCur = "";
+var masterGain: any = null, musicGain: any = null, musicNode: any = null;
+var musicBuf: any = {}, musicLoading: any = {};
+var audioProbe: any = { sfxToMaster: false, musicToMaster: false };
 
 var sfxBuf: any = {}, sfxLoading: any = {}, sfxLive: any[] = [];
 var sfxStat: any = { calls: {}, sources: {} };
@@ -449,6 +458,32 @@ function ensureCtx() {
     }
     return audioCtx;
   } catch (_e) { return null; }
+}
+function ensureMaster() {
+  var ctx = ensureCtx();
+  if (!ctx) return null;
+  if (!masterGain) {
+    masterGain = ctx.createGain();
+    masterGain.gain.value = audioOn ? masterVol : 0;
+    masterGain.connect(ctx.destination);
+  }
+  return masterGain;
+}
+function applyMaster() {
+  var g = ensureMaster();
+  if (g) g.gain.value = audioOn ? masterVol : 0;
+}
+function ensureMusicGain() {
+  var m = ensureMaster();
+  var ctx = ensureCtx();
+  if (!ctx || !m) return null;
+  if (!musicGain) {
+    musicGain = ctx.createGain();
+    musicGain.gain.value = 1;
+    musicGain.connect(m);
+    audioProbe.musicToMaster = true;
+  }
+  return musicGain;
 }
 function loadSfx(kind: string) {
   if (sfxBuf[kind] || sfxLoading[kind] || !audioCtx || typeof fetch === "undefined") return;
@@ -506,9 +541,10 @@ function beep(freq: number, dur: number, vol: number, type: string, slide?: numb
     osc.frequency.setValueAtTime(freq, t0);
     if (slide) osc.frequency.linearRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol * sfxVol), t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t0 + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g); g.connect(audioCtx.destination);
+    osc.connect(g); g.connect(ensureMaster() || audioCtx.destination);
+    if (masterGain) audioProbe.sfxToMaster = true;
     osc.start(t0); osc.stop(t0 + dur + 0.02);
   } catch (_e) {}
 }
@@ -538,9 +574,10 @@ function hopSfx(kind: string) {
     var node = ctx.createBufferSource();
     var g = ctx.createGain();
     node.buffer = buf;
-    var vol = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
+    var vol = clamp(SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5, 0, 1);
     g.gain.setValueAtTime(Math.max(0.0001, vol), now);
-    node.connect(g); g.connect(ctx.destination);
+    node.connect(g); g.connect(ensureMaster() || ctx.destination);
+    if (masterGain) audioProbe.sfxToMaster = true;
     node.start(now);
     sfxStat.sources[kind] = (sfxStat.sources[kind] || 0) + 1;
     sfxLive.push({ node: node, kind: kind, until: now + (buf.duration || 0.25) + 0.02 });
@@ -570,46 +607,67 @@ function musicSrc(id: string) {
   if (!t) return "";
   return pickAudioExt() === "ogg" ? t.ogg : t.mp3;
 }
-function musicTarget() { return musicOn && musicVol > 0 ? musicVol : 0; }
-function hopMusic(id: string) {
-  if (!audioUnlocked || typeof Audio === "undefined") { musicCur = id || ""; return; }
-  var want = musicOn && musicVol > 0 ? (id || "") : "";
-  if (want === musicCur && (musicDeck[musicIdx] || !want)) {
-    var live = musicDeck[musicIdx];
-    if (live) live.volume = musicTarget();
-    return;
-  }
-  var prev = musicDeck[musicIdx];
-  var nextI = 1 - musicIdx;
-  var nxt = musicDeck[nextI];
-  if (want) {
-    var src = musicSrc(want);
-    if (!nxt || nxt.getAttribute("data-src") !== src) {
-      nxt = makeAudio(src);
-      if (!nxt) return;
-      nxt.loop = true;
-      nxt.setAttribute("data-src", src);
-      musicDeck[nextI] = nxt;
-    }
-    try { nxt.volume = 0; nxt.currentTime = 0; var pr = nxt.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (_e) {}
-  }
-  musicFade = { from: prev, to: want ? nxt : null, t: 0, dur: 36 };
-  musicIdx = want ? nextI : musicIdx;
-  musicCur = want;
+function stopMusic() {
+  if (!musicNode) return;
+  try { musicNode.stop(); } catch (_e) {}
+  musicNode = null;
 }
-function hopMusicTick() {
-  if (!musicFade) return;
-  musicFade.t++;
-  var u = clamp(musicFade.t / musicFade.dur, 0, 1);
-  var goal = musicTarget();
+function startMusicBuf(buf: any) {
+  var ctx = ensureCtx();
+  var g = ensureMusicGain();
+  if (!ctx || !g || !buf) return;
+  stopMusic();
   try {
-    if (musicFade.from) musicFade.from.volume = clamp(goal * (1 - u), 0, 1);
-    if (musicFade.to) musicFade.to.volume = clamp(goal * u, 0, 1);
+    var node = ctx.createBufferSource();
+    node.buffer = buf;
+    node.loop = true;
+    node.connect(g);
+    node.start();
+    musicNode = node;
+    audioProbe.musicToMaster = true;
   } catch (_e) {}
-  if (u >= 1) {
-    try { if (musicFade.from && musicFade.from !== musicFade.to) { musicFade.from.pause(); } } catch (_e2) {}
-    musicFade = null;
-  }
+}
+function loadMusic(src: string) {
+  if (!src) return;
+  if (musicBuf[src]) { startMusicBuf(musicBuf[src]); return; }
+  if (musicLoading[src] || typeof fetch === "undefined") return;
+  var ctx = ensureCtx();
+  if (!ctx) return;
+  musicLoading[src] = 1;
+  fetch(src).then(function (r: any) {
+    if (!r.ok) throw 0;
+    return r.arrayBuffer();
+  }).then(function (b: any) { return ctx.decodeAudioData(b); }).then(function (buf: any) {
+    musicBuf[src] = buf;
+    musicLoading[src] = 0;
+    if (musicCur && musicSrc(musicCur) === src) startMusicBuf(buf);
+  }).catch(function () { musicLoading[src] = 0; });
+}
+function hopMusic(id: string) {
+  applyMaster();
+  if (!audioUnlocked) { musicCur = id || ""; return; }
+  var want = audioOn && masterVol > 0 ? (id || "") : "";
+  if (want === musicCur && (musicNode || !want)) return;
+  musicCur = want;
+  if (!want) { stopMusic(); return; }
+  loadMusic(musicSrc(want));
+}
+function hopMusicTick() { applyMaster(); }
+function setMasterVol(v: number) {
+  masterVol = clamp(Math.round(clamp(v, 0, 1) * 10) / 10, 0, 1);
+  sfxVol = masterVol; musicVol = masterVol;
+  applyMaster();
+  if (audioUnlocked && audioOn) hopMusic(musicCur || musicCue("menu", "city"));
+}
+function setAudioOn(on: boolean) {
+  audioOn = !!on; sfxOn = audioOn; musicOn = audioOn;
+  applyMaster();
+  if (!audioOn) stopMusic();
+  else if (audioUnlocked) hopMusic(musicCur || musicCue("menu", "city"));
+}
+function readAudioProbe() {
+  applyMaster();
+  return { gain: masterGain ? masterGain.gain.value : null, sfxToMaster: !!audioProbe.sfxToMaster, musicToMaster: !!audioProbe.musicToMaster };
 }
 
 var FIRST_TOAST: any = {

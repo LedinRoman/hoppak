@@ -18,6 +18,10 @@ export class Player {
   @Column({ type: 'jsonb', default: () => "'{}'" })
   purchases: Record<string, number>;
 
+  /** Per-map records. Opens stay in purchases (`map:*`). Coins are not stored here. */
+  @Column({ type: 'jsonb', default: () => `'{"best":{}}'` })
+  campaign: { best: Record<string, number> };
+
   @Column({ name: 'migrated_at', type: 'timestamptz', nullable: true })
   migratedAt: Date | null;
 
@@ -52,6 +56,7 @@ export class Player {
     if (this.coins == null) this.coins = 0;
     if (this.best == null) this.best = 0;
     if (!this.purchases) this.purchases = {};
+    if (!this.campaign || !this.campaign.best) this.campaign = { best: {} };
     if (this.awardedInWindow == null) this.awardedInWindow = 0;
   }
 }

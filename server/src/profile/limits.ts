@@ -69,6 +69,37 @@ export function mergePurchases(a: Record<string, number>, b: Record<string, numb
   return { ...a, ...b };
 }
 
+/** Campaign maps. City is free; the rest match MAPS in the client. */
+export const MAP_IDS = ['city', 'jungle', 'ice', 'lava', 'aqua', 'space'] as const;
+
+export type Campaign = { best: Record<string, number> };
+
+export function emptyCampaign(): Campaign {
+  return { best: {} };
+}
+
+export function sanitizeMapBest(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  const src = raw as Record<string, unknown>;
+  for (const id of MAP_IDS) {
+    if (src[id] == null || src[id] === '') continue;
+    const n = Math.floor(Number(src[id]));
+    if (!Number.isFinite(n) || n <= 0) continue;
+    out[id] = clamp(n, 1, RUN_HEIGHT_MAX);
+  }
+  return out;
+}
+
+export function mergeCampaign(a?: Campaign | null, b?: Campaign | null): Campaign {
+  const best: Record<string, number> = {};
+  for (const src of [a, b]) {
+    const part = sanitizeMapBest(src && src.best);
+    for (const id of Object.keys(part)) best[id] = Math.max(best[id] || 0, part[id]);
+  }
+  return { best };
+}
+
 export function awardForRun(
   height: number,
   runCoins: number,

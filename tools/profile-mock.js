@@ -60,6 +60,29 @@ function sanitizePurchases(raw) {
   return out;
 }
 
+const MAP_IDS = ['city', 'jungle', 'ice', 'lava', 'aqua', 'space'];
+
+function sanitizeMapBest(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const id of MAP_IDS) {
+    if (raw[id] == null || raw[id] === '') continue;
+    const n = Math.floor(Number(raw[id]));
+    if (!Number.isFinite(n) || n <= 0) continue;
+    out[id] = clamp(n, 1, 20000);
+  }
+  return out;
+}
+
+function mergeCampaign(a, b) {
+  const best = {};
+  for (const src of [a, b]) {
+    const part = sanitizeMapBest(src && src.best);
+    for (const id of Object.keys(part)) best[id] = Math.max(best[id] || 0, part[id]);
+  }
+  return { best };
+}
+
 function toPublic(p) {
   const base = {
     id: p.id,
@@ -69,7 +92,10 @@ function toPublic(p) {
     createdAt: p.createdAt,
     telegramId: p.telegramId,
   };
-  if (mode === 'v06') base.best = p.best || 0;
+  if (mode === 'v06') {
+    base.best = p.best || 0;
+    base.campaign = mergeCampaign(p.campaign, { best: {} });
+  }
   return base;
 }
 
@@ -172,6 +198,7 @@ function createServer() {
           coins: 0,
           best: 0,
           purchases: {},
+          campaign: { best: {} },
           migratedAt: null,
           createdAt: new Date().toISOString(),
           lastFinishAt: 0,
@@ -210,10 +237,13 @@ function createServer() {
           let merged = false;
           let mergedCoins = 0;
           if (guest && guest.id !== existing.id && !guest.telegramId && !guest.mergedInto) {
-            mergedCoins = clamp(Math.floor(Number(guest.coins) || 0), 0, 8000);
-            existing.coins = (existing.coins || 0) + mergedCoins;
+            /* Server wallet only. A second device must not add its local coins. */
+            mergedCoins = 0;
             existing.best = Math.max(existing.best || 0, Math.max(0, Math.floor(Number(guest.best) || 0)));
             existing.purchases = { ...existing.purchases, ...sanitizePurchases(guest.purchases) };
+            existing.campaign = mergeCampaign(existing.campaign, guest.campaign);
+            const bests = existing.campaign.best || {};
+            for (const id of Object.keys(bests)) existing.best = Math.max(existing.best || 0, bests[id] || 0);
             guest.mergedInto = existing.id;
             guest.coins = 0;
             playersByHash.delete(guest.guestTokenHash);
@@ -244,6 +274,7 @@ function createServer() {
           coins: 0,
           best: 0,
           purchases: {},
+          campaign: { best: {} },
           migratedAt: null,
           createdAt: new Date().toISOString(),
           lastFinishAt: 0,
@@ -303,10 +334,31 @@ function createServer() {
         else if (h < 100) limited = 'HEIGHT_MIN';
         p.coins += awarded;
         if (mode === 'v06') p.best = Math.max(p.best || 0, h);
+        if (mode === 'v06' && MAP_IDS.indexOf(b.map) >= 0 && h > 0) {
+          p.campaign = mergeCampaign(p.campaign, { best: { [b.map]: h } });
+        }
         if (mode === 'v06' && runId) runsByPlayer.get(p.id).set(runId, awarded);
         const out = { ok: true, awarded, profile: toPublic(p) };
         if (limited) out.limited = limited;
         return json(res, 201, out);
+      }
+
+      if (urlPath === '/api/profile/campaign' && req.method === 'POST') {
+        if (mode !== 'v06') {
+          return json(res, 404, { statusCode: 404, message: 'Cannot POST /api/profile/campaign', error: 'Not Found' });
+        }
+        if (!p) return json(res, 401, { ok: false, error: 'UNAUTHORIZED' });
+        const b = await readBody(req);
+        const before = p.coins;
+        p.campaign = mergeCampaign(p.campaign, { best: sanitizeMapBest(b.mapBest) });
+        const opens = sanitizePurchases(b.open);
+        for (const key of Object.keys(opens)) {
+          if (key.indexOf('map:') === 0 && Object.prototype.hasOwnProperty.call(ITEM_PRICES, key)) p.purchases[key] = 1;
+        }
+        const bests = p.campaign.best || {};
+        for (const id of Object.keys(bests)) p.best = Math.max(p.best || 0, bests[id] || 0);
+        p.coins = before;
+        return json(res, 201, { ok: true, profile: toPublic(p) });
       }
 
       if (urlPath === '/api/profile/buy' && req.method === 'POST') {

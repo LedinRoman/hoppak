@@ -292,22 +292,42 @@ var PROFILE: any = (function () {
     }, d);
   }
 
-  function syncMigrate(token: string, prof: any) {
-    if (!prof || prof.migratedAt) {
+  function localCampaign() {
+    var s = P.api && P.api.save ? P.api.save() : null;
+    var mapBest = (s && s.mapBest && typeof s.mapBest === "object") ? s.mapBest : {};
+    var open: any = {};
+    var owned = (s && s.owned && typeof s.owned === "object") ? s.owned : {};
+    for (var k in owned) if (owned[k] && String(k).indexOf("map:") === 0) open[k] = 1;
+    return { mapBest: mapBest, open: open };
+  }
+  function syncCampaign(token: string, fallback: any) {
+    var body = localCampaign();
+    return req("POST", "/api/profile/campaign", body, token).then(function (res: any) {
+      if (!handleStatus(res) || !res.data || !res.data.profile) {
+        if (fallback) { P.st = "ready"; applyProfile(fallback); }
+        return fallback;
+      }
       P.st = "ready";
-      applyProfile(prof);
-      return Promise.resolve(prof);
-    }
+      applyProfile(res.data.profile);
+      return res.data.profile;
+    });
+  }
+  function syncMigrate(token: string, prof: any) {
     var s = P.api && P.api.save ? P.api.save() : null;
     var rawCoins = s && typeof s.coins === "number" ? Math.max(0, Math.floor(s.coins)) : 0;
     var coins = Math.max(0, rawCoins - queuedEst());
     var purchases = (s && s.owned && typeof s.owned === "object") ? s.owned : {};
     var best = s && typeof s.best === "number" ? Math.max(0, Math.floor(s.best)) : 0;
-    return req("POST", "/api/profile/migrate", { coins: coins, purchases: purchases, best: best }, token).then(function (res: any) {
-      if (!handleStatus(res)) return null;
-      P.st = "ready";
-      applyProfile(res.data.profile);
-      return res.data.profile;
+    var migrated = !prof || prof.migratedAt;
+    var step = migrated
+      ? Promise.resolve(prof)
+      : req("POST", "/api/profile/migrate", { coins: coins, purchases: purchases, best: best }, token).then(function (res: any) {
+        if (!handleStatus(res)) return null;
+        return res.data.profile;
+      });
+    return step.then(function (ready: any) {
+      if (!ready) return null;
+      return syncCampaign(token, ready);
     });
   }
 

@@ -455,21 +455,29 @@ async function admin(base, body) {
         const ctx = await browser.createBrowserContext();
         const pg = await ctx.newPage();
         pg.on('pageerror', (e) => errs.push(label + ' pageerror: ' + e.message));
+        const startSave = JSON.stringify({
+          v5: 1, coins: 100, best: 0, mapBest: { city: 0 },
+          owned: {}, char: 0, bg: 'city', sfx: true, vib: true
+        });
         if (tg) {
           const initData = 'user=' + encodeURIComponent(JSON.stringify({ id: 7771, first_name: 'Roman' })) + '&auth_date=1&hash=00';
-          await pg.evaluateOnNewDocument((d) => { window.Telegram = { WebApp: { initData: d } }; }, initData);
+          await pg.evaluateOnNewDocument((d, raw) => {
+            window.Telegram = { WebApp: { initData: d } };
+            try {
+              if (!localStorage.getItem('hoppak_guest_token')) localStorage.setItem('hoppak_save', raw);
+            } catch (e) {}
+          }, initData, startSave);
         }
         await pg.goto(origin + '/index.html');
         await settle(pg);
-        await pg.evaluate(() => {
-          localStorage.clear();
-          localStorage.setItem('hoppak_save', JSON.stringify({
-            v5: 1, coins: 100, best: 0, mapBest: { city: 0 },
-            owned: {}, char: 0, bg: 'city', sfx: true, vib: true
-          }));
-        });
-        await pg.reload();
-        await sleep(500);
+        if (!tg) {
+          await pg.evaluate((raw) => {
+            localStorage.clear();
+            localStorage.setItem('hoppak_save', raw);
+          }, startSave);
+          await pg.reload();
+          await sleep(500);
+        }
         await pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
         const seeded = await pg.evaluate(() => window.__hoppak.profile.getState());
         assert.strictEqual(seeded.st, 'ready', label + ' profile');
@@ -520,6 +528,222 @@ async function admin(base, body) {
       await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
       await series('guest', base, false);
       await series('telegram', base, true);
+    }
+
+    // 9. Menu-quit records the map (solo and online), one volume slider, logo clears the chip.
+    {
+      await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
+      const ctx = await browser.createBrowserContext();
+      const pg = await ctx.newPage();
+      await pg.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
+      pg.on('pageerror', (e) => errs.push('r8 pageerror: ' + e.message));
+      await pg.evaluateOnNewDocument(() => {
+        window.Telegram = {
+          WebApp: {
+            initData: 'user=' + encodeURIComponent(JSON.stringify({ id: 42, first_name: 'Roman' })) + '&auth_date=1&hash=00',
+            safeAreaInset: { top: 100, bottom: 34, left: 0, right: 0 },
+            contentSafeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+            onEvent() {}, offEvent() {},
+            BackButton: { isVisible: false, onClick() {} },
+          },
+        };
+      });
+      await pg.goto(base + '/index.html');
+      await settle(pg);
+      await pg.evaluate(() => {
+        localStorage.setItem('hoppak_save', JSON.stringify({
+          v5: 1, coins: 100, best: 10, mapBest: { city: 10, lava: 20 },
+          owned: { 'char:0': 1 }, char: 0, bg: 'city', sfx: true, vib: true,
+          music: 0.2, sfxVol: 0.7, musicOn: true, sfx: true,
+        }));
+      });
+      await pg.reload();
+      await sleep(500);
+      await pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
+      const migrated = await pg.evaluate(() => window.__hoppak.getSave().vol);
+      assert.strictEqual(migrated, 0.7, 'volume migrates to the louder slider');
+      const audio = await pg.evaluate(async () => {
+        const g = window.__hoppak;
+        g.audioUnlock();
+        g.setVolume(0.3);
+        g.sfxPlay('tick');
+        const low = g.audioProbe();
+        g.setVolume(0.9);
+        const high = g.audioProbe();
+        const t0 = Date.now();
+        let music = high;
+        while (!music.musicToMaster && Date.now() - t0 < 3000) {
+          await new Promise((r) => setTimeout(r, 100));
+          music = g.audioProbe();
+        }
+        return { low, high: music };
+      });
+      assert.ok(Math.abs(audio.low.gain - 0.3) < 0.02, 'gain 0.3 ' + JSON.stringify(audio));
+      assert.ok(Math.abs(audio.high.gain - 0.9) < 0.02, 'gain 0.9 ' + JSON.stringify(audio));
+      assert.strictEqual(audio.high.sfxToMaster, true, 'sfx into master');
+      assert.strictEqual(audio.high.musicToMaster, true, 'music into master');
+      const solo = await pg.evaluate(async () => {
+        const g = window.__hoppak;
+        const startCoins = g.profile.getState().profile.coins;
+        g.start('solo', 4, 'city');
+        const w = g.getWorld();
+        w.players[0].maxH = 250 * 8;
+        w.runCoins = 0; w.bonusCoins = 0;
+        g.pause(true);
+        g.tap('menu');
+        await g.profile.flush();
+        const s = g.getSave();
+        const st = g.profile.getState();
+        return { map: s.mapBest.city, best: s.best, coins: s.coins, startCoins, server: st.profile && st.profile.best, serverCoins: st.profile && st.profile.coins };
+      });
+      assert.strictEqual(solo.map, 250, 'solo map best ' + JSON.stringify(solo));
+      assert.strictEqual(solo.best, 250, 'solo profile local');
+      assert.strictEqual(solo.server, 250, 'solo profile server');
+      assert.strictEqual(solo.coins, solo.startCoins + 10, 'solo coins follow the normal award ' + JSON.stringify(solo));
+      const net = await pg.evaluate(async () => {
+        const g = window.__hoppak;
+        g.start('solo', 5, 'lava');
+        const w = g.getWorld();
+        w.net = true;
+        w.players[0].maxH = 400 * 8;
+        w.runCoins = 0; w.bonusCoins = 0;
+        g.pause(true);
+        g.tap('menu');
+        await g.profile.flush();
+        const s = g.getSave();
+        const st = g.profile.getState();
+        return { map: s.mapBest.lava, city: s.mapBest.city, best: s.best, coins: s.coins, server: st.profile && st.profile.best };
+      });
+      assert.strictEqual(net.map, 400, 'online map best ' + JSON.stringify(net));
+      assert.strictEqual(net.city, 250, 'city best stays');
+      assert.strictEqual(net.best, 400);
+      assert.strictEqual(net.server, 400);
+      assert.strictEqual(net.coins, solo.startCoins + 10 + 16, '400m pays 16 ' + JSON.stringify(net));
+      const lay = await pg.evaluate(async () => {
+        const g = window.__hoppak;
+        g.tap('menu');
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return g.menuLayout();
+      });
+      function hit(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+      assert.ok(lay && lay.logo && lay.chip, 'menu layout ' + JSON.stringify(lay));
+      assert.ok(lay.logo.y >= lay.chip.y + lay.chip.h + 4, 'logo gap ' + JSON.stringify(lay));
+      assert.ok(!hit(lay.logo, lay.chip), 'logo/chip');
+      assert.ok(!hit(lay.logo, lay.coins), 'logo/coins');
+      const boxes = await pg.evaluate(async () => {
+        const g = window.__hoppak;
+        g.getSave().coins = 1107;
+        g.start('squad', 9, 'lava');
+        const w = g.getWorld();
+        w.players.pop();
+        const hs = [939, 700, 400];
+        for (let i = 0; i < w.players.length; i++) { w.players[i].maxH = hs[i] * 8; w.players[i].why = i === 0 ? 'mob:owl' : ''; }
+        w.net = true;
+        g.net.session = { code: 'ABCD', rounds: [{ round: 1 }], wins: { a: 1, b: 0, c: 0 }, best: { a: 939, b: 700, c: 400 }, names: { a: 'РОМАН', b: 'ЛЕНА', c: 'ОЛЕГ' } };
+        g.forceResults();
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return g.resultsBoxes();
+      });
+      const bad = [];
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) if (hit(boxes[i], boxes[j])) bad.push(boxes[i].id + '/' + boxes[j].id);
+      assert.strictEqual(bad.length, 0, 'results overlap ' + bad.join(',') + ' ' + JSON.stringify(boxes));
+      const pause = await pg.evaluate(async () => {
+        const g = window.__hoppak;
+        g.setVolume(0);
+        const z = g.audioProbe();
+        g.setVolume(0.8);
+        g.start('solo', 2, 'city');
+        g.pause(true);
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return { gain: z.gain, boxes: g.pauseLayout() };
+      });
+      assert.strictEqual(pause.gain, 0, 'volume 0 is silence ' + JSON.stringify(pause));
+      const pbad = [];
+      const pb = pause.boxes || [];
+      for (let i = 0; i < pb.length; i++) for (let j = i + 1; j < pb.length; j++) if (hit(pb[i], pb[j])) pbad.push(pb[i].id + '/' + pb[j].id);
+      assert.strictEqual(pbad.length, 0, 'pause overlap ' + pbad.join(',') + ' ' + JSON.stringify(pb));
+      assert.ok(pb.some((b) => b.id === 'vol'), 'pause has the volume slider');
+      await ctx.close();
+      console.log('PASS 9: record on quit, master gain, logo gap, results boxes');
+    }
+
+    // 10. Two devices, one Telegram profile: map records take the max, coins stay server-side.
+    {
+      await admin(base2, { mode: 'v06', tgAuth: 'ok', clearLog: true });
+      const seedDoc = (raw) => {
+        window.Telegram = {
+          WebApp: {
+            initData: 'user=' + encodeURIComponent(JSON.stringify({ id: 5150, first_name: 'Roman' })) + '&auth_date=1&hash=00',
+            safeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+            contentSafeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+            onEvent() {}, offEvent() {},
+            BackButton: { isVisible: false, onClick() {} },
+          },
+        };
+        try {
+          if (!localStorage.getItem('hoppak_guest_token')) localStorage.setItem('hoppak_save', raw);
+        } catch (e) {}
+      };
+      const saveA = JSON.stringify({
+        v5: 1, coins: 50, best: 207, mapBest: { city: 207, jungle: 0, space: 0 },
+        owned: { 'char:0': 1 }, char: 0, bg: 'city', sfx: true, vib: true,
+      });
+      const saveB = JSON.stringify({
+        v5: 1, coins: 9999, best: 80, mapBest: { city: 10, aqua: 30, space: 80 },
+        owned: { 'char:0': 1, 'map:aqua': 1 }, char: 0, bg: 'aqua', sfx: true, vib: true,
+      });
+      const ctxA = await browser.createBrowserContext();
+      const a = await ctxA.newPage();
+      a.on('pageerror', (e) => errs.push('devA pageerror: ' + e.message));
+      await a.evaluateOnNewDocument(seedDoc, saveA);
+      await a.goto(base2 + '/index.html');
+      await settle(a);
+      await a.evaluate(async () => { await window.__hoppak.profile.flush(); });
+      const left = await a.evaluate(() => {
+        const s = window.__hoppak.getSave();
+        const p = window.__hoppak.profile.getState().profile;
+        return { coins: s.coins, city: s.mapBest.city, server: p && p.coins, camp: p && p.campaign && p.campaign.best };
+      });
+      assert.strictEqual(left.city, 207, JSON.stringify(left));
+      assert.strictEqual(left.server, 50, 'server coins, not a second wallet ' + JSON.stringify(left));
+      assert.strictEqual(left.camp.city, 207);
+
+      const ctxB = await browser.createBrowserContext();
+      const b = await ctxB.newPage();
+      b.on('pageerror', (e) => errs.push('devB pageerror: ' + e.message));
+      await b.evaluateOnNewDocument(seedDoc, saveB);
+      await b.goto(base2 + '/index.html');
+      await settle(b);
+      await b.evaluate(async () => { await window.__hoppak.profile.flush(); });
+      const right = await b.evaluate(() => {
+        const s = window.__hoppak.getSave();
+        const p = window.__hoppak.profile.getState().profile;
+        return {
+          coins: s.coins, city: s.mapBest.city, aqua: s.mapBest.aqua, space: s.mapBest.space,
+          owned: !!s.owned['map:aqua'], server: p && p.coins, camp: p && p.campaign && p.campaign.best,
+        };
+      });
+      assert.strictEqual(right.city, 207, 'max city ' + JSON.stringify(right));
+      assert.strictEqual(right.aqua, 30, JSON.stringify(right));
+      assert.strictEqual(right.space, 80, JSON.stringify(right));
+      assert.strictEqual(right.owned, true);
+      assert.strictEqual(right.coins, 50, 'local 9999 must not be added ' + JSON.stringify(right));
+      assert.strictEqual(right.server, 50);
+      await a.reload();
+      await settle(a);
+      await a.evaluate(async () => { await window.__hoppak.profile.flush(); });
+      const back = await a.evaluate(() => {
+        const s = window.__hoppak.getSave();
+        return { city: s.mapBest.city, aqua: s.mapBest.aqua, space: s.mapBest.space, coins: s.coins, aquaOpen: !!s.owned['map:aqua'] };
+      });
+      assert.strictEqual(back.city, 207, JSON.stringify(back));
+      assert.strictEqual(back.aqua, 30, JSON.stringify(back));
+      assert.strictEqual(back.space, 80, JSON.stringify(back));
+      assert.strictEqual(back.aquaOpen, true);
+      assert.strictEqual(back.coins, 50);
+      await ctxA.close();
+      await ctxB.close();
+      console.log('PASS 10: two devices share one profile, max records, server coins');
     }
 
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));

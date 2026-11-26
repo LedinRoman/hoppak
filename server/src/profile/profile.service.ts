@@ -6,8 +6,9 @@ import { PlayerRun } from './player-run.entity';
 import { hashToken, newGuestToken } from './auth';
 import { parseAndVerifyInitData } from './telegram';
 import {
-  ITEM_PRICES, MIGRATE_COINS_MAX, RUN_HEIGHT_MAX,
-  awardForRun, clamp, mergePurchases, sanitizePurchases, sanitizeRunId,
+  ITEM_PRICES, MAP_IDS, MIGRATE_COINS_MAX, RUN_HEIGHT_MAX,
+  awardForRun, clamp, emptyCampaign, mergeCampaign, mergePurchases,
+  sanitizeMapBest, sanitizePurchases, sanitizeRunId, Campaign,
 } from './limits';
 
 export type PublicProfile = {
@@ -15,6 +16,7 @@ export type PublicProfile = {
   coins: number;
   best: number;
   purchases: Record<string, number>;
+  campaign: Campaign;
   migratedAt: string | null;
   createdAt: string;
   telegramId: string | null;
@@ -44,6 +46,7 @@ export class ProfileService {
       coins: p.coins,
       best: p.best || 0,
       purchases: p.purchases || {},
+      campaign: mergeCampaign(p.campaign, emptyCampaign()),
       migratedAt: p.migratedAt ? p.migratedAt.toISOString() : null,
       createdAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
       telegramId: p.telegramId ? String(p.telegramId) : null,
@@ -58,6 +61,7 @@ export class ProfileService {
       coins: 0,
       best: 0,
       purchases: {},
+      campaign: emptyCampaign(),
     });
     await repo.save(p);
     return { token, profile: this.toPublic(p) };
@@ -121,12 +125,43 @@ export class ProfileService {
     return runBuy(repo);
   }
 
+  /**
+   * Upload local map records and map opens. Idempotent max-merge.
+   * Does not change coins: the server balance is the only wallet.
+   */
+  async syncCampaign(p: Player, mapBestRaw: unknown, openRaw: unknown): Promise<PublicProfile> {
+    const repo = this.requireDb();
+    const execute = async (playerRepo: Repository<Player>): Promise<PublicProfile> => {
+      const fresh = (await playerRepo.findOne({
+        where: { id: p.id },
+        ...(repo.manager ? { lock: { mode: 'pessimistic_write' } } : {}),
+      })) || p;
+      fresh.campaign = mergeCampaign(fresh.campaign, { best: sanitizeMapBest(mapBestRaw) });
+      const opens = sanitizePurchases(openRaw);
+      const mapOpens: Record<string, number> = {};
+      for (const key of Object.keys(opens)) {
+        if (key.indexOf('map:') === 0 && Object.prototype.hasOwnProperty.call(ITEM_PRICES, key)) mapOpens[key] = 1;
+      }
+      fresh.purchases = mergePurchases(fresh.purchases || {}, mapOpens);
+      let top = fresh.best || 0;
+      for (const id of Object.keys(fresh.campaign.best || {})) top = Math.max(top, fresh.campaign.best[id] || 0);
+      fresh.best = top;
+      await playerRepo.save(fresh);
+      return this.toPublic(fresh);
+    };
+    if (repo.manager && typeof repo.manager.transaction === 'function') {
+      return repo.manager.transaction(async (em) => execute(em.getRepository(Player)));
+    }
+    return execute(repo);
+  }
+
   async finishRun(
     p: Player,
     height: unknown,
     runCoins: unknown,
     bonusCoins: unknown,
     rawRunId?: unknown,
+    rawMap?: unknown,
   ): Promise<{ awarded: number; profile: PublicProfile; limited?: string; duplicate?: boolean }> {
     const repo = this.requireDb();
     const runId = sanitizeRunId(rawRunId);
@@ -168,6 +203,10 @@ export class ProfileService {
 
       fresh.coins = (fresh.coins || 0) + awarded;
       fresh.best = Math.max(fresh.best || 0, h);
+      const mapId = typeof rawMap === 'string' && (MAP_IDS as readonly string[]).indexOf(rawMap) >= 0 ? rawMap : '';
+      if (mapId && h > 0) {
+        fresh.campaign = mergeCampaign(fresh.campaign, { best: { [mapId]: h } });
+      }
       await playerRepo.save(fresh);
       return {
         awarded,
@@ -184,22 +223,17 @@ export class ProfileService {
     return execute(repo, this.runs);
   }
 
-  /**
-   * Guest coins contributed to an existing Telegram player.
-   * Only the guest part is capped (same 8000 as offline migrate). The Telegram
-   * balance is not reduced and is not re-capped, so the two wallets add.
-   */
-  private guestCoinPart(guest: Player): number {
-    return clamp(Math.floor(Number(guest.coins) || 0), 0, MIGRATE_COINS_MAX);
-  }
-
   private applyMerge(target: Player, guest: Player): number {
-    const incoming = this.guestCoinPart(guest);
-    const before = target.coins || 0;
-    target.coins = before + incoming;
+    /* Coins stay on the Telegram row. Adding the guest wallet duplicates a
+       second device that already mirrored the same balance in localStorage. */
     target.best = Math.max(target.best || 0, clamp(Math.floor(Number(guest.best) || 0), 0, RUN_HEIGHT_MAX));
     target.purchases = mergePurchases(target.purchases || {}, sanitizePurchases(guest.purchases));
-    return target.coins - before;
+    target.campaign = mergeCampaign(target.campaign, guest.campaign);
+    let top = target.best || 0;
+    const best = (target.campaign && target.campaign.best) || {};
+    for (const id of Object.keys(best)) top = Math.max(top, best[id] || 0);
+    target.best = top;
+    return 0;
   }
 
   /** Revoke the guest token and mark the row closed so a retry cannot add coins again. */
