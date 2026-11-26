@@ -6,6 +6,13 @@ const { createServer } = require('../../tools/profile-mock');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function settle(pg) {
+  await pg.waitForFunction(() => {
+    const p = window.__hoppak && window.__hoppak.profile;
+    return !!(p && p.getState().st !== 'syncing');
+  }, { timeout: 4000 }).catch(() => {});
+}
+
 async function admin(base, body) {
   const r = await fetch(base + '/__mock/admin', {
     method: 'POST',
@@ -60,6 +67,7 @@ async function admin(base, body) {
 
       // Pre-seed an existing local save before visiting /v/0.58/
       await pg.goto(base + '/v/0.58/index.html');
+      await settle(pg);
       await pg.evaluate(() => {
         localStorage.clear();
         localStorage.setItem('hoppak_save', JSON.stringify({
@@ -238,6 +246,7 @@ async function admin(base, body) {
       const pg = await ctx.newPage();
       pg.on('pageerror', (e) => errs.push('v06-fresh pageerror: ' + e.message));
       await pg.goto(base2 + '/v/0.6/index.html');
+      await settle(pg);
       await pg.evaluate(() => {
         localStorage.clear();
         localStorage.setItem('hoppak_save', JSON.stringify({
@@ -276,6 +285,7 @@ async function admin(base, body) {
       const pg = await ctx.newPage();
       pg.on('pageerror', (e) => errs.push('override pageerror: ' + e.message));
       await pg.goto(base + '/index.html?api=' + encodeURIComponent(base2));
+      await settle(pg);
       await pg.evaluate(() => localStorage.clear());
       await pg.reload();
       await sleep(350);
@@ -324,10 +334,16 @@ async function admin(base, body) {
           window.Telegram = { WebApp: { initData: d } };
         }, initData);
         await pg.goto(origin + '/index.html');
+        await settle(pg);
         await pg.evaluate((s) => {
           localStorage.clear();
           if (s) localStorage.setItem('hoppak_save', JSON.stringify(s));
         }, seed || null);
+        await fetch(origin + '/__mock/admin', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ clearLog: true }),
+        });
         await pg.reload();
         await sleep(500);
         await pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
@@ -381,6 +397,7 @@ async function admin(base, body) {
       const pg = await ctx.newPage();
       pg.on('pageerror', (e) => errs.push('cap pageerror: ' + e.message));
       await pg.goto(base + '/index.html');
+      await settle(pg);
       await pg.evaluate(() => localStorage.clear());
       await pg.reload();
       await sleep(400);
@@ -421,6 +438,7 @@ async function admin(base, body) {
       const pg = await ctx.newPage();
       pg.on('pageerror', (e) => errs.push('buy400 pageerror: ' + e.message));
       await pg.goto(base + '/v/0.6/index.html');
+      await settle(pg);
       await pg.evaluate(() => {
         localStorage.clear();
         localStorage.setItem('hoppak_save', JSON.stringify({
