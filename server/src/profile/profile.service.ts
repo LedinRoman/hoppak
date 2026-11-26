@@ -197,10 +197,51 @@ export class ProfileService {
     return execute(repo, this.runs);
   }
 
+  /**
+   * Merge an unlinked guest G into an existing Telegram player P.
+   * Cap: same as migrate — MIGRATE_COINS_MAX (8000). Incoming from G is
+   * clamp(G.coins, 0, 8000); P.coins = clamp(P.coins + incoming, 0, 8000).
+   * mergedCoins is the actual increase. Purchases are unioned via sanitizePurchases
+   * (hero:/char:/map:). best = max. G is then CLOSED: merged_into/merged_at set,
+   * guest token hash replaced with an unissued token so GET/buy/finish with the
+   * old Bearer return 401. A new token is issued for P (plaintext of P's previous
+   * token is not stored). Repeat auth with the closed guest token does not find G
+   * and returns P without adding coins.
+   */
+  private applyMerge(target: Player, guest: Player): number {
+    const incoming = clamp(Math.floor(Number(guest.coins) || 0), 0, MIGRATE_COINS_MAX);
+    const before = target.coins || 0;
+    target.coins = clamp(before + incoming, 0, MIGRATE_COINS_MAX);
+    target.best = Math.max(target.best || 0, clamp(Math.floor(Number(guest.best) || 0), 0, RUN_HEIGHT_MAX));
+    target.purchases = mergePurchases(target.purchases || {}, sanitizePurchases(guest.purchases));
+    return target.coins - before;
+  }
+
+  private closeGuest(guest: Player, targetId: string) {
+    guest.mergedInto = targetId;
+    guest.mergedAt = new Date();
+    guest.guestTokenHash = hashToken(newGuestToken());
+    guest.coins = 0;
+  }
+
+  private async lockByIds(repo: Repository<Player>, ids: string[]): Promise<Map<string, Player>> {
+    const unique = Array.from(new Set(ids.filter(Boolean))).sort();
+    const out = new Map<string, Player>();
+    const canLock = !!(repo.manager && typeof repo.manager.transaction === 'function');
+    for (const id of unique) {
+      const row = await repo.findOne({
+        where: { id },
+        ...(canLock ? { lock: { mode: 'pessimistic_write' as const } } : {}),
+      });
+      if (row) out.set(id, row);
+    }
+    return out;
+  }
+
   async authTelegram(
     guestToken: string | null,
     initData: unknown,
-  ): Promise<{ token: string; profile: PublicProfile; linked: boolean }> {
+  ): Promise<{ token: string; profile: PublicProfile; linked: boolean; merged?: boolean; mergedCoins?: number }> {
     const repo = this.requireDb();
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
@@ -208,39 +249,81 @@ export class ProfileService {
     }
     const { telegramId } = parseAndVerifyInitData(initData, botToken);
 
-    const existingByTg = await repo.findOne({ where: { telegramId } });
-    const guest = guestToken ? await this.findByToken(guestToken) : null;
+    const execute = async (playerRepo: Repository<Player>) => {
+      const foundTg = await playerRepo.findOne({ where: { telegramId } });
+      const foundGuest = guestToken
+        ? await playerRepo.findOne({ where: { guestTokenHash: hashToken(guestToken) } })
+        : null;
+      const locked = await this.lockByIds(
+        playerRepo,
+        [foundTg && foundTg.id, foundGuest && foundGuest.id].filter(Boolean) as string[],
+      );
+      const existingByTg = (foundTg && locked.get(foundTg.id)) || foundTg || null;
+      const guest = (foundGuest && locked.get(foundGuest.id)) || foundGuest || null;
 
-    if (existingByTg) {
-      if (guest && guest.id === existingByTg.id && guestToken) {
-        return { token: guestToken, profile: this.toPublic(existingByTg), linked: false };
-      }
-      const nextToken = newGuestToken();
-      existingByTg.guestTokenHash = hashToken(nextToken);
-      await repo.save(existingByTg);
-      return { token: nextToken, profile: this.toPublic(existingByTg), linked: false };
-    }
-
-    if (guest) {
-      if (guest.telegramId && guest.telegramId !== telegramId) {
+      if (guest && guest.telegramId && String(guest.telegramId) !== String(telegramId)) {
         throw new HttpException({ ok: false, error: 'GUEST_ALREADY_LINKED' }, HttpStatus.CONFLICT);
       }
-      guest.telegramId = telegramId;
-      guest.telegramLinkedAt = new Date();
-      await repo.save(guest);
-      return { token: guestToken!, profile: this.toPublic(guest), linked: true };
-    }
 
-    const token = newGuestToken();
-    const created = repo.create({
-      guestTokenHash: hashToken(token),
-      coins: 0,
-      best: 0,
-      purchases: {},
-      telegramId,
-      telegramLinkedAt: new Date(),
-    });
-    await repo.save(created);
-    return { token, profile: this.toPublic(created), linked: true };
+      if (existingByTg) {
+        if (guest && guest.id === existingByTg.id && guestToken) {
+          return { token: guestToken, profile: this.toPublic(existingByTg), linked: false };
+        }
+        if (guest && !guest.telegramId) {
+          if (guest.mergedInto) {
+            const nextToken = newGuestToken();
+            existingByTg.guestTokenHash = hashToken(nextToken);
+            this.closeGuest(guest, existingByTg.id);
+            await playerRepo.save(guest);
+            await playerRepo.save(existingByTg);
+            return { token: nextToken, profile: this.toPublic(existingByTg), linked: false };
+          }
+          const mergedCoins = this.applyMerge(existingByTg, guest);
+          this.closeGuest(guest, existingByTg.id);
+          const nextToken = newGuestToken();
+          existingByTg.guestTokenHash = hashToken(nextToken);
+          await playerRepo.save(guest);
+          await playerRepo.save(existingByTg);
+          return {
+            token: nextToken,
+            profile: this.toPublic(existingByTg),
+            linked: false,
+            merged: true,
+            mergedCoins,
+          };
+        }
+        const nextToken = newGuestToken();
+        existingByTg.guestTokenHash = hashToken(nextToken);
+        await playerRepo.save(existingByTg);
+        return { token: nextToken, profile: this.toPublic(existingByTg), linked: false };
+      }
+
+      if (guest) {
+        if (guest.mergedInto) {
+          throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
+        }
+        guest.telegramId = telegramId;
+        guest.telegramLinkedAt = new Date();
+        await playerRepo.save(guest);
+        return { token: guestToken!, profile: this.toPublic(guest), linked: true };
+      }
+
+      const token = newGuestToken();
+      const created = playerRepo.create({
+        guestTokenHash: hashToken(token),
+        coins: 0,
+        best: 0,
+        purchases: {},
+        telegramId,
+        telegramLinkedAt: new Date(),
+      });
+      await playerRepo.save(created);
+      return { token, profile: this.toPublic(created), linked: true };
+    };
+
+    if (repo.manager && typeof repo.manager.transaction === 'function') {
+      return repo.manager.transaction(async (em) => execute(em.getRepository(Player)));
+    }
+    return execute(repo);
   }
 }

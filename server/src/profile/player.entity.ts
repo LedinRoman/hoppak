@@ -39,6 +39,13 @@ export class Player {
   @Column({ name: 'telegram_linked_at', type: 'timestamptz', nullable: true })
   telegramLinkedAt: Date | null;
 
+  /* Set when this guest was merged into an existing Telegram player. Token is invalidated. */
+  @Column({ name: 'merged_into', type: 'uuid', nullable: true })
+  mergedInto: string | null;
+
+  @Column({ name: 'merged_at', type: 'timestamptz', nullable: true })
+  mergedAt: Date | null;
+
   @BeforeInsert()
   assignId() {
     if (!this.id) this.id = randomUUID();
