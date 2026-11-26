@@ -109,6 +109,30 @@
 
 ![Места после 428](screens/v06/rank-after-428x926.png)
 
+## Аккаунт в полосе монет
+
+«ТГ ИМЯ» убрано. Слева, напротив монет, чип 11×11: у Telegram пикселизованное фото, у гостя силуэт и крошечный «!» `#a89068`. Рядом ник мини-шрифтом 3×5 (тот же размер пикселя, что у остального HUD), заливка `#b8ae9a`, контур `#1a1030`. Гость в полосе — `HOP-XXXX`, на карточке — `GUEST HOPPER-XXXX`. Тап открывает «ПРОФИЛЬ». В настройках та же карточка строкой «ПРОФИЛЬ». В забеге чипа нет. Верх меню и забега садится ниже суммы `safeAreaInset` и `contentSafeAreaInset`.
+
+До, 390×844, Telegram и гость:
+
+![Аккаунт до, Telegram](screens/v06/profile-before-tg-menu-390x844.png)
+
+![Аккаунт до, гость](screens/v06/profile-before-guest-menu-390x844.png)
+
+После, меню и карточка, 390×844, и верх на 360×640:
+
+![Аккаунт после, Telegram](screens/v06/profile-after-tg-menu-390x844.png)
+
+![Аккаунт после, гость](screens/v06/profile-after-guest-menu-390x844.png)
+
+![Карточка Telegram](screens/v06/profile-after-tg-modal-390x844.png)
+
+![Карточка гостя](screens/v06/profile-after-guest-modal-390x844.png)
+
+![Верх 360, Telegram](screens/v06/profile-after-tg-top-360x640.png)
+
+![Верх 360, гость](screens/v06/profile-after-guest-top-360x640.png)
+
 ## Мелкие правки
 
 - Имя Telegram стоит слева сверху, монеты остаются справа и не сдвигаются.

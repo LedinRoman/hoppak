@@ -5266,6 +5266,9 @@
     var confirmId = null, confirmAt = 0;
     var campCard = -1;
     var showSet = false;
+    var showProf = false;
+    var photoSlot = { url: "", cv: null, fail: false };
+    var tgInsetBound = false;
     var paused = false;
     var netLW = 0;
     var WHERE = ["\u0412 \u0413\u041E\u0420\u041E\u0414\u0415", "\u0412 \u0414\u0416\u0423\u041D\u0413\u041B\u042F\u0425", "\u0412 \u041B\u0415\u0414\u041D\u0418\u041A\u0415", "\u041D\u0410 \u0412\u0423\u041B\u041A\u0410\u041D\u0415", "\u0412 \u041E\u041A\u0415\u0410\u041D\u0415", "\u0412 \u041A\u041E\u0421\u041C\u041E\u0421\u0415"];
@@ -5576,30 +5579,184 @@
       for (var i = 0; i < raw2.length && out.length < 10; i++) if (FONT[raw2[i]]) out += raw2[i];
       return out;
     }
-    function tgMark() {
-      if (!telegramLinked()) return "";
-      var n = tgName();
-      return n ? "\u0422\u0413 " + n : "\u0422\u0413";
-    }
-    function coinsLabel(x, y, n, align, showTg) {
+    function coinsLabel(x, y, n, align, _showTg) {
       var s = String(n), w = textWidth(s, 1) + 9;
-      var mark = showTg ? tgMark() : "";
-      var tgW = mark ? textWidth(mark, 1) + 4 : 0;
       var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
-      if (mark && align === "right") drawText(ctx, mark, x0 - tgW, y - 0.5, C.mov, 1, "left");
       drawCoin(ctx, x0, y, ui);
       drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
-      if (mark && align !== "right") drawText(ctx, mark, x0 + w + 4, y - 0.5, C.mov, 1, "left");
+    }
+    function menuTop() {
+      return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1));
+    }
+    function miniBits(ch) {
+      if (ch === "-") return [0, 0, 7, 0, 0];
+      var g = FONT[ch];
+      if (!g) return null;
+      var rows = [0, 1, 3, 5, 6], cols = [0, 2, 4], out = [];
+      for (var r = 0; r < 5; r++) {
+        var bits = 0;
+        for (var c = 0; c < 3; c++) if (g[rows[r]] & 1 << 4 - cols[c]) bits |= 1 << 2 - c;
+        out.push(bits);
+      }
+      return out;
+    }
+    function drawMini(s, x, y, fill, max) {
+      var n = 0, outline = "#1a1030";
+      for (var i = 0; i < s.length && n < max; i++) {
+        var g = miniBits(s[i]);
+        if (!g) continue;
+        var gx = x + n * 5;
+        for (var r = 0; r < 5; r++) for (var c = 0; c < 3; c++) if (g[r] & 1 << 2 - c) {
+          rect(ctx, gx + c - 1, y + r, 1, 1, outline);
+          rect(ctx, gx + c + 1, y + r, 1, 1, outline);
+          rect(ctx, gx + c, y + r - 1, 1, 1, outline);
+          rect(ctx, gx + c, y + r + 1, 1, 1, outline);
+        }
+        for (var r2 = 0; r2 < 5; r2++) for (var c2 = 0; c2 < 3; c2++) if (g[r2] & 1 << 2 - c2) rect(ctx, gx + c2, y + r2, 1, 1, fill);
+        n++;
+      }
+      return n;
+    }
+    function glyphsOf(raw2, max) {
+      var s = String(raw2 || "").replace(/@/g, "").toUpperCase(), out = "";
+      for (var i = 0; i < s.length && out.length < max; i++) if (miniBits(s[i])) out += s[i];
+      return out;
+    }
+    function tgUser() {
+      try {
+        var w = window;
+        if (w.__hopTg && w.__hopTg.name && location.protocol === "file:") return { first_name: w.__hopTg.name, username: "" };
+        return w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initDataUnsafe && w.Telegram.WebApp.initDataUnsafe.user;
+      } catch (_e) {
+        return null;
+      }
+    }
+    function guestTag() {
+      var src = "";
+      try {
+        var st = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState ? PROFILE.getState() : null;
+        if (st && st.profile && st.profile.id) src = String(st.profile.id);
+        else if (st && st.tokenPresent) src = "";
+      } catch (_e) {
+      }
+      try {
+        if (!src) src = localStorage.getItem("hoppak_guest_token") || "";
+      } catch (_e2) {
+      }
+      if (!src) {
+        try {
+          var prev = localStorage.getItem("hoppak_guest_tag") || "";
+          if (/^[0-9A-F]{4}$/.test(prev)) return prev;
+        } catch (_e3) {
+        }
+        return "0000";
+      }
+      var h = 2166136261;
+      for (var i = 0; i < src.length; i++) {
+        h ^= src.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      var tag = ("0000" + (h >>> 0).toString(16).toUpperCase()).slice(-4);
+      try {
+        localStorage.setItem("hoppak_guest_tag", tag);
+      } catch (_e4) {
+      }
+      return tag;
+    }
+    function accountName(full) {
+      if (telegramLinked()) {
+        var u = tgUser() || {};
+        var raw2 = u.first_name || u.username || tgName();
+        return glyphsOf(raw2, full ? 16 : 8);
+      }
+      var tag = guestTag();
+      return full ? "GUEST HOPPER-" + tag : "HOP-" + tag;
+    }
+    function accountPhoto() {
+      if (!telegramLinked()) return null;
+      var u = tgUser();
+      var url = u && u.photo_url ? String(u.photo_url) : "";
+      if (!url) return null;
+      if (photoSlot.url === url) return photoSlot.fail ? null : photoSlot.cv;
+      photoSlot = { url, cv: null, fail: false };
+      try {
+        var img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = function() {
+          try {
+            var cv = document.createElement("canvas");
+            cv.width = 11;
+            cv.height = 11;
+            var g = cv.getContext("2d");
+            if (!g) {
+              photoSlot.fail = true;
+              return;
+            }
+            g.imageSmoothingEnabled = false;
+            var side = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height) || 1;
+            var sx = Math.floor(((img.naturalWidth || img.width) - side) / 2);
+            var sy = Math.floor(((img.naturalHeight || img.height) - side) / 2);
+            g.drawImage(img, sx, sy, side, side, 0, 0, 11, 11);
+            g.getImageData(0, 0, 1, 1);
+            if (photoSlot.url === url) photoSlot.cv = cv;
+          } catch (_err) {
+            if (photoSlot.url === url) photoSlot.fail = true;
+          }
+        };
+        img.onerror = function() {
+          if (photoSlot.url === url) photoSlot.fail = true;
+        };
+        img.src = url;
+      } catch (_e) {
+        photoSlot.fail = true;
+      }
+      return null;
+    }
+    var SIL = ["..##..", ".####.", "..##..", "######", ".####.", ".#..#.", ".#..#."];
+    function drawSil(x, y, sc) {
+      for (var r = 0; r < SIL.length; r++) for (var c = 0; c < 6; c++) if (SIL[r][c] === "#") rect(ctx, x + c * sc, y + r * sc, sc, sc, "#c4b8a4");
+    }
+    function drawBang(x, y) {
+      var stem = [[0, 0], [0, 1], [0, 3]];
+      var i, k;
+      for (i = 0; i < stem.length; i++) {
+        var px = x + stem[i][0], py = y + stem[i][1];
+        for (k = 0; k < 4; k++) rect(ctx, px + [-1, 1, 0, 0][k], py + [0, 0, -1, 1][k], 1, 1, "#1a1030");
+      }
+      for (i = 0; i < stem.length; i++) rect(ctx, x + stem[i][0], y + stem[i][1], 1, 1, "#a89068");
+    }
+    function drawChip(x, y, photo, bang) {
+      rect(ctx, x, y, 11, 11, "#1a1030");
+      rect(ctx, x + 1, y + 1, 9, 9, "#241838");
+      if (photo) {
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(photo, x, y, 11, 11);
+        ctx.restore();
+        rect(ctx, x, y, 11, 1, "#1a1030");
+        rect(ctx, x, y + 10, 11, 1, "#1a1030");
+        rect(ctx, x, y, 1, 11, "#1a1030");
+        rect(ctx, x + 10, y, 1, 11, "#1a1030");
+      } else drawSil(x + 2, y + 2, 1);
+      if (bang) drawBang(x + 8, y + 1);
     }
     function drawWallet() {
+      var top = menuTop();
       var s = String(save.coins);
       var w = textWidth(s, 1) + 9;
       var x = LW - 4 - w;
-      rect(ctx, x - 3, 1, w + 6, 11, INK);
-      rect(ctx, x - 2, 2, w + 4, 9, C.navy);
-      coinsLabel(LW - 4, 3, save.coins, "right", false);
-      var mark = tgMark();
-      if (mark) drawText(ctx, mark, 4, 1, C.mov, 1, "left");
+      rect(ctx, x - 3, 1 + top, w + 6, 11, INK);
+      rect(ctx, x - 2, 2 + top, w + 4, 9, C.navy);
+      coinsLabel(LW - 4, 3 + top, save.coins, "right");
+      var linked = telegramLinked();
+      var photo = accountPhoto();
+      drawChip(3, 1 + top, linked ? photo : null, !linked);
+      drawMini(accountName(false), 16, 4 + top, "#b8ae9a", 8);
+      var nickW = 8 * 5;
+      var minSide = Math.max(24, Math.ceil(44 / Math.max(0.01, cssScale || 1)));
+      var hitW = Math.min(26, minSide);
+      addHit("acct", 0, top, hitW, minSide);
+      addHit("acct", 16, top, nickW, 11);
     }
     function drawBuy(id, x, y, w, h, price) {
       addHit(id, x, y, w, h);
@@ -5720,6 +5877,7 @@
       phase = "menu";
       world = null;
       showSet = false;
+      showProf = false;
       campCard = -1;
       paused = false;
       landPause = false;
@@ -5802,8 +5960,24 @@
         phase = "lobby";
         return;
       }
+      if (id === "acct") {
+        showSet = false;
+        showProf = !showProf;
+        return;
+      }
+      if (id === "set:prof") {
+        showSet = false;
+        showProf = true;
+        return;
+      }
+      if (id === "prof:close" || id === "prof:out") {
+        showProf = false;
+        return;
+      }
+      if (id === "prof:card") return;
       if (id === "set") {
         showSet = !showSet;
+        showProf = false;
         return;
       }
       if (id === "ralpha" && stagingBuild()) {
@@ -6143,9 +6317,10 @@
       return -LH + 70;
     };
     function header(title, sc) {
+      var top = menuTop();
       var w = textWidth(title, sc) + 16;
-      box(ctx, Math.round(LW / 2 - w / 2), 8, w, 7 * sc + 10, C.navy, C.cream);
-      drawText(ctx, title, LW / 2, 13, C.cream, sc, "center");
+      box(ctx, Math.round(LW / 2 - w / 2), 8 + top, w, 7 * sc + 10, C.navy, C.cream);
+      drawText(ctx, title, LW / 2, 13 + top, C.cream, sc, "center");
     }
     function drawFlash() {
       if (flashT <= 0) return;
@@ -6179,12 +6354,51 @@
       coinsLabel(x + 4, 51, save.coins, void 0, true);
       drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + (save.best || 0) + " \u041C", x + 148, 51, C.cream, 1, "right");
     }
+    function drawProfileCard() {
+      hits = [];
+      dimView(ctx, "rgba(8,6,20,0.62)");
+      addHit("prof:out", -40, -40, LW + 80, LH + 80);
+      var x = colX();
+      var linked = telegramLinked();
+      var u = tgUser() || {};
+      var h = linked ? 118 : 132;
+      var y = Math.max(menuTop() + 28, 70);
+      addHit("prof:card", x, y, 152, h);
+      box(ctx, x, y, 152, h, C.navy, C.cream);
+      drawText(ctx, "\u041F\u0420\u041E\u0424\u0418\u041B\u042C", LW / 2, y + 6, C.gold, 1, "center");
+      var photo = linked ? accountPhoto() : null;
+      if (photo) {
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(photo, x + 8, y + 22, 22, 22);
+        ctx.restore();
+      } else {
+        rect(ctx, x + 8, y + 22, 22, 22, "#241838");
+        drawSil(x + 13, y + 24, 2);
+      }
+      rect(ctx, x + 8, y + 22, 22, 1, "#1a1030");
+      rect(ctx, x + 8, y + 43, 22, 1, "#1a1030");
+      rect(ctx, x + 8, y + 22, 1, 22, "#1a1030");
+      rect(ctx, x + 29, y + 22, 1, 22, "#1a1030");
+      var name = accountName(true);
+      drawText(ctx, name, x + 36, y + 24, C.cream, 1, "left");
+      var lineY = y + 36;
+      if (linked && u.username) {
+        drawText(ctx, glyphsOf(String(u.username), 14), x + 36, lineY, "#b8ae9a", 1, "left");
+        lineY += 12;
+      }
+      drawText(ctx, linked ? "\u0412\u0425\u041E\u0414: TELEGRAM" : "\u0412\u0425\u041E\u0414: \u0413\u041E\u0421\u0422\u0415\u0412\u041E\u0419", x + 8, lineY + 14, C.cream, 1, "left");
+      if (!linked) drawText(ctx, "\u041F\u0420\u041E\u0413\u0420\u0415\u0421\u0421 \u041D\u0410 \u0423\u0421\u0422\u0420\u041E\u0419\u0421\u0422\u0412\u0415", x + 8, lineY + 26, "#b8ae9a", 1, "left");
+      drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + (save.best || 0) + " \u041C", x + 8, y + h - 36, C.gold, 1, "left");
+      btn("prof:close", x + 26, y + h - 22, 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
+    }
     function drawMenu() {
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
       dimView(ctx, "rgba(18,14,44,0.14)");
       var x = colX();
-      drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
-      drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 41, C.cream, "center");
+      var top = menuTop();
+      drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 12 + top, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
+      drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 41 + top, C.cream, "center");
       var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
       var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
       var by = LH - 118;
@@ -6216,14 +6430,15 @@
         dimView(ctx, "rgba(8,6,20,0.62)");
         var stg = stagingBuild();
         var py0 = 50;
-        box(ctx, x, py0, 152, stg ? 168 : 144, C.navy, C.cream);
+        box(ctx, x, py0, 152, stg ? 190 : 166, C.navy, C.cream);
         drawText(ctx, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", LW / 2, py0 + 6, C.gold, 1, "center");
         btn("tilt", x + 8, py0 + 20, 136, 20, tiltOn ? C.mint : "#1a1430", "\u041D\u0410\u041A\u041B\u041E\u041D: " + (tiltOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), tiltOn ? INK : C.cream);
         volRow("mus", x + 8, py0 + 44, 136, "\u041C\u0423\u0417\u042B\u041A\u0410", musicVol, musicOn);
         volRow("sfx", x + 8, py0 + 68, 136, "\u0417\u0412\u0423\u041A\u0418", sfxVol, sfxOn);
         btn("vib", x + 8, py0 + 94, 136, 20, vibOn ? C.mint : "#1a1430", "\u0412\u0418\u0411\u0420\u041E: " + (vibOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), vibOn ? INK : C.cream);
-        if (stg) btn("ralpha", x + 8, py0 + 118, 136, 20, "#1a1430", "\u0427\u0423\u0416\u0418\u0415: " + remoteAlpha(), C.cream);
-        btn("set", x + 26, py0 + (stg ? 144 : 120), 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
+        btn("set:prof", x + 8, py0 + 118, 136, 20, "#1a1430", "\u041F\u0420\u041E\u0424\u0418\u041B\u042C", C.cream);
+        if (stg) btn("ralpha", x + 8, py0 + 142, 136, 20, "#1a1430", "\u0427\u0423\u0416\u0418\u0415: " + remoteAlpha(), C.cream);
+        btn("set", x + 26, py0 + (stg ? 166 : 142), 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
       }
       drawFlash();
     }
@@ -6261,8 +6476,9 @@
       var x = colX();
       header("\u041C\u0410\u0413\u0410\u0417\u0418\u041D", 2);
       var pw = 22, gap = 4, sx = Math.round(LW / 2 - (6 * pw + 5 * gap) / 2);
+      var shopTop = menuTop();
       for (var k = 0; k < 6; k++) {
-        var bx = sx + k * (pw + gap), by = 36, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
+        var bx = sx + k * (pw + gap), by = 36 + shopTop, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
         addHit("hero:" + k, bx, by, pw, 22);
         box(ctx, bx, by, pw, 22, sel ? "#2a2050" : C.navy, sel ? C.gold : own ? C.cream : "#5a4a72");
         ctx.save();
@@ -6281,7 +6497,7 @@
         }
       }
       var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
-      var y0 = 64, ch = LH - y0 - 42;
+      var y0 = 64 + shopTop, ch = LH - y0 - 42;
       box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
       var mid = y0 + 52;
       rect(ctx, x + 40, mid + 8, 72, 4, C.wood);
@@ -6312,10 +6528,11 @@
       dimView(ctx, "rgba(18,14,44,0.34)");
       var x = colX();
       header("\u041A\u0410\u041C\u041F\u0410\u041D\u0418\u042F", 2);
-      box(ctx, x, 36, 152, 22, "#1a1430", C.mint);
-      drawText(ctx, "\u0414\u041E\u0419\u0414\u0418 \u0414\u041E \u0426\u0415\u041B\u0418 \u2192", LW / 2, 39, C.cream, 1, "center");
-      drawText(ctx, "\u041E\u0422\u041A\u0420\u041E\u0419 \u0417\u0410 \u041C\u041E\u041D\u0415\u0422\u042B", LW / 2, 49, C.mint, 1, "center");
-      var top = 62, bot = LH - 40, rh = Math.min(42, Math.floor((bot - top) / MAPS.length));
+      var campTop = menuTop();
+      box(ctx, x, 36 + campTop, 152, 22, "#1a1430", C.mint);
+      drawText(ctx, "\u0414\u041E\u0419\u0414\u0418 \u0414\u041E \u0426\u0415\u041B\u0418 \u2192", LW / 2, 39 + campTop, C.cream, 1, "center");
+      drawText(ctx, "\u041E\u0422\u041A\u0420\u041E\u0419 \u0417\u0410 \u041C\u041E\u041D\u0415\u0422\u042B", LW / 2, 49 + campTop, C.mint, 1, "center");
+      var top = 62 + campTop, bot = LH - 40, rh = Math.min(42, Math.floor((bot - top) / MAPS.length));
       for (var i = 0; i < MAPS.length; i++) {
         var M = MAPS[i], y = top + i * rh, open = mapOpen(i), can = !open && mapGoalMet(i), locked = !open && !can;
         var bd = save.bg === M.id ? C.gold : open ? C.cream : can ? C.mint : "#4a3a6a";
@@ -6351,15 +6568,16 @@
       var x = colX();
       header("\u0417\u0410\u0411\u0415\u0413 \u0421 \u0411\u041E\u0422\u0410\u041C\u0418", 1);
       var ps = lobbyNames();
+      var lobbyTop = menuTop();
       for (var i = 0; i < ps.length; i++) {
-        var y = 44 + i * 26;
+        var y = 44 + lobbyTop + i * 26;
         box(ctx, x, y, 152, 23, i === 0 ? "#2a2050" : C.navy, i === 0 ? C.gold : C.cream);
         drawJumper(ctx, x + 6, y + 5, ps[i].look, 1, "idle", (ui + i * 50) % 170 < 6, true, 1);
         drawText(ctx, ps[i].name, x + 28, y + 3, C.cream, 1, "left");
         drawText(ctx, ps[i].tag, x + 28, y + 13, i === 0 ? C.gold : "#9a8ab8", 1, "left");
         drawText(ctx, CHARS[ps[i].kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
       }
-      var my = 44 + 4 * 26 + 6;
+      var my = 44 + lobbyTop + 4 * 26 + 6;
       btn("lmap:prev", x, my, 20, 18, "#1a1430", "<", C.cream);
       btn("lmap:next", x + 132, my, 20, 18, "#1a1430", ">", C.cream);
       box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
@@ -7048,6 +7266,7 @@
           }
         }
       }
+      bindTgInsets();
       HUD_INSET = phase === "play" ? Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) : 0;
       syncBackdrop(menuMap());
       if (phase === "play" && world && world.phase === "play" && !paused) {
@@ -7083,6 +7302,7 @@
         drawPlay();
         if (world && world.net) NET.overlay(netApi, world);
       }
+      if (showProf && phase !== "play") drawProfileCard();
       if (phoneLand && phase !== "play") {
         dimView(ctx, "rgba(8,6,20,0.55)");
         box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
@@ -7200,16 +7420,18 @@
     }
     var envInset = -1;
     function insetTopCss() {
-      var n = 0;
+      var sum = 0, saw = false;
       try {
         var tg = window.Telegram && window.Telegram.WebApp;
         if (tg) {
+          saw = true;
           var c = tg.contentSafeAreaInset, s = tg.safeAreaInset;
-          if (c && c.top) n = Math.max(n, Number(c.top) || 0);
-          if (s && s.top) n = Math.max(n, Number(s.top) || 0);
+          sum = s && Number(s.top) || 0;
+          sum += c && Number(c.top) || 0;
         }
       } catch (_e) {
       }
+      if (sum > 0) return sum;
       if (envInset < 0) {
         envInset = 0;
         try {
@@ -7222,7 +7444,40 @@
           envInset = 0;
         }
       }
-      return Math.max(n, envInset);
+      return envInset;
+    }
+    function bindTgInsets() {
+      if (tgInsetBound) return;
+      var w = window;
+      var tg = w.Telegram && w.Telegram.WebApp;
+      if (!tg) {
+        if (w.__tgReady && w.__tgReady.then && !w.__hopInsetWait) {
+          w.__hopInsetWait = true;
+          w.__tgReady.then(function() {
+            bindTgInsets();
+          });
+        }
+        return;
+      }
+      tgInsetBound = true;
+      var bump = function() {
+        resize();
+      };
+      try {
+        if (tg.onEvent) {
+          tg.onEvent("safeAreaChanged", bump);
+          tg.onEvent("contentSafeAreaChanged", bump);
+          tg.onEvent("fullscreenChanged", bump);
+        }
+      } catch (_e) {
+      }
+      try {
+        var bb = tg.BackButton;
+        if (bb && bb.onClick) bb.onClick(function() {
+          if (showProf) showProf = false;
+        });
+      } catch (_e2) {
+      }
     }
     function wantTouchPause() {
       if (isPhone || !isWide) return true;
