@@ -698,10 +698,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var tw = textWidth(H2.abName, 1) + 10;
     box(ctx, Math.round(LW / 2 - tw / 2), mid + 34, tw, 12, "#3a4ac8", C.cream);
     drawText(ctx, H2.abName, LW / 2, mid + 37, C.cream, 1, "center");
-    drawText(ctx, H2.type, LW / 2, mid + 50, C.gold, 1, "center");
-    drawText(ctx, H2.abDesc[0], LW / 2, mid + 62, C.cream, 1, "center");
-    drawText(ctx, H2.abDesc[1], LW / 2, mid + 72, C.cream, 1, "center");
-    drawChargeLine(LW / 2, mid + 84, H2, "#9a8ab8");
+    drawText(ctx, H2.abDesc[0], LW / 2, mid + 52, C.cream, 1, "center");
+    drawText(ctx, H2.abDesc[1], LW / 2, mid + 62, C.cream, 1, "center");
+    drawChargeLine(LW / 2, mid + 76, H2, "#9a8ab8");
     var byb = y0 + ch - 28;
     if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "ВЫБРАН", C.gold, 1, C.gold);
     else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "ВЫБРАТЬ", INK);
