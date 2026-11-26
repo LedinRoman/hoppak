@@ -1112,9 +1112,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (squad) {
         box(ctx, x, y, 152, rowH - 2, fill, p.id === 0 ? C.gold : C.cream);
         drawText(ctx, String(p.place), x + 7, y + 4, p.place === 1 ? C.gold : C.cream, 1, "center");
-        drawJumper(ctx, x + 15, y + 3, p.look, 1, "idle", false, true, 0.75);
+        /* integer 1:1 sprite pixels only: clipped to the row, so just the head shows (same trick as the shop cards) */
+        ctx.save(); ctx.beginPath(); ctx.rect(x + 14, y + 1, 13, rowH - 4); ctx.clip();
+        drawJumper(ctx, x + 14, y + 7, p.look, 1, "idle", false, true, 1);
+        ctx.restore();
         var nm = String(p.name || "").slice(0, 8) + (p.id === 0 ? " (ТЫ)" : "");
-        drawText(ctx, nm, x + 28, y + 4, C.cream, 1, "left");
+        drawText(ctx, nm, x + 30, y + 4, C.cream, 1, "left");
         drawText(ctx, metersOf(p) + " М", x + 148, y + 4, C.cream, 1, "right");
       } else {
         box(ctx, x, y, 152, rowH - 3, fill, p.id === 0 ? C.gold : C.cream);

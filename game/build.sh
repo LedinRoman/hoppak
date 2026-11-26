@@ -15,11 +15,64 @@
 #       Bakes an explicit server origin (only needed when static client files
 #       are hosted on a different origin than the game server). HOP_SERVER is
 #       accepted as a fallback alias for HOP_SERVER_URL.
+#
+# Prod-host guard (BUG-55): the production host (76-13-250-251.sslip.io) and its bare IP
+# must never be baked into any artifact. The build FAILS (exit 2, nothing written) if
+# HOP_SERVER_URL or HOP_SERVER points at them in ANY form (http/https/ws/wss, port, path,
+# trailing slash, userinfo, upper case, no scheme). Sub-domains such as
+# staging.76-13-250-251.sslip.io are different hosts and stay allowed. After building,
+# every generated file (hoppak.js, page-build, site/, site/v/<ver>/) is scanned again.
 set -e
 cd "$(dirname "$0")"
 ESB=/tmp/esb/node_modules/.bin/esbuild
 CLIENT_VER="${HOP_VERSION:-0.58.0}"
 PROD_HOST_GUARD="76-13-250-251.sslip.io"
+PROD_IP_GUARD="76.13.250.251"
+
+# host_of <url-ish>: prints the lower-case hostname (scheme, userinfo, port, path, query, trailing dot stripped)
+host_of() {
+  python3 - "$1" << 'PY'
+import re, sys
+u = sys.argv[1].strip().lower()
+u = re.sub(r"^[a-z][a-z0-9+.\-]*://", "", u)
+u = re.split(r"[/?#\\]", u, 1)[0]
+u = u.rsplit("@", 1)[-1]
+if u.startswith("["):
+    u = u[1:].split("]", 1)[0]
+else:
+    u = u.split(":", 1)[0]
+print(u.rstrip("."))
+PY
+}
+
+# Refuse a prod target before doing any work (every build path: local, page-build, site, site/v/<ver>).
+for _var in HOP_SERVER_URL HOP_SERVER; do
+  _val="${!_var:-}"
+  [ -z "$_val" ] && continue
+  _host="$(host_of "$_val")"
+  if [ "$_host" = "$PROD_HOST_GUARD" ] || [ "$_host" = "$PROD_IP_GUARD" ]; then
+    echo "ERROR: build.sh: $_var=$_val points at the PRODUCTION host ($_host). Refusing to bake the prod address into the client." >&2
+    echo "       Use the default same-origin build (leave HOP_SERVER_URL/HOP_SERVER unset) or a staging host such as https://staging.$PROD_HOST_GUARD" >&2
+    exit 2
+  fi
+done
+
+# scan_no_prod <files...>: fails if a file contains the prod host / IP as a whole host
+# (a sub-domain like staging.<prod host> is NOT a match).
+scan_no_prod() {
+  python3 - "$@" << 'PY'
+import re, sys
+from pathlib import Path
+pat = re.compile(r"(?<![A-Za-z0-9.\-])(76-13-250-251\.sslip\.io|76\.13\.250\.251)(?![A-Za-z0-9\-])")
+bad = 0
+for f in sys.argv[1:]:
+    p = Path(f)
+    if p.is_file() and pat.search(p.read_text(errors="replace")):
+        print("ERROR: %s contains the hard-coded PRODUCTION host (76-13-250-251.sslip.io / 76.13.250.251)" % f, file=sys.stderr)
+        bad = 1
+sys.exit(bad)
+PY
+}
 BUILD_TMP="$(mktemp -d)"
 trap 'rm -rf "$BUILD_TMP"' EXIT
 
@@ -68,12 +121,7 @@ print("page bytes", len(t.encode()))
 PY
 node --check hoppak.js && echo "js ok $(wc -c < hoppak.js) bytes"
 
-for f in hoppak.js page-build/hop.canvas.tsx; do
-  if grep -qF "$PROD_HOST_GUARD" "$f"; then
-    echo "ERROR: $f unexpectedly contains hard-coded prod host $PROD_HOST_GUARD" >&2
-    exit 1
-  fi
-done
+scan_no_prod hoppak.js page-build/hop.canvas.tsx || exit 2
 
 if [ "${1:-}" = "site" ]; then
   SITE_ORIGIN="${HOP_SERVER_URL:-${HOP_SERVER:-}}"
@@ -101,18 +149,11 @@ PY
   node --check site/hoppak.js && echo "site js ok $(wc -c < site/hoppak.js) bytes"
   if [ -n "$SITE_ORIGIN" ]; then
     grep -oF "${SITE_ORIGIN}" site/hoppak.js | head -1 | sed "s/^/baked: /"
-  else
-    if grep -qF "$PROD_HOST_GUARD" site/hoppak.js; then
-      echo "ERROR: site/hoppak.js unexpectedly contains hard-coded prod host $PROD_HOST_GUARD" >&2
-      exit 1
-    fi
   fi
+  scan_no_prod site/hoppak.js site/index.html || exit 2
   mkdir -p "site/v/${CLIENT_VER}"
   cp site/index.html "site/v/${CLIENT_VER}/index.html"
   cp site/hoppak.js "site/v/${CLIENT_VER}/hoppak.js"
-  if [ -z "$SITE_ORIGIN" ] && grep -qF "$PROD_HOST_GUARD" "site/v/${CLIENT_VER}/hoppak.js"; then
-    echo "ERROR: site/v/${CLIENT_VER}/hoppak.js unexpectedly contains hard-coded prod host $PROD_HOST_GUARD" >&2
-    exit 1
-  fi
+  scan_no_prod "site/v/${CLIENT_VER}/hoppak.js" "site/v/${CLIENT_VER}/index.html" || exit 2
   echo "site versioned: site/v/${CLIENT_VER}/ (ver=${CLIENT_VER})"
 fi

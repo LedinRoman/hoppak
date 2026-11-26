@@ -2307,6 +2307,8 @@ function buildVersion() {
 }
 var CLIENT_VERSION = buildVersion();
 
+var EVENING_MAX_ROWS = 4; /* lines in the evening score, incl. the «ЕЩЁ +N» overflow line */
+
 var NET: any = (function () {
   var N: any = {
     ws: null, st: "off", /* off | connecting | online | reconnecting | error | unsupported */
@@ -2837,15 +2839,30 @@ var NET: any = (function () {
     });
     var rc = S.rounds.length, r100 = rc % 100, r10 = rc % 10;
     var rw = (r100 >= 11 && r100 <= 14) ? "РАУНДОВ" : r10 === 1 ? "РАУНД" : (r10 >= 2 && r10 <= 4) ? "РАУНДА" : "РАУНДОВ";
-    var h = 11 + pids.length * 9;
+    /* A room holds 4, but the evening remembers everyone who ever played in it (leavers, replacements).
+       Never grow past EVENING_MAX_ROWS lines (that is what fits above the update banner and РЕВАНШ):
+       show the top rows, always keep "you", and fold the rest into one «ЕЩЁ +N» line. */
+    var shown = pids.slice(), hidden = 0;
+    if (shown.length > EVENING_MAX_ROWS) {
+      var keep = EVENING_MAX_ROWS - 1;
+      var meIdx = shown.indexOf(String(N.you));
+      var head = shown.slice(0, keep);
+      if (meIdx >= keep) head[keep - 1] = shown[meIdx];
+      hidden = shown.length - keep;
+      shown = head;
+    }
+    var nLines = shown.length + (hidden ? 1 : 0);
+    var h = 11 + nLines * 9;
     box(ctx, x, y, 152, h, C.navy, C.gold);
     drawText(ctx, "СЧЁТ ВЕЧЕРА · " + rc + " " + rw, LW / 2, y + 2, C.gold, 1, "center");
-    for (var i2 = 0; i2 < pids.length; i2++) {
-      var pid = pids[i2], nm = String(S.names[pid] || "ИГРОК").slice(0, 8);
+    for (var i2 = 0; i2 < shown.length; i2++) {
+      var pid = shown[i2], nm = String(S.names[pid] || "ИГРОК").slice(0, 8);
       var lineY = y + 11 + i2 * 9;
-      drawText(ctx, nm, x + 6, lineY, C.cream, 1, "left");
-      drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, C.cream, 1, "right");
+      var isYou = String(pid) === String(N.you);
+      drawText(ctx, nm, x + 6, lineY, isYou ? C.gold : C.cream, 1, "left");
+      drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, isYou ? C.gold : C.cream, 1, "right");
     }
+    if (hidden) drawText(ctx, "ЕЩЁ +" + hidden, LW / 2, y + 11 + shown.length * 9, "#9a8ab8", 1, "center");
     return y + h + 2;
   };
 
@@ -4248,9 +4265,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (squad) {
         box(ctx, x, y, 152, rowH - 2, fill, p.id === 0 ? C.gold : C.cream);
         drawText(ctx, String(p.place), x + 7, y + 4, p.place === 1 ? C.gold : C.cream, 1, "center");
-        drawJumper(ctx, x + 15, y + 3, p.look, 1, "idle", false, true, 0.75);
+        /* integer 1:1 sprite pixels only: clipped to the row, so just the head shows (same trick as the shop cards) */
+        ctx.save(); ctx.beginPath(); ctx.rect(x + 14, y + 1, 13, rowH - 4); ctx.clip();
+        drawJumper(ctx, x + 14, y + 7, p.look, 1, "idle", false, true, 1);
+        ctx.restore();
         var nm = String(p.name || "").slice(0, 8) + (p.id === 0 ? " (ТЫ)" : "");
-        drawText(ctx, nm, x + 28, y + 4, C.cream, 1, "left");
+        drawText(ctx, nm, x + 30, y + 4, C.cream, 1, "left");
         drawText(ctx, metersOf(p) + " М", x + 148, y + 4, C.cream, 1, "right");
       } else {
         box(ctx, x, y, 152, rowH - 3, fill, p.id === 0 ? C.gold : C.cream);
