@@ -1,5 +1,6 @@
 'use strict';
 const assert = require('assert');
+const crypto = require('crypto');
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const path = require('path');
 const { createServer } = require('../../tools/profile-mock');
@@ -859,6 +860,14 @@ async function admin(base, body) {
         }
         return out;
       }
+
+      const pageHtml = await (await fetch(base + '/index.html')).text();
+      const ver = pageHtml.match(/src="tg-boot\.js\?v=([0-9a-f]{8})"/);
+      assert.ok(ver, 'prod index must cache-bust tg-boot.js with ?v=');
+      const bootBytes = Buffer.from(await (await fetch(base + '/tg-boot.js')).arrayBuffer());
+      const bootHash = crypto.createHash('sha1').update(bootBytes).digest('hex').slice(0, 8);
+      assert.strictEqual(ver[1], bootHash, 'tg-boot.js ?v= must be the short SHA-1 of the file');
+      console.log('PASS 11: tg-boot.js link carries ?v=' + ver[1]);
 
       await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
       const ctxA = await browser.createBrowserContext();

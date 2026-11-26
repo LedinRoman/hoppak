@@ -83,6 +83,28 @@ PY
   # fix the printed origin (the heredoc was unquoted wrongly for the env var)
   echo "site origin ${SITE_ORIGIN}"
   cp tg-boot.js site/tg-boot.js
+  # Cache-bust like the live page: first 8 hex chars of SHA-1 of the file bytes.
+  python3 - << 'PY'
+import hashlib, re
+from pathlib import Path
+html_path = Path("site/index.html")
+html = html_path.read_text()
+def stamp(html, name, file):
+    ver = hashlib.sha1(Path(file).read_bytes()).hexdigest()[:8]
+    new, n = re.subn(
+        r'(src="' + re.escape(name) + r')(?:\?v=[0-9a-fA-F]*)?(")',
+        r'\1?v=' + ver + r'\2',
+        html,
+        count=1,
+    )
+    if n != 1:
+        raise SystemExit("cache-bust: script tag not found: " + name)
+    print("cache", name, ver)
+    return new
+html = stamp(html, "tg-boot.js", "site/tg-boot.js")
+html = stamp(html, "hoppak.js", "site/hoppak.js")
+html_path.write_text(html)
+PY
   rm -rf site/audio
   mkdir -p site/audio
   cp -R audio/. site/audio/
