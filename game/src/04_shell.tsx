@@ -38,6 +38,25 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var resultLay: any[] = [];
   var pauseLay: any[] = [];
   var showProf = false;
+  /* Tab glyphs live in game/ui/tab. Replacing an icon is replacing that file. */
+  var TAB_ICONS: any = {
+    shop: "ui/tab/icon_shop.png",
+    leagues: "ui/tab/icon_leagues.png",
+    home: "ui/tab/icon_home.png",
+    friends: "ui/tab/icon_friends.png",
+    settings: "ui/tab/icon_settings.png"
+  };
+  var tabImgs: any = {};
+  function loadTabIcons() {
+    for (var key in TAB_ICONS) {
+      (function (k: string, src: string) {
+        var im = new Image();
+        im.onload = function () { tabImgs[k] = im; };
+        im.src = src;
+      })(key, TAB_ICONS[key]);
+    }
+  }
+  loadTabIcons();
   var photoSlot: any = { url: "", cv: null, fail: false };
   var tgInsetBound = false;
   var paused = false;
@@ -741,6 +760,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (id.indexOf("camp:") === 0) { campTap(id.slice(5)); return; }
     if (id === "hero:prev") { shopHero = mod(shopHero - 1, CHARS.length); return; }
     if (id === "hero:next") { shopHero = mod(shopHero + 1, CHARS.length); return; }
+    if (id === "hero:menu") { showSet = false; showProf = false; phase = "shop"; return; }
     if (id.indexOf("hero:") === 0 && id !== "hero:act") {
       var hi = parseInt(id.slice(5), 10);
       if (!isNaN(hi) && hi >= 0 && hi < CHARS.length) shopHero = hi;
@@ -751,7 +771,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var om = openMaps(), li = Math.max(0, om.indexOf(lobbyMap));
       lobbyMap = om[mod(li + (id === "lmap:next" ? 1 : -1), om.length)]; return;
     }
-    if (id === "shop") { phase = "shop"; return; }
+    if (id === "shop" || id === "hero:menu") { showSet = false; showProf = false; phase = "shop"; return; }
+    if (id === "ency") { say("СКОРО"); return; }
+    if (id === "tab:leagues") { say("Скоро в 0.8"); return; }
+    if (id === "tab:friends") { say("Скоро в 0.9"); return; }
+    if (id === "tab:home") { showSet = false; showProf = false; if (phase !== "menu") goMenu(); return; }
     if (id === "mp" || id === "create") {
       if (openMaps().indexOf(lobbyMap) < 0) lobbyMap = save.bg;
       room = room || { round: 0 }; phase = "lobby"; return;
@@ -1053,51 +1077,139 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, "РЕКОРД " + (save.best || 0) + " М", x + 8, y + h - 36, C.gold, 1, "left");
     btn("prof:close", x + 26, y + h - 22, 100, 16, C.navy, "ЗАКРЫТЬ");
   }
+  function drawTabIcon(key: string, x: number, y: number) {
+    var im = tabImgs[key];
+    x = Math.round(x); y = Math.round(y);
+    if (im && im.complete && im.naturalWidth) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(im, x, y, 16, 16);
+    } else {
+      rect(ctx, x, y, 16, 16, "#241838");
+      rect(ctx, x, y, 16, 1, INK); rect(ctx, x, y + 15, 16, 1, INK);
+      rect(ctx, x, y, 1, 16, INK); rect(ctx, x + 15, y, 1, 16, INK);
+    }
+  }
+  function drawTabLock(x: number, y: number) {
+    rect(ctx, x + 3, y, 5, 1, INK); rect(ctx, x + 3, y + 1, 1, 2, INK); rect(ctx, x + 7, y + 1, 1, 2, INK);
+    rect(ctx, x + 2, y + 3, 7, 5, INK); rect(ctx, x + 3, y + 4, 5, 3, C.gold);
+    rect(ctx, x + 5, y + 5, 1, 2, INK);
+  }
+  function drawSoonSlot(x: number, y: number, w: number, h: number) {
+    markBox("soon", x, y, w, h);
+    rect(ctx, x, y, w, h, "#12101c");
+    var i;
+    for (i = 0; i < w; i += 2) { rect(ctx, x + i, y, 1, 1, "#5a4a72"); rect(ctx, x + i, y + h - 1, 1, 1, "#5a4a72"); }
+    for (i = 0; i < h; i += 2) { rect(ctx, x, y + i, 1, 1, "#5a4a72"); rect(ctx, x + w - 1, y + i, 1, 1, "#5a4a72"); }
+    drawText(ctx, "?", x + w / 2, y + 4, "#9a8ab8", 1, "center");
+    drawText(ctx, "СКОРО", x + w / 2, y + 14, "#9a8ab8", 1, "center");
+  }
+  function menuFrame() {
+    var top = menuTop();
+    var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
+    var gap = 4, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
+    var tabY = LH - bot - tabH;
+    var gridY = tabY - gap - (gridH * 2 + gridGap);
+    var playY = gridY - gap - playH;
+    var pickY = playY - gap - pickH;
+    var logoY = top + 25;
+    var logoSc = 3;
+    var tagY = logoY + 7 * logoSc + 4;
+    var tagBot = tagY + 9;
+    var platY = pickY - 8;
+    var heroTop = platY - 32 - 10;
+    if (heroTop < tagBot + 4) {
+      logoSc = 2;
+      tagY = logoY + 7 * logoSc + 4;
+      tagBot = tagY + 9;
+      heroTop = platY - 32 - 10;
+    }
+    if (heroTop < tagBot + 4) {
+      gap = 2; playH = 28; pickH = 16; gridH = 22; tabH = 36; gridGap = 2;
+      tabY = LH - bot - tabH;
+      gridY = tabY - gap - (gridH * 2 + gridGap);
+      playY = gridY - gap - playH;
+      pickY = playY - gap - pickH;
+      platY = pickY - 6;
+      heroTop = platY - 32 - 6;
+    }
+    if (heroTop < tagBot + 2) heroTop = tagBot + 2;
+    return {
+      top: top, bot: bot, logoY: logoY, logoSc: logoSc, tagY: tagY, tagBot: tagBot,
+      platY: platY, heroTop: heroTop, pickY: pickY, pickH: pickH, playY: playY, playH: playH,
+      gridY: gridY, gridH: gridH, gridGap: gridGap, tabY: tabY, tabH: tabH
+    };
+  }
   function drawMenu() {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
     dimView(ctx, "rgba(18,14,44,0.14)");
     var x = colX();
-    var top = menuTop();
-    /* Chip row ends 16 px under the inset. Logo outline starts at least 4 px below that. */
-    var logoY = top + 25;
-    var heroPeak = 108;
-    var logoSc = 3;
-    if (logoY + 7 * logoSc + 4 + 7 + 4 > heroPeak) logoSc = 2;
-    var tagY = logoY + 7 * logoSc + 4;
-    var logoW = bigWidth("ХОППАК", logoSc);
-    drawBig(ctx, "ХОППАК", LW / 2, logoY, TITLE.face, logoSc, "center", TITLE.outline, TITLE.shadow);
-    drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, tagY, C.cream, "center");
+    var L = menuFrame();
+    var logoW = bigWidth("ХОППАК", L.logoSc);
+    drawBig(ctx, "ХОППАК", LW / 2, L.logoY, TITLE.face, L.logoSc, "center", TITLE.outline, TITLE.shadow);
+    drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, L.tagY, C.cream, "center");
     menuLay = {
-      chip: { x: 3, y: 1 + top, w: CHIP, h: CHIP },
-      coins: { x: 0, y: 1 + top, w: 0, h: CHIP },
-      logo: { x: Math.round(LW / 2 - logoW / 2) - 1, y: logoY - 1, w: logoW + 2, h: 7 * logoSc + 2 },
-      tag: { x: Math.round(LW / 2 - textWidth("ПРЫГАЙ ВЫШЕ ВСЕХ", 1) / 2) - 1, y: tagY - 1, w: textWidth("ПРЫГАЙ ВЫШЕ ВСЕХ", 1) + 2, h: 9 },
-      logoSc: logoSc
+      chip: { x: 3, y: 1 + L.top, w: CHIP, h: CHIP },
+      coins: { x: 0, y: 1 + L.top, w: 0, h: CHIP },
+      logo: { x: Math.round(LW / 2 - logoW / 2) - 1, y: L.logoY - 1, w: logoW + 2, h: 7 * L.logoSc + 2 },
+      tag: { x: Math.round(LW / 2 - textWidth("ПРЫГАЙ ВЫШЕ ВСЕХ", 1) / 2) - 1, y: L.tagY - 1, w: textWidth("ПРЫГАЙ ВЫШЕ ВСЕХ", 1) + 2, h: 9 },
+      logoSc: L.logoSc,
+      safeTop: L.top,
+      safeBottom: L.bot
     };
-    var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
-    var sub = M.goal ? (M.name + " · " + b + "/" + M.goal + " М") : (M.name + " · " + b + " М");
-    var by = LH - 118;
-    var py = Math.min(by - 40, Math.max(148, Math.round((70 + by) * 0.5)));
+    var mi = mapIdx(save.bg), M = MAPS[mi], bestM = mapBest(mi);
+    var sub = M.goal ? (M.name + " · " + bestM + "/" + M.goal + " М") : (M.name + " · " + bestM + " М");
     var ph = (ui % 60) / 60;
     var hop = Math.round(Math.sin(ph * Math.PI) * 10);
     var pose = ph < 0.08 || ph > 0.95 ? "squash" : ph < 0.5 ? "up" : "fall";
-    rect(ctx, LW / 2 - 28, py + 2, 56, 5, C.wood); rect(ctx, LW / 2 - 28, py + 6, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, py + 2, 56, 1, C.edge);
-    drawJumper(ctx, LW / 2 - 12, py + 2 - 32 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 2);
-    btn("shop", x + 36, py + 16, 80, 16, "#1a1430", "ГЕРОЙ ▶", C.cream, 1, C.gold);
-    by = Math.max(py + 40, by);
-    btn("start", x, by, 152, 34, C.mint, "", INK, 2);
-    drawBig(ctx, "ИГРАТЬ ▶", LW / 2, by + 4, INK, 2, "center");
-    drawText(ctx, sub, LW / 2, by + 23, INK, 1, "center");
-    if (isPageBuild()) {
-      btn("camp", x, by + 40, 152, 22, C.navy, "КАРТЫ");
-      btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
-      btn("set", x + 80, by + 66, 72, 22, C.navy, "НАСТРОЙКИ");
-    } else {
-      btn("camp", x, by + 40, 72, 22, C.navy, "КАРТЫ");
-      btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "МУЛЬТИПЛЕЕР", C.cream, 1, C.mint);
-      btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
-      btn("set", x + 80, by + 66, 72, 22, C.navy, "НАСТРОЙКИ");
+    var platY = L.platY;
+    rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood); rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
+    var heroY = platY - 32 - hop;
+    if (heroY < L.tagBot + 2) { heroY = L.tagBot + 2; hop = 0; }
+    drawJumper(ctx, LW / 2 - 12, heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2);
+    markBox("hero", LW / 2 - 16, heroY, 32, 32);
+    markBox("plat", LW / 2 - 28, platY, 56, 7);
+    var pickW = 120;
+    btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", "ВЫБРАТЬ ГЕРОЯ", C.cream, 1, C.gold);
+    btn("start", x, L.playY, 152, L.playH, C.mint, "", INK, 2);
+    drawBig(ctx, "ИГРАТЬ ▶", LW / 2, L.playY + (L.playH >= 34 ? 4 : 2), INK, 2, "center");
+    drawText(ctx, sub, LW / 2, L.playY + L.playH - 11, INK, 1, "center");
+    var gw = Math.floor((152 - L.gridGap) / 2);
+    var gx2 = x + gw + L.gridGap;
+    var gy2 = L.gridY + L.gridH + L.gridGap;
+    btn("camp", x, L.gridY, gw, L.gridH, C.navy, "КАРТЫ");
+    btn("net:menu", gx2, L.gridY, gw, L.gridH, C.navy, "МУЛЬТИПЛЕЕР");
+    btn("ency", x, gy2, gw, L.gridH, C.navy, "ЭНЦИКЛОПЕДИЯ");
+    drawSoonSlot(gx2, gy2, gw, L.gridH);
+    var tabs = [
+      { id: "shop", key: "shop", a: "МАГА", b: "ЗИН", lock: false },
+      { id: "tab:leagues", key: "leagues", a: "ЛИГИ", b: "", lock: true },
+      { id: "tab:home", key: "home", a: "ГЛАВ", b: "НАЯ", lock: false },
+      { id: "tab:friends", key: "friends", a: "ДРУЗ", b: "ЬЯ", lock: true },
+      { id: "set", key: "settings", a: "НАСТ", b: "РОЙКИ", lock: false }
+    ];
+    var tw = Math.floor(LW / tabs.length);
+    var homeOn = phase === "menu" && !showSet && !showProf;
+    for (var ti = 0; ti < tabs.length; ti++) {
+      var tb = tabs[ti];
+      var tx = ti * tw;
+      var on = (tb.id === "tab:home" && homeOn) || (tb.id === "set" && showSet);
+      addHit(tb.id, tx, L.tabY, tw, L.tabH);
+      markBox(tb.id === "set" ? "tab:settings" : tb.id, tx, L.tabY, tw, L.tabH);
+      rect(ctx, tx, L.tabY, tw, L.tabH, on ? "#24356a" : (tb.lock ? "#0c0a14" : "#100c22"));
+      if (on) rect(ctx, tx, L.tabY, tw, 2, C.cream);
+      rect(ctx, tx, L.tabY, tw, 1, INK);
+      if (ti > 0) rect(ctx, tx, L.tabY, 1, L.tabH, INK);
+      if (tb.lock) ctx.globalAlpha = 0.4;
+      drawTabIcon(tb.key, tx + Math.floor((tw - 16) / 2), L.tabY + 3);
+      var ly = L.tabY + 20;
+      var tc = tb.lock ? "#6a6080" : (on ? C.cream : "#9a8ab8");
+      if (tb.b) {
+        drawText(ctx, tb.a, tx + tw / 2, ly, tc, 1, "center");
+        drawText(ctx, tb.b, tx + tw / 2, ly + 8, tc, 1, "center");
+      } else drawText(ctx, tb.a, tx + tw / 2, ly + 4, tc, 1, "center");
+      if (tb.lock) { ctx.globalAlpha = 1; drawTabLock(tx + tw - 8, L.tabY + 2); }
     }
+    rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
     if (showSet) {
       hits = [];
       screenLay = [];
@@ -2175,6 +2287,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     setVolume: function (v: number) { setMasterVol(v); save.vol = masterVol; save.music = masterVol; save.sfxVol = masterVol; writeSave(save); },
     audioProbe: function () { return readAudioProbe(); },
     menuLayout: function () { return menuLay; },
+    tabIconsReady: function () {
+      var n = 0;
+      for (var k in TAB_ICONS) if (tabImgs[k] && tabImgs[k].naturalWidth === 16) n++;
+      return n === 5;
+    },
     resultsBoxes: function () { return resultLay; },
     screenLayout: function () {
       var w: any[] = [];

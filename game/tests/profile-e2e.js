@@ -7,6 +7,7 @@
  */
 const assert = require('assert');
 const crypto = require('crypto');
+const fs = require('fs');
 const { execFileSync } = require('child_process');
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const path = require('path');
@@ -1100,6 +1101,119 @@ async function admin(base, body) {
       const nl = narrow.boxes.find((b) => b.id === 'net:leave');
       assert.ok(ns && nl && ns.y + ns.h <= nl.y + 0.5);
       await ctx.close();
+    }
+
+    // 16. Main menu: no overlapping controls, inside the view, safe-area included.
+    {
+      const shots = path.resolve(__dirname, 'screens');
+      fs.mkdirSync(shots, { recursive: true });
+      const views = [
+        { w: 390, h: 844, file: 'menu-390x844.png', inset: 0 },
+        { w: 390, h: 640, file: 'menu-390x640.png', inset: 0 },
+        { w: 360, h: 560, file: 'menu-360x560.png', inset: 47 },
+      ];
+      for (const v of views) {
+        const ctx = await browser.createBrowserContext();
+        const pg = await ctx.newPage();
+        await pg.setViewport({ width: v.w, height: v.h, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+        pg.on('pageerror', (e) => errs.push('menu ' + v.w + ' pageerror: ' + e.message));
+        const top = v.inset, bot = v.inset ? 34 : 0;
+        await pg.evaluateOnNewDocument((t, b) => {
+          window.Telegram = {
+            WebApp: {
+              safeAreaInset: { top: t, bottom: b, left: 0, right: 0 },
+              contentSafeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+              onEvent() {}, offEvent() {},
+            },
+          };
+          var root = document.documentElement;
+          if (root) {
+            root.style.setProperty('--tg-safe-area-inset-top', t + 'px');
+            root.style.setProperty('--tg-safe-area-inset-bottom', b + 'px');
+          }
+        }, top, bot);
+        await pg.goto(base + '/index.html');
+        await settle(pg);
+        await pg.waitForFunction(() => window.__hoppak.tabIconsReady(), { timeout: 4000 });
+        await pg.evaluate(() => window.__hoppak.screen('menu'));
+        await sleep(50);
+        const fit = await pg.evaluate(() => {
+          const g = window.__hoppak;
+          const lay = g.menuLayout();
+          const boxes = g.screenLayout().boxes.slice();
+          if (lay.logo) boxes.push(Object.assign({ id: 'logo' }, lay.logo));
+          if (lay.tag) boxes.push(Object.assign({ id: 'tag' }, lay.tag));
+          if (lay.chip) boxes.push(Object.assign({ id: 'chip' }, lay.chip));
+          if (lay.coins) boxes.push(Object.assign({ id: 'coins' }, lay.coins));
+          const size = g.getSize();
+          return { boxes, lw: size.lw, lh: size.lh, top: lay.safeTop || 0, bot: lay.safeBottom || 0 };
+        });
+        function over(a, b) {
+          return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+        }
+        const skip = { hero: { plat: 1 }, plat: { hero: 1 } };
+        for (let i = 0; i < fit.boxes.length; i++) {
+          const a = fit.boxes[i];
+          assert.ok(a.x >= -1 && a.y >= fit.top - 1, v.file + ' ' + a.id + ' above safe area ' + JSON.stringify(a));
+          assert.ok(a.x + a.w <= fit.lw + 1, v.file + ' ' + a.id + ' past right');
+          assert.ok(a.y + a.h <= fit.lh - fit.bot + 1, v.file + ' ' + a.id + ' under safe bottom ' + JSON.stringify(fit));
+          for (let j = i + 1; j < fit.boxes.length; j++) {
+            const b = fit.boxes[j];
+            if (skip[a.id] && skip[a.id][b.id]) continue;
+            assert.ok(!over(a, b), v.file + ' overlap ' + a.id + ' ' + b.id + ' ' + JSON.stringify([a, b]));
+          }
+        }
+        const ids = fit.boxes.map((b) => b.id);
+        for (const id of ['hero:menu', 'start', 'camp', 'net:menu', 'ency', 'soon', 'shop', 'tab:leagues', 'tab:home', 'tab:friends', 'tab:settings', 'logo', 'chip']) {
+          assert.ok(ids.indexOf(id) >= 0, v.file + ' missing ' + id);
+        }
+        const canvas = await pg.$('canvas');
+        const box = await canvas.boundingBox();
+        await pg.screenshot({ path: path.join(shots, v.file), clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+        await ctx.close();
+      }
+      const soon = await (async () => {
+        const ctx = await browser.createBrowserContext();
+        const pg = await ctx.newPage();
+        await pg.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 });
+        await pg.goto(base + '/index.html');
+        await settle(pg);
+        const flash = await pg.evaluate(() => {
+          const g = window.__hoppak;
+          g.tap('ency');
+          const a = g.getFlash();
+          g.tap('tab:leagues');
+          const b = g.getFlash();
+          g.tap('tab:friends');
+          const c = g.getFlash();
+          g.tap('hero:menu');
+          const shop = g.getPhase();
+          g.tap('back');
+          g.tap('shop');
+          const shop2 = g.getPhase();
+          g.tap('back');
+          g.tap('set');
+          return { a, b, c, shop, shop2 };
+        });
+        await pg.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+        flash.setOn = await pg.evaluate(() => window.__hoppak.screenLayout().boxes.some((x) => x.id === 'settings'));
+        flash.camp = await pg.evaluate(() => {
+          const g = window.__hoppak;
+          g.tap('set');
+          g.tap('camp');
+          return g.getPhase();
+        });
+        await ctx.close();
+        return flash;
+      })();
+      assert.strictEqual(soon.a, 'СКОРО');
+      assert.strictEqual(soon.b, 'Скоро в 0.8');
+      assert.strictEqual(soon.c, 'Скоро в 0.9');
+      assert.strictEqual(soon.shop, 'shop');
+      assert.strictEqual(soon.shop2, 'shop');
+      assert.strictEqual(soon.setOn, true);
+      assert.strictEqual(soon.camp, 'camp');
+      console.log('PASS 16: menu boxes fit 390×844, 390×640 and 360×560');
     }
 
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));

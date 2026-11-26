@@ -138,6 +138,7 @@ function serveStatic(reqPath, res) {
     if (err) { res.writeHead(404); return res.end('not found'); }
     const ct = full.endsWith('.js') ? 'text/javascript; charset=utf-8'
       : full.endsWith('.html') ? 'text/html; charset=utf-8'
+      : full.endsWith('.png') ? 'image/png'
       : 'application/octet-stream';
     res.writeHead(200, { 'content-type': ct, 'cache-control': 'no-store' });
     res.end(buf);

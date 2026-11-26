@@ -5676,6 +5676,26 @@
     var resultLay = [];
     var pauseLay = [];
     var showProf = false;
+    var TAB_ICONS = {
+      shop: "ui/tab/icon_shop.png",
+      leagues: "ui/tab/icon_leagues.png",
+      home: "ui/tab/icon_home.png",
+      friends: "ui/tab/icon_friends.png",
+      settings: "ui/tab/icon_settings.png"
+    };
+    var tabImgs = {};
+    function loadTabIcons() {
+      for (var key in TAB_ICONS) {
+        (function(k, src) {
+          var im = new Image();
+          im.onload = function() {
+            tabImgs[k] = im;
+          };
+          im.src = src;
+        })(key, TAB_ICONS[key]);
+      }
+    }
+    loadTabIcons();
     var photoSlot = { url: "", cv: null, fail: false };
     var tgInsetBound = false;
     var paused = false;
@@ -6582,6 +6602,12 @@
         shopHero = mod(shopHero + 1, CHARS.length);
         return;
       }
+      if (id === "hero:menu") {
+        showSet = false;
+        showProf = false;
+        phase = "shop";
+        return;
+      }
       if (id.indexOf("hero:") === 0 && id !== "hero:act") {
         var hi = parseInt(id.slice(5), 10);
         if (!isNaN(hi) && hi >= 0 && hi < CHARS.length) shopHero = hi;
@@ -6596,8 +6622,28 @@
         lobbyMap = om[mod(li + (id === "lmap:next" ? 1 : -1), om.length)];
         return;
       }
-      if (id === "shop") {
+      if (id === "shop" || id === "hero:menu") {
+        showSet = false;
+        showProf = false;
         phase = "shop";
+        return;
+      }
+      if (id === "ency") {
+        say("\u0421\u041A\u041E\u0420\u041E");
+        return;
+      }
+      if (id === "tab:leagues") {
+        say("\u0421\u043A\u043E\u0440\u043E \u0432 0.8");
+        return;
+      }
+      if (id === "tab:friends") {
+        say("\u0421\u043A\u043E\u0440\u043E \u0432 0.9");
+        return;
+      }
+      if (id === "tab:home") {
+        showSet = false;
+        showProf = false;
+        if (phase !== "menu") goMenu();
         return;
       }
       if (id === "mp" || id === "create") {
@@ -7059,52 +7105,178 @@
       drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + (save.best || 0) + " \u041C", x + 8, y + h - 36, C.gold, 1, "left");
       btn("prof:close", x + 26, y + h - 22, 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
     }
+    function drawTabIcon(key, x, y) {
+      var im = tabImgs[key];
+      x = Math.round(x);
+      y = Math.round(y);
+      if (im && im.complete && im.naturalWidth) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(im, x, y, 16, 16);
+      } else {
+        rect(ctx, x, y, 16, 16, "#241838");
+        rect(ctx, x, y, 16, 1, INK);
+        rect(ctx, x, y + 15, 16, 1, INK);
+        rect(ctx, x, y, 1, 16, INK);
+        rect(ctx, x + 15, y, 1, 16, INK);
+      }
+    }
+    function drawTabLock(x, y) {
+      rect(ctx, x + 3, y, 5, 1, INK);
+      rect(ctx, x + 3, y + 1, 1, 2, INK);
+      rect(ctx, x + 7, y + 1, 1, 2, INK);
+      rect(ctx, x + 2, y + 3, 7, 5, INK);
+      rect(ctx, x + 3, y + 4, 5, 3, C.gold);
+      rect(ctx, x + 5, y + 5, 1, 2, INK);
+    }
+    function drawSoonSlot(x, y, w, h) {
+      markBox("soon", x, y, w, h);
+      rect(ctx, x, y, w, h, "#12101c");
+      var i;
+      for (i = 0; i < w; i += 2) {
+        rect(ctx, x + i, y, 1, 1, "#5a4a72");
+        rect(ctx, x + i, y + h - 1, 1, 1, "#5a4a72");
+      }
+      for (i = 0; i < h; i += 2) {
+        rect(ctx, x, y + i, 1, 1, "#5a4a72");
+        rect(ctx, x + w - 1, y + i, 1, 1, "#5a4a72");
+      }
+      drawText(ctx, "?", x + w / 2, y + 4, "#9a8ab8", 1, "center");
+      drawText(ctx, "\u0421\u041A\u041E\u0420\u041E", x + w / 2, y + 14, "#9a8ab8", 1, "center");
+    }
+    function menuFrame() {
+      var top = menuTop();
+      var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
+      var gap = 4, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
+      var tabY = LH - bot - tabH;
+      var gridY = tabY - gap - (gridH * 2 + gridGap);
+      var playY = gridY - gap - playH;
+      var pickY = playY - gap - pickH;
+      var logoY = top + 25;
+      var logoSc = 3;
+      var tagY = logoY + 7 * logoSc + 4;
+      var tagBot = tagY + 9;
+      var platY = pickY - 8;
+      var heroTop = platY - 32 - 10;
+      if (heroTop < tagBot + 4) {
+        logoSc = 2;
+        tagY = logoY + 7 * logoSc + 4;
+        tagBot = tagY + 9;
+        heroTop = platY - 32 - 10;
+      }
+      if (heroTop < tagBot + 4) {
+        gap = 2;
+        playH = 28;
+        pickH = 16;
+        gridH = 22;
+        tabH = 36;
+        gridGap = 2;
+        tabY = LH - bot - tabH;
+        gridY = tabY - gap - (gridH * 2 + gridGap);
+        playY = gridY - gap - playH;
+        pickY = playY - gap - pickH;
+        platY = pickY - 6;
+        heroTop = platY - 32 - 6;
+      }
+      if (heroTop < tagBot + 2) heroTop = tagBot + 2;
+      return {
+        top,
+        bot,
+        logoY,
+        logoSc,
+        tagY,
+        tagBot,
+        platY,
+        heroTop,
+        pickY,
+        pickH,
+        playY,
+        playH,
+        gridY,
+        gridH,
+        gridGap,
+        tabY,
+        tabH
+      };
+    }
     function drawMenu() {
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
       dimView(ctx, "rgba(18,14,44,0.14)");
       var x = colX();
-      var top = menuTop();
-      var logoY = top + 25;
-      var heroPeak = 108;
-      var logoSc = 3;
-      if (logoY + 7 * logoSc + 4 + 7 + 4 > heroPeak) logoSc = 2;
-      var tagY = logoY + 7 * logoSc + 4;
-      var logoW = bigWidth("\u0425\u041E\u041F\u041F\u0410\u041A", logoSc);
-      drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, logoY, TITLE.face, logoSc, "center", TITLE.outline, TITLE.shadow);
-      drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, tagY, C.cream, "center");
+      var L = menuFrame();
+      var logoW = bigWidth("\u0425\u041E\u041F\u041F\u0410\u041A", L.logoSc);
+      drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, L.logoY, TITLE.face, L.logoSc, "center", TITLE.outline, TITLE.shadow);
+      drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, L.tagY, C.cream, "center");
       menuLay = {
-        chip: { x: 3, y: 1 + top, w: CHIP, h: CHIP },
-        coins: { x: 0, y: 1 + top, w: 0, h: CHIP },
-        logo: { x: Math.round(LW / 2 - logoW / 2) - 1, y: logoY - 1, w: logoW + 2, h: 7 * logoSc + 2 },
-        tag: { x: Math.round(LW / 2 - textWidth("\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", 1) / 2) - 1, y: tagY - 1, w: textWidth("\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", 1) + 2, h: 9 },
-        logoSc
+        chip: { x: 3, y: 1 + L.top, w: CHIP, h: CHIP },
+        coins: { x: 0, y: 1 + L.top, w: 0, h: CHIP },
+        logo: { x: Math.round(LW / 2 - logoW / 2) - 1, y: L.logoY - 1, w: logoW + 2, h: 7 * L.logoSc + 2 },
+        tag: { x: Math.round(LW / 2 - textWidth("\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", 1) / 2) - 1, y: L.tagY - 1, w: textWidth("\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", 1) + 2, h: 9 },
+        logoSc: L.logoSc,
+        safeTop: L.top,
+        safeBottom: L.bot
       };
-      var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
-      var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
-      var by = LH - 118;
-      var py = Math.min(by - 40, Math.max(148, Math.round((70 + by) * 0.5)));
+      var mi = mapIdx(save.bg), M = MAPS[mi], bestM = mapBest(mi);
+      var sub = M.goal ? M.name + " \xB7 " + bestM + "/" + M.goal + " \u041C" : M.name + " \xB7 " + bestM + " \u041C";
       var ph = ui % 60 / 60;
       var hop = Math.round(Math.sin(ph * Math.PI) * 10);
       var pose = ph < 0.08 || ph > 0.95 ? "squash" : ph < 0.5 ? "up" : "fall";
-      rect(ctx, LW / 2 - 28, py + 2, 56, 5, C.wood);
-      rect(ctx, LW / 2 - 28, py + 6, 56, 2, C.woodD);
-      rect(ctx, LW / 2 - 28, py + 2, 56, 1, C.edge);
-      drawJumper(ctx, LW / 2 - 12, py + 2 - 32 - hop, lookNow(), 1, pose, ui % 170 < 6, true, 2);
-      btn("shop", x + 36, py + 16, 80, 16, "#1a1430", "\u0413\u0415\u0420\u041E\u0419 \u25B6", C.cream, 1, C.gold);
-      by = Math.max(py + 40, by);
-      btn("start", x, by, 152, 34, C.mint, "", INK, 2);
-      drawBig(ctx, "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", LW / 2, by + 4, INK, 2, "center");
-      drawText(ctx, sub, LW / 2, by + 23, INK, 1, "center");
-      if (isPageBuild()) {
-        btn("camp", x, by + 40, 152, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
-        btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
-        btn("set", x + 80, by + 66, 72, 22, C.navy, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418");
-      } else {
-        btn("camp", x, by + 40, 72, 22, C.navy, "\u041A\u0410\u0420\u0422\u042B");
-        btn("net:menu", x + 80, by + 40, 72, 22, C.navy, "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", C.cream, 1, C.mint);
-        btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
-        btn("set", x + 80, by + 66, 72, 22, C.navy, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418");
+      var platY = L.platY;
+      rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood);
+      rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD);
+      rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
+      var heroY = platY - 32 - hop;
+      if (heroY < L.tagBot + 2) {
+        heroY = L.tagBot + 2;
+        hop = 0;
       }
+      drawJumper(ctx, LW / 2 - 12, heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2);
+      markBox("hero", LW / 2 - 16, heroY, 32, 32);
+      markBox("plat", LW / 2 - 28, platY, 56, 7);
+      var pickW = 120;
+      btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", "\u0412\u042B\u0411\u0420\u0410\u0422\u042C \u0413\u0415\u0420\u041E\u042F", C.cream, 1, C.gold);
+      btn("start", x, L.playY, 152, L.playH, C.mint, "", INK, 2);
+      drawBig(ctx, "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", LW / 2, L.playY + (L.playH >= 34 ? 4 : 2), INK, 2, "center");
+      drawText(ctx, sub, LW / 2, L.playY + L.playH - 11, INK, 1, "center");
+      var gw = Math.floor((152 - L.gridGap) / 2);
+      var gx2 = x + gw + L.gridGap;
+      var gy2 = L.gridY + L.gridH + L.gridGap;
+      btn("camp", x, L.gridY, gw, L.gridH, C.navy, "\u041A\u0410\u0420\u0422\u042B");
+      btn("net:menu", gx2, L.gridY, gw, L.gridH, C.navy, "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420");
+      btn("ency", x, gy2, gw, L.gridH, C.navy, "\u042D\u041D\u0426\u0418\u041A\u041B\u041E\u041F\u0415\u0414\u0418\u042F");
+      drawSoonSlot(gx2, gy2, gw, L.gridH);
+      var tabs = [
+        { id: "shop", key: "shop", a: "\u041C\u0410\u0413\u0410", b: "\u0417\u0418\u041D", lock: false },
+        { id: "tab:leagues", key: "leagues", a: "\u041B\u0418\u0413\u0418", b: "", lock: true },
+        { id: "tab:home", key: "home", a: "\u0413\u041B\u0410\u0412", b: "\u041D\u0410\u042F", lock: false },
+        { id: "tab:friends", key: "friends", a: "\u0414\u0420\u0423\u0417", b: "\u042C\u042F", lock: true },
+        { id: "set", key: "settings", a: "\u041D\u0410\u0421\u0422", b: "\u0420\u041E\u0419\u041A\u0418", lock: false }
+      ];
+      var tw = Math.floor(LW / tabs.length);
+      var homeOn = phase === "menu" && !showSet && !showProf;
+      for (var ti = 0; ti < tabs.length; ti++) {
+        var tb = tabs[ti];
+        var tx = ti * tw;
+        var on = tb.id === "tab:home" && homeOn || tb.id === "set" && showSet;
+        addHit(tb.id, tx, L.tabY, tw, L.tabH);
+        markBox(tb.id === "set" ? "tab:settings" : tb.id, tx, L.tabY, tw, L.tabH);
+        rect(ctx, tx, L.tabY, tw, L.tabH, on ? "#24356a" : tb.lock ? "#0c0a14" : "#100c22");
+        if (on) rect(ctx, tx, L.tabY, tw, 2, C.cream);
+        rect(ctx, tx, L.tabY, tw, 1, INK);
+        if (ti > 0) rect(ctx, tx, L.tabY, 1, L.tabH, INK);
+        if (tb.lock) ctx.globalAlpha = 0.4;
+        drawTabIcon(tb.key, tx + Math.floor((tw - 16) / 2), L.tabY + 3);
+        var ly = L.tabY + 20;
+        var tc = tb.lock ? "#6a6080" : on ? C.cream : "#9a8ab8";
+        if (tb.b) {
+          drawText(ctx, tb.a, tx + tw / 2, ly, tc, 1, "center");
+          drawText(ctx, tb.b, tx + tw / 2, ly + 8, tc, 1, "center");
+        } else drawText(ctx, tb.a, tx + tw / 2, ly + 4, tc, 1, "center");
+        if (tb.lock) {
+          ctx.globalAlpha = 1;
+          drawTabLock(tx + tw - 8, L.tabY + 2);
+        }
+      }
+      rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
       if (showSet) {
         hits = [];
         screenLay = [];
@@ -8458,6 +8630,11 @@
       },
       menuLayout: function() {
         return menuLay;
+      },
+      tabIconsReady: function() {
+        var n = 0;
+        for (var k in TAB_ICONS) if (tabImgs[k] && tabImgs[k].naturalWidth === 16) n++;
+        return n === 5;
       },
       resultsBoxes: function() {
         return resultLay;
