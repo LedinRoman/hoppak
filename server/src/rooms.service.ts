@@ -38,6 +38,8 @@ export interface Room {
   snapTimer: NodeJS.Timeout | null;
   /** seq -> restore timer. Server is the source of truth for a shared red platform. */
   broken: Map<number, NodeJS.Timeout>;
+  /** Empty string is a client that sent no generation (0.59). Equal values may share a room. */
+  gen: string;
 }
 
 export class RoomError extends Error {
@@ -65,6 +67,11 @@ export class RoomsService implements OnModuleDestroy {
   static cleanName(s: unknown, kind: number) {
     const t = String(s ?? '').replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, 10);
     return t || 'ИГРОК' + (kind + 1);
+  }
+  static cleanGen(g: unknown) {
+    if (g == null || g === '') return '';
+    const s = String(g).trim().slice(0, 16);
+    return /^[0-9A-Za-z._-]+$/.test(s) ? s : '';
   }
   static cleanKind(k: unknown) {
     const n = Number(k);
@@ -118,11 +125,11 @@ export class RoomsService implements OnModuleDestroy {
   }
 
   /* ---------- lobby ---------- */
-  create(ws: WebSocket, name: unknown, kind: unknown) {
+  create(ws: WebSocket, name: unknown, kind: unknown, gen?: unknown) {
     const code = this.newCode();
     const r: Room = {
       code, host: 0, phase: 'lobby', map: 'city', lw: NET_LW, round: 0, seed: 0, startAt: 0, players: [], nextPid: 0,
-      touched: Date.now(), snapTimer: null, broken: new Map(),
+      touched: Date.now(), snapTimer: null, broken: new Map(), gen: RoomsService.cleanGen(gen),
     };
     this.rooms.set(code, r);
     const p = this.addPlayer(r, ws, name, kind);
@@ -130,9 +137,10 @@ export class RoomsService implements OnModuleDestroy {
     this.log.log(`room ${code} created by ${p.name}`);
     return { room: r, player: p };
   }
-  join(ws: WebSocket, code: unknown, name: unknown, kind: unknown) {
+  join(ws: WebSocket, code: unknown, name: unknown, kind: unknown, gen?: unknown) {
     const r = this.rooms.get(String(code ?? '').trim());
     if (!r) throw new RoomError('NOT_FOUND', 'Комната не найдена');
+    if (RoomsService.cleanGen(gen) !== (r.gen || '')) throw new RoomError('GEN', 'Обнови страницу');
     if (r.phase === 'play') throw new RoomError('IN_GAME', 'Забег уже идёт');
     if (r.players.length >= MAX_PLAYERS) throw new RoomError('FULL', 'Комната заполнена');
     const p = this.addPlayer(r, ws, name, kind);

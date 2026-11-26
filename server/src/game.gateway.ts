@@ -51,11 +51,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
   @SubscribeMessage('create')
   create(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
-    this.guard(ws, () => { const hit = this.rooms.create(ws, d?.name, d?.kind); this.attach(ws, hit); this.rooms.pushRoom(hit.room); });
+    this.guard(ws, () => { const hit = this.rooms.create(ws, d?.name, d?.kind, d?.g); this.attach(ws, hit); this.rooms.pushRoom(hit.room); });
   }
   @SubscribeMessage('join')
   join(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
-    this.guard(ws, () => { const hit = this.rooms.join(ws, d?.code, d?.name, d?.kind); this.attach(ws, hit); this.rooms.pushRoom(hit.room); });
+    this.guard(ws, () => { const hit = this.rooms.join(ws, d?.code, d?.name, d?.kind, d?.g); this.attach(ws, hit); this.rooms.pushRoom(hit.room); });
   }
   @SubscribeMessage('resume')
   resume(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {

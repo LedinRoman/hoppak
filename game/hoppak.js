@@ -3532,6 +3532,7 @@
     }
   }
   var NET_PROTO = 1;
+  var NET_GEN = "0.6";
   var NET_SEND_MS = 66;
   var NET_DELAY_MS = 150;
   var NET_GRACE_MS = 1e4;
@@ -3909,13 +3910,20 @@
         N.results = d;
         noteResults(d);
       } else if (ev === "err") {
+        if (d.code === "GEN") {
+          N.st = "update";
+          N.err = "\u041E\u0411\u041D\u041E\u0412\u0418 \u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423";
+          N.room = null;
+          N.sub = "update";
+          return;
+        }
         N.err = d.msg || d.code;
         if (d.code === "NO_SESSION") giveUp("\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410");
         if (N.api) N.api.say(cleanText(N.err, 24) || "\u041E\u0428\u0418\u0411\u041A\u0410");
       }
     }
     function me() {
-      return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0 };
+      return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN };
     }
     N.create = function() {
       N.connect(function(ok) {
@@ -4245,6 +4253,7 @@
     N.open = function(api) {
       N.api = api;
       N.err = "";
+      if (N.st === "update") N.st = N.ws ? "online" : "off";
       if (N.room) {
         N.sub = "room";
         return;
@@ -4268,6 +4277,7 @@
       N.api = api;
       var ctx = api.ctx, x = api.colX(), sl = statusLine();
       api.bg();
+      if (N.sub === "update" || N.st === "update") return drawUpdate(api, x);
       if (N.sub === "room" && N.room) return drawRoom(api, x);
       if (N.sub === "code") return drawCode(api, x);
       api.header("\u041E\u041D\u041B\u0410\u0419\u041D \u0421 \u0414\u0420\u0423\u0417\u042C\u042F\u041C\u0418", 1);
@@ -4290,6 +4300,14 @@
       if (!ok && N.st !== "connecting") api.btn("net:bots", x + 80, y + 72, 72, 20, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
       api.btn("net:back", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
     };
+    function drawUpdate(api, x) {
+      var ctx = api.ctx;
+      api.header("\u041E\u041D\u041B\u0410\u0419\u041D", 1);
+      box(ctx, x, Math.round(LH / 2 - 40), 152, 64, C.navy, C.gold);
+      drawText(ctx, "\u041E\u0411\u041D\u041E\u0412\u0418", LW / 2, Math.round(LH / 2 - 28), C.gold, 2, "center");
+      drawText(ctx, "\u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423", LW / 2, Math.round(LH / 2 - 10), C.gold, 2, "center");
+      api.btn("net:back", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
+    }
     function drawCode(api, x) {
       var ctx = api.ctx;
       api.header("\u041A\u041E\u0414 \u041A\u041E\u041C\u041D\u0410\u0422\u042B", 1);

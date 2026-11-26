@@ -2628,6 +2628,8 @@ function drawShieldAura(ctx: Ctx, p: any, sy: number, tick: number) {
    deaths are relayed as events; the server decides when the round ends (everybody fell). */
 /* Must match server PROTOCOL_VERSION in net @ 2e6bfc0 (hello { v, s }). */
 var NET_PROTO = 1;
+/* Room generation. 0.59 clients omit this and only meet each other. */
+var NET_GEN = "0.6";
 var NET_SEND_MS = 66; /* own state ~15 Hz */
 var NET_DELAY_MS = 150; /* interpolation buffer */
 var NET_GRACE_MS = 10000;
@@ -2853,6 +2855,13 @@ var NET: any = (function () {
       N.results = d;
       noteResults(d);
     } else if (ev === "err") {
+      if (d.code === "GEN") {
+        N.st = "update";
+        N.err = "ОБНОВИ СТРАНИЦУ";
+        N.room = null;
+        N.sub = "update";
+        return;
+      }
       N.err = d.msg || d.code;
       if (d.code === "NO_SESSION") giveUp("КОМНАТА ЗАКРЫТА");
       if (N.api) N.api.say(cleanText(N.err, 24) || "ОШИБКА");
@@ -2860,7 +2869,7 @@ var NET: any = (function () {
   }
 
   /* ---------- room actions ---------- */
-  function me() { return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0 }; }
+  function me() { return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN }; }
   N.create = function () { N.connect(function (ok: boolean) { if (ok) { var m = me(); send("create", m); } }); };
   N.join = function (code: string) { N.connect(function (ok: boolean) { if (ok) { var m: any = me(); m.code = code; send("join", m); } }); };
   N.leave = function () {
@@ -3078,6 +3087,7 @@ var NET: any = (function () {
   /* ---------- online screens (shell phase "net") ---------- */
   N.open = function (api: any) {
     N.api = api; N.err = "";
+    if (N.st === "update") N.st = N.ws ? "online" : "off";
     if (N.room) { N.sub = "room"; return; }
     N.sub = "home";
     N.connect(function (ok: boolean) { if (!ok) N.sub = "home"; });
@@ -3094,6 +3104,7 @@ var NET: any = (function () {
     N.api = api;
     var ctx = api.ctx, x = api.colX(), sl = statusLine();
     api.bg();
+    if (N.sub === "update" || N.st === "update") return drawUpdate(api, x);
     if (N.sub === "room" && N.room) return drawRoom(api, x);
     if (N.sub === "code") return drawCode(api, x);
     api.header("ОНЛАЙН С ДРУЗЬЯМИ", 1);
@@ -3116,6 +3127,14 @@ var NET: any = (function () {
     if (!ok && N.st !== "connecting") api.btn("net:bots", x + 80, y + 72, 72, 20, C.navy, "С БОТАМИ");
     api.btn("net:back", x + 26, LH - 34, 100, 22, C.navy, "НАЗАД");
   };
+  function drawUpdate(api: any, x: number) {
+    var ctx = api.ctx;
+    api.header("ОНЛАЙН", 1);
+    box(ctx, x, Math.round(LH / 2 - 40), 152, 64, C.navy, C.gold);
+    drawText(ctx, "ОБНОВИ", LW / 2, Math.round(LH / 2 - 28), C.gold, 2, "center");
+    drawText(ctx, "СТРАНИЦУ", LW / 2, Math.round(LH / 2 - 10), C.gold, 2, "center");
+    api.btn("net:back", x + 26, LH - 34, 100, 22, C.navy, "НАЗАД");
+  }
   function drawCode(api: any, x: number) {
     var ctx = api.ctx;
     api.header("КОД КОМНАТЫ", 1);
