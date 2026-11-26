@@ -5261,6 +5261,8 @@
     var fieldLocked = false, landPause = false, manualPause = false, lastFill = false;
     var resumeCd = 0, resumeAt = 0, abDenyT = 0, refuseT = 0, popT = -1, wasReady = false, coinT0 = -1, coinSkip = false;
     var pressId = null;
+    var rankY = {};
+    var rankHead = {};
     var confirmId = null, confirmAt = 0;
     var campCard = -1;
     var showSet = false;
@@ -5647,6 +5649,7 @@
       world.recM = mapBest(mi);
       world.goalM = MAPS[mi].goal || 0;
       phase = "play";
+      rankY = {};
       paused = false;
       landPause = false;
       fieldLocked = true;
@@ -6416,6 +6419,57 @@
       if (x < 12) fn(x + LW);
       if (x + wdt > LW - 12) fn(x - LW);
     }
+    function rankHeadOf(look) {
+      if (!look || !look.id) return null;
+      if (rankHead[look.id]) return rankHead[look.id];
+      var cv = document.createElement("canvas");
+      cv.width = 12;
+      cv.height = 12;
+      var g = cv.getContext("2d");
+      if (!g) return null;
+      g.imageSmoothingEnabled = false;
+      drawJumper(g, 1, 8, look, 1, "idle", false, true);
+      rankHead[look.id] = cv;
+      return cv;
+    }
+    function drawRankColumn(w) {
+      if (!w || w.mode !== "squad" || !w.players || w.players.length < 2) return;
+      var list = w.players.slice().sort(function(a, b) {
+        var dm = metersOf(b) - metersOf(a);
+        return dm || a.id - b.id;
+      });
+      var x = 146, y0 = hudY(26), step = 14;
+      for (var i = 0; i < list.length; i++) {
+        var p = list[i];
+        var target = y0 + i * step;
+        var cur = rankY[p.id];
+        if (cur == null) cur = target;
+        var next = cur + (target - cur) * 0.35;
+        if (Math.abs(target - next) < 1) next = target;
+        rankY[p.id] = next;
+        var iy = Math.round(next);
+        var head = rankHeadOf(p.look);
+        if (head) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          if (!p.alive) ctx.globalAlpha = 0.55;
+          ctx.drawImage(head, x, iy, 12, 12);
+          ctx.restore();
+        }
+        if (p.id === 0) {
+          rect(ctx, x - 1, iy - 1, 14, 1, C.gold);
+          rect(ctx, x - 1, iy + 12, 14, 1, C.gold);
+          rect(ctx, x - 1, iy, 1, 12, C.gold);
+          rect(ctx, x + 12, iy, 1, 12, C.gold);
+        }
+        if (!p.alive) {
+          for (var d = 1; d < 11; d++) {
+            rect(ctx, x + d, iy + d, 1, 1, "#a84848");
+            rect(ctx, x + 11 - d, iy + d, 1, 1, "#a84848");
+          }
+        }
+      }
+    }
     function drawPlay() {
       hits = [];
       var w = world, i;
@@ -6560,19 +6614,7 @@
       var meter = metersOf(me) + " \u041C";
       coinsLabel(5, hudY(6), w.runCoins);
       drawTextO(ctx, meter, wantPause ? 134 : LW - 4, hudY(6), C.cream, "right");
-      if (w.mode === "squad") {
-        var place = 1, lead = me, leadM = metersOf(me);
-        for (i = 0; i < w.players.length; i++) {
-          var om = metersOf(w.players[i]);
-          if (w.players[i] !== me && om > metersOf(me)) place++;
-          if (om > leadM) {
-            lead = w.players[i];
-            leadM = om;
-          }
-        }
-        var squadLab = place + "/" + w.players.length + (lead.id === 0 ? " \u0422\u042B" : " " + (lead.name || "\u0411\u041E\u0422").slice(0, 6) + " " + leadM);
-        drawTextO(ctx, squadLab, LW / 2, hudY(24), lead.id === 0 ? C.gold : C.cream, "center");
-      }
+      drawRankColumn(w);
       if (wantPause) {
         addHit("pause", 138, hudY(0), 22, 22);
         rect(ctx, 141, hudY(3), 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
