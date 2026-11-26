@@ -382,11 +382,31 @@ var MOBPAL: any = {
   crab: ["#ff5a48", "#a82420", "#ffa898"], alien: ["#9af068", "#3a9a48", "#e0ffd0"], frog: ["#58d848", "#2a8a30", "#ffe060"],
   monkey: ["#a86a38", "#6a3a18", "#f0c890"], spitter: ["#ff6030", "#8a2010", "#ffe060"], bat: ["#8a5ad0", "#5a3aa0", "#ff5a62"],
   parrot: ["#ff4848", "#2aa8ff", "#ffd840"], owl: ["#e8f4ff", "#8ab0d8", "#ffd040"], firebat: ["#ff4848", "#881828", "#ffd040"],
-  ray: ["#48b8ff", "#1a68b8", "#a8f8ff"], bob: ["#7ae0f0", "#3a9ab8", "#e0fcff"], ember: ["#ffb838", "#e04818", "#fff098"],
+  ray: ["#ffa040", "#c05a20", "#ffe0a0"], bob: ["#7ae0f0", "#3a9ab8", "#e0fcff"], ember: ["#ffb838", "#e04818", "#fff098"],
   snake: ["#5ac838", "#2a7a28", "#ffe048"], puffer: ["#ffd848", "#c89018", "#ffffff"], hole: ["#b050ff", "#ff70d0", "#4a1a7a"],
   whirl: ["#58f0ff", "#ffffff", "#1868a8"], wind: ["#ffffff", "#c8ecff", "#88c8f0"], ufo: ["#7ac8f0", "#c8d0d8", "#7a8090"],
   frost: ["#c8f8ff", "#58b8f0", "#ffffff"], comet: ["#ffd060", "#ff7830", "#fff8d0"]
 };
+/* v0.59 mob sprite swap point. To drop in Design's fish: set src to a data-URI PNG strip of `n` frames, each fw×fh,
+   facing RIGHT, frames left-to-right (flap 0,1,2 = the same 6-tick cycle as the procedural ray). The frame's (ox,oy)
+   offset places it relative to the mob's hitbox top-left (MOBS.ray: 16×8). Hitbox and sim never read this. */
+var MOB_SPRITES: any = {
+  ray: { src: "", fw: 24, fh: 12, n: 3, ox: -4, oy: -2 }
+};
+var mobSprCache: any = {};
+function drawMobSprite(ctx: Ctx, kind: string, x: number, y: number, frame: number, flip: boolean) {
+  var m = MOB_SPRITES[kind];
+  if (!m || !m.src) return false;
+  var cv = mobSprCache[kind];
+  if (cv === undefined) { cv = mobSprCache[kind] = pngToCanvas(m.src) || null; }
+  if (!cv) return false;
+  var f = Math.max(0, Math.min(m.n - 1, frame | 0));
+  if (flip) {
+    ctx.save(); ctx.translate(x + 16 - m.ox, y + m.oy); ctx.scale(-1, 1);
+    ctx.drawImage(cv, f * m.fw, 0, m.fw, m.fh, 0, 0, m.fw, m.fh); ctx.restore();
+  } else ctx.drawImage(cv, f * m.fw, 0, m.fw, m.fh, x + m.ox, y + m.oy, m.fw, m.fh);
+  return true;
+}
 function eyes(ctx: Ctx, x: number, y: number, gap: number, look: number) {
   rect(ctx, x, y, 2, 2, "#fff6e8"); rect(ctx, x + gap, y, 2, 2, "#fff6e8");
   rect(ctx, x + look, y + 1, 1, 1, INK); rect(ctx, x + gap + look, y + 1, 1, 1, INK);
@@ -452,7 +472,10 @@ function drawMob(ctx: Ctx, m: any, cam: number, mapId?: string, frozen?: boolean
     if (open) { ctx.globalAlpha = 0.6; rect(ctx, x + 4, y - 3, 4, 4, "#ffd040"); ctx.globalAlpha = 1; }
   } else if (b === "fly") {
     var fl = Math.floor(t / 6) % 3;
-    if (m.kind === "ray") {
+    if (m.kind === "ray" && drawMobSprite(ctx, "ray", x, y, fl, m.vx < 0)) {
+      /* v0.59: Design sprite (MOB_SPRITES.ray) replaces the procedural ray; hitbox (MOBS.ray 16×8) unchanged. */
+    } else if (m.kind === "ray") {
+      /* v0.59 interim: coral-orange ray so it stands out from the blue ocean until Design's fish lands. */
       var up = fl === 0 ? -1 : fl === 2 ? 1 : 0;
       rect(ctx, x + 2, y + 2 + up, 12, 4, INK); rect(ctx, x - 1, y + 3 + up * 2, 18, 2, INK);
       rect(ctx, x + 3, y + 3 + up, 10, 2, pal[0]); rect(ctx, x, y + 3 + up * 2, 4, 1, pal[0]); rect(ctx, x + 12, y + 3 + up * 2, 4, 1, pal[0]);
@@ -626,6 +649,30 @@ function drawItem(ctx: Ctx, it: any, cam: number, tick: number) {
 }
 
 var SHIELD_BLINK_T = 90; /* last 1.8 s at 50 ticks/s */
+var WALL_BLINK_T = 60; /* v0.59: ninja walls blink for the last 1.2 s before they vanish */
+/* v0.59 ninja walls (0.56 style): 2 px hazard stripes (cream / ninja red, 4 px segments anchored to the world so they
+   scroll) + a 1 px #140c1c outline on the inner side and caps. 1×1 world pixels, alpha 1. full: whole visible column
+   (own hero); otherwise a segment around another player's hero so it reads as theirs. */
+function drawNinjaWallCol(ctx: Ctx, x: number, y0: number, y1: number, camI: number, outX: number) {
+  y0 = Math.floor(y0); y1 = Math.ceil(y1);
+  if (y1 <= y0) return;
+  rect(ctx, outX, y0, 1, y1 - y0, INK);
+  rect(ctx, x, y0 - 1, 2, 1, INK); rect(ctx, x, y1, 2, 1, INK);
+  var yy = y0;
+  while (yy < y1) {
+    var wy = yy + camI, seg = Math.floor(wy / 4), next = Math.min(y1, (seg + 1) * 4 - camI);
+    rect(ctx, x, yy, 2, next - yy, (seg & 1) ? "#d82a2a" : C.cream);
+    yy = next;
+  }
+}
+function drawNinjaWalls(ctx: Ctx, p: any, sy: number, cam: number, tick: number, full: boolean, bottom: number) {
+  if (!(p.wallT > 0) || !p.alive) return;
+  if (p.wallT <= WALL_BLINK_T && (((p.remote ? tick : p.wallT) >> 2) % 2)) return;
+  var camI = Math.round(cam);
+  var y0 = full ? 0 : Math.max(0, Math.round(sy) - 36), y1 = full ? bottom : Math.min(bottom, Math.round(sy) + PH + 36);
+  drawNinjaWallCol(ctx, 0, y0, y1, camI, 2);
+  drawNinjaWallCol(ctx, LW - 2, y0, y1, camI, LW - 3);
+}
 var SHIELD_FRAMES: any = null;
 function buildShieldFrames() {
   var frames: any[] = [];

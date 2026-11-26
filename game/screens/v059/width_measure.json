@@ -1,0 +1,238 @@
+{
+ "v058": {
+  "428x745": {
+   "cssScale": 2.1532,
+   "fieldPct": 80.5,
+   "viewPad": 19.39,
+   "crop": 0,
+   "bot": 0,
+   "visH": 346,
+   "aboveHero": 145.3,
+   "belowFeet": 184.7,
+   "canvasCss": [
+    428,
+    745
+   ],
+   "top": "0px",
+   "heroTopAtDeath": 349.4,
+   "visAtDeath": 346,
+   "shiftAtDeath": 0,
+   "fall": {
+    "deathTick": 250,
+    "lastVisibleTick": 249,
+    "hiddenTicksBeforeDeath": 0
+   },
+   "autoplayLookDown": {
+    "frames": 4500,
+    "lookDownFrames": 0,
+    "maxShift": 0
+   },
+   "errors": []
+  },
+  "390x844": {
+   "cssScale": 2.4375,
+   "fieldPct": 100,
+   "viewPad": 0,
+   "crop": 0,
+   "bot": 0,
+   "visH": 346,
+   "aboveHero": 145.3,
+   "belowFeet": 184.7,
+   "canvasCss": [
+    390,
+    843.375
+   ],
+   "top": "0px",
+   "heroTopAtDeath": 349.4,
+   "visAtDeath": 346,
+   "shiftAtDeath": 0,
+   "fall": {
+    "deathTick": 250,
+    "lastVisibleTick": 249,
+    "hiddenTicksBeforeDeath": 0
+   },
+   "autoplayLookDown": {
+    "frames": 4500,
+    "lookDownFrames": 0,
+    "maxShift": 0
+   },
+   "errors": []
+  },
+  "390x720": {
+   "cssScale": 2.0809,
+   "fieldPct": 85.4,
+   "viewPad": 13.71,
+   "crop": 0,
+   "bot": 0,
+   "visH": 346,
+   "aboveHero": 145.3,
+   "belowFeet": 184.7,
+   "canvasCss": [
+    390,
+    720
+   ],
+   "top": "0px",
+   "heroTopAtDeath": 349.4,
+   "visAtDeath": 346,
+   "shiftAtDeath": 0,
+   "fall": {
+    "deathTick": 250,
+    "lastVisibleTick": 249,
+    "hiddenTicksBeforeDeath": 0
+   },
+   "autoplayLookDown": {
+    "frames": 4500,
+    "lookDownFrames": 0,
+    "maxShift": 0
+   },
+   "errors": []
+  },
+  "360x640": {
+   "cssScale": 1.8497,
+   "fieldPct": 82.2,
+   "viewPad": 17.31,
+   "crop": 0,
+   "bot": 0,
+   "visH": 346,
+   "aboveHero": 145.3,
+   "belowFeet": 184.7,
+   "canvasCss": [
+    360,
+    640
+   ],
+   "top": "0px",
+   "heroTopAtDeath": 349.4,
+   "visAtDeath": 346,
+   "shiftAtDeath": 0,
+   "fall": {
+    "deathTick": 250,
+    "lastVisibleTick": 249,
+    "hiddenTicksBeforeDeath": 0
+   },
+   "autoplayLookDown": {
+    "frames": 4500,
+    "lookDownFrames": 0,
+    "maxShift": 0
+   },
+   "errors": []
+  }
+ },
+ "v059": {
+  "428x745": {
+   "cssScale": 2.675,
+   "fieldPct": 100,
+   "viewPad": 0,
+   "crop": 0,
+   "bot": 67.5,
+   "visH": 278.5,
+   "aboveHero": 145.3,
+   "belowFeet": 117.2,
+   "canvasCss": [
+    428,
+    745
+   ],
+   "top": "0px",
+   "heroTopAtDeath": 281.9,
+   "visAtDeath": 278.5,
+   "shiftAtDeath": 67.5,
+   "fall": {
+    "deathTick": 250,
+    "lastVisibleTick": 249,
+    "hiddenTicksBeforeDeath": 0
+   },
+   "autoplayLookDown": {
+    "frames": 4500,
+    "lookDownFrames": 33,
+    "maxShift": 17.5
+   },
+   "errors": []
+  },
+  "390x844": {
+   "cssScale": 2.4375,
+   "fieldPct": 100,
+   "viewPad": 0,
+   "crop": 0,
+   "bot": 0,
+   "visH": 346,
+   "aboveHero": 145.3,
+   "belowFeet": 184.7,
+   "canvasCss": [
+    390,
+    843.375
+   ],
+   "top": "0px",
+   "heroTopAtDeath": 349.4,
+   "visAtDeath": 346,
+   "shiftAtDeath": 0,
+   "fall": {
+    "deathTick": 250,
+    "lastVisibleTick": 249,
+    "hiddenTicksBeforeDeath": 0
+   },
+   "autoplayLookDown": {
+    "frames": 4500,
+    "lookDownFrames": 0,
+    "maxShift": 0
+   },
+   "errors": []
+  },
+  "390x720": {
+   "cssScale": 2.4375,
+   "fieldPct": 100,
+   "viewPad": 0,
+   "crop": 0,
+   "bot": 50.6,
+   "visH": 295.4,
+   "aboveHero": 145.3,
+   "belowFeet": 134.1,
+   "canvasCss": [
+    390,
+    720
+   ],
+   "top": "0px",
+   "heroTopAtDeath": 298.8,
+   "visAtDeath": 295.4,
+   "shiftAtDeath": 50.6,
+   "fall": {
+    "deathTick": 250,
+    "lastVisibleTick": 249,
+    "hiddenTicksBeforeDeath": 0
+   },
+   "autoplayLookDown": {
+    "frames": 4500,
+    "lookDownFrames": 9,
+    "maxShift": 0.6
+   },
+   "errors": []
+  },
+  "360x640": {
+   "cssScale": 2.25,
+   "fieldPct": 100,
+   "viewPad": 0,
+   "crop": 0,
+   "bot": 61.6,
+   "visH": 284.4,
+   "aboveHero": 145.3,
+   "belowFeet": 123.1,
+   "canvasCss": [
+    360,
+    640
+   ],
+   "top": "0px",
+   "heroTopAtDeath": 287.8,
+   "visAtDeath": 284.4,
+   "shiftAtDeath": 61.6,
+   "fall": {
+    "deathTick": 250,
+    "lastVisibleTick": 249,
+    "hiddenTicksBeforeDeath": 0
+   },
+   "autoplayLookDown": {
+    "frames": 4500,
+    "lookDownFrames": 24,
+    "maxShift": 11.6
+   },
+   "errors": []
+  }
+ }
+}

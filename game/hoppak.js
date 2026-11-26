@@ -3,12 +3,25 @@
   var LW = 160;
   var LH = 346;
   var VIEW_PAD = 0;
+  var VIEW_CROP = 0;
   function viewX0() {
     return -VIEW_PAD;
   }
   function viewW() {
     return LW + VIEW_PAD * 2;
   }
+  function hudY(y) {
+    return y + VIEW_CROP;
+  }
+  var VIEW_BOT = 0;
+  var VIEW_SHIFT = 0;
+  function viewBottom() {
+    return LH - VIEW_BOT;
+  }
+  function viewBotMax(lh) {
+    return Math.max(0, Math.floor(lh - (lh * 0.42 + PH + JUMP_H + 12)));
+  }
+  var TOP_CROP_MAX = 80;
   function dimView(ctx, col) {
     rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col);
   }
@@ -2682,7 +2695,7 @@
     parrot: ["#ff4848", "#2aa8ff", "#ffd840"],
     owl: ["#e8f4ff", "#8ab0d8", "#ffd040"],
     firebat: ["#ff4848", "#881828", "#ffd040"],
-    ray: ["#48b8ff", "#1a68b8", "#a8f8ff"],
+    ray: ["#ffa040", "#c05a20", "#ffe0a0"],
     bob: ["#7ae0f0", "#3a9ab8", "#e0fcff"],
     ember: ["#ffb838", "#e04818", "#fff098"],
     snake: ["#5ac838", "#2a7a28", "#ffe048"],
@@ -2694,6 +2707,28 @@
     frost: ["#c8f8ff", "#58b8f0", "#ffffff"],
     comet: ["#ffd060", "#ff7830", "#fff8d0"]
   };
+  var MOB_SPRITES = {
+    ray: { src: "", fw: 24, fh: 12, n: 3, ox: -4, oy: -2 }
+  };
+  var mobSprCache = {};
+  function drawMobSprite(ctx, kind, x, y, frame, flip) {
+    var m = MOB_SPRITES[kind];
+    if (!m || !m.src) return false;
+    var cv = mobSprCache[kind];
+    if (cv === void 0) {
+      cv = mobSprCache[kind] = pngToCanvas(m.src) || null;
+    }
+    if (!cv) return false;
+    var f = Math.max(0, Math.min(m.n - 1, frame | 0));
+    if (flip) {
+      ctx.save();
+      ctx.translate(x + 16 - m.ox, y + m.oy);
+      ctx.scale(-1, 1);
+      ctx.drawImage(cv, f * m.fw, 0, m.fw, m.fh, 0, 0, m.fw, m.fh);
+      ctx.restore();
+    } else ctx.drawImage(cv, f * m.fw, 0, m.fw, m.fh, x + m.ox, y + m.oy, m.fw, m.fh);
+    return true;
+  }
   function eyes(ctx, x, y, gap, look) {
     rect(ctx, x, y, 2, 2, "#fff6e8");
     rect(ctx, x + gap, y, 2, 2, "#fff6e8");
@@ -2809,7 +2844,8 @@
       }
     } else if (b === "fly") {
       var fl = Math.floor(t / 6) % 3;
-      if (m.kind === "ray") {
+      if (m.kind === "ray" && drawMobSprite(ctx, "ray", x, y, fl, m.vx < 0)) {
+      } else if (m.kind === "ray") {
         var up = fl === 0 ? -1 : fl === 2 ? 1 : 0;
         rect(ctx, x + 2, y + 2 + up, 12, 4, INK);
         rect(ctx, x - 1, y + 3 + up * 2, 18, 2, INK);
@@ -3139,6 +3175,29 @@
     drawItemIcon(ctx, it.kind, x, y);
   }
   var SHIELD_BLINK_T = 90;
+  var WALL_BLINK_T = 60;
+  function drawNinjaWallCol(ctx, x, y0, y1, camI, outX) {
+    y0 = Math.floor(y0);
+    y1 = Math.ceil(y1);
+    if (y1 <= y0) return;
+    rect(ctx, outX, y0, 1, y1 - y0, INK);
+    rect(ctx, x, y0 - 1, 2, 1, INK);
+    rect(ctx, x, y1, 2, 1, INK);
+    var yy = y0;
+    while (yy < y1) {
+      var wy = yy + camI, seg = Math.floor(wy / 4), next = Math.min(y1, (seg + 1) * 4 - camI);
+      rect(ctx, x, yy, 2, next - yy, seg & 1 ? "#d82a2a" : C.cream);
+      yy = next;
+    }
+  }
+  function drawNinjaWalls(ctx, p, sy, cam, tick, full, bottom) {
+    if (!(p.wallT > 0) || !p.alive) return;
+    if (p.wallT <= WALL_BLINK_T && ((p.remote ? tick : p.wallT) >> 2) % 2) return;
+    var camI = Math.round(cam);
+    var y0 = full ? 0 : Math.max(0, Math.round(sy) - 36), y1 = full ? bottom : Math.min(bottom, Math.round(sy) + PH + 36);
+    drawNinjaWallCol(ctx, 0, y0, y1, camI, 2);
+    drawNinjaWallCol(ctx, LW - 2, y0, y1, camI, LW - 3);
+  }
   var SHIELD_FRAMES = null;
   function buildShieldFrames() {
     var frames = [];
@@ -3728,7 +3787,8 @@
       return !!(w && w.net && w.tick === 0 && serverNow() < w.netAt);
     };
     function flags(p) {
-      return (p.abFx > 0 || p.teleFx > 10 ? 1 : 0) | (p.squash > 3 ? 2 : 0) | (p.domeT > 0 ? 4 : 0) | (p.shieldT > 0 ? 8 : 0) | (p.rocketT > 0 ? 16 : 0) | (p.wall ? 32 : 0) | (p.dashT > 0 ? 64 : 0) | (p.poundT > 0 ? 128 : 0) | (p.hookN > 0 ? 256 : 0) | (p.freezeT > 0 ? 512 : 0) | (p.magnetT > 0 ? 1024 : 0) | (p.wall < 0 ? 2048 : 0) | (p.shieldT > 0 && p.shieldT <= SHIELD_BLINK_T ? 4096 : 0);
+      return (p.abFx > 0 || p.teleFx > 10 ? 1 : 0) | (p.squash > 3 ? 2 : 0) | (p.domeT > 0 ? 4 : 0) | (p.shieldT > 0 ? 8 : 0) | (p.rocketT > 0 ? 16 : 0) | (p.wall ? 32 : 0) | (p.dashT > 0 ? 64 : 0) | (p.poundT > 0 ? 128 : 0) | (p.hookN > 0 ? 256 : 0) | (p.freezeT > 0 ? 512 : 0) | (p.magnetT > 0 ? 1024 : 0) | (p.wall < 0 ? 2048 : 0) | (p.shieldT > 0 && p.shieldT <= SHIELD_BLINK_T ? 4096 : 0) | /* v0.59: ninja wall ability on (8192) and its last-1.2 s blink (16384); old clients ignore both */
+      (p.wallT > 0 ? 8192 : 0) | (p.wallT > 0 && p.wallT <= WALL_BLINK_T ? 16384 : 0);
     }
     function applyFlags(p, ps) {
       p.abFx = ps & 1 ? 5 : 0;
@@ -3737,7 +3797,7 @@
       p.shieldT = ps & 8 ? ps & 4096 ? 40 : 120 : 0;
       p.rocketT = ps & 16 ? 10 : 0;
       p.wall = ps & 32 ? ps & 2048 ? -1 : 1 : 0;
-      p.wallT = p.wall ? 10 : 0;
+      p.wallT = ps & 8192 ? ps & 16384 ? 30 : 120 : p.wall ? 10 : 0;
       p.dashT = ps & 64 ? 5 : 0;
       p.poundT = ps & 128 ? 5 : 0;
       p.hookN = 0;
@@ -4145,7 +4205,7 @@
     var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
     var hits = [];
     var SCALE = 1, pScale = 1, pScaleY = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
-    var fieldLocked = false, landPause = false, manualPause = false;
+    var fieldLocked = false, landPause = false, manualPause = false, lastFill = false;
     var resumeCd = 0, resumeAt = 0, abDenyT = 0, refuseT = 0, popT = -1, wasReady = false, coinT0 = -1, coinSkip = false;
     var pressId = null;
     var confirmId = null, confirmAt = 0;
@@ -4234,38 +4294,63 @@
         canvas.style.borderRadius = "4px";
         pScaleY = pScale;
       } else {
-        cssScale = Math.min(availW / lw, availH / lh);
-        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
-        cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
-        cssHpx = lh * cssScale;
+        var fillWidth = fieldLocked && phase === "play";
+        if (fillWidth) {
+          cssScale = availW / lw;
+          VIEW_PAD = 0;
+          VIEW_CROP = 0;
+          VIEW_BOT = Math.max(0, lh - availH / cssScale);
+          var botMax = viewBotMax(lh);
+          if (VIEW_BOT > botMax) {
+            VIEW_CROP = Math.min(TOP_CROP_MAX, VIEW_BOT - botMax);
+            VIEW_BOT = botMax;
+            if (lh - VIEW_CROP - VIEW_BOT > availH / cssScale + 1e-6) {
+              cssScale = availH / (lh - VIEW_CROP - VIEW_BOT);
+              VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+            }
+          }
+          cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+          cssHpx = (lh - VIEW_CROP - VIEW_BOT) * cssScale;
+        } else {
+          cssScale = Math.min(availW / lw, availH / lh);
+          VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+          VIEW_CROP = 0;
+          VIEW_BOT = 0;
+          cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+          cssHpx = lh * cssScale;
+        }
         var pxW = Math.max(1, Math.round(cssWpx * dpr));
         var pxH = Math.max(1, Math.round(cssHpx * dpr));
         canvas.width = pxW;
         canvas.height = pxH;
         var worldW = lw + 2 * VIEW_PAD;
+        var worldH = lh - VIEW_CROP - VIEW_BOT;
         pScale = pxW / worldW;
-        pScaleY = pxH / lh;
+        pScaleY = pxH / Math.max(1e-6, worldH);
         sx = pScale;
         sy = pScaleY;
         FIELD_OX = Math.round(VIEW_PAD * sx);
-        FIELD_OY = 0;
+        FIELD_OY = Math.round(-VIEW_CROP * sy);
         PHONE_INT = false;
         DEV_W = pxW;
         DEV_H = pxH;
         canvas.style.position = "absolute";
         canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
-        canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
+        canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / (VIEW_BOT > 0 || VIEW_CROP > 0 ? 1 : 2)) + "px";
         canvas.style.boxShadow = "none";
         canvas.style.borderRadius = "0px";
       }
       if (isWide) {
         VIEW_PAD = 0;
+        VIEW_CROP = 0;
+        VIEW_BOT = 0;
         FIELD_OX = 0;
         FIELD_OY = 0;
         PHONE_INT = false;
         DEV_W = canvas.width;
         DEV_H = canvas.height;
       }
+      lastFill = fieldLocked && phase === "play" && !isWide;
       netLW = netFixedLW();
       LW = lw;
       LH = lh;
@@ -4445,7 +4530,7 @@
         if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19;
       } catch (_e) {
       }
-      return { x: 4 + coinW, y: 5, w: 16, h: 16 };
+      return { x: 4 + coinW, y: hudY(5), w: 16, h: 16 };
     }
     function startSquad(seed) {
       mode = "squad";
@@ -4487,6 +4572,8 @@
         canvas.focus();
       } catch (_e) {
       }
+      VIEW_SHIFT = 0;
+      resize();
     }
     function payout() {
       if (!world || world.paid) return;
@@ -5179,7 +5266,12 @@
     function drawPlay() {
       hits = [];
       var w = world, i;
-      var cam = Math.round(w.cameraY * pScaleY) / pScaleY;
+      var me0 = w.players[0];
+      if (VIEW_BOT > 0 && me0) {
+        var lookT = Math.max(0, Math.min(VIEW_BOT, me0.y + PH - w.cameraY + 20 - viewBottom()));
+        VIEW_SHIFT = lookT >= VIEW_SHIFT ? lookT : Math.max(lookT, VIEW_SHIFT - 2);
+      } else VIEW_SHIFT = 0;
+      var cam = Math.round((w.cameraY + VIEW_SHIFT) * pScaleY) / pScaleY;
       THREAT = w.players[0] && w.players[0].alive ? { x: w.players[0].x, y: w.players[0].y, w: PW, h: PH } : null;
       var shx = w.shake > 0 ? (w.tick % 2 ? 1 : -1) * Math.ceil(w.shake / 3) : 0;
       ctx.save();
@@ -5261,6 +5353,10 @@
         });
       }
       ctx.globalAlpha = 1;
+      for (var wi = 0; wi < w.players.length; wi++) {
+        var wp = w.players[wi];
+        drawNinjaWalls(ctx, wp, wp.y - cam, cam, w.tick, wp.id === 0 && !wp.remote, LH);
+      }
       var tags = [];
       for (var pi = w.players.length - 1; pi >= 0; pi--) {
         var p = w.players[pi];
@@ -5304,8 +5400,8 @@
       ctx.restore();
       var me = w.players[0];
       var wantPause = wantTouchPause();
-      drawTextO(ctx, metersOf(me) + " \u041C", 80, 6, C.cream, "center");
-      coinsLabel(5, 6, w.runCoins);
+      drawTextO(ctx, metersOf(me) + " \u041C", 80, hudY(6), C.cream, "center");
+      coinsLabel(5, hudY(6), w.runCoins);
       if (w.mode === "squad") {
         var place = 1, lead = me, leadM = metersOf(me);
         for (i = 0; i < w.players.length; i++) {
@@ -5316,24 +5412,24 @@
             leadM = om;
           }
         }
-        drawTextO(ctx, place + "/" + w.players.length, 80, 16, "#c8bfe0", "center");
+        drawTextO(ctx, place + "/" + w.players.length, 80, hudY(16), "#c8bfe0", "center");
         var leadLab = lead.id === 0 ? "\u0422\u042B \u0412\u041F\u0415\u0420\u0415\u0414\u0418" : (lead.name || "\u0411\u041E\u0422").slice(0, 8) + " " + leadM + " \u041C";
-        drawTextO(ctx, leadLab, 80, 26, lead.id === 0 ? C.gold : C.cream, "center");
+        drawTextO(ctx, leadLab, 80, hudY(26), lead.id === 0 ? C.gold : C.cream, "center");
       }
       if (wantPause) {
-        addHit("pause", 138, 0, 22, 22);
-        rect(ctx, 141, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
-        rect(ctx, 142, 4, 13, 13, "#1a1430");
-        rect(ctx, 145, 7, 2, 7, C.cream);
-        rect(ctx, 150, 7, 2, 7, C.cream);
+        addHit("pause", 138, hudY(0), 22, 22);
+        rect(ctx, 141, hudY(3), 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
+        rect(ctx, 142, hudY(4), 13, 13, "#1a1430");
+        rect(ctx, 145, hudY(7), 2, 7, C.cream);
+        rect(ctx, 150, hudY(7), 2, 7, C.cream);
       }
       drawBonusHud(me);
       drawAbRing(me);
       if (w.toastT > 0) {
         var tw2 = textWidth(w.toast, 1) + 12;
         ctx.globalAlpha = Math.min(1, w.toastT / 15);
-        box(ctx, Math.round(LW / 2 - tw2 / 2), 38, tw2, 13, C.navy, C.gold);
-        drawText(ctx, w.toast, LW / 2, 41, C.gold, 1, "center");
+        box(ctx, Math.round(LW / 2 - tw2 / 2), hudY(38), tw2, 13, C.navy, C.gold);
+        drawText(ctx, w.toast, LW / 2, hudY(41), C.gold, 1, "center");
         ctx.globalAlpha = 1;
       }
       if (w.tick < 170 && !(w.toastT > 0)) {
@@ -5344,26 +5440,26 @@
         var htw = textWidth(line1, 1);
         if (line2) htw = Math.max(htw, textWidth(line2, 1));
         var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
-        box(ctx, hx, 56, hw, hh, C.navy, C.cream);
-        drawText(ctx, line1, LW / 2, 58, C.cream, 1, "center");
-        if (line2) drawText(ctx, line2, LW / 2, 68, C.cream, 1, "center");
+        box(ctx, hx, hudY(56), hw, hh, C.navy, C.cream);
+        drawText(ctx, line1, LW / 2, hudY(58), C.cream, 1, "center");
+        if (line2) drawText(ctx, line2, LW / 2, hudY(68), C.cream, 1, "center");
         ctx.globalAlpha = 1;
       }
       if ((w.fallWarn || w.liftWarn) && !paused) {
         if ((ui >> 2) % 2) {
           ctx.globalAlpha = w.fallWarn ? 0.9 : 0.6;
-          rect(ctx, 0, LH - 4, LW, 4, C.red);
+          rect(ctx, 0, viewBottom() - 4, LW, 4, C.red);
           var cxw = Math.round(LW / 2);
-          rect(ctx, cxw, LH - 12, 2, 2, C.cream);
-          rect(ctx, cxw - 2, LH - 10, 6, 2, C.cream);
-          rect(ctx, cxw - 4, LH - 8, 10, 2, C.cream);
+          rect(ctx, cxw, viewBottom() - 12, 2, 2, C.cream);
+          rect(ctx, cxw - 2, viewBottom() - 10, 6, 2, C.cream);
+          rect(ctx, cxw - 4, viewBottom() - 8, 10, 2, C.cream);
           ctx.globalAlpha = 1;
         }
         if (w.liftWarn) {
           var liftLab = "\u041B\u0415\u0417\u042C \u0412\u0412\u0415\u0420\u0425!";
           var ltw = textWidth(liftLab, 1) + 10;
-          box(ctx, Math.round(LW / 2 - ltw / 2), LH - 24, ltw, 13, C.navy, C.gold);
-          drawText(ctx, liftLab, LW / 2, LH - 21, C.gold, 1, "center");
+          box(ctx, Math.round(LW / 2 - ltw / 2), viewBottom() - 24, ltw, 13, C.navy, C.gold);
+          drawText(ctx, liftLab, LW / 2, viewBottom() - 21, C.gold, 1, "center");
         }
       }
       if (paused) {
@@ -5438,16 +5534,10 @@
         rect(ctx, cx - 2, sy + PH, 4, 3 + ui % 3, "#ffd046");
         rect(ctx, cx - 1, sy + PH + 3, 2, 3, "#ff7830");
       }
-      if (p.wallT > 0 && p.id === 0 && !p.wall) {
-        ctx.globalAlpha = 0.5 + 0.3 * Math.sin(ui * 0.3);
-        rect(ctx, 0, 0, 1, LH, "#d82a2a");
-        rect(ctx, LW - 1, 0, 1, LH, "#d82a2a");
-        ctx.globalAlpha = 1;
-      }
     }
     var BON_HUD = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
     function drawBonusHud(me) {
-      var x = 3, y = 22;
+      var x = 3, y = hudY(22);
       for (var i = 0; i < BON_HUD.length; i++) {
         var b = BON_HUD[i], t = me[b[0]];
         if (!(t > 0)) continue;
@@ -5777,7 +5867,7 @@
         ctx.fillRect(0, FIELD_OY + LH * pScale, DEV_W, DEV_H - FIELD_OY - LH * pScale);
         ctx.restore();
       }
-      if (netFixedLW() !== netLW) resize();
+      if (netFixedLW() !== netLW || (fieldLocked && phase === "play" && !isWide) !== lastFill) resize();
       if (running && !driving) raf = requestAnimationFrame(frame);
     }
     var netApi = {
@@ -5910,7 +6000,7 @@
         return save;
       },
       getSize: function() {
-        return { lw: LW, lh: LH, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
+        return { lw: LW, lh: LH, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
       },
       tap: function(id) {
         activate(id);

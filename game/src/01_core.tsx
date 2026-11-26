@@ -7,8 +7,18 @@ type Ctx = CanvasRenderingContext2D;
 var LW = 160;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
+var VIEW_CROP = 0; /* world px cropped from the top when play fills the phone width; render-only */
 function viewX0() { return -VIEW_PAD; }
 function viewW() { return LW + VIEW_PAD * 2; }
+function hudY(y: number) { return y + VIEW_CROP; }
+var VIEW_BOT = 0; /* v0.59: world px hidden at the BOTTOM when play fills the phone width; render-only (sim view stays LH) */
+var VIEW_SHIFT = 0; /* v0.59: render-only look-down offset (0..VIEW_BOT) so a falling hero stays on screen until the sim death line */
+function viewBottom() { return LH - VIEW_BOT; } /* screen y (world px) of the visible bottom edge during play */
+/* Bottom crop cap: with the hero top on the camera line (LH*0.42) a normal bounce lands at most JUMP_H below the apex
+   feet; keep that plus 12 px visible without any look-down. Past it the rest is cropped from the top (max TOP_CROP_MAX),
+   then narrow side strips. 346 -> bottom <= 91, top <= 80 world px. */
+function viewBotMax(lh: number) { return Math.max(0, Math.floor(lh - (lh * 0.42 + PH + JUMP_H + 12))); }
+var TOP_CROP_MAX = 80;
 function dimView(ctx: Ctx, col: string) { rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col); }
 var PX_PER_M = 8;
 var PW = 12;

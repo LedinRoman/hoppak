@@ -74,6 +74,13 @@ function client(name) {
   a.inbox = a.inbox.filter((m) => m.event !== 'snap');
   [b, c, d].forEach((cl) => (cl.inbox = cl.inbox.filter((m) => m.event !== 'snap')));
 
+  // v0.59: high flag bits (shield 8 + blink 4096, ninja wall 8192 + blink 16384) reach the others unchanged (NET_PROTO 1)
+  const PSV = 8 | 4096 | 32 | 8192 | 16384;
+  for (let k = 0; k < 3; k++) { b.send('st', { x: 50, y: y - 10, vx: 0, vy: -3, f: 1, a: 1, m: -y, ps: PSV }); await sleep(70); }
+  const flagSnap = await a.wait('snap', (s) => s.s.some((r) => r[0] === pids['Б'] && r[8] === PSV), 2000);
+  check(!!flagSnap, `flag bits ${PSV} (shield/blink, wall/blink) relayed unchanged`);
+  a.inbox = a.inbox.filter((m) => m.event !== 'snap');
+
   // validation: garbage state is ignored, NaN does not crash
   b.send('st', { x: 'NaN', y: null });
   b.send('st', { x: 1e9, y: -5, m: -100 });

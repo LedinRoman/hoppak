@@ -7,8 +7,18 @@ type Ctx = CanvasRenderingContext2D;
 var LW = 160;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
+var VIEW_CROP = 0; /* world px cropped from the top when play fills the phone width; render-only */
 function viewX0() { return -VIEW_PAD; }
 function viewW() { return LW + VIEW_PAD * 2; }
+function hudY(y: number) { return y + VIEW_CROP; }
+var VIEW_BOT = 0; /* v0.59: world px hidden at the BOTTOM when play fills the phone width; render-only (sim view stays LH) */
+var VIEW_SHIFT = 0; /* v0.59: render-only look-down offset (0..VIEW_BOT) so a falling hero stays on screen until the sim death line */
+function viewBottom() { return LH - VIEW_BOT; } /* screen y (world px) of the visible bottom edge during play */
+/* Bottom crop cap: with the hero top on the camera line (LH*0.42) a normal bounce lands at most JUMP_H below the apex
+   feet; keep that plus 12 px visible without any look-down. Past it the rest is cropped from the top (max TOP_CROP_MAX),
+   then narrow side strips. 346 -> bottom <= 91, top <= 80 world px. */
+function viewBotMax(lh: number) { return Math.max(0, Math.floor(lh - (lh * 0.42 + PH + JUMP_H + 12))); }
+var TOP_CROP_MAX = 80;
 function dimView(ctx: Ctx, col: string) { rect(ctx, -VIEW_PAD, 0, LW + VIEW_PAD * 2, LH, col); }
 var PX_PER_M = 8;
 var PW = 12;
@@ -2042,11 +2052,31 @@ var MOBPAL: any = {
   crab: ["#ff5a48", "#a82420", "#ffa898"], alien: ["#9af068", "#3a9a48", "#e0ffd0"], frog: ["#58d848", "#2a8a30", "#ffe060"],
   monkey: ["#a86a38", "#6a3a18", "#f0c890"], spitter: ["#ff6030", "#8a2010", "#ffe060"], bat: ["#8a5ad0", "#5a3aa0", "#ff5a62"],
   parrot: ["#ff4848", "#2aa8ff", "#ffd840"], owl: ["#e8f4ff", "#8ab0d8", "#ffd040"], firebat: ["#ff4848", "#881828", "#ffd040"],
-  ray: ["#48b8ff", "#1a68b8", "#a8f8ff"], bob: ["#7ae0f0", "#3a9ab8", "#e0fcff"], ember: ["#ffb838", "#e04818", "#fff098"],
+  ray: ["#ffa040", "#c05a20", "#ffe0a0"], bob: ["#7ae0f0", "#3a9ab8", "#e0fcff"], ember: ["#ffb838", "#e04818", "#fff098"],
   snake: ["#5ac838", "#2a7a28", "#ffe048"], puffer: ["#ffd848", "#c89018", "#ffffff"], hole: ["#b050ff", "#ff70d0", "#4a1a7a"],
   whirl: ["#58f0ff", "#ffffff", "#1868a8"], wind: ["#ffffff", "#c8ecff", "#88c8f0"], ufo: ["#7ac8f0", "#c8d0d8", "#7a8090"],
   frost: ["#c8f8ff", "#58b8f0", "#ffffff"], comet: ["#ffd060", "#ff7830", "#fff8d0"]
 };
+/* v0.59 mob sprite swap point. To drop in Design's fish: set src to a data-URI PNG strip of `n` frames, each fw×fh,
+   facing RIGHT, frames left-to-right (flap 0,1,2 = the same 6-tick cycle as the procedural ray). The frame's (ox,oy)
+   offset places it relative to the mob's hitbox top-left (MOBS.ray: 16×8). Hitbox and sim never read this. */
+var MOB_SPRITES: any = {
+  ray: { src: "", fw: 24, fh: 12, n: 3, ox: -4, oy: -2 }
+};
+var mobSprCache: any = {};
+function drawMobSprite(ctx: Ctx, kind: string, x: number, y: number, frame: number, flip: boolean) {
+  var m = MOB_SPRITES[kind];
+  if (!m || !m.src) return false;
+  var cv = mobSprCache[kind];
+  if (cv === undefined) { cv = mobSprCache[kind] = pngToCanvas(m.src) || null; }
+  if (!cv) return false;
+  var f = Math.max(0, Math.min(m.n - 1, frame | 0));
+  if (flip) {
+    ctx.save(); ctx.translate(x + 16 - m.ox, y + m.oy); ctx.scale(-1, 1);
+    ctx.drawImage(cv, f * m.fw, 0, m.fw, m.fh, 0, 0, m.fw, m.fh); ctx.restore();
+  } else ctx.drawImage(cv, f * m.fw, 0, m.fw, m.fh, x + m.ox, y + m.oy, m.fw, m.fh);
+  return true;
+}
 function eyes(ctx: Ctx, x: number, y: number, gap: number, look: number) {
   rect(ctx, x, y, 2, 2, "#fff6e8"); rect(ctx, x + gap, y, 2, 2, "#fff6e8");
   rect(ctx, x + look, y + 1, 1, 1, INK); rect(ctx, x + gap + look, y + 1, 1, 1, INK);
@@ -2112,7 +2142,10 @@ function drawMob(ctx: Ctx, m: any, cam: number, mapId?: string, frozen?: boolean
     if (open) { ctx.globalAlpha = 0.6; rect(ctx, x + 4, y - 3, 4, 4, "#ffd040"); ctx.globalAlpha = 1; }
   } else if (b === "fly") {
     var fl = Math.floor(t / 6) % 3;
-    if (m.kind === "ray") {
+    if (m.kind === "ray" && drawMobSprite(ctx, "ray", x, y, fl, m.vx < 0)) {
+      /* v0.59: Design sprite (MOB_SPRITES.ray) replaces the procedural ray; hitbox (MOBS.ray 16×8) unchanged. */
+    } else if (m.kind === "ray") {
+      /* v0.59 interim: coral-orange ray so it stands out from the blue ocean until Design's fish lands. */
       var up = fl === 0 ? -1 : fl === 2 ? 1 : 0;
       rect(ctx, x + 2, y + 2 + up, 12, 4, INK); rect(ctx, x - 1, y + 3 + up * 2, 18, 2, INK);
       rect(ctx, x + 3, y + 3 + up, 10, 2, pal[0]); rect(ctx, x, y + 3 + up * 2, 4, 1, pal[0]); rect(ctx, x + 12, y + 3 + up * 2, 4, 1, pal[0]);
@@ -2286,6 +2319,30 @@ function drawItem(ctx: Ctx, it: any, cam: number, tick: number) {
 }
 
 var SHIELD_BLINK_T = 90; /* last 1.8 s at 50 ticks/s */
+var WALL_BLINK_T = 60; /* v0.59: ninja walls blink for the last 1.2 s before they vanish */
+/* v0.59 ninja walls (0.56 style): 2 px hazard stripes (cream / ninja red, 4 px segments anchored to the world so they
+   scroll) + a 1 px #140c1c outline on the inner side and caps. 1×1 world pixels, alpha 1. full: whole visible column
+   (own hero); otherwise a segment around another player's hero so it reads as theirs. */
+function drawNinjaWallCol(ctx: Ctx, x: number, y0: number, y1: number, camI: number, outX: number) {
+  y0 = Math.floor(y0); y1 = Math.ceil(y1);
+  if (y1 <= y0) return;
+  rect(ctx, outX, y0, 1, y1 - y0, INK);
+  rect(ctx, x, y0 - 1, 2, 1, INK); rect(ctx, x, y1, 2, 1, INK);
+  var yy = y0;
+  while (yy < y1) {
+    var wy = yy + camI, seg = Math.floor(wy / 4), next = Math.min(y1, (seg + 1) * 4 - camI);
+    rect(ctx, x, yy, 2, next - yy, (seg & 1) ? "#d82a2a" : C.cream);
+    yy = next;
+  }
+}
+function drawNinjaWalls(ctx: Ctx, p: any, sy: number, cam: number, tick: number, full: boolean, bottom: number) {
+  if (!(p.wallT > 0) || !p.alive) return;
+  if (p.wallT <= WALL_BLINK_T && (((p.remote ? tick : p.wallT) >> 2) % 2)) return;
+  var camI = Math.round(cam);
+  var y0 = full ? 0 : Math.max(0, Math.round(sy) - 36), y1 = full ? bottom : Math.min(bottom, Math.round(sy) + PH + 36);
+  drawNinjaWallCol(ctx, 0, y0, y1, camI, 2);
+  drawNinjaWallCol(ctx, LW - 2, y0, y1, camI, LW - 3);
+}
 var SHIELD_FRAMES: any = null;
 function buildShieldFrames() {
   var frames: any[] = [];
@@ -2681,12 +2738,14 @@ var NET: any = (function () {
     return (p.abFx > 0 || p.teleFx > 10 ? 1 : 0) | (p.squash > 3 ? 2 : 0) | (p.domeT > 0 ? 4 : 0) | (p.shieldT > 0 ? 8 : 0) |
       (p.rocketT > 0 ? 16 : 0) | (p.wall ? 32 : 0) | (p.dashT > 0 ? 64 : 0) | (p.poundT > 0 ? 128 : 0) | (p.hookN > 0 ? 256 : 0) |
       (p.freezeT > 0 ? 512 : 0) | (p.magnetT > 0 ? 1024 : 0) | (p.wall < 0 ? 2048 : 0) |
-      (p.shieldT > 0 && p.shieldT <= SHIELD_BLINK_T ? 4096 : 0);
+      (p.shieldT > 0 && p.shieldT <= SHIELD_BLINK_T ? 4096 : 0) |
+      /* v0.59: ninja wall ability on (8192) and its last-1.2 s blink (16384); old clients ignore both */
+      (p.wallT > 0 ? 8192 : 0) | (p.wallT > 0 && p.wallT <= WALL_BLINK_T ? 16384 : 0);
   }
   function applyFlags(p: any, ps: number) {
     p.abFx = ps & 1 ? 5 : 0; p.squash = ps & 2 ? 4 : 0; p.domeT = ps & 4 ? 100 : 0;
     p.shieldT = ps & 8 ? (ps & 4096 ? 40 : 120) : 0;
-    p.rocketT = ps & 16 ? 10 : 0; p.wall = ps & 32 ? (ps & 2048 ? -1 : 1) : 0; p.wallT = p.wall ? 10 : 0; p.dashT = ps & 64 ? 5 : 0;
+    p.rocketT = ps & 16 ? 10 : 0; p.wall = ps & 32 ? (ps & 2048 ? -1 : 1) : 0; p.wallT = ps & 8192 ? (ps & 16384 ? 30 : 120) : (p.wall ? 10 : 0); p.dashT = ps & 64 ? 5 : 0;
     p.poundT = ps & 128 ? 5 : 0; p.hookN = 0; p.freezeT = ps & 512 ? 5 : 0; p.magnetT = ps & 1024 ? 100 : 0;
   }
   function lerpX(a: number, b: number, t: number) {
@@ -2951,7 +3010,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
   var hits: any[] = [];
   var SCALE = 1, pScale = 1, pScaleY = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
-  var fieldLocked = false, landPause = false, manualPause = false;
+  var fieldLocked = false, landPause = false, manualPause = false, lastFill = false;
   var resumeCd = 0, resumeAt = 0, abDenyT = 0, refuseT = 0, popT = -1, wasReady = false, coinT0 = -1, coinSkip = false;
   var pressId: any = null;
   var confirmId: any = null, confirmAt = 0;
@@ -3032,32 +3091,61 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.style.borderRadius = "4px";
       pScaleY = pScale;
     } else {
-      /* 0.56 fractional nearest-neighbor: 160×346 fills the short side. Side pads (if height-limited) continue the map sky. */
-      cssScale = Math.min(availW / lw, availH / lh);
-      VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
-      cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
-      cssHpx = lh * cssScale;
+      /* Phone / narrow, 0.56 fractional nearest-neighbor. Menu/shop still fit
+         the whole 346-tall UI (pads on the sides if the viewport is short and
+         wide). During play (fieldLocked) the field fills the width so platforms
+         reach the screen edges; any leftover height crops the top of the 346
+         view (HUD uses hudY). Sim stays LW×LH; death and camera still use LH. */
+      var fillWidth = fieldLocked && phase === "play";
+      if (fillWidth) {
+        /* v0.59 (Roman): fill the width, hide the leftover height at the BOTTOM so the view above the hero is the
+           same as on a full 346 field; a render-only look-down (VIEW_SHIFT) follows a falling hero to the death line. */
+        cssScale = availW / lw;
+        VIEW_PAD = 0;
+        VIEW_CROP = 0;
+        VIEW_BOT = Math.max(0, lh - availH / cssScale);
+        var botMax = viewBotMax(lh);
+        if (VIEW_BOT > botMax) {
+          VIEW_CROP = Math.min(TOP_CROP_MAX, VIEW_BOT - botMax);
+          VIEW_BOT = botMax;
+          if (lh - VIEW_CROP - VIEW_BOT > availH / cssScale + 1e-6) {
+            cssScale = availH / (lh - VIEW_CROP - VIEW_BOT);
+            VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+          }
+        }
+        cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+        cssHpx = (lh - VIEW_CROP - VIEW_BOT) * cssScale;
+      } else {
+        cssScale = Math.min(availW / lw, availH / lh);
+        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+        VIEW_CROP = 0; VIEW_BOT = 0;
+        cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
+        cssHpx = lh * cssScale;
+      }
       var pxW = Math.max(1, Math.round(cssWpx * dpr));
       var pxH = Math.max(1, Math.round(cssHpx * dpr));
       canvas.width = pxW;
       canvas.height = pxH;
       var worldW = lw + 2 * VIEW_PAD;
+      var worldH = lh - VIEW_CROP - VIEW_BOT;
       pScale = pxW / worldW;
-      pScaleY = pxH / lh;
+      pScaleY = pxH / Math.max(1e-6, worldH);
       sx = pScale;
       sy = pScaleY;
       /* Snap the field origin to a device pixel so the clip has no 1 px sliver. */
       FIELD_OX = Math.round(VIEW_PAD * sx);
-      FIELD_OY = 0;
+      FIELD_OY = Math.round(-VIEW_CROP * sy);
       PHONE_INT = false;
       DEV_W = pxW; DEV_H = pxH;
       canvas.style.position = "absolute";
       canvas.style.left = Math.round(vs.x + (cssW - cssWpx) / 2) + "px";
-      canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / 2) + "px";
+      /* Bottom-align so a short viewport keeps the death line on screen. */
+      canvas.style.top = Math.round(vs.y + (cssH - cssHpx) / (VIEW_BOT > 0 || VIEW_CROP > 0 ? 1 : 2)) + "px";
       canvas.style.boxShadow = "none";
       canvas.style.borderRadius = "0px";
     }
-    if (isWide) { VIEW_PAD = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
+    if (isWide) { VIEW_PAD = 0; VIEW_CROP = 0; VIEW_BOT = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
+    lastFill = fieldLocked && phase === "play" && !isWide;
     netLW = netFixedLW();
     LW = lw; LH = lh; SCALE = cssScale;
     canvas.style.width = cssWpx + "px";
@@ -3171,7 +3259,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function abBar() {
     var coinW = 28;
     try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19; } catch (_e) {}
-    return { x: 4 + coinW, y: 5, w: 16, h: 16 };
+    return { x: 4 + coinW, y: hudY(5), w: 16, h: 16 };
   }
   function startSquad(seed?: number) {
     /* Bot-only run. Online rooms will call a net start later; keep this off the lobby draw path. */
@@ -3198,6 +3286,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     pointers = {}; abTap = false; pressId = null;
     resumeCd = 0; landPause = false; manualPause = false; abDenyT = 0; refuseT = 0; popT = -1; wasReady = false; coinT0 = -1; coinSkip = false;
     try { canvas.focus(); } catch (_e) {}
+    VIEW_SHIFT = 0;
+    resize();
   }
   function payout() {
     if (!world || world.paid) return;
@@ -3677,7 +3767,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     hits = [];
     var w = world, i;
     /* Render-only: snap the camera to a device pixel, as 0.56 did with world-pixel sprite rounds, to avoid shimmer under fractional scale. Physics/camY stay untouched. */
-    var cam = Math.round(w.cameraY * pScaleY) / pScaleY;
+    var me0 = w.players[0];
+    if (VIEW_BOT > 0 && me0) {
+      /* Look-down: keep the hero's feet >= 20 px above the visible bottom; snap down at once, ease back up 2 px/frame. */
+      var lookT = Math.max(0, Math.min(VIEW_BOT, me0.y + PH - w.cameraY + 20 - viewBottom()));
+      VIEW_SHIFT = lookT >= VIEW_SHIFT ? lookT : Math.max(lookT, VIEW_SHIFT - 2);
+    } else VIEW_SHIFT = 0;
+    var cam = Math.round((w.cameraY + VIEW_SHIFT) * pScaleY) / pScaleY;
     THREAT = w.players[0] && w.players[0].alive ? { x: w.players[0].x, y: w.players[0].y, w: PW, h: PH } : null;
     var shx = w.shake > 0 ? (w.tick % 2 ? 1 : -1) * Math.ceil(w.shake / 3) : 0;
     ctx.save();
@@ -3738,6 +3834,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       withWrapX(pt.x, pt.s, function (xx: number) { rect(ctx, xx, pt.y - cam, pt.s, pt.s, pt.col); });
     }
     ctx.globalAlpha = 1;
+    for (var wi = 0; wi < w.players.length; wi++) {
+      var wp = w.players[wi];
+      drawNinjaWalls(ctx, wp, wp.y - cam, cam, w.tick, wp.id === 0 && !wp.remote, LH);
+    }
     var tags: any[] = [];
     for (var pi = w.players.length - 1; pi >= 0; pi--) {
       var p = w.players[pi];
@@ -3779,8 +3879,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
     var me = w.players[0];
     var wantPause = wantTouchPause();
-    drawTextO(ctx, metersOf(me) + " М", 80, 6, C.cream, "center");
-    coinsLabel(5, 6, w.runCoins);
+    drawTextO(ctx, metersOf(me) + " М", 80, hudY(6), C.cream, "center");
+    coinsLabel(5, hudY(6), w.runCoins);
     if (w.mode === "squad") {
       var place = 1, lead = me, leadM = metersOf(me);
       for (i = 0; i < w.players.length; i++) {
@@ -3788,24 +3888,24 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         if (w.players[i] !== me && om > metersOf(me)) place++;
         if (om > leadM) { lead = w.players[i]; leadM = om; }
       }
-      drawTextO(ctx, place + "/" + w.players.length, 80, 16, "#c8bfe0", "center");
+      drawTextO(ctx, place + "/" + w.players.length, 80, hudY(16), "#c8bfe0", "center");
       var leadLab = lead.id === 0 ? "ТЫ ВПЕРЕДИ" : ((lead.name || "БОТ").slice(0, 8) + " " + leadM + " М");
-      drawTextO(ctx, leadLab, 80, 26, lead.id === 0 ? C.gold : C.cream, "center");
+      drawTextO(ctx, leadLab, 80, hudY(26), lead.id === 0 ? C.gold : C.cream, "center");
     }
     if (wantPause) {
-      addHit("pause", 138, 0, 22, 22);
-      rect(ctx, 141, 3, 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
-      rect(ctx, 142, 4, 13, 13, "#1a1430");
-      rect(ctx, 145, 7, 2, 7, C.cream);
-      rect(ctx, 150, 7, 2, 7, C.cream);
+      addHit("pause", 138, hudY(0), 22, 22);
+      rect(ctx, 141, hudY(3), 15, 15, pressId === "pause" ? "#3a4a7a" : INK);
+      rect(ctx, 142, hudY(4), 13, 13, "#1a1430");
+      rect(ctx, 145, hudY(7), 2, 7, C.cream);
+      rect(ctx, 150, hudY(7), 2, 7, C.cream);
     }
     drawBonusHud(me);
     drawAbRing(me);
     if (w.toastT > 0) {
       var tw2 = textWidth(w.toast, 1) + 12;
       ctx.globalAlpha = Math.min(1, w.toastT / 15);
-      box(ctx, Math.round(LW / 2 - tw2 / 2), 38, tw2, 13, C.navy, C.gold);
-      drawText(ctx, w.toast, LW / 2, 41, C.gold, 1, "center");
+      box(ctx, Math.round(LW / 2 - tw2 / 2), hudY(38), tw2, 13, C.navy, C.gold);
+      drawText(ctx, w.toast, LW / 2, hudY(41), C.gold, 1, "center");
       ctx.globalAlpha = 1;
     }
     if (w.tick < 170 && !(w.toastT > 0)) {
@@ -3816,26 +3916,26 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var htw = textWidth(line1, 1);
       if (line2) htw = Math.max(htw, textWidth(line2, 1));
       var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
-      box(ctx, hx, 56, hw, hh, C.navy, C.cream);
-      drawText(ctx, line1, LW / 2, 58, C.cream, 1, "center");
-      if (line2) drawText(ctx, line2, LW / 2, 68, C.cream, 1, "center");
+      box(ctx, hx, hudY(56), hw, hh, C.navy, C.cream);
+      drawText(ctx, line1, LW / 2, hudY(58), C.cream, 1, "center");
+      if (line2) drawText(ctx, line2, LW / 2, hudY(68), C.cream, 1, "center");
       ctx.globalAlpha = 1;
     }
     if ((w.fallWarn || w.liftWarn) && !paused) {
       if ((ui >> 2) % 2) {
         ctx.globalAlpha = w.fallWarn ? 0.9 : 0.6;
-        rect(ctx, 0, LH - 4, LW, 4, C.red);
+        rect(ctx, 0, viewBottom() - 4, LW, 4, C.red);
         var cxw = Math.round(LW / 2);
-        rect(ctx, cxw, LH - 12, 2, 2, C.cream);
-        rect(ctx, cxw - 2, LH - 10, 6, 2, C.cream);
-        rect(ctx, cxw - 4, LH - 8, 10, 2, C.cream);
+        rect(ctx, cxw, viewBottom() - 12, 2, 2, C.cream);
+        rect(ctx, cxw - 2, viewBottom() - 10, 6, 2, C.cream);
+        rect(ctx, cxw - 4, viewBottom() - 8, 10, 2, C.cream);
         ctx.globalAlpha = 1;
       }
       if (w.liftWarn) {
         var liftLab = "ЛЕЗЬ ВВЕРХ!";
         var ltw = textWidth(liftLab, 1) + 10;
-        box(ctx, Math.round(LW / 2 - ltw / 2), LH - 24, ltw, 13, C.navy, C.gold);
-        drawText(ctx, liftLab, LW / 2, LH - 21, C.gold, 1, "center");
+        box(ctx, Math.round(LW / 2 - ltw / 2), viewBottom() - 24, ltw, 13, C.navy, C.gold);
+        drawText(ctx, liftLab, LW / 2, viewBottom() - 21, C.gold, 1, "center");
       }
     }
     if (paused) {
@@ -3876,11 +3976,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (p.domeT > 0 && (p.domeT > 50 || (p.domeT >> 2) % 2)) { ring(cx, cy, 15, "#7ad8ff", 0.9); ring(cx, cy, 14, "#c8f4ff", 0.35); ctx.globalAlpha = 0.12; rect(ctx, cx - 10, cy - 10, 20, 20, "#7ad8ff"); ctx.globalAlpha = 1; }
     if (p.freezeT > 0) { ctx.globalAlpha = 0.45; rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff"); ctx.globalAlpha = 1; }
     if (p.rocketT > 0) { rect(ctx, cx - 2, sy + PH, 4, 3 + (ui % 3), "#ffd046"); rect(ctx, cx - 1, sy + PH + 3, 2, 3, "#ff7830"); }
-    if (p.wallT > 0 && p.id === 0 && !p.wall) { ctx.globalAlpha = 0.5 + 0.3 * Math.sin(ui * 0.3); rect(ctx, 0, 0, 1, LH, "#d82a2a"); rect(ctx, LW - 1, 0, 1, LH, "#d82a2a"); ctx.globalAlpha = 1; }
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
-    var x = 3, y = 22;
+    var x = 3, y = hudY(22);
     for (var i = 0; i < BON_HUD.length; i++) {
       var b = BON_HUD[i], t = me[b[0]];
       if (!(t > 0)) continue;
@@ -4142,7 +4241,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.fillRect(0, 0, DEV_W, FIELD_OY); ctx.fillRect(0, FIELD_OY + LH * pScale, DEV_W, DEV_H - FIELD_OY - LH * pScale);
       ctx.restore();
     }
-    if (netFixedLW() !== netLW) resize();
+    if (netFixedLW() !== netLW || (fieldLocked && phase === "play" && !isWide) !== lastFill) resize();
     if (running && !driving) raf = requestAnimationFrame(frame);
   }
 
@@ -4220,7 +4319,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getWorld: function () { return world; },
     net: NET,
     getSave: function () { return save; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },

@@ -27,7 +27,7 @@ $ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx
 python3 - << 'PY'
 import re
 t = open("/tmp/hop.min.tsx").read().strip()
-m = re.search(r"export\{(\w+) as default\};?\s*$", t)
+m = re.search(r"export\{([\$\w]+) as default\};?\s*$", t)
 t = t[:m.start()] + "export default " + m.group(1) + ";"
 # esbuild --line-limit wraps strings with backslash+newline. The Canvas TSX
 # compiler may not honour that, which would corrupt data-URI sprite sheets.
