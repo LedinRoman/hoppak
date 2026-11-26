@@ -4048,15 +4048,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
   }
   function campTap(key: string) {
-    if (key === "play") {
-      if (campCard >= 0 && mapOpen(campCard)) { save.bg = MAPS[campCard].id; writeSave(save); mode = "solo"; startRun(); }
-      return;
-    }
+    if (key === "play") return;
     if (key === "open" || key.indexOf("open:") === 0) {
-      var i2 = key.indexOf("open:") === 0 ? parseInt(key.slice(5), 10) : (campCard >= 0 ? campCard : nextClosable());
+      var i2 = key.indexOf("open:") === 0 ? parseInt(key.slice(5), 10) : nextClosable();
       if (i2 < 0 || isNaN(i2)) return;
-      /* Row buy keeps the list; only the card's own button leaves campCard as-is. */
-      if (key === "open" && campCard < 0) campCard = i2;
       unlockMap(i2, key === "open" ? "camp:open" : ("camp:open:" + i2));
       return;
     }
@@ -4064,10 +4059,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (isNaN(i) || i < 0 || i >= MAPS.length) return;
     var M = MAPS[i];
     flashT = 0;
-    if (mapOpen(i)) { campCard = i; if (save.bg !== M.id) { save.bg = M.id; writeSave(save); } return; }
+    /* A tap only highlights an open map. ИГРАТЬ on the menu starts that map. */
+    if (mapOpen(i)) { if (save.bg !== M.id) { save.bg = M.id; writeSave(save); } return; }
     if (!mapOpen(i - 1)) { say("СНАЧАЛА ОТКРОЙ " + MAPS[i - 1].name); return; }
     if (!mapGoalMet(i)) { say("ДОЙДИ ДО " + MAPS[i - 1].goal + " М " + WHERE[i - 1]); return; }
-    campCard = i;
   }
   function nextClosable() {
     for (var i = 1; i < MAPS.length; i++) if (!mapOpen(i) && mapGoalMet(i)) return i;
@@ -4360,30 +4355,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     btn("back", x + 26, LH - 34, 100, 22, C.navy, "НАЗАД");
-    if (campCard >= 0) drawCampCard();
     drawFlash();
-  }
-  function drawCampCard() {
-    var i = campCard, M = MAPS[i], open = mapOpen(i), can = !open && mapGoalMet(i);
-    var x = colX(), y = Math.round(LH / 2 - 70);
-    dimView(ctx, "rgba(8,6,20,0.55)");
-    box(ctx, x, y, 152, 140, C.navy, open ? C.gold : can ? C.mint : C.cream);
-    drawBgSwatch(x + 8, y + 8, 36, 28, M.id);
-    drawText(ctx, M.name, x + 50, y + 10, C.cream, 2, "left");
-    var tip = mapTip(M.id);
-    if (tip) drawText(ctx, tip, x + 50, y + 26, C.gold, 1, "left");
-    drawText(ctx, "РЕКОРД " + mapBest(i) + " М", x + 8, y + 42, C.cream, 1, "left");
-    if (M.goal) {
-      var b = mapBest(i);
-      drawText(ctx, "ЦЕЛЬ " + M.goal + " М", x + 8, y + 54, C.gold, 1, "left");
-      bar(x + 8, y + 66, 136, 6, b / M.goal, b >= M.goal ? C.mint : C.gold);
-      drawText(ctx, b + "/" + M.goal, x + 144, y + 54, C.cream, 1, "right");
-    }
-    if (open) btn("camp:play", x + 8, y + 104, 136, 26, C.mint, "ИГРАТЬ ▶", INK, 2);
-    else if (can) drawBuy("camp:open", x + 8, y + 104, 136, 26, M.price);
-    else drawText(ctx, "СНАЧАЛА " + MAPS[i - 1].goal + " М " + WHERE[i - 1], LW / 2, y + 112, "#c8b8e0", 1, "center");
-    addHit("back", 0, 0, LW, y);
-    addHit("back", 0, y + 140, LW, LH - y - 140);
   }
   function drawLobby() { /* UI only: bot lobby now, online room UI can hook here later */
     drawBg(ctx, MENU_CAM(), ui, menuMap(), true);

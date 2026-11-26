@@ -5495,19 +5495,10 @@
       }
     }
     function campTap(key) {
-      if (key === "play") {
-        if (campCard >= 0 && mapOpen(campCard)) {
-          save.bg = MAPS[campCard].id;
-          writeSave(save);
-          mode = "solo";
-          startRun();
-        }
-        return;
-      }
+      if (key === "play") return;
       if (key === "open" || key.indexOf("open:") === 0) {
-        var i2 = key.indexOf("open:") === 0 ? parseInt(key.slice(5), 10) : campCard >= 0 ? campCard : nextClosable();
+        var i2 = key.indexOf("open:") === 0 ? parseInt(key.slice(5), 10) : nextClosable();
         if (i2 < 0 || isNaN(i2)) return;
-        if (key === "open" && campCard < 0) campCard = i2;
         unlockMap(i2, key === "open" ? "camp:open" : "camp:open:" + i2);
         return;
       }
@@ -5516,7 +5507,6 @@
       var M = MAPS[i];
       flashT = 0;
       if (mapOpen(i)) {
-        campCard = i;
         if (save.bg !== M.id) {
           save.bg = M.id;
           writeSave(save);
@@ -5531,7 +5521,6 @@
         say("\u0414\u041E\u0419\u0414\u0418 \u0414\u041E " + MAPS[i - 1].goal + " \u041C " + WHERE[i - 1]);
         return;
       }
-      campCard = i;
     }
     function nextClosable() {
       for (var i = 1; i < MAPS.length; i++) if (!mapOpen(i) && mapGoalMet(i)) return i;
@@ -5911,30 +5900,7 @@
         }
       }
       btn("back", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
-      if (campCard >= 0) drawCampCard();
       drawFlash();
-    }
-    function drawCampCard() {
-      var i = campCard, M = MAPS[i], open = mapOpen(i), can = !open && mapGoalMet(i);
-      var x = colX(), y = Math.round(LH / 2 - 70);
-      dimView(ctx, "rgba(8,6,20,0.55)");
-      box(ctx, x, y, 152, 140, C.navy, open ? C.gold : can ? C.mint : C.cream);
-      drawBgSwatch(x + 8, y + 8, 36, 28, M.id);
-      drawText(ctx, M.name, x + 50, y + 10, C.cream, 2, "left");
-      var tip = mapTip(M.id);
-      if (tip) drawText(ctx, tip, x + 50, y + 26, C.gold, 1, "left");
-      drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + mapBest(i) + " \u041C", x + 8, y + 42, C.cream, 1, "left");
-      if (M.goal) {
-        var b = mapBest(i);
-        drawText(ctx, "\u0426\u0415\u041B\u042C " + M.goal + " \u041C", x + 8, y + 54, C.gold, 1, "left");
-        bar(x + 8, y + 66, 136, 6, b / M.goal, b >= M.goal ? C.mint : C.gold);
-        drawText(ctx, b + "/" + M.goal, x + 144, y + 54, C.cream, 1, "right");
-      }
-      if (open) btn("camp:play", x + 8, y + 104, 136, 26, C.mint, "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", INK, 2);
-      else if (can) drawBuy("camp:open", x + 8, y + 104, 136, 26, M.price);
-      else drawText(ctx, "\u0421\u041D\u0410\u0427\u0410\u041B\u0410 " + MAPS[i - 1].goal + " \u041C " + WHERE[i - 1], LW / 2, y + 112, "#c8b8e0", 1, "center");
-      addHit("back", 0, 0, LW, y);
-      addHit("back", 0, y + 140, LW, LH - y - 140);
     }
     function drawLobby() {
       drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
