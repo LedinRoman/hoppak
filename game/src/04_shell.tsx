@@ -1078,6 +1078,29 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (p.magnetT > 0 && (ui >> 2) % 2) { ctx.globalAlpha = 0.35; for (k = 0; k < 8; k++) { var a = k * 0.785 + ui * 0.05; rect(ctx, cx + Math.cos(a) * 15, cy + Math.sin(a) * 15, 1, 1, "#ff5a62"); } ctx.globalAlpha = 1; }
     if (p.teleFx > 0) { ctx.globalAlpha = p.teleFx / 18; for (k = 0; k < 10; k++) { var a2 = k * 0.63 + ui * 0.2, r2 = 18 - p.teleFx * 0.6; rect(ctx, cx + Math.cos(a2) * r2, cy + Math.sin(a2) * r2, 2, 2, k % 2 ? "#e8c8ff" : "#a060ff"); } ctx.globalAlpha = 1; }
   }
+  /* Robot shield: violet, so it stays apart from the cyan bonus shield. Render only. */
+  function drawDome(p: any, cx: number, cy: number, tick: number) {
+    if (!(p.domeT > 0)) return;
+    var left = p.domeT;
+    if (left <= 55 && ((left >> 2) % 2) === 0) return;
+    var flash = left > 188;
+    var col = "#c89bff", edge = "#5a2ea8", hot = "#f4e8ff";
+    var rad = flash ? 16 : 15;
+    ring(cx, cy, rad, col, 0.95);
+    ring(cx, cy, rad - 2, edge, 0.9);
+    ring(cx, cy, rad + 2, hot, flash ? 0.9 : 0.4);
+    if (flash) {
+      ctx.globalAlpha = 0.34;
+      rect(ctx, cx - 11, cy - 11, 22, 22, col);
+      ctx.globalAlpha = 1;
+    }
+    var sparks = flash ? 10 : 8;
+    var orbit = flash ? 18 : 17;
+    for (var k = 0; k < sparks; k++) {
+      var a = (k / sparks) * Math.PI * 2 + tick * 0.18;
+      rect(ctx, Math.round(cx + Math.cos(a) * orbit), Math.round(cy + Math.sin(a) * orbit), 1, 1, k % 2 ? hot : col);
+    }
+  }
   function ring(cx: number, cy: number, r: number, col: string, alpha: number) {
     ctx.globalAlpha = alpha;
     for (var k = 0; k < 28; k++) { var a = (k / 28) * Math.PI * 2; rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col); }
@@ -1087,7 +1110,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!p.alive) return;
     var cx = Math.round(p.x + 6), cy = Math.round(sy + 6);
     if (p.shieldT > 0) drawShieldAura(ctx, p, sy, tick);
-    if (p.domeT > 0 && (p.domeT > 50 || (p.domeT >> 2) % 2)) { ring(cx, cy, 15, "#7ad8ff", 0.9); ring(cx, cy, 14, "#c8f4ff", 0.35); ctx.globalAlpha = 0.12; rect(ctx, cx - 10, cy - 10, 20, 20, "#7ad8ff"); ctx.globalAlpha = 1; }
+    drawDome(p, cx, cy, tick);
     if (p.freezeT > 0) { ctx.globalAlpha = 0.45; rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff"); ctx.globalAlpha = 1; }
     if (p.rocketT > 0) { rect(ctx, cx - 2, sy + PH, 4, 3 + (ui % 3), "#ffd046"); rect(ctx, cx - 1, sy + PH + 3, 2, 3, "#ff7830"); }
   }

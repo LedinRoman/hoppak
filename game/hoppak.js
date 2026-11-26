@@ -1867,7 +1867,7 @@
     } else if (H.ab === "dome") {
       p.domeT = 200;
       p.domeSave = true;
-      spawnParts(w, p.x + 6, p.y + 8, 14, "#7ad8ff", 2.6, 0, 1);
+      spawnParts(w, p.x + 6, p.y + 8, 14, "#c89bff", 2.6, 0, 1);
     } else if (H.ab === "pound") {
       p.poundT = 1;
       p.vy = 7.5;
@@ -6528,6 +6528,28 @@
         ctx.globalAlpha = 1;
       }
     }
+    function drawDome(p, cx, cy, tick) {
+      if (!(p.domeT > 0)) return;
+      var left = p.domeT;
+      if (left <= 55 && (left >> 2) % 2 === 0) return;
+      var flash2 = left > 188;
+      var col = "#c89bff", edge = "#5a2ea8", hot = "#f4e8ff";
+      var rad = flash2 ? 16 : 15;
+      ring(cx, cy, rad, col, 0.95);
+      ring(cx, cy, rad - 2, edge, 0.9);
+      ring(cx, cy, rad + 2, hot, flash2 ? 0.9 : 0.4);
+      if (flash2) {
+        ctx.globalAlpha = 0.34;
+        rect(ctx, cx - 11, cy - 11, 22, 22, col);
+        ctx.globalAlpha = 1;
+      }
+      var sparks = flash2 ? 10 : 8;
+      var orbit = flash2 ? 18 : 17;
+      for (var k = 0; k < sparks; k++) {
+        var a = k / sparks * Math.PI * 2 + tick * 0.18;
+        rect(ctx, Math.round(cx + Math.cos(a) * orbit), Math.round(cy + Math.sin(a) * orbit), 1, 1, k % 2 ? hot : col);
+      }
+    }
     function ring(cx, cy, r, col, alpha) {
       ctx.globalAlpha = alpha;
       for (var k = 0; k < 28; k++) {
@@ -6540,13 +6562,7 @@
       if (!p.alive) return;
       var cx = Math.round(p.x + 6), cy = Math.round(sy + 6);
       if (p.shieldT > 0) drawShieldAura(ctx, p, sy, tick);
-      if (p.domeT > 0 && (p.domeT > 50 || (p.domeT >> 2) % 2)) {
-        ring(cx, cy, 15, "#7ad8ff", 0.9);
-        ring(cx, cy, 14, "#c8f4ff", 0.35);
-        ctx.globalAlpha = 0.12;
-        rect(ctx, cx - 10, cy - 10, 20, 20, "#7ad8ff");
-        ctx.globalAlpha = 1;
-      }
+      drawDome(p, cx, cy, tick);
       if (p.freezeT > 0) {
         ctx.globalAlpha = 0.45;
         rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff");
