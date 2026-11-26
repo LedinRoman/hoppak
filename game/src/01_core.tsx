@@ -225,6 +225,47 @@ function heroSprite(id: string) {
   return cv;
 }
 function warmHeroSprites() { for (var k in HERO_SPRITES) heroSprite(k); }
+var spriteBoxCache: any = {};
+/** Opaque pixels of one pose, in art pixels of that cell. */
+function spriteFrameBox(id: string, pose: string) {
+  var spr = heroSprite(id);
+  if (!spr) return null;
+  var key = id + ":" + pose;
+  if (spriteBoxCache[key]) return spriteBoxCache[key];
+  var fw = Math.floor(spr.width / SPRITE_POSES.length);
+  var fh = spr.height;
+  var fi = SPRITE_POSES.indexOf(pose);
+  if (fi < 0) fi = 0;
+  var g = spr.getContext("2d");
+  if (!g || fw < 1 || fh < 1) return null;
+  var data = g.getImageData(fi * fw, 0, fw, fh).data;
+  var minX = fw, maxX = -1, minY = fh, maxY = -1;
+  for (var y = 0; y < fh; y++) for (var x = 0; x < fw; x++) {
+    if (data[(y * fw + x) * 4 + 3] > 20) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < 0) { minX = 0; maxX = fw - 1; minY = 0; maxY = fh - 1; }
+  var box = { minX: minX, maxX: maxX, minY: minY, maxY: maxY, fw: fw, fh: fh };
+  spriteBoxCache[key] = box;
+  return box;
+}
+/** x for drawJumper so the visible sprite bbox is centred on targetX. */
+function jumperXForCenter(targetX: number, id: string, pose: string, sc: number) {
+  var s = sc || 1;
+  var box = spriteFrameBox(id, pose);
+  var mid = SPR_AX;
+  if (box && box.fw) mid = ((box.minX + box.maxX + 1) / 2) * (SPR_CW / box.fw);
+  var shift = (mid - SPR_AX) * s;
+  function centerAt(x: number) { return x + 6 * s + shift; }
+  var best = Math.round(targetX - shift - 6 * s);
+  if (Math.abs(centerAt(best - 1) - targetX) < Math.abs(centerAt(best) - targetX)) best -= 1;
+  if (Math.abs(centerAt(best + 1) - targetX) < Math.abs(centerAt(best) - targetX)) best += 1;
+  return best;
+}
 var BONUS_SPRITES: any = {
   bigcoin: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABqElEQVR4nJ1UO0jDUBQ9kdChlAwSHSQ4iRQnIZAhk0MnF9fQwVEci0MHhw4dikiRjh06dZDQqRQpDplK6SBmKVVCKKWU0CmIlOAgYhxinvk1TTzTfcm555773n2PggeCWLTpxRBpoL9/w7QMyl2TQBCLdrV2jQO9lkrw7lVAp1UnonSQMHnWUgkiK/iWW2lyOWYJjlnGckIOh5MViSXRAl9pQK2WAAB8pQHoTUDWII9yDslvMOywP89AEi305xkiwEt556fe9BWTRGuzw3bxDbyURxsa1GoJvJSHKms4v99GG3/7S4rIN+h4ZEKCLpEk/MYvEgDsQpXjD40GnJGZjQdQSg9gC9mwiwi4wrLyAYABm+Ns0zIoyp2/XlfB1dFTbPV1mB46+Z1W3d9y1Aye1cuA3iSOjNUeAP80FDx3YfMcek42CXwOb/tm2OEFg52TKQAaj5dfkZzCOsHyKRsiO606Yl6Ot+W1DqNIkggiFifkItVdTgKfw9HiM0QYLTKBL2GObw9n4wF6XeeGi/vB5GTodZXkDpPg2PPiUADA5jj7X0oBmJZB/QA/ZZzVyENwRwAAAABJRU5ErkJggg==", w: 20, h: 20, k: 1 },
   shield: { src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAABdElEQVR4nJ3UIWjDQBgF4JdRWddQFTUqBoPJiDLGxEQZZXKiVE5MljE1qiamKqZGxeQoVSGMioiJEVFCWE2gUMYoExUVWYmImLuJ9NK75O4S9kxz4c/Hu5SLBgBms0MgiT8daeyanV0GLjcbxiutYjY75P7hTuah23bJ/tFJumZnX20zvf7wfSBwSUUqbfMycYpGEmwbDjw2DwAALStK7/WNNffwzfM3s2og8iwY9d2dXEMWuz6rIUQNw7cfAMDG8Qrb7qkwACkmSuRZalCFlWknBf+LSUERNn+KuRnRdpUNOaw3AD6Hya8CAwT/MotRgM28N8BsvMCFfV7csG+ssXG8tNnh4y03PBsvcphR/+VBfzrSuu2WdAsUyuLZLAMXYbzS0oOvVw1Cjxl/GpKI3httRzGA2TL7ATjVv0pj2XCfJr1qkMur3dbew0YhxrbLgSIUAOxJIGyVxYQgRQH+NWQhADlMCrJwFhW1Kg2ybWlUGAD8AUwxtRHyLrL4AAAAAElFTkSuQmCC", w: 20, h: 20, k: 1 },

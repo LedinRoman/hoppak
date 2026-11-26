@@ -1164,9 +1164,16 @@ async function admin(base, body) {
           }
         }
         const ids = fit.boxes.map((b) => b.id);
-        for (const id of ['hero:menu', 'start', 'camp', 'net:menu', 'ency', 'soon', 'shop', 'tab:leagues', 'tab:home', 'tab:friends', 'tab:settings', 'logo', 'chip']) {
+        for (const id of ['hero:menu', 'start', 'camp', 'net:menu', 'ency', 'soon', 'tab:shop', 'tab:leagues', 'tab:home', 'tab:friends', 'tab:settings', 'logo', 'chip']) {
           assert.ok(ids.indexOf(id) >= 0, v.file + ' missing ' + id);
         }
+        const play = fit.boxes.find((b) => b.id === 'start');
+        const pick = fit.boxes.find((b) => b.id === 'hero:menu');
+        const gridTop = Math.min.apply(null, fit.boxes.filter((b) => b.id === 'camp' || b.id === 'net:menu' || b.id === 'ency' || b.id === 'soon').map((b) => b.y));
+        const above = play.y - (pick.y + pick.h);
+        const below = gridTop - (play.y + play.h);
+        assert.ok(above >= 8 && above <= 12, v.file + ' play gap above ' + above);
+        assert.ok(below >= 8 && below <= 12, v.file + ' play gap below ' + below);
         const canvas = await pg.$('canvas');
         const box = await canvas.boundingBox();
         await pg.screenshot({ path: path.join(shots, v.file), clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
@@ -1182,6 +1189,9 @@ async function admin(base, body) {
           const g = window.__hoppak;
           g.tap('ency');
           const a = g.getFlash();
+          g.tap('tab:shop');
+          const shopTab = g.getFlash();
+          const shopTabPhase = g.getPhase();
           g.tap('tab:leagues');
           const b = g.getFlash();
           g.tap('tab:friends');
@@ -1193,7 +1203,7 @@ async function admin(base, body) {
           const shop2 = g.getPhase();
           g.tap('back');
           g.tap('set');
-          return { a, b, c, shop, shop2 };
+          return { a, b, c, shop, shop2, shopTab, shopTabPhase };
         });
         await pg.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
         flash.setOn = await pg.evaluate(() => window.__hoppak.screenLayout().boxes.some((x) => x.id === 'settings'));
@@ -1207,13 +1217,31 @@ async function admin(base, body) {
         return flash;
       })();
       assert.strictEqual(soon.a, 'СКОРО');
+      assert.strictEqual(soon.shopTab, 'Скоро');
+      assert.strictEqual(soon.shopTabPhase, 'menu');
       assert.strictEqual(soon.b, 'Скоро в 0.8');
       assert.strictEqual(soon.c, 'Скоро в 0.9');
       assert.strictEqual(soon.shop, 'shop');
       assert.strictEqual(soon.shop2, 'shop');
       assert.strictEqual(soon.setOn, true);
       assert.strictEqual(soon.camp, 'camp');
-      console.log('PASS 16: menu boxes fit 390×844, 390×640 and 360×560');
+      const aligned = await (async () => {
+        const ctx = await browser.createBrowserContext();
+        const pg = await ctx.newPage();
+        await pg.goto(base + '/index.html');
+        await settle(pg);
+        const rows = await pg.evaluate(() => {
+          const g = window.__hoppak;
+          return g.heroAlign('menu').concat(g.heroAlign('shop'));
+        });
+        await ctx.close();
+        return rows;
+      })();
+      assert.ok(aligned.length >= 6 * 3 + 6 * 4, 'hero samples ' + aligned.length);
+      for (const r of aligned) {
+        assert.ok(Math.abs(r.dx) <= 1, r.where + ' hero ' + r.kind + ' ' + r.pose + ' off by ' + r.dx);
+      }
+      console.log('PASS 16: menu boxes fit 390×844, 390×640 and 360×560; hero centred');
     }
 
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));

@@ -344,8 +344,12 @@ var PROFILE: any = (function () {
   }
 
   function createGuest() {
+    /* The save at the moment the request leaves. A newer save means this guest
+       belongs to a wallet we already discarded, so its token must not come back. */
+    var stamp = lsGet("hoppak_save");
     return req("POST", "/api/profile/guest").then(function (res: any) {
       if (!handleStatus(res)) return null;
+      if (lsGet("hoppak_save") !== stamp) return null;
       if (res.data.token) setToken(res.data.token);
       return { token: res.data.token || getToken(), profile: res.data.profile };
     });
@@ -403,10 +407,15 @@ var PROFILE: any = (function () {
         return;
       }
       if (res.status === 400) {
-        // INVALID_ITEM or INSUFFICIENT_COINS — drop stale pending buy and re-sync
+        // INVALID_ITEM or INSUFFICIENT_COINS — drop the optimistic buy and put the server wallet back.
         var cur = getPendingBuys().filter(function (x: any) { return x && x.key !== item.key; });
         setPendingBuys(cur);
-        if (P.profile) applyProfile(P.profile);
+        var rolled = P.profile;
+        if (res.data && typeof res.data.coins === "number") {
+          rolled = Object.assign({}, P.profile || {}, { coins: Math.max(0, Math.floor(res.data.coins)) });
+          if (!rolled.purchases) rolled.purchases = {};
+        }
+        if (rolled) applyProfile(rolled);
         return flushBuysOnce(tok);
       }
       if (!handleStatus(res)) return;
@@ -573,6 +582,8 @@ var PROFILE: any = (function () {
 
   P.init = function (api: any) {
     P.api = api;
+    /* Visible before the queued ensureProfile runs, so a waiter does not treat "idle" as ready. */
+    if (apiOrigin()) P.st = "syncing";
     if (!P.onlineBound && typeof window !== "undefined" && window.addEventListener) {
       P.onlineBound = true;
       window.addEventListener("online", function () {

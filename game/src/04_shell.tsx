@@ -773,6 +773,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     if (id === "shop" || id === "hero:menu") { showSet = false; showProf = false; phase = "shop"; return; }
     if (id === "ency") { say("СКОРО"); return; }
+    if (id === "tab:shop") { say("Скоро"); return; }
     if (id === "tab:leagues") { say("Скоро в 0.8"); return; }
     if (id === "tab:friends") { say("Скоро в 0.9"); return; }
     if (id === "tab:home") { showSet = false; showProf = false; if (phase !== "menu") goMenu(); return; }
@@ -1090,9 +1091,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
   }
   function drawTabLock(x: number, y: number) {
-    rect(ctx, x + 3, y, 5, 1, INK); rect(ctx, x + 3, y + 1, 1, 2, INK); rect(ctx, x + 7, y + 1, 1, 2, INK);
-    rect(ctx, x + 2, y + 3, 7, 5, INK); rect(ctx, x + 3, y + 4, 5, 3, C.gold);
-    rect(ctx, x + 5, y + 5, 1, 2, INK);
+    x = Math.round(x); y = Math.round(y);
+    rect(ctx, x + 3, y, 6, 1, INK);
+    rect(ctx, x + 2, y + 1, 1, 4, INK); rect(ctx, x + 9, y + 1, 1, 4, INK);
+    rect(ctx, x + 3, y + 1, 1, 3, INK); rect(ctx, x + 8, y + 1, 1, 3, INK);
+    rect(ctx, x, y + 5, 12, 9, INK);
+    rect(ctx, x + 1, y + 6, 10, 7, C.cream);
+    rect(ctx, x + 5, y + 8, 2, 3, INK);
   }
   function drawSoonSlot(x: number, y: number, w: number, h: number) {
     markBox("soon", x, y, w, h);
@@ -1106,37 +1111,29 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function menuFrame() {
     var top = menuTop();
     var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
-    var gap = 4, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
-    var tabY = LH - bot - tabH;
-    var gridY = tabY - gap - (gridH * 2 + gridGap);
-    var playY = gridY - gap - playH;
-    var pickY = playY - gap - pickH;
-    var logoY = top + 25;
+    /* ИГРАТЬ keeps the prod 34px button and at least 10px of air. Squeeze the logo and the grid, not these gaps. */
+    var playGap = 10, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
     var logoSc = 3;
-    var tagY = logoY + 7 * logoSc + 4;
-    var tagBot = tagY + 9;
-    var platY = pickY - 8;
-    var heroTop = platY - 32 - 10;
-    if (heroTop < tagBot + 4) {
-      logoSc = 2;
-      tagY = logoY + 7 * logoSc + 4;
-      tagBot = tagY + 9;
-      heroTop = platY - 32 - 10;
+    function stack() {
+      var tabY = LH - bot - tabH;
+      var gridY = tabY - playGap - (gridH * 2 + gridGap);
+      var playY = gridY - playGap - playH;
+      var pickY = playY - playGap - pickH;
+      var logoY = top + 25;
+      var tagY = logoY + 7 * logoSc + 4;
+      var tagBot = tagY + 9;
+      var platY = pickY - 8;
+      var heroTop = platY - 42;
+      return { tabY: tabY, gridY: gridY, playY: playY, pickY: pickY, logoY: logoY, tagY: tagY, tagBot: tagBot, platY: platY, heroTop: heroTop };
     }
-    if (heroTop < tagBot + 4) {
-      gap = 2; playH = 28; pickH = 16; gridH = 22; tabH = 36; gridGap = 2;
-      tabY = LH - bot - tabH;
-      gridY = tabY - gap - (gridH * 2 + gridGap);
-      playY = gridY - gap - playH;
-      pickY = playY - gap - pickH;
-      platY = pickY - 6;
-      heroTop = platY - 32 - 6;
-    }
-    if (heroTop < tagBot + 2) heroTop = tagBot + 2;
+    var L = stack();
+    if (L.heroTop < L.tagBot + 4) { logoSc = 2; L = stack(); }
+    if (L.heroTop < L.tagBot + 4) { gridH = 22; gridGap = 2; pickH = 16; L = stack(); }
+    if (L.heroTop < L.tagBot + 2) L.heroTop = L.tagBot + 2;
     return {
-      top: top, bot: bot, logoY: logoY, logoSc: logoSc, tagY: tagY, tagBot: tagBot,
-      platY: platY, heroTop: heroTop, pickY: pickY, pickH: pickH, playY: playY, playH: playH,
-      gridY: gridY, gridH: gridH, gridGap: gridGap, tabY: tabY, tabH: tabH
+      top: top, bot: bot, logoY: L.logoY, logoSc: logoSc, tagY: L.tagY, tagBot: L.tagBot,
+      platY: L.platY, heroTop: L.heroTop, pickY: L.pickY, pickH: pickH, playY: L.playY, playH: playH,
+      gridY: L.gridY, gridH: gridH, gridGap: gridGap, tabY: L.tabY, tabH: tabH, playGap: playGap
     };
   }
   function drawMenu() {
@@ -1165,14 +1162,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood); rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
     var heroY = platY - 32 - hop;
     if (heroY < L.tagBot + 2) { heroY = L.tagBot + 2; hop = 0; }
-    drawJumper(ctx, LW / 2 - 12, heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2);
+    var heroId = (CHARS[save.char] || CHARS[0]).id;
+    drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, 2), heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2);
     markBox("hero", LW / 2 - 16, heroY, 32, 32);
     markBox("plat", LW / 2 - 28, platY, 56, 7);
     var pickW = 120;
     btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", "ВЫБРАТЬ ГЕРОЯ", C.cream, 1, C.gold);
     btn("start", x, L.playY, 152, L.playH, C.mint, "", INK, 2);
-    drawBig(ctx, "ИГРАТЬ ▶", LW / 2, L.playY + (L.playH >= 34 ? 4 : 2), INK, 2, "center");
-    drawText(ctx, sub, LW / 2, L.playY + L.playH - 11, INK, 1, "center");
+    /* Same face as prod b683155: BIGF scale 2, ink, no outline, 4px under the button top. */
+    drawBig(ctx, "ИГРАТЬ ▶", LW / 2, L.playY + 4, INK, 2, "center");
+    drawText(ctx, sub, LW / 2, L.playY + 23, INK, 1, "center");
     var gw = Math.floor((152 - L.gridGap) / 2);
     var gx2 = x + gw + L.gridGap;
     var gy2 = L.gridY + L.gridH + L.gridGap;
@@ -1181,7 +1180,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     btn("ency", x, gy2, gw, L.gridH, C.navy, "ЭНЦИКЛОПЕДИЯ");
     drawSoonSlot(gx2, gy2, gw, L.gridH);
     var tabs = [
-      { id: "shop", key: "shop", a: "МАГА", b: "ЗИН", lock: false },
+      { id: "tab:shop", key: "shop", a: "МАГА", b: "ЗИН", lock: true },
       { id: "tab:leagues", key: "leagues", a: "ЛИГИ", b: "", lock: true },
       { id: "tab:home", key: "home", a: "ГЛАВ", b: "НАЯ", lock: false },
       { id: "tab:friends", key: "friends", a: "ДРУЗ", b: "ЬЯ", lock: true },
@@ -1199,15 +1198,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (on) rect(ctx, tx, L.tabY, tw, 2, C.cream);
       rect(ctx, tx, L.tabY, tw, 1, INK);
       if (ti > 0) rect(ctx, tx, L.tabY, 1, L.tabH, INK);
+      var ix = tx + Math.floor((tw - 16) / 2);
+      if (tb.lock) ctx.globalAlpha = 0.18;
+      drawTabIcon(tb.key, ix, L.tabY + 3);
       if (tb.lock) ctx.globalAlpha = 0.4;
-      drawTabIcon(tb.key, tx + Math.floor((tw - 16) / 2), L.tabY + 3);
       var ly = L.tabY + 20;
       var tc = tb.lock ? "#6a6080" : (on ? C.cream : "#9a8ab8");
       if (tb.b) {
         drawText(ctx, tb.a, tx + tw / 2, ly, tc, 1, "center");
         drawText(ctx, tb.b, tx + tw / 2, ly + 8, tc, 1, "center");
       } else drawText(ctx, tb.a, tx + tw / 2, ly + 4, tc, 1, "center");
-      if (tb.lock) { ctx.globalAlpha = 1; drawTabLock(tx + tw - 8, L.tabY + 2); }
+      if (tb.lock) { ctx.globalAlpha = 1; drawTabLock(ix + 2, L.tabY + 2); }
     }
     rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
     if (showSet) {
@@ -1276,7 +1277,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x + 40, mid + 8, 72, 4, C.wood); rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
     var ph = (ui % 70) / 70, pose = ui % 280 > 230 ? "ability" : ph < 0.08 ? "squash" : ph < 0.5 ? "up" : "fall";
     var hop = pose === "ability" ? 6 : Math.round(Math.sin(ph * Math.PI) * 10);
-    drawJumper(ctx, LW / 2 - 12, mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2);
+    drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2);
     drawText(ctx, H2.name, LW / 2, mid + 16, C.cream, 2, "center");
     var tw = textWidth(H2.abName, 1) + 10;
     box(ctx, Math.round(LW / 2 - tw / 2), mid + 34, tw, 12, "#3a4ac8", C.cream);
@@ -2287,6 +2288,32 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     setVolume: function (v: number) { setMasterVol(v); save.vol = masterVol; save.music = masterVol; save.sfxVol = masterVol; writeSave(save); },
     audioProbe: function () { return readAudioProbe(); },
     menuLayout: function () { return menuLay; },
+    heroAlign: function (where: string) {
+      var poses = where === "shop" ? ["squash", "up", "fall", "ability"] : ["squash", "up", "fall"];
+      var rows: any[] = [];
+      for (var k = 0; k < CHARS.length; k++) {
+        for (var p = 0; p < poses.length; p++) {
+          var pose = poses[p];
+          var cv = document.createElement("canvas");
+          cv.width = LW; cv.height = 80;
+          var g = cv.getContext("2d");
+          if (!g) continue;
+          var x = jumperXForCenter(LW / 2, CHARS[k].id, pose, 2);
+          drawJumper(g, x, 40, makeLook(k, "base", "none"), 1, pose, false, true, 2);
+          var img = g.getImageData(0, 0, LW, 80).data;
+          var minX = LW, maxX = -1;
+          for (var yy = 0; yy < 80; yy++) for (var xx = 0; xx < LW; xx++) {
+            if (img[(yy * LW + xx) * 4 + 3] > 20) {
+              if (xx < minX) minX = xx;
+              if (xx > maxX) maxX = xx;
+            }
+          }
+          var mid = maxX < 0 ? LW / 2 : (minX + maxX + 1) / 2;
+          rows.push({ where: where || "menu", kind: k, pose: pose, dx: mid - LW / 2 });
+        }
+      }
+      return rows;
+    },
     tabIconsReady: function () {
       var n = 0;
       for (var k in TAB_ICONS) if (tabImgs[k] && tabImgs[k].naturalWidth === 16) n++;
