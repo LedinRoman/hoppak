@@ -39,6 +39,13 @@ export class Player {
   @Column({ name: 'telegram_linked_at', type: 'timestamptz', nullable: true })
   telegramLinkedAt: Date | null;
 
+  /** Set when this guest row was folded into an existing Telegram player. Its token is revoked. */
+  @Column({ name: 'merged_into', type: 'uuid', nullable: true })
+  mergedInto: string | null;
+
+  @Column({ name: 'merged_at', type: 'timestamptz', nullable: true })
+  mergedAt: Date | null;
+
   @BeforeInsert()
   assignId() {
     if (!this.id) this.id = randomUUID();
