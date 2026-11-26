@@ -8,10 +8,9 @@
 - Numbers: width_measure.json.
 
 ## Ocean ray -> fish swap point
-`MOB_SPRITES.ray` in game/src/03_draw.tsx. Put a data-URI PNG in `src`; nothing else changes (hitbox MOBS.ray 16x8 untouched).
-Expected from Design: PNG strip, RGBA, alpha 0/255 only, 3 frames left-to-right, each 24x12 px (1x world px), facing RIGHT
-(left is mirrored in code), hitbox 16x8 at offset (4,2) inside each frame, dark outline #140c1c, palette not blue/cyan.
-If the frame size differs, change fw/fh/n/ox/oy in the same entry. Interim: procedural ray recoloured coral-orange.
+`MOB_SPRITES.ray` in game/src/03_draw.tsx now holds Design's fish (fish_strip_72x12.png as a data-URI): 72×12, 3 frames
+24×12, facing RIGHT, ox -4 / oy -2, hitbox MOBS.ray 16×8 untouched. Left-facing is mirrored in drawMobSprite.
+A procedural coral-orange ray remains only as a decode fallback.
 
 ## Ninja walls
 2 px cream/red hazard stripes (4 px world-anchored segments) + 1 px #140c1c outline, own hero full height, other players
