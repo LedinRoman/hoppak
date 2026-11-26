@@ -14,6 +14,7 @@ const { AddBestBuyRunId1795642000000 } = require('../dist/db/migrations/17956420
 const { AddMergedInto1795643000000 } = require('../dist/db/migrations/1795643000000-AddMergedInto');
 const { AddCampaign1795644000000 } = require('../dist/db/migrations/1795644000000-AddCampaign');
 const { AddTelegramProfile1795645000000 } = require('../dist/db/migrations/1795645000000-AddTelegramProfile');
+const { CommentProfileSchema1795646000000 } = require('../dist/db/migrations/1795646000000-CommentProfileSchema');
 const { parseAndVerifyInitData, clipTelegramField } = require('../dist/profile/telegram');
 
 function clone(v) {
@@ -588,6 +589,36 @@ async function testMigrationSql() {
   }
   assert.ok(up4.every((q) => /ADD COLUMN/i.test(q) && !/DROP COLUMN|ALTER COLUMN|UPDATE /i.test(q)));
   console.log('PASS telegram profile migration SQL');
+
+  const m5 = new CommentProfileSchema1795646000000();
+  const up5 = [];
+  const down5 = [];
+  await m5.up({ query: async (q) => up5.push(q) });
+  await m5.down({ query: async (q) => down5.push(q) });
+  const tables = ['migrations', 'player', 'player_run'];
+  const cols = {
+    migrations: ['id', 'timestamp', 'name'],
+    player: [
+      'id', 'guest_token_hash', 'coins', 'best', 'purchases', 'campaign',
+      'migrated_at', 'created_at', 'last_finish_at', 'window_started_at', 'awarded_in_window',
+      'telegram_id', 'telegram_linked_at', 'merged_into', 'merged_at',
+      'telegram_username', 'telegram_first_name', 'telegram_last_name',
+      'telegram_language', 'telegram_is_premium', 'telegram_profile_updated_at',
+    ],
+    player_run: ['player_id', 'run_id', 'awarded', 'created_at'],
+  };
+  for (const table of tables) {
+    assert.ok(up5.some((q) => new RegExp('COMMENT ON TABLE "' + table + '" IS ').test(q)), 'table ' + table);
+    for (const col of cols[table]) {
+      assert.ok(up5.some((q) => new RegExp('COMMENT ON COLUMN "' + table + '"."' + col + '" IS ').test(q)), 'col ' + table + '.' + col);
+    }
+  }
+  assert.strictEqual(up5.filter((q) => /COMMENT ON TABLE /.test(q)).length, 3);
+  assert.strictEqual(up5.filter((q) => /COMMENT ON COLUMN /.test(q)).length, 28);
+  assert.ok(up5.every((q) => /^COMMENT ON (TABLE|COLUMN) /.test(q)));
+  assert.ok(!up5.some((q) => /^(ALTER TABLE|ADD COLUMN|DROP COLUMN|UPDATE |DELETE |INSERT )/i.test(q)));
+  assert.ok(down5.every((q) => /COMMENT ON (TABLE|COLUMN) .+ IS NULL/.test(q)));
+  console.log('PASS profile schema comments migration SQL');
 }
 
 async function testTwoDevices() {
