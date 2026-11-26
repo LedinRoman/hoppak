@@ -12,7 +12,10 @@
  *   map     { map }            host only         -> room
  *   start   {}                 host only         -> start (to everyone)
  *   st      { x, y, vx, vy, f, a, m, ps, tk }    ~15 Hz, own player state, relayed in `snap`
- *   ev      { e, ... }         e = dead | mob | pick | ab   -> ev (to the others)
+ *   ev      { e, ... }         e = dead | mob | pick | ab | brk  -> ev (to the others)
+ *                              brk { id } is a shared red platform. The server remembers it and
+ *                              broadcasts rst { id } to everyone after BREAK_RESTORE_MS.
+ *                              Unknown ev kinds are ignored, so NET protocol stays 1.
  *   leave   {}
  *   ping    { c }                                -> pong { c, s }
  *
@@ -26,6 +29,8 @@
  *   pong    { c, s }
  */
 export const PROTOCOL_VERSION = 1;
+/** Shared online break platforms come back after this many milliseconds. */
+export const BREAK_RESTORE_MS = 2500;
 export const MAX_PLAYERS = 4;
 export const SNAP_HZ = 20;
 export const RECONNECT_GRACE_MS = 10_000;

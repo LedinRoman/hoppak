@@ -54,12 +54,12 @@ var C: any = {
 /* Heroes: look + ability. Each ability has its own TYPE (no repeats) and its own CHARGE:
    charge: time (ticks, 50/s) | coins (coins picked) | height (metres climbed) | kills (mobs stomped) */
 var CHARS: any[] = [
-  { id: "pilot", name: "Капитан", hood: "#2c3a5c", price: 0, ab: "dash", abName: "РЫВОК", type: "БАЗОВЫЙ", abDesc: ["КОРОТКИЙ БЫСТРЫЙ", "ВЗЛЁТ НА РАНЦЕ"], charge: "time", need: 250 },
+  { id: "pilot", name: "Капитан", hood: "#2c3a5c", price: 0, ab: "dash", abName: "РЫВОК", type: "БАЗОВЫЙ", abDesc: ["КОРОТКИЙ БЫСТРЫЙ", "ВЗЛЁТ НА РАНЦЕ"], charge: "time", need: 400 },
   { id: "pirate", name: "Пират", hood: "#a8282c", price: 150, ab: "hook", abName: "КРЮК", type: "МАНЁВР", abDesc: ["КРЮК К ПЛАТФОРМЕ", "ИЛИ МОНЕТЕ, БЬЁТ МОБОВ"], charge: "time", need: 400 },
   { id: "ninja", name: "Ниндзя", hood: "#26305a", price: 200, ab: "wall", abName: "СТЕНЫ", type: "ПАРКУР", abDesc: ["6 СЕК ЦЕПЛЯЕТСЯ ЗА КРАЙ,", "ТАП - ПРЫЖОК ОТ СТЕНЫ"], charge: "time", need: 500 },
   { id: "robot", name: "Робот", hood: "#d8dce8", price: 240, ab: "dome", abName: "КОСМОЩИТ", type: "ЗАЩИТА", abDesc: ["ЩИТ 4 СЕК, СПАСЁТ", "ОТ ПАДЕНИЯ"], charge: "height", need: 200 },
-  { id: "mage", name: "Маг", hood: "#7a3ac8", price: 280, ab: "tele", abName: "ТЕЛЕПОРТ", type: "ТЕЛЕПОРТ", abDesc: ["МИГОМ НА НАДЁЖНУЮ", "ПЛАТФОРМУ ВЫШЕ"], charge: "coins", need: 12 },
-  { id: "knight", name: "Рыцарь", hood: "#c02a2a", price: 320, ab: "pound", abName: "ТАРАН", type: "АТАКА", abDesc: ["ПИКЕ ЩИТОМ ВНИЗ,", "С ПЛАТФОРМЫ СУПЕРПРЫЖОК"], charge: "kills", need: 2 }
+  { id: "mage", name: "Маг", hood: "#7a3ac8", price: 280, ab: "tele", abName: "ТЕЛЕПОРТ", type: "ТЕЛЕПОРТ", abDesc: ["МИГОМ НА НАДЁЖНУЮ", "ПЛАТФОРМУ ВЫШЕ"], charge: "coins", need: 5 },
+  { id: "knight", name: "Рыцарь", hood: "#c02a2a", price: 320, ab: "pound", abName: "ТАРАН", type: "АТАКА", abDesc: ["ПИКЕ ЩИТОМ ВНИЗ,", "С ПЛАТФОРМЫ СУПЕРПРЫЖОК"], charge: "kills", need: 1 }
 ];
 /* Hero sprite sheets (made by /workspace/jumper/sprites_tool: make_sheet.py + unify.py).
    One row of 7 cells: idle, squash (landing), up, fall, ability, ko, blink. Facing RIGHT, hard alpha.
@@ -795,7 +795,17 @@ function ringPix(ctx: Ctx, cx: number, cy: number, r0: number, r1: number, col: 
 function isPerm(t: string) { return t === "normal" || t === "move" || t === "ice" || t === "bounce" || t === "grav"; }
 
 function mkPlat(x: number, y: number, w: number, type: string, row: number) {
-  return { x: x, y: y, w: w, type: type, vx: 0, broken: false, breakT: 0, respawnT: 0, spring: false, springT: 0, row: row };
+  return { x: x, y: y, w: w, type: type, vx: 0, broken: false, breakT: 0, respawnT: 0, restoreT: 0, spring: false, springT: 0, row: row, seq: 0 };
+}
+function stampPlat(w: any, pl: any) {
+  pl.seq = w.platSeq++;
+  var pending = w.netBreaks && w.netBreaks[pl.seq];
+  if (pending && pl.type === "break") {
+    delete w.netBreaks[pl.seq];
+    if (pending === "brk") { pl.broken = true; pl.breakT = 0; }
+    else { pl.broken = false; pl.restoreT = 16; }
+  }
+  return pl;
 }
 function findX(r: any, pw: number, row: any[]) {
   for (var t = 0; t < 24; t++) {
@@ -1050,7 +1060,7 @@ function genRow(w: any) {
     }
   }
   w.lastKind = isMove ? "move" : "static";
-  for (var j = 0; j < row.length; j++) w.platforms.push(row[j]);
+  for (var j = 0; j < row.length; j++) w.platforms.push(stampPlat(w, row[j]));
 
   /* Gap vs height. Soften the opening (min ~0.34 JUMP_H); from 300 m the values
      are identical to v0.54 (gT = m/700, 0.42–0.78 / 0.58–0.94). */
@@ -1117,11 +1127,11 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
   var w: any = {
     seed: seed >>> 0, rng: mulberry32(seed >>> 0), mode: mode, map: mapInfo(mapId || "city").id,
     platforms: [], monsters: [], bullets: [], coins: [], items: [], particles: [],
-    nextY: -24, rowN: 1, lastKind: "", lastMobRow: {}, cameraY: -LH + 70, tick: 0, shake: 0,
+    nextY: -24, rowN: 1, platSeq: 0, netBreaks: {}, lastKind: "", lastMobRow: {}, cameraY: -LH + 70, tick: 0, shake: 0,
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
-  w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
+  w.platforms.push(stampPlat(w, mkPlat(8, 0, LW - 16, "normal", 0)));
   var xs = mode === "squad" ? [74, 22, 124, 48] : [74];
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
   if (mode === "squad") {
@@ -1311,6 +1321,7 @@ function landOn(w: any, p: any, pl: any) {
   if (pl.type === "break" && !pl.broken) {
     pl.broken = true;
     pl.breakT = 14;
+    if (w.net) pl.netTell = 1;
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
   }
@@ -1447,6 +1458,7 @@ function tickWorld(w: any, inputs: any) {
       if (pl.x + pl.w > LW - 2) { pl.x = LW - 2 - pl.w; pl.vx = -Math.abs(pl.vx); }
     }
     if (pl.broken && pl.breakT > 0) pl.breakT--;
+    if (pl.restoreT > 0) pl.restoreT--;
     if (pl.respawnT > 0 && --pl.respawnT === 0) { pl.broken = false; spawnParts(w, pl.x + pl.w / 2, pl.y, 4, "#88f8ff", 1.2, -0.02, 1); }
     if (pl.springT > 0) pl.springT--;
     if (pl.lifeT > 0 && --pl.lifeT === 0) { pl.broken = true; pl.breakT = 0; }
@@ -1675,7 +1687,7 @@ function tickWorld(w: any, inputs: any) {
         if (q.broken) continue;
         if (q.y > p.camY + LH) continue;
         if (pf <= q.y + 3 && feet >= q.y && overlapsX(p.x + 1, PW - 2, q.x, q.w)) {
-          if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) { q.broken = true; q.breakT = 14; spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2); if (p.id === 0) w.shake = 3; continue; }
+          if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) { q.broken = true; q.breakT = 14; if (w.net && q.type === "break") q.netTell = 1; spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2); if (p.id === 0) w.shake = 3; continue; }
           landOn(w, p, q); break;
         }
       }
@@ -2101,6 +2113,18 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
     rect(ctx, x + 3, y - 1, w - 6, 4, "#ffffff"); rect(ctx, x + 1, y + 1, w - 2, 2, "#ffffff");
     rect(ctx, x + 6, y - 3, 6, 2, "#ffffff"); rect(ctx, x + w - 13, y - 3, 7, 2, "#ffffff");
     rect(ctx, x + 1, y + 3, w - 2, 1, "#a8c8f0");
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (p.restoreT > 0) {
+    var u = 1 - p.restoreT / 16;
+    var gap = Math.round((1 - u) * 8);
+    var mid = Math.floor(w / 2);
+    ctx.globalAlpha = 0.45 + 0.55 * u;
+    rect(ctx, x - gap, y, Math.max(2, mid - 1), 5, C.brk);
+    rect(ctx, x + mid + 1 + gap, y, Math.max(2, w - mid - 1), 5, C.brkD);
+    rect(ctx, x - gap, y, Math.max(2, mid - 1), 1, C.brkRim);
+    rect(ctx, x + mid + 1 + gap, y, Math.max(2, w - mid - 1), 1, C.brkRim);
     ctx.globalAlpha = 1;
     return;
   }
@@ -2968,6 +2992,10 @@ var NET: any = (function () {
       send("st", { x: me0.x, y: me0.y, vx: 0, vy: me0.vy, f: me0.face, a: 0, m: Math.round(me0.maxH), ps: 0, tk: w.tick });
       send("ev", { e: "dead", m: metersOf(me0), why: me0.why });
     }
+    for (var bi = 0; bi < w.platforms.length; bi++) {
+      var bp = w.platforms[bi];
+      if (bp.netTell) { bp.netTell = 0; send("ev", { e: "brk", id: bp.seq }); }
+    }
     for (var k = 0; k < w.monsters.length; k++) {
       var mo = w.monsters[k];
       if (!mo.alive && !mo.netSent) { mo.netSent = true; if (!mo.netRemote) send("ev", { e: "mob", id: mobId(mo) }); }
@@ -2986,6 +3014,7 @@ var NET: any = (function () {
         rp.maxH = Math.max(rp.maxH, (e.m || 0) * PX_PER_M);
         toast(w, rp.name + " ВЫБЫЛ");
       } else if (e.e === "left" && rp) { rp.alive = false; rp.why = "left"; }
+      else if (e.e === "brk" || e.e === "rst") applyPlatNet(w, e.id, e.e);
     }
     /* spectate the leader after falling */
     if (!me0.alive) {
@@ -3000,6 +3029,29 @@ var NET: any = (function () {
       for (var r2 = 0; r2 < R.length; r2++) { var p3 = byPid(w, R[r2].pid); if (p3) p3.place = R[r2].place; }
     }
   };
+  function applyPlatNet(w: any, id: number, kind: string) {
+    var idn = id | 0;
+    if (idn < 0) return;
+    var pl: any = null;
+    for (var i = 0; i < w.platforms.length; i++) if (w.platforms[i].seq === idn) { pl = w.platforms[i]; break; }
+    if (!pl) {
+      if (!w.netBreaks) w.netBreaks = {};
+      w.netBreaks[idn] = kind === "rst" ? "rst" : "brk";
+      return;
+    }
+    if (pl.type !== "break") return;
+    if (kind === "brk") {
+      if (pl.broken) return;
+      pl.broken = true;
+      pl.breakT = 14;
+      spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 8, C.brk, 2, 0.2, 2);
+    } else {
+      pl.broken = false;
+      pl.breakT = 0;
+      pl.restoreT = 16;
+      spawnParts(w, pl.x + pl.w / 2, pl.y, 6, C.brkRim, 1.4, -0.04, 1);
+    }
+  }
   function byPid(w: any, pid: number) {
     if (pid === N.you) return w.players[0];
     for (var i = 1; i < w.players.length; i++) if (w.players[i].pid === pid) return w.players[i];

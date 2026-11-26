@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { randomBytes, randomInt } from 'crypto';
 import type { WebSocket } from 'ws';
 import {
-  STALE_MS, HERO_COUNT, MAPS, MAX_PLAYERS, NET_LW, Phase, PlayerInfo, RECONNECT_GRACE_MS, ROOM_IDLE_MS, SNAP_HZ, START_DELAY_MS,
+  STALE_MS, HERO_COUNT, MAPS, MAX_PLAYERS, NET_LW, Phase, PlayerInfo, RECONNECT_GRACE_MS, ROOM_IDLE_MS, SNAP_HZ, START_DELAY_MS, BREAK_RESTORE_MS,
 } from './protocol';
 
 export interface Player {
@@ -36,6 +36,8 @@ export interface Room {
   nextPid: number;
   touched: number;
   snapTimer: NodeJS.Timeout | null;
+  /** seq -> restore timer. Server is the source of truth for a shared red platform. */
+  broken: Map<number, NodeJS.Timeout>;
 }
 
 export class RoomError extends Error {
@@ -120,7 +122,7 @@ export class RoomsService implements OnModuleDestroy {
     const code = this.newCode();
     const r: Room = {
       code, host: 0, phase: 'lobby', map: 'city', lw: NET_LW, round: 0, seed: 0, startAt: 0, players: [], nextPid: 0,
-      touched: Date.now(), snapTimer: null,
+      touched: Date.now(), snapTimer: null, broken: new Map(),
     };
     this.rooms.set(code, r);
     const p = this.addPlayer(r, ws, name, kind);
@@ -219,6 +221,18 @@ export class RoomsService implements OnModuleDestroy {
       this.broadcast(r, 'ev', { pid: p.pid, e: 'mob', id: d.id }, p.pid);
     } else if ((e === 'pick' || e === 'ab') && typeof d.k === 'string' && d.k.length < 20) {
       this.broadcast(r, 'ev', { pid: p.pid, e, k: d.k }, p.pid);
+    } else if (e === 'brk') {
+      const id = Math.floor(Number(d.id));
+      if (!Number.isFinite(id) || id < 0 || id > 1e7) return;
+      if (!r.broken) r.broken = new Map();
+      if (r.broken.has(id)) return;
+      this.broadcast(r, 'ev', { pid: p.pid, e: 'brk', id }, p.pid);
+      const timer = setTimeout(() => {
+        if (!this.rooms.has(r.code)) return;
+        r.broken.delete(id);
+        this.broadcast(r, 'ev', { pid: p.pid, e: 'rst', id });
+      }, BREAK_RESTORE_MS);
+      r.broken.set(id, timer);
     }
   }
   private snap(r: Room) {
@@ -275,6 +289,7 @@ export class RoomsService implements OnModuleDestroy {
   }
   private destroy(r: Room) {
     if (r.snapTimer) clearInterval(r.snapTimer);
+    if (r.broken) for (const t of r.broken.values()) clearTimeout(t);
     for (const p of r.players) this.byToken.delete(p.token);
     this.rooms.delete(r.code);
     this.log.log(`room ${r.code} closed`);

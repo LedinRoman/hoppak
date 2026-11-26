@@ -372,6 +372,10 @@ var NET: any = (function () {
       send("st", { x: me0.x, y: me0.y, vx: 0, vy: me0.vy, f: me0.face, a: 0, m: Math.round(me0.maxH), ps: 0, tk: w.tick });
       send("ev", { e: "dead", m: metersOf(me0), why: me0.why });
     }
+    for (var bi = 0; bi < w.platforms.length; bi++) {
+      var bp = w.platforms[bi];
+      if (bp.netTell) { bp.netTell = 0; send("ev", { e: "brk", id: bp.seq }); }
+    }
     for (var k = 0; k < w.monsters.length; k++) {
       var mo = w.monsters[k];
       if (!mo.alive && !mo.netSent) { mo.netSent = true; if (!mo.netRemote) send("ev", { e: "mob", id: mobId(mo) }); }
@@ -390,6 +394,7 @@ var NET: any = (function () {
         rp.maxH = Math.max(rp.maxH, (e.m || 0) * PX_PER_M);
         toast(w, rp.name + " ВЫБЫЛ");
       } else if (e.e === "left" && rp) { rp.alive = false; rp.why = "left"; }
+      else if (e.e === "brk" || e.e === "rst") applyPlatNet(w, e.id, e.e);
     }
     /* spectate the leader after falling */
     if (!me0.alive) {
@@ -404,6 +409,29 @@ var NET: any = (function () {
       for (var r2 = 0; r2 < R.length; r2++) { var p3 = byPid(w, R[r2].pid); if (p3) p3.place = R[r2].place; }
     }
   };
+  function applyPlatNet(w: any, id: number, kind: string) {
+    var idn = id | 0;
+    if (idn < 0) return;
+    var pl: any = null;
+    for (var i = 0; i < w.platforms.length; i++) if (w.platforms[i].seq === idn) { pl = w.platforms[i]; break; }
+    if (!pl) {
+      if (!w.netBreaks) w.netBreaks = {};
+      w.netBreaks[idn] = kind === "rst" ? "rst" : "brk";
+      return;
+    }
+    if (pl.type !== "break") return;
+    if (kind === "brk") {
+      if (pl.broken) return;
+      pl.broken = true;
+      pl.breakT = 14;
+      spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 8, C.brk, 2, 0.2, 2);
+    } else {
+      pl.broken = false;
+      pl.breakT = 0;
+      pl.restoreT = 16;
+      spawnParts(w, pl.x + pl.w / 2, pl.y, 6, C.brkRim, 1.4, -0.04, 1);
+    }
+  }
   function byPid(w: any, pid: number) {
     if (pid === N.you) return w.players[0];
     for (var i = 1; i < w.players.length; i++) if (w.players[i].pid === pid) return w.players[i];

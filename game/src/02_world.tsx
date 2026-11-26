@@ -3,7 +3,17 @@
 function isPerm(t: string) { return t === "normal" || t === "move" || t === "ice" || t === "bounce" || t === "grav"; }
 
 function mkPlat(x: number, y: number, w: number, type: string, row: number) {
-  return { x: x, y: y, w: w, type: type, vx: 0, broken: false, breakT: 0, respawnT: 0, spring: false, springT: 0, row: row };
+  return { x: x, y: y, w: w, type: type, vx: 0, broken: false, breakT: 0, respawnT: 0, restoreT: 0, spring: false, springT: 0, row: row, seq: 0 };
+}
+function stampPlat(w: any, pl: any) {
+  pl.seq = w.platSeq++;
+  var pending = w.netBreaks && w.netBreaks[pl.seq];
+  if (pending && pl.type === "break") {
+    delete w.netBreaks[pl.seq];
+    if (pending === "brk") { pl.broken = true; pl.breakT = 0; }
+    else { pl.broken = false; pl.restoreT = 16; }
+  }
+  return pl;
 }
 function findX(r: any, pw: number, row: any[]) {
   for (var t = 0; t < 24; t++) {
@@ -258,7 +268,7 @@ function genRow(w: any) {
     }
   }
   w.lastKind = isMove ? "move" : "static";
-  for (var j = 0; j < row.length; j++) w.platforms.push(row[j]);
+  for (var j = 0; j < row.length; j++) w.platforms.push(stampPlat(w, row[j]));
 
   /* Gap vs height. Soften the opening (min ~0.34 JUMP_H); from 300 m the values
      are identical to v0.54 (gT = m/700, 0.42–0.78 / 0.58–0.94). */
@@ -325,11 +335,11 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
   var w: any = {
     seed: seed >>> 0, rng: mulberry32(seed >>> 0), mode: mode, map: mapInfo(mapId || "city").id,
     platforms: [], monsters: [], bullets: [], coins: [], items: [], particles: [],
-    nextY: -24, rowN: 1, lastKind: "", lastMobRow: {}, cameraY: -LH + 70, tick: 0, shake: 0,
+    nextY: -24, rowN: 1, platSeq: 0, netBreaks: {}, lastKind: "", lastMobRow: {}, cameraY: -LH + 70, tick: 0, shake: 0,
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
-  w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
+  w.platforms.push(stampPlat(w, mkPlat(8, 0, LW - 16, "normal", 0)));
   var xs = mode === "squad" ? [74, 22, 124, 48] : [74];
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
   if (mode === "squad") {
@@ -519,6 +529,7 @@ function landOn(w: any, p: any, pl: any) {
   if (pl.type === "break" && !pl.broken) {
     pl.broken = true;
     pl.breakT = 14;
+    if (w.net) pl.netTell = 1;
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
   }
@@ -655,6 +666,7 @@ function tickWorld(w: any, inputs: any) {
       if (pl.x + pl.w > LW - 2) { pl.x = LW - 2 - pl.w; pl.vx = -Math.abs(pl.vx); }
     }
     if (pl.broken && pl.breakT > 0) pl.breakT--;
+    if (pl.restoreT > 0) pl.restoreT--;
     if (pl.respawnT > 0 && --pl.respawnT === 0) { pl.broken = false; spawnParts(w, pl.x + pl.w / 2, pl.y, 4, "#88f8ff", 1.2, -0.02, 1); }
     if (pl.springT > 0) pl.springT--;
     if (pl.lifeT > 0 && --pl.lifeT === 0) { pl.broken = true; pl.breakT = 0; }
@@ -883,7 +895,7 @@ function tickWorld(w: any, inputs: any) {
         if (q.broken) continue;
         if (q.y > p.camY + LH) continue;
         if (pf <= q.y + 3 && feet >= q.y && overlapsX(p.x + 1, PW - 2, q.x, q.w)) {
-          if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) { q.broken = true; q.breakT = 14; spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2); if (p.id === 0) w.shake = 3; continue; }
+          if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) { q.broken = true; q.breakT = 14; if (w.net && q.type === "break") q.netTell = 1; spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2); if (p.id === 0) w.shake = 3; continue; }
           landOn(w, p, q); break;
         }
       }

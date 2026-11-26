@@ -285,6 +285,18 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
     ctx.globalAlpha = 1;
     return;
   }
+  if (p.restoreT > 0) {
+    var u = 1 - p.restoreT / 16;
+    var gap = Math.round((1 - u) * 8);
+    var mid = Math.floor(w / 2);
+    ctx.globalAlpha = 0.45 + 0.55 * u;
+    rect(ctx, x - gap, y, Math.max(2, mid - 1), 5, C.brk);
+    rect(ctx, x + mid + 1 + gap, y, Math.max(2, w - mid - 1), 5, C.brkD);
+    rect(ctx, x - gap, y, Math.max(2, mid - 1), 1, C.brkRim);
+    rect(ctx, x + mid + 1 + gap, y, Math.max(2, w - mid - 1), 1, C.brkRim);
+    ctx.globalAlpha = 1;
+    return;
+  }
   if (p.broken) {
     if (p.type === "bubble" && p.respawnT > 0) {
       ctx.globalAlpha = 0.25;

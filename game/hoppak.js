@@ -71,12 +71,12 @@
     roof: "#342a4e"
   };
   var CHARS = [
-    { id: "pilot", name: "\u041A\u0430\u043F\u0438\u0442\u0430\u043D", hood: "#2c3a5c", price: 0, ab: "dash", abName: "\u0420\u042B\u0412\u041E\u041A", type: "\u0411\u0410\u0417\u041E\u0412\u042B\u0419", abDesc: ["\u041A\u041E\u0420\u041E\u0422\u041A\u0418\u0419 \u0411\u042B\u0421\u0422\u0420\u042B\u0419", "\u0412\u0417\u041B\u0401\u0422 \u041D\u0410 \u0420\u0410\u041D\u0426\u0415"], charge: "time", need: 250 },
+    { id: "pilot", name: "\u041A\u0430\u043F\u0438\u0442\u0430\u043D", hood: "#2c3a5c", price: 0, ab: "dash", abName: "\u0420\u042B\u0412\u041E\u041A", type: "\u0411\u0410\u0417\u041E\u0412\u042B\u0419", abDesc: ["\u041A\u041E\u0420\u041E\u0422\u041A\u0418\u0419 \u0411\u042B\u0421\u0422\u0420\u042B\u0419", "\u0412\u0417\u041B\u0401\u0422 \u041D\u0410 \u0420\u0410\u041D\u0426\u0415"], charge: "time", need: 400 },
     { id: "pirate", name: "\u041F\u0438\u0440\u0430\u0442", hood: "#a8282c", price: 150, ab: "hook", abName: "\u041A\u0420\u042E\u041A", type: "\u041C\u0410\u041D\u0401\u0412\u0420", abDesc: ["\u041A\u0420\u042E\u041A \u041A \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0415", "\u0418\u041B\u0418 \u041C\u041E\u041D\u0415\u0422\u0415, \u0411\u042C\u0401\u0422 \u041C\u041E\u0411\u041E\u0412"], charge: "time", need: 400 },
     { id: "ninja", name: "\u041D\u0438\u043D\u0434\u0437\u044F", hood: "#26305a", price: 200, ab: "wall", abName: "\u0421\u0422\u0415\u041D\u042B", type: "\u041F\u0410\u0420\u041A\u0423\u0420", abDesc: ["6 \u0421\u0415\u041A \u0426\u0415\u041F\u041B\u042F\u0415\u0422\u0421\u042F \u0417\u0410 \u041A\u0420\u0410\u0419,", "\u0422\u0410\u041F - \u041F\u0420\u042B\u0416\u041E\u041A \u041E\u0422 \u0421\u0422\u0415\u041D\u042B"], charge: "time", need: 500 },
     { id: "robot", name: "\u0420\u043E\u0431\u043E\u0442", hood: "#d8dce8", price: 240, ab: "dome", abName: "\u041A\u041E\u0421\u041C\u041E\u0429\u0418\u0422", type: "\u0417\u0410\u0429\u0418\u0422\u0410", abDesc: ["\u0429\u0418\u0422 4 \u0421\u0415\u041A, \u0421\u041F\u0410\u0421\u0401\u0422", "\u041E\u0422 \u041F\u0410\u0414\u0415\u041D\u0418\u042F"], charge: "height", need: 200 },
-    { id: "mage", name: "\u041C\u0430\u0433", hood: "#7a3ac8", price: 280, ab: "tele", abName: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", type: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", abDesc: ["\u041C\u0418\u0413\u041E\u041C \u041D\u0410 \u041D\u0410\u0414\u0401\u0416\u041D\u0423\u042E", "\u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0423 \u0412\u042B\u0428\u0415"], charge: "coins", need: 12 },
-    { id: "knight", name: "\u0420\u044B\u0446\u0430\u0440\u044C", hood: "#c02a2a", price: 320, ab: "pound", abName: "\u0422\u0410\u0420\u0410\u041D", type: "\u0410\u0422\u0410\u041A\u0410", abDesc: ["\u041F\u0418\u041A\u0415 \u0429\u0418\u0422\u041E\u041C \u0412\u041D\u0418\u0417,", "\u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u0421\u0423\u041F\u0415\u0420\u041F\u0420\u042B\u0416\u041E\u041A"], charge: "kills", need: 2 }
+    { id: "mage", name: "\u041C\u0430\u0433", hood: "#7a3ac8", price: 280, ab: "tele", abName: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", type: "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", abDesc: ["\u041C\u0418\u0413\u041E\u041C \u041D\u0410 \u041D\u0410\u0414\u0401\u0416\u041D\u0423\u042E", "\u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0423 \u0412\u042B\u0428\u0415"], charge: "coins", need: 5 },
+    { id: "knight", name: "\u0420\u044B\u0446\u0430\u0440\u044C", hood: "#c02a2a", price: 320, ab: "pound", abName: "\u0422\u0410\u0420\u0410\u041D", type: "\u0410\u0422\u0410\u041A\u0410", abDesc: ["\u041F\u0418\u041A\u0415 \u0429\u0418\u0422\u041E\u041C \u0412\u041D\u0418\u0417,", "\u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u0421\u0423\u041F\u0415\u0420\u041F\u0420\u042B\u0416\u041E\u041A"], charge: "kills", need: 1 }
   ];
   var SPR_CW = 36;
   var SPR_CH = 32;
@@ -1016,7 +1016,22 @@
     return t === "normal" || t === "move" || t === "ice" || t === "bounce" || t === "grav";
   }
   function mkPlat(x, y, w, type, row) {
-    return { x, y, w, type, vx: 0, broken: false, breakT: 0, respawnT: 0, spring: false, springT: 0, row };
+    return { x, y, w, type, vx: 0, broken: false, breakT: 0, respawnT: 0, restoreT: 0, spring: false, springT: 0, row, seq: 0 };
+  }
+  function stampPlat(w, pl) {
+    pl.seq = w.platSeq++;
+    var pending = w.netBreaks && w.netBreaks[pl.seq];
+    if (pending && pl.type === "break") {
+      delete w.netBreaks[pl.seq];
+      if (pending === "brk") {
+        pl.broken = true;
+        pl.breakT = 0;
+      } else {
+        pl.broken = false;
+        pl.restoreT = 16;
+      }
+    }
+    return pl;
   }
   function findX(r, pw, row) {
     for (var t = 0; t < 24; t++) {
@@ -1356,7 +1371,7 @@
       }
     }
     w.lastKind = isMove ? "move" : "static";
-    for (var j = 0; j < row.length; j++) w.platforms.push(row[j]);
+    for (var j = 0; j < row.length; j++) w.platforms.push(stampPlat(w, row[j]));
     var gT = clamp((m + 90 * h059) / 700, 0, 1);
     var minG054 = Math.max(ROW_SEP, Math.floor(JUMP_H * lerp(0.42, 0.78, gT)));
     var maxG054 = Math.min(GAP_CAP, Math.floor(JUMP_H * lerp(0.58, 0.94, gT)));
@@ -1483,6 +1498,8 @@
       particles: [],
       nextY: -24,
       rowN: 1,
+      platSeq: 0,
+      netBreaks: {},
       lastKind: "",
       lastMobRow: {},
       cameraY: -LH + 70,
@@ -1503,7 +1520,7 @@
       warnSfxT: 0
     };
     w.nextBonusM = randInt(w.rng, 160, 240);
-    w.platforms.push(mkPlat(8, 0, LW - 16, "normal", 0));
+    w.platforms.push(stampPlat(w, mkPlat(8, 0, LW - 16, "normal", 0)));
     var xs = mode === "squad" ? [74, 22, 124, 48] : [74];
     w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
     if (mode === "squad") {
@@ -1727,6 +1744,7 @@
     if (pl.type === "break" && !pl.broken) {
       pl.broken = true;
       pl.breakT = 14;
+      if (w.net) pl.netTell = 1;
       spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
       spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
     }
@@ -1912,6 +1930,7 @@
         }
       }
       if (pl.broken && pl.breakT > 0) pl.breakT--;
+      if (pl.restoreT > 0) pl.restoreT--;
       if (pl.respawnT > 0 && --pl.respawnT === 0) {
         pl.broken = false;
         spawnParts(w, pl.x + pl.w / 2, pl.y, 4, "#88f8ff", 1.2, -0.02, 1);
@@ -2252,6 +2271,7 @@
             if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) {
               q.broken = true;
               q.breakT = 14;
+              if (w.net && q.type === "break") q.netTell = 1;
               spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2);
               if (p.id === 0) w.shake = 3;
               continue;
@@ -2759,6 +2779,18 @@
       rect(ctx, x + 6, y - 3, 6, 2, "#ffffff");
       rect(ctx, x + w - 13, y - 3, 7, 2, "#ffffff");
       rect(ctx, x + 1, y + 3, w - 2, 1, "#a8c8f0");
+      ctx.globalAlpha = 1;
+      return;
+    }
+    if (p.restoreT > 0) {
+      var u = 1 - p.restoreT / 16;
+      var gap = Math.round((1 - u) * 8);
+      var mid = Math.floor(w / 2);
+      ctx.globalAlpha = 0.45 + 0.55 * u;
+      rect(ctx, x - gap, y, Math.max(2, mid - 1), 5, C.brk);
+      rect(ctx, x + mid + 1 + gap, y, Math.max(2, w - mid - 1), 5, C.brkD);
+      rect(ctx, x - gap, y, Math.max(2, mid - 1), 1, C.brkRim);
+      rect(ctx, x + mid + 1 + gap, y, Math.max(2, w - mid - 1), 1, C.brkRim);
       ctx.globalAlpha = 1;
       return;
     }
@@ -4093,6 +4125,13 @@
         send("st", { x: me0.x, y: me0.y, vx: 0, vy: me0.vy, f: me0.face, a: 0, m: Math.round(me0.maxH), ps: 0, tk: w.tick });
         send("ev", { e: "dead", m: metersOf(me0), why: me0.why });
       }
+      for (var bi = 0; bi < w.platforms.length; bi++) {
+        var bp = w.platforms[bi];
+        if (bp.netTell) {
+          bp.netTell = 0;
+          send("ev", { e: "brk", id: bp.seq });
+        }
+      }
       for (var k = 0; k < w.monsters.length; k++) {
         var mo = w.monsters[k];
         if (!mo.alive && !mo.netSent) {
@@ -4129,7 +4168,7 @@
         } else if (e.e === "left" && rp) {
           rp.alive = false;
           rp.why = "left";
-        }
+        } else if (e.e === "brk" || e.e === "rst") applyPlatNet(w, e.id, e.e);
       }
       if (!me0.alive) {
         var best = null;
@@ -4156,6 +4195,32 @@
         }
       }
     };
+    function applyPlatNet(w, id, kind) {
+      var idn = id | 0;
+      if (idn < 0) return;
+      var pl = null;
+      for (var i = 0; i < w.platforms.length; i++) if (w.platforms[i].seq === idn) {
+        pl = w.platforms[i];
+        break;
+      }
+      if (!pl) {
+        if (!w.netBreaks) w.netBreaks = {};
+        w.netBreaks[idn] = kind === "rst" ? "rst" : "brk";
+        return;
+      }
+      if (pl.type !== "break") return;
+      if (kind === "brk") {
+        if (pl.broken) return;
+        pl.broken = true;
+        pl.breakT = 14;
+        spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 8, C.brk, 2, 0.2, 2);
+      } else {
+        pl.broken = false;
+        pl.breakT = 0;
+        pl.restoreT = 16;
+        spawnParts(w, pl.x + pl.w / 2, pl.y, 6, C.brkRim, 1.4, -0.04, 1);
+      }
+    }
     function byPid(w, pid) {
       if (pid === N.you) return w.players[0];
       for (var i = 1; i < w.players.length; i++) if (w.players[i].pid === pid) return w.players[i];
