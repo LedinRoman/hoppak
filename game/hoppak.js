@@ -4885,6 +4885,7 @@
     var mode = "solo";
     var room = { round: 0 };
     var shopHero = save.char;
+    var abHintRun = false;
     var abTap = false;
     var lobbyMap = save.bg;
     var flash = "", flashT = 0, flashPh = "";
@@ -5308,6 +5309,12 @@
       } catch (_e) {
       }
       VIEW_SHIFT = 0;
+      abHintRun = !!(world.players[0] && heroHasAb(world.players[0]) && !(save.seen && save.seen.abHint));
+      if (abHintRun) {
+        if (!save.seen) save.seen = {};
+        save.seen.abHint = 1;
+        writeSave(save);
+      }
       resize();
     }
     function payout() {
@@ -6176,9 +6183,9 @@
       }
       if (w.tick < 170 && !(w.toastT > 0)) {
         ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
-        var hasAb = heroHasAb(me), Hn = CHARS[me.kind];
-        var line1 = !isPhone ? hasAb ? "\u2190 \u2192 \u0425\u041E\u0414 \xB7 \u2191 " + Hn.abName : "\u2190 \u2192 \u0425\u041E\u0414" : "\u0422\u0410\u041F \u0421\u041B\u0415\u0412\u0410 / \u0421\u041F\u0420\u0410\u0412\u0410";
-        var line2 = isPhone && hasAb ? "\u0421\u0412\u0410\u0419\u041F \u2191 - " + Hn.abName : "";
+        var Hn = CHARS[me.kind];
+        var line1 = !isPhone ? "\u2190 \u2192 \u0425\u041E\u0414" : "\u0422\u0410\u041F \u0421\u041B\u0415\u0412\u0410 / \u0421\u041F\u0420\u0410\u0412\u0410";
+        var line2 = abHintRun ? !isPhone ? "\u2191 " + Hn.abName : "\u0421\u0412\u0410\u0419\u041F \u2191 " + Hn.abName : "";
         var htw = textWidth(line1, 1);
         if (line2) htw = Math.max(htw, textWidth(line2, 1));
         var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
@@ -6393,8 +6400,11 @@
       fillDisc(cx, cy, 7, ready ? C.gold : "#3a4a7a");
       fillDisc(cx, cy, 6, "#1a1430");
       if (active) strokeArc(cx, cy, 6, C.cream, rs.f != null ? rs.f : 1);
-      else if (ready) strokeArc(cx, cy, 6, C.gold, 1);
-      else strokeArc(cx, cy, 6, "#5ec8ff", f);
+      else if (ready) {
+        strokeArc(cx, cy, 6, C.gold, 1);
+        strokeArc(cx, cy, 8, (ui >> 3) % 2 ? C.gold : "#fff2a8", 1);
+      } else strokeArc(cx, cy, 6, "#5ec8ff", f);
+      if (ready) drawText(ctx, "\u0413\u041E\u0422\u041E\u0412", b.x + b.w + 3, b.y + 4, C.gold, 1, "left");
       ctx.globalAlpha = ready || active || rf > 0 ? 1 : 0.55;
       drawAbIcon(H.ab, cx - 6, cy - 6);
       ctx.globalAlpha = 1;
