@@ -7,8 +7,8 @@ import { hashToken, newGuestToken } from './auth';
 import { parseAndVerifyInitData } from './telegram';
 import {
   ITEM_PRICES, MAP_IDS, MIGRATE_COINS_MAX, RUN_HEIGHT_MAX,
-  awardForRun, clamp, emptyCampaign, mergeCampaign, mergePurchases,
-  sanitizeMapBest, sanitizePurchases, sanitizeRunId, Campaign,
+  awardForRun, clamp, emptyCampaign, mapPurchaseBlock, mergeCampaign, mergePurchases,
+  purchasesWithoutMaps, sanitizeMapBest, sanitizePurchases, sanitizeRunId, Campaign,
 } from './limits';
 
 export type PublicProfile = {
@@ -86,7 +86,8 @@ export class ProfileService {
     const incomingBest = clamp(Math.floor(Number(best) || 0), 0, RUN_HEIGHT_MAX);
     p.coins = clamp(p.coins + incoming, 0, MIGRATE_COINS_MAX);
     p.best = Math.max(p.best || 0, incomingBest);
-    p.purchases = mergePurchases(p.purchases || {}, sanitizePurchases(purchases));
+    /* Map opens arrive only through buy(). A localStorage blob cannot grant them. */
+    p.purchases = mergePurchases(p.purchases || {}, purchasesWithoutMaps(sanitizePurchases(purchases)));
     p.migratedAt = new Date();
     await repo.save(p);
     return this.toPublic(p);
@@ -108,6 +109,11 @@ export class ProfileService {
       if (owned[key]) {
         return { alreadyOwned: true, profile: this.toPublic(fresh) };
       }
+      const blocked = mapPurchaseBlock(key, fresh.campaign);
+      if (blocked) {
+        throw new HttpException({ ok: false, ...blocked }, HttpStatus.BAD_REQUEST);
+      }
+      /* coins>=price is checked under the row lock, so two buys cannot both pass. */
       if ((fresh.coins || 0) < price) {
         throw new HttpException(
           { ok: false, error: 'INSUFFICIENT_COINS', needed: price, coins: fresh.coins || 0 },
@@ -126,10 +132,12 @@ export class ProfileService {
   }
 
   /**
-   * Upload local map records and map opens. Idempotent max-merge.
-   * Does not change coins: the server balance is the only wallet.
+   * Upload local map records only. Opens in the body are ignored:
+   * a map is purchased, never unlocked by this endpoint.
+   * Does not change coins or existing purchases.
    */
-  async syncCampaign(p: Player, mapBestRaw: unknown, openRaw: unknown): Promise<PublicProfile> {
+  async syncCampaign(p: Player, mapBestRaw: unknown, _openRaw?: unknown): Promise<PublicProfile> {
+    void _openRaw;
     const repo = this.requireDb();
     const execute = async (playerRepo: Repository<Player>): Promise<PublicProfile> => {
       const fresh = (await playerRepo.findOne({
@@ -137,12 +145,6 @@ export class ProfileService {
         ...(repo.manager ? { lock: { mode: 'pessimistic_write' } } : {}),
       })) || p;
       fresh.campaign = mergeCampaign(fresh.campaign, { best: sanitizeMapBest(mapBestRaw) });
-      const opens = sanitizePurchases(openRaw);
-      const mapOpens: Record<string, number> = {};
-      for (const key of Object.keys(opens)) {
-        if (key.indexOf('map:') === 0 && Object.prototype.hasOwnProperty.call(ITEM_PRICES, key)) mapOpens[key] = 1;
-      }
-      fresh.purchases = mergePurchases(fresh.purchases || {}, mapOpens);
       let top = fresh.best || 0;
       for (const id of Object.keys(fresh.campaign.best || {})) top = Math.max(top, fresh.campaign.best[id] || 0);
       fresh.best = top;

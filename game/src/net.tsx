@@ -523,17 +523,20 @@ var NET: any = (function () {
     if (N.sub === "update" || N.st === "update") return drawUpdate(api, x);
     if (N.sub === "room" && N.room) return drawRoom(api, x);
     if (N.sub === "code") return drawCode(api, x);
-    api.header("МУЛЬТИПЛЕЕР", 1);
-    drawText(ctx, "ДО 4 ИГРОКОВ НА ОДНОЙ КАРТЕ", LW / 2, 34, C.cream, 1, "center");
+    var hd = api.header("МУЛЬТИПЛЕЕР", 1);
+    var subY = hd.bottom + 4;
+    drawText(ctx, "ДО 4 ИГРОКОВ НА ОДНОЙ КАРТЕ", LW / 2, subY, C.cream, 1, "center");
     if (sl.two) {
-      box(ctx, x, 48, 152, 24, C.navy, sl.c);
-      drawText(ctx, "МУЛЬТИПЛЕЕР НЕДОСТУПЕН", LW / 2, 51, sl.c, 1, "center");
-      drawText(ctx, "В ЭТОЙ ВЕРСИИ", LW / 2, 61, sl.c, 1, "center");
+      box(ctx, x, subY + 14, 152, 24, C.navy, sl.c);
+      if (api.markBox) api.markBox("status", x, subY + 14, 152, 24);
+      drawText(ctx, "МУЛЬТИПЛЕЕР НЕДОСТУПЕН", LW / 2, subY + 17, sl.c, 1, "center");
+      drawText(ctx, "В ЭТОЙ ВЕРСИИ", LW / 2, subY + 27, sl.c, 1, "center");
     } else {
-      box(ctx, x, 48, 152, 13, C.navy, sl.c);
-      drawText(ctx, sl.t, LW / 2, 51, sl.c, 1, "center");
+      box(ctx, x, subY + 14, 152, 13, C.navy, sl.c);
+      if (api.markBox) api.markBox("status", x, subY + 14, 152, 13);
+      drawText(ctx, sl.t, LW / 2, subY + 17, sl.c, 1, "center");
     }
-    var y = sl.two ? 82 : 72;
+    var y = subY + (sl.two ? 48 : 38);
     api.btn("net:name", x, y, 152, 20, "#1a1430", "ИМЯ: " + (cleanNick(nick()) || CHARS[api.save().char].name.toUpperCase()), C.cream, 1, C.gold);
     y += 28;
     var ok = N.st === "online";
@@ -552,12 +555,14 @@ var NET: any = (function () {
   }
   function drawCode(api: any, x: number) {
     var ctx = api.ctx;
-    api.header("КОД КОМНАТЫ", 1);
+    var hdCode = api.header("КОД КОМНАТЫ", 1);
+    var codeY = hdCode.bottom + 4;
     for (var i = 0; i < 4; i++) {
-      box(ctx, x + 14 + i * 32, 36, 26, 30, C.navy, i === N.code.length ? C.gold : C.cream);
-      if (N.code[i]) drawText(ctx, N.code[i], x + 27 + i * 32, 44, C.cream, 2, "center");
+      box(ctx, x + 14 + i * 32, codeY, 26, 30, C.navy, i === N.code.length ? C.gold : C.cream);
+      if (api.markBox) api.markBox("digit" + i, x + 14 + i * 32, codeY, 26, 30);
+      if (N.code[i]) drawText(ctx, N.code[i], x + 27 + i * 32, codeY + 8, C.cream, 2, "center");
     }
-    var ky = 76, keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "<", "0", "OK"];
+    var ky = codeY + 40, keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "<", "0", "OK"];
     for (var k = 0; k < 12; k++) {
       var cx = x + (k % 3) * 52, cy = ky + Math.floor(k / 3) * 34;
       var id = keys[k] === "<" ? "net:del" : keys[k] === "OK" ? "net:ok" : "net:k" + keys[k];
@@ -568,13 +573,16 @@ var NET: any = (function () {
   }
   function drawRoom(api: any, x: number) {
     var ctx = api.ctx, R = N.room, host = N.isHost(), mine = N.mePlayer();
-    box(ctx, x, 6, 152, 34, C.navy, C.gold);
-    drawText(ctx, "КОМНАТА", LW / 2, 10, C.cream, 1, "center");
-    drawText(ctx, R.code, LW / 2, 20, C.gold, 2, "center");
-    drawText(ctx, "СКАЖИ КОД ДРУЗЬЯМ", LW / 2, 44, "#9a8ab8", 1, "center");
+    var y0 = api.belowBand ? api.belowBand() : 20;
+    box(ctx, x, y0, 152, 34, C.navy, C.gold);
+    if (api.markBox) api.markBox("room", x, y0, 152, 34);
+    drawText(ctx, "КОМНАТА", LW / 2, y0 + 4, C.cream, 1, "center");
+    drawText(ctx, R.code, LW / 2, y0 + 14, C.gold, 2, "center");
+    drawText(ctx, "СКАЖИ КОД ДРУЗЬЯМ", LW / 2, y0 + 38, "#9a8ab8", 1, "center");
     var sorted = R.players.slice().sort(function (a: any, b: any) { return a.slot - b.slot; });
+    var row0 = y0 + 50;
     for (var i = 0; i < 4; i++) {
-      var y = 56 + i * 26, p = sorted[i];
+      var y = row0 + i * 26, p = sorted[i];
       if (!p) {
         if (host) api.btn("net:addbot", x, y, 152, 23, "#1a1430", "БОТ +", C.cream);
         else { box(ctx, x, y, 152, 23, "#141030", "#3a3450"); drawText(ctx, "СВОБОДНО", LW / 2, y + 8, "#5a4c82", 1, "center"); }
@@ -590,7 +598,7 @@ var NET: any = (function () {
       if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
       else drawText(ctx, CHARS[p.kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
     }
-    var my = 56 + 4 * 26 + 4;
+    var my = row0 + 4 * 26 + 4;
     if (host) {
       api.btn("net:mprev", x, my, 20, 18, "#1a1430", "<", C.cream);
       api.btn("net:mnext", x + 132, my, 20, 18, "#1a1430", ">", C.cream);

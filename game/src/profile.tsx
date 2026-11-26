@@ -370,6 +370,14 @@ var PROFILE: any = (function () {
     });
   }
 
+  function syncRecords(tok: string): Promise<void> {
+    if (!tok) return Promise.resolve();
+    return req("POST", "/api/profile/campaign", localCampaign(), tok).then(function (res: any) {
+      if (res.status === 404 || res.status === 405 || res.status === 501) return;
+      if (!handleStatus(res) || !res.data || !res.data.profile) return;
+      applyProfile(res.data.profile);
+    }, function () { return; });
+  }
   function flushBuysOnce(tok: string): Promise<void> {
     if (P.buySupported === false) return Promise.resolve();
     var buys = getPendingBuys();
@@ -492,8 +500,11 @@ var PROFILE: any = (function () {
         }
         return null;
       }
-      return flushBuysOnce(t).then(function () {
-        return flushRunsStep(t);
+      /* Records land before a queued map purchase, so the goal check sees this device's best. */
+      return syncRecords(t).then(function () {
+        return flushBuysOnce(t).then(function () {
+          return flushRunsStep(t);
+        });
       });
     });
   }

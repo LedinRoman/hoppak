@@ -303,7 +303,9 @@ function createServer() {
         if (mode === 'v06') {
           p.best = Math.max(p.best || 0, clamp(Math.floor(Number(b.best) || 0), 0, 20000));
         }
-        p.purchases = { ...p.purchases, ...sanitizePurchases(b.purchases) };
+        const incomingP = sanitizePurchases(b.purchases);
+        for (const k of Object.keys(incomingP)) if (k.indexOf('map:') === 0) delete incomingP[k];
+        p.purchases = { ...p.purchases, ...incomingP };
         p.migratedAt = new Date().toISOString();
         return json(res, 201, { ok: true, profile: toPublic(p) });
       }
@@ -351,10 +353,6 @@ function createServer() {
         const b = await readBody(req);
         const before = p.coins;
         p.campaign = mergeCampaign(p.campaign, { best: sanitizeMapBest(b.mapBest) });
-        const opens = sanitizePurchases(b.open);
-        for (const key of Object.keys(opens)) {
-          if (key.indexOf('map:') === 0 && Object.prototype.hasOwnProperty.call(ITEM_PRICES, key)) p.purchases[key] = 1;
-        }
         const bests = p.campaign.best || {};
         for (const id of Object.keys(bests)) p.best = Math.max(p.best || 0, bests[id] || 0);
         p.coins = before;
@@ -372,6 +370,17 @@ function createServer() {
           return json(res, 400, { ok: false, error: 'INVALID_ITEM' });
         }
         if (p.purchases[key]) return json(res, 201, { ok: true, alreadyOwned: true, profile: toPublic(p) });
+        if (key.indexOf('map:') === 0) {
+          const order = ['city', 'jungle', 'ice', 'lava', 'aqua', 'space'];
+          const goals = { city: 500, jungle: 700, ice: 900, lava: 1100, aqua: 1300, space: 0 };
+          const idx = order.indexOf(key.slice(4));
+          if (idx > 0) {
+            const prev = order[idx - 1];
+            const need = goals[prev] || 0;
+            const have = Math.floor(Number(p.campaign && p.campaign.best && p.campaign.best[prev]) || 0);
+            if (have < need) return json(res, 400, { ok: false, error: 'GOAL_LOCKED', map: prev, need, have });
+          }
+        }
         const price = ITEM_PRICES[key];
         if (p.coins < price) {
           return json(res, 400, { ok: false, error: 'INSUFFICIENT_COINS', needed: price, coins: p.coins });

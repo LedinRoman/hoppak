@@ -348,6 +348,9 @@ async function testTelegramMerge() {
     await req(base, 'POST', '/api/profile/migrate', {
       coins: 2000, best: 900, purchases: { 'map:jungle': 1, 'skin:gold': 1 },
     }, gTok);
+    const gBefore = players.get(gId);
+    assert.ok(!gBefore.purchases['map:jungle'], 'local map open is not a purchase');
+    gBefore.purchases = Object.assign({}, gBefore.purchases, { 'map:jungle': 1 });
 
     const merged = await req(base, 'POST', '/api/auth/telegram', { initData: init(4242) }, gTok);
     assert.strictEqual(merged.status, 201, 'merge: ' + JSON.stringify(merged.data));
@@ -422,6 +425,9 @@ async function testTelegramMerge() {
     await req(base, 'POST', '/api/auth/telegram', { initData: init(999) }, p3g.data.token);
     const g3 = await req(base, 'POST', '/api/profile/guest');
     await req(base, 'POST', '/api/profile/migrate', { coins: 400, best: 50, purchases: { 'map:ice': 1 } }, g3.data.token);
+    const g3Row = players.get(g3.data.profile.id);
+    assert.ok(!g3Row.purchases['map:ice'], 'migrate does not accept a local map open');
+    g3Row.purchases = Object.assign({}, g3Row.purchases, { 'map:ice': 1 });
     const g3Tok = g3.data.token;
     const [rA, rB] = await Promise.all([
       req(base, 'POST', '/api/auth/telegram', { initData: init(999) }, g3Tok),
@@ -579,8 +585,9 @@ async function testTwoDevices() {
     assert.strictEqual(upPc.data.profile.campaign.best.city, 207);
     assert.strictEqual(upPc.data.profile.campaign.best.lava, 20000);
     assert.ok(!upPc.data.profile.campaign.best.space);
-    assert.strictEqual(upPc.data.profile.purchases['map:jungle'], 1);
+    assert.ok(!upPc.data.profile.purchases['map:jungle'], 'campaign must not open maps');
     assert.ok(!upPc.data.profile.purchases['map:nope']);
+    players.get(pc.data.profile.id).purchases = { 'map:jungle': 1 };
     const linked = await req(base, 'POST', '/api/auth/telegram', { initData: init(4242) }, pcTok);
     assert.strictEqual(linked.data.profile.coins, 1415);
 
@@ -601,7 +608,7 @@ async function testTwoDevices() {
     assert.strictEqual(prof.campaign.best.aqua, 40);
     assert.strictEqual(prof.campaign.best.space, 900);
     assert.strictEqual(prof.purchases['map:jungle'], 1);
-    assert.strictEqual(prof.purchases['map:aqua'], 1);
+    assert.ok(!prof.purchases['map:aqua'], 'a local open does not travel with the merge');
     assert.strictEqual(prof.best, 20000);
 
     const richGuest = await req(base, 'POST', '/api/profile/guest');
@@ -639,7 +646,74 @@ async function testTwoDevices() {
     delete process.env.TELEGRAM_BOT_TOKEN;
     await app.close();
   }
-  console.log('PASS two devices (max map records, union opens, server coins)');
+  console.log('PASS two devices (max map records, server coins, no free opens)');
+}
+
+async function testMapPurchase() {
+  const { app, base, players } = await startTestApp();
+  try {
+    const g = await req(base, 'POST', '/api/profile/guest');
+    const tok = g.data.token;
+    const id = g.data.profile.id;
+    await req(base, 'POST', '/api/profile/migrate', { coins: 100, best: 0, purchases: { 'map:space': 1, 'char:1': 1 } }, tok);
+    const seeded = await req(base, 'GET', '/api/profile', undefined, tok);
+    assert.strictEqual(seeded.data.profile.purchases['char:1'], 1);
+    assert.ok(!seeded.data.profile.purchases['map:space'], 'migrate dropped the local map open');
+    assert.strictEqual(seeded.data.profile.coins, 100);
+
+    players.get(id).purchases = Object.assign({}, players.get(id).purchases, { 'map:lava': 1 });
+    const kept = await req(base, 'POST', '/api/profile/campaign', {
+      mapBest: { city: 100 },
+      open: { 'map:jungle': 1, 'map:space': 1 },
+    }, tok);
+    assert.strictEqual(kept.status, 201, JSON.stringify(kept.data));
+    assert.strictEqual(kept.data.profile.campaign.best.city, 100);
+    assert.strictEqual(kept.data.profile.purchases['map:lava'], 1, 'an old DB open stays');
+    assert.ok(!kept.data.profile.purchases['map:jungle']);
+    assert.ok(!kept.data.profile.purchases['map:space']);
+    assert.strictEqual(kept.data.profile.coins, 100);
+
+    const early = await req(base, 'POST', '/api/profile/buy', { key: 'map:jungle' }, tok);
+    assert.strictEqual(early.status, 400);
+    assert.strictEqual(early.data.error, 'GOAL_LOCKED');
+    assert.strictEqual(early.data.profile ? early.data.profile.coins : 100, 100);
+    const afterEarly = await req(base, 'GET', '/api/profile', undefined, tok);
+    assert.ok(!afterEarly.data.profile.purchases['map:jungle']);
+    assert.strictEqual(afterEarly.data.profile.coins, 100);
+
+    const ready = await req(base, 'POST', '/api/profile/campaign', { mapBest: { city: 500 }, open: { 'map:jungle': 1 } }, tok);
+    assert.strictEqual(ready.data.profile.campaign.best.city, 500);
+    assert.ok(!ready.data.profile.purchases['map:jungle']);
+    players.get(id).coins = 10;
+    const poor = await req(base, 'POST', '/api/profile/buy', { key: 'map:jungle' }, tok);
+    assert.strictEqual(poor.status, 400);
+    assert.strictEqual(poor.data.error, 'INSUFFICIENT_COINS');
+    assert.ok(!poor.data.profile || !poor.data.profile.purchases || !poor.data.profile.purchases['map:jungle']);
+    const stillPoor = await req(base, 'GET', '/api/profile', undefined, tok);
+    assert.strictEqual(stillPoor.data.profile.coins, 10);
+    assert.ok(!stillPoor.data.profile.purchases['map:jungle']);
+
+    players.get(id).coins = 100;
+    await req(base, 'POST', '/api/profile/campaign', { mapBest: { jungle: 700 } }, tok);
+    const [a, b] = await Promise.all([
+      req(base, 'POST', '/api/profile/buy', { key: 'map:ice' }, tok),
+      req(base, 'POST', '/api/profile/buy', { key: 'map:ice' }, tok),
+    ]);
+    assert.strictEqual(a.status, 201, JSON.stringify(a.data));
+    assert.strictEqual(b.status, 201, JSON.stringify(b.data));
+    const ownedFlags = [a.data.alreadyOwned, b.data.alreadyOwned].filter(Boolean);
+    assert.strictEqual(ownedFlags.length, 1, 'exactly one of the parallel buys is a repeat');
+    const live = await req(base, 'GET', '/api/profile', undefined, tok);
+    assert.strictEqual(live.data.profile.purchases['map:ice'], 1);
+    assert.strictEqual(live.data.profile.coins, 0, 'price 100 charged once');
+    assert.strictEqual(live.data.profile.purchases['map:lava'], 1);
+    const again = await req(base, 'POST', '/api/profile/buy', { key: 'map:ice' }, tok);
+    assert.strictEqual(again.data.alreadyOwned, true);
+    assert.strictEqual(again.data.profile.coins, 0);
+  } finally {
+    await app.close();
+  }
+  console.log('PASS map purchase (no free open, goal, coins, one charge, old opens stay)');
 }
 
 (async () => {
@@ -649,6 +723,7 @@ async function testTwoDevices() {
   await testAwardSeries();
   await testMigrationSql();
   await testTwoDevices();
+  await testMapPurchase();
   console.log('ALL SERVER PROFILE TESTS PASS');
 })().catch((e) => {
   console.error(e);

@@ -74,6 +74,46 @@ export const MAP_IDS = ['city', 'jungle', 'ice', 'lava', 'aqua', 'space'] as con
 
 export type Campaign = { best: Record<string, number> };
 
+/** Metres on the previous map before the next one can be bought. Matches MAPS.goal. */
+export const MAP_GOAL: Record<string, number> = {
+  city: 500,
+  jungle: 700,
+  ice: 900,
+  lava: 1100,
+  aqua: 1300,
+  space: 0,
+};
+
+/**
+ * A paid map opens only when the previous map's server record reached its goal.
+ * Heroes and the free city map are not gated.
+ */
+export function mapPurchaseBlock(
+  key: string,
+  campaign?: Campaign | null,
+): { error: 'GOAL_LOCKED'; map: string; need: number; have: number } | null {
+  if (key.indexOf('map:') !== 0) return null;
+  const id = key.slice(4);
+  const idx = (MAP_IDS as readonly string[]).indexOf(id);
+  if (idx <= 0) return null;
+  const prev = MAP_IDS[idx - 1];
+  const need = MAP_GOAL[prev] || 0;
+  const have = Math.floor(Number(campaign && campaign.best && campaign.best[prev]) || 0);
+  if (have >= need) return null;
+  return { error: 'GOAL_LOCKED', map: prev, need, have };
+}
+
+/** localStorage uploads must not grant map opens. Heroes still merge. */
+export function purchasesWithoutMaps(src: Record<string, number> | null | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!src) return out;
+  for (const k of Object.keys(src)) {
+    if (k.indexOf('map:') === 0) continue;
+    out[k] = src[k];
+  }
+  return out;
+}
+
 export function emptyCampaign(): Campaign {
   return { best: {} };
 }

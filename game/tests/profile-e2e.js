@@ -196,8 +196,8 @@ async function admin(base, body) {
       assert.strictEqual(finalState.st.queueLen, 0);
       assert.strictEqual(finalState.st.pendingBuysLen, 0);
       assert.strictEqual(finalState.save.coins, 70);
-      assert.strictEqual(finalState.st.profile.best, 200);
-      assert.strictEqual(finalState.save.best, 240);
+      assert.strictEqual(finalState.st.profile.best, 600);
+      assert.strictEqual(finalState.save.best, 600);
 
       await pg.evaluate(async () => {
         const g = window.__hoppak;
@@ -210,7 +210,7 @@ async function admin(base, body) {
       });
       const bestState = await pg.evaluate(() => window.__hoppak.profile.getState());
       assert.strictEqual(bestState.queueLen, 0);
-      assert.strictEqual(bestState.profile.best, 350);
+      assert.strictEqual(bestState.profile.best, 600);
       assert.strictEqual(bestState.profile.coins, 85);
 
       await ctx.close();
@@ -663,6 +663,72 @@ async function admin(base, body) {
       for (let i = 0; i < pb.length; i++) for (let j = i + 1; j < pb.length; j++) if (hit(pb[i], pb[j])) pbad.push(pb[i].id + '/' + pb[j].id);
       assert.strictEqual(pbad.length, 0, 'pause overlap ' + pbad.join(',') + ' ' + JSON.stringify(pb));
       assert.ok(pb.some((b) => b.id === 'vol'), 'pause has the volume slider');
+      function overlaps(a, b) {
+        return a && b && a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      }
+      function contains(a, b) {
+        return b.x >= a.x - 0.5 && b.y >= a.y - 0.5 && b.x + b.w <= a.x + a.w + 0.5 && b.y + b.h <= a.y + a.h + 0.5;
+      }
+      for (const vp of [[390, 844], [360, 640]]) {
+        await pg.setViewport({ width: vp[0], height: vp[1], deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+        const plates = await pg.evaluate(async () => {
+          window.Telegram = {
+            WebApp: {
+              safeAreaInset: { top: 100, bottom: 34, left: 0, right: 0 },
+              contentSafeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+              onEvent() {}, offEvent() {},
+              BackButton: { isVisible: false, onClick() {} },
+            },
+          };
+          const g = window.__hoppak;
+          const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const grab = async (setup) => { setup(); await frames(); return { lay: g.screenLayout(), results: g.resultsBoxes() }; };
+          const out = {};
+          out.results = await grab(() => {
+            g.screen('menu');
+            g.start('squad', 3, 'city');
+            const w = g.getWorld();
+            w.net = true;
+            w.players[0].maxH = 400 * 8;
+            g.forceResults();
+          });
+          out.shop = await grab(() => { g.screen('shop'); });
+          out.camp = await grab(() => { g.screen('camp'); });
+          out.lobby = await grab(() => { g.screen('lobby'); });
+          out.net = await grab(() => { g.screen('net'); });
+          out.settings = await grab(() => { g.screen('menu'); g.tap('set'); });
+          out.profile = await grab(() => { g.tap('set:prof'); });
+          g.tap('prof:close');
+          return out;
+        });
+        for (const name of Object.keys(plates)) {
+          const lay = plates[name].lay;
+          const chip = (lay.wallet || []).find((b) => b.id === 'chip');
+          const coins = (lay.wallet || []).find((b) => b.id === 'coins');
+          assert.ok(chip && coins, vp.join('x') + ' ' + name + ' wallet ' + JSON.stringify(lay.wallet));
+          const boxes = lay.boxes || [];
+          const plaque = boxes.find((b) => b.id === 'header' || b.id === 'settings' || b.id === 'profile' || b.id === 'room');
+          assert.ok(plaque, vp.join('x') + ' ' + name + ' plaque ' + boxes.map((b) => b.id).join(','));
+          assert.ok(plaque.y >= chip.y + chip.h + 4, vp.join('x') + ' ' + name + ' gap ' + JSON.stringify({ plaque, chip }));
+          for (const b of boxes) {
+            assert.ok(!overlaps(b, chip), vp.join('x') + ' ' + name + ' ' + b.id + '/chip');
+            assert.ok(!overlaps(b, coins), vp.join('x') + ' ' + name + ' ' + b.id + '/coins');
+          }
+          for (let i = 0; i < boxes.length; i++) {
+            for (let j = i + 1; j < boxes.length; j++) {
+              if (contains(boxes[i], boxes[j]) || contains(boxes[j], boxes[i])) continue;
+              assert.ok(!overlaps(boxes[i], boxes[j]), vp.join('x') + ' ' + name + ' ' + boxes[i].id + '/' + boxes[j].id);
+            }
+          }
+          if (name === 'results') {
+            const rb = plates[name].results || [];
+            for (const b of rb) {
+              assert.ok(!overlaps(b, chip), 'results ' + b.id + '/chip');
+              assert.ok(!overlaps(b, coins), 'results ' + b.id + '/coins');
+            }
+          }
+        }
+      }
       await ctx.close();
       console.log('PASS 9: record on quit, master gain, logo gap, results boxes');
     }
@@ -726,7 +792,7 @@ async function admin(base, body) {
       assert.strictEqual(right.city, 207, 'max city ' + JSON.stringify(right));
       assert.strictEqual(right.aqua, 30, JSON.stringify(right));
       assert.strictEqual(right.space, 80, JSON.stringify(right));
-      assert.strictEqual(right.owned, true);
+      assert.strictEqual(right.owned, false, 'local map open is not a purchase ' + JSON.stringify(right));
       assert.strictEqual(right.coins, 50, 'local 9999 must not be added ' + JSON.stringify(right));
       assert.strictEqual(right.server, 50);
       await a.reload();
@@ -739,7 +805,7 @@ async function admin(base, body) {
       assert.strictEqual(back.city, 207, JSON.stringify(back));
       assert.strictEqual(back.aqua, 30, JSON.stringify(back));
       assert.strictEqual(back.space, 80, JSON.stringify(back));
-      assert.strictEqual(back.aquaOpen, true);
+      assert.strictEqual(back.aquaOpen, false, 'device A must not inherit an unpaid open');
       assert.strictEqual(back.coins, 50);
       await ctxA.close();
       await ctxB.close();
