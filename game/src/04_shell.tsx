@@ -1722,7 +1722,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var h = 11 + pids.length * 9;
     box(ctx, x, y, 152, h, C.navy, C.gold);
     pushRes("evening", x, y, 152, h);
-    drawText(ctx, "СЧЁТ ВЕЧЕРА · " + S.rounds.length + " РАУНД", LW / 2, y + 2, C.gold, 1, "center");
+    var roundNo = 0;
+    for (var ri = 0; ri < S.rounds.length; ri++) roundNo = Math.max(roundNo, Number(S.rounds[ri] && S.rounds[ri].round) || 0);
+    if (!roundNo) roundNo = S.rounds.length;
+    drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
     for (var i = 0; i < pids.length; i++) {
       var pid = pids[i];
       var lineY = y + 11 + i * 9;
@@ -1829,13 +1832,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
       y += compact ? ah + 3 : (note ? 72 : 60);
     }
-    if (evN && y + (compact ? 11 + evN * 9 + 3 : 13 + evN * 11 + 6) <= limitY) {
-      if (compact) y = drawEveningCompact(x, y);
-      else {
-        var ey = y;
-        y = NET.drawEvening(ctx, x, y);
-        pushRes("evening", x, ey, 152, y - ey - 6);
-      }
+    if (evN && y + 16 <= limitY) {
+      var ey = y;
+      y = NET.drawEvening(ctx, x, y, limitY);
+      pushRes("evening", x, ey, 152, Math.max(12, y - ey - 4));
     }
     var recH = world.newBest ? 13 : 11;
     if (y + recH <= limitY) {
@@ -2298,7 +2298,48 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       NET.draw(netApi);
       var boxes = screenLay.slice();
       testInsetTop = 0;
-      return { lw: LW, lh: LH, boxes: boxes };
+      return { lw: LW, lh: LH, boxes: boxes, evening: NET.eveningState || null };
+    },
+    eveningProbe: function (count: number) {
+      testInsetTop = 0;
+      phase = "net";
+      NET.sub = "room";
+      NET.st = "online";
+      NET.you = 1;
+      NET.evOff = 0;
+      var players: any[] = [];
+      var names: any = {};
+      var wins: any = {};
+      var best: any = {};
+      var n = Math.max(1, Math.min(8, count || 1));
+      for (var i = 1; i <= Math.min(4, n); i++) {
+        players.push({ pid: i, slot: i - 1, name: "P" + i, kind: 0, ready: true, on: true });
+      }
+      for (var j = 1; j <= n; j++) { names[j] = "P" + j; wins[j] = n - j; best[j] = 100 - j; }
+      NET.room = { code: "1234", you: 1, host: 1, map: "city", players: players };
+      NET.session = {
+        rounds: [{ round: 1 }, { round: 2 }, { round: 3 }, { round: 4 }, { round: 5 }],
+        names: names, wins: wins, best: best,
+      };
+      var seen: any = {};
+      var pages = 0;
+      var state: any = null;
+      while (pages < 8) {
+        screenLay = [];
+        hits = [];
+        NET.draw(netApi);
+        state = NET.eveningState;
+        if (!state) break;
+        for (var s = 0; s < state.fit; s++) seen[state.off + s] = 1;
+        pages++;
+        if (state.off + state.fit >= state.total) break;
+        NET.evOff = state.off + state.fit;
+      }
+      var covered = 0;
+      for (var k in seen) covered++;
+      var boxes = screenLay.slice();
+      testInsetTop = 0;
+      return { round: state && state.round, title: state && state.title, total: state && state.total, covered: covered, pages: pages, boxes: boxes, lh: LH };
     },
     inspectMap: function (seed: number, toM: number, mapId?: string) {
       var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);

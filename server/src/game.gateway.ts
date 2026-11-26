@@ -51,12 +51,16 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const id = ws.sess && ws.sess.accountId;
     if (!id || !this.online) return;
     const asked = d && (d.screen === 'game' || d.screen === 'spectator' || d.screen === 'lobby') ? d.screen : screen;
+    const ver = String((d && d.v) || '').slice(0, 16);
+    const plat = String((d && d.p) || '').slice(0, 16);
+    if (ver) ws.sess.clientVersion = ver;
+    if (plat) ws.sess.platform = plat;
     this.online.touch({
       playerId: id,
       room,
       screen: asked,
-      clientVersion: String((d && d.v) || '').slice(0, 16),
-      platform: String((d && d.p) || '').slice(0, 16),
+      clientVersion: ws.sess.clientVersion || '',
+      platform: ws.sess.platform || '',
     });
   }
   private sweepPresence() {
@@ -91,6 +95,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       if (hb && now - hb.lastPongAt > this.wsPongTimeoutMs) {
         this.log.warn(`terminating dead WS (no pong for ${now - hb.lastPongAt}ms > ${this.wsPongTimeoutMs}ms)`);
         this.clients.delete(ws);
+        const id = ws.sess && ws.sess.accountId;
+        if (id && this.online) this.online.leave(id);
         try { ws.terminate(); } catch { /* ignore */ }
         continue;
       }
@@ -113,7 +119,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
   handleDisconnect(ws: Sock) {
     this.clients.delete(ws);
+    const id = ws.sess && ws.sess.accountId;
     if (ws.sess) this.rooms.disconnected(ws, ws.sess);
+    if (id && this.online) this.online.leave(id);
   }
 
   private guard(ws: Sock, fn: () => void) {
@@ -141,8 +149,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   async create(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
     const idn = await this.identity(d?.pt);
     this.guard(ws, () => {
-      if (idn) ws.sess.accountId = idn.id;
+      if (idn) { ws.sess.accountId = idn.id; ws.sess.sessionId = idn.sessionId; }
       const hit = this.rooms.create(ws, idn ? idn.name : d?.name, d?.kind, d?.g, idn?.id);
+      if (idn && hit.player) hit.player.sessionId = idn.sessionId;
       this.attach(ws, hit);
       this.rooms.pushRoom(hit.room);
       this.seen(ws, hit.room.code, d, 'lobby');
@@ -152,8 +161,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   async join(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
     const idn = await this.identity(d?.pt);
     this.guard(ws, () => {
-      if (idn) ws.sess.accountId = idn.id;
+      if (idn) { ws.sess.accountId = idn.id; ws.sess.sessionId = idn.sessionId; }
       const hit = this.rooms.join(ws, d?.code, idn ? idn.name : d?.name, d?.kind, d?.g, idn?.id);
+      if (idn && hit.player) hit.player.sessionId = idn.sessionId;
       this.attach(ws, hit);
       this.rooms.pushRoom(hit.room);
       this.seen(ws, hit.room.code, d, 'lobby');
@@ -164,6 +174,10 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     this.guard(ws, () => {
       const hit = this.rooms.resume(ws, d?.token);
       this.attach(ws, hit);
+      if (hit.player && hit.player.accountId) {
+        ws.sess.accountId = hit.player.accountId;
+        ws.sess.sessionId = hit.player.sessionId;
+      }
       this.rooms.pushRoom(hit.room);
       if (hit.room.phase === 'play') this.rooms.send(ws, 'start', { ...this.rooms.startView(hit.room), resumed: true });
     });

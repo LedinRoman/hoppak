@@ -3128,6 +3128,14 @@ var NET: any = (function () {
       if (hm > (N.session.best[r.pid] || 0)) N.session.best[r.pid] = hm;
     }
   }
+  function eveningRoundNo(S: any) {
+    var n = 0;
+    for (var i = 0; i < S.rounds.length; i++) {
+      var r = Number(S.rounds[i] && S.rounds[i].round);
+      if (r > n) n = r;
+    }
+    return n || S.rounds.length;
+  }
   N.drawEvening = function (ctx: any, x: number, y: number) {
     var S = N.session;
     if (!S || !S.rounds || !S.rounds.length) return y;
@@ -3142,7 +3150,9 @@ var NET: any = (function () {
       if (wb !== wa) return wb - wa;
       return (S.best[b] || 0) - (S.best[a] || 0);
     });
-    var head = 13, rowH = 11, maxY = arguments.length > 3 ? arguments[3] : 0;
+    /* Round number, not the number of name rows. 9px rows so five and six names fit the lobby gap. */
+    var roundNo = eveningRoundNo(S);
+    var head = 12, rowH = 9, maxY = arguments.length > 3 ? arguments[3] : 0;
     var fit = pids.length;
     if (maxY > y + head) fit = Math.max(1, Math.min(pids.length, Math.floor((maxY - y - head) / rowH)));
     else if (maxY) fit = 0;
@@ -3151,12 +3161,13 @@ var NET: any = (function () {
     if ((N.evOff || 0) < 0) N.evOff = 0;
     var off = N.evOff || 0;
     var h = head + fit * rowH;
+    N.eveningState = { round: roundNo, title: "РАУНД " + roundNo, total: pids.length, fit: fit, off: off };
     box(ctx, x, y, 152, h, C.navy, C.gold);
     if (N.api && N.api.markBox) N.api.markBox("evening", x, y, 152, h);
-    drawText(ctx, "СЧЁТ ВЕЧЕРА · " + S.rounds.length + " РАУНД", LW / 2, y + 3, C.gold, 1, "center");
+    drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
     for (var i2 = 0; i2 < fit; i2++) {
       var pid = pids[off + i2], nm = drawableChars(String(S.names[pid] || "ИГРОК")).slice(0, 10);
-      var lineY = y + 13 + i2 * 11;
+      var lineY = y + 12 + i2 * 9;
       drawText(ctx, nm || "HOPP", x + 6, lineY, C.cream, 1, "left");
       drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, C.cream, 1, "right");
     }
@@ -3962,6 +3973,40 @@ var PROFILE: any = (function () {
   }
 
   var runRefs: any = {};
+  var startInflight: any = {};
+  var startDone: any = {};
+  function postStart(id: string, map: string, hero: number, tok: string) {
+    return req("POST", "/api/run/start", { runId: id, map: map || "", hero: hero == null ? 0 : hero }, tok).then(function (res: any) {
+      if (res && res.ok && res.data && res.data.ok) startDone[id] = 1;
+      return res;
+    });
+  }
+  function markStarted(runId: string) {
+    startDone[runId] = 1;
+    var q = getRunQueue();
+    var changed = false;
+    for (var i = 0; i < q.length; i++) if (q[i] && q[i].runId === runId && !q[i].started) { q[i].started = 1; changed = true; }
+    if (changed) setRunQueue(q);
+  }
+  /** Start must land before finish, including after a reload. A 404 means an old server without the route. */
+  function ensureStart(head: any, tok: string) {
+    if (!head || !head.runId) return Promise.resolve("nostart");
+    if (head.started) startDone[head.runId] = 1;
+    if (startDone[head.runId]) return Promise.resolve("ok");
+    var pending = startInflight[head.runId] || Promise.resolve(null);
+    return pending.then(function (res: any) {
+      if (startDone[head.runId]) { markStarted(head.runId); return "ok"; }
+      if (res && (res.status === 404 || res.status === 405 || res.status === 501)) return "skip";
+      if (res && res.status === 401) return "auth";
+      if (!tok) return "later";
+      return postStart(head.runId, head.map || "", head.hero, tok).then(function (again: any) {
+        if (startDone[head.runId]) { markStarted(head.runId); return "ok"; }
+        if (again && (again.status === 404 || again.status === 405 || again.status === 501)) return "skip";
+        if (again && again.status === 401) return "auth";
+        return "later";
+      });
+    });
+  }
   function worldOf(head: any) {
     if (!head) return null;
     return head._wRef || runRefs[head.runId] || null;
@@ -3990,7 +4035,17 @@ var PROFILE: any = (function () {
     if (head.ver) body.ver = head.ver;
     if (head.hero != null) body.hero = head.hero;
 
-    return req("POST", "/api/run/finish", body, tok).then(function (res: any) {
+    return ensureStart(head, tok).then(function (started: string) {
+      if (started === "later") {
+        markRun(head, "OFFLINE");
+        var waitS = P.backoffMs;
+        P.backoffMs = Math.min(60000, P.backoffMs * 2);
+        scheduleRetry(waitS);
+        return null;
+      }
+      return req("POST", "/api/run/finish", body, tok);
+    }).then(function (res: any) {
+      if (!res) return null;
       if (res.status === 401) {
         setToken("");
         if (!authRetried) {
@@ -4110,7 +4165,7 @@ var PROFILE: any = (function () {
   P.beginRun = function (map: string, hero: number) {
     var id = makeRunId();
     var tok = getToken();
-    if (tok) req("POST", "/api/run/start", { runId: id, map: map || "", hero: hero }, tok);
+    if (tok) startInflight[id] = postStart(id, map || "", hero, tok);
     return id;
   };
 
@@ -4120,7 +4175,7 @@ var PROFILE: any = (function () {
     var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
     var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
     var item: any = {
-      runId: (meta && meta.runId) || makeRunId(),
+      runId: (meta && meta.runId) ? meta.runId : "",
       hero: meta && meta.hero != null ? meta.hero : 0,
       height: h,
       runCoins: c,
@@ -5914,7 +5969,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var h = 11 + pids.length * 9;
     box(ctx, x, y, 152, h, C.navy, C.gold);
     pushRes("evening", x, y, 152, h);
-    drawText(ctx, "СЧЁТ ВЕЧЕРА · " + S.rounds.length + " РАУНД", LW / 2, y + 2, C.gold, 1, "center");
+    var roundNo = 0;
+    for (var ri = 0; ri < S.rounds.length; ri++) roundNo = Math.max(roundNo, Number(S.rounds[ri] && S.rounds[ri].round) || 0);
+    if (!roundNo) roundNo = S.rounds.length;
+    drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
     for (var i = 0; i < pids.length; i++) {
       var pid = pids[i];
       var lineY = y + 11 + i * 9;
@@ -6021,13 +6079,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
       y += compact ? ah + 3 : (note ? 72 : 60);
     }
-    if (evN && y + (compact ? 11 + evN * 9 + 3 : 13 + evN * 11 + 6) <= limitY) {
-      if (compact) y = drawEveningCompact(x, y);
-      else {
-        var ey = y;
-        y = NET.drawEvening(ctx, x, y);
-        pushRes("evening", x, ey, 152, y - ey - 6);
-      }
+    if (evN && y + 16 <= limitY) {
+      var ey = y;
+      y = NET.drawEvening(ctx, x, y, limitY);
+      pushRes("evening", x, ey, 152, Math.max(12, y - ey - 4));
     }
     var recH = world.newBest ? 13 : 11;
     if (y + recH <= limitY) {
@@ -6490,7 +6545,48 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       NET.draw(netApi);
       var boxes = screenLay.slice();
       testInsetTop = 0;
-      return { lw: LW, lh: LH, boxes: boxes };
+      return { lw: LW, lh: LH, boxes: boxes, evening: NET.eveningState || null };
+    },
+    eveningProbe: function (count: number) {
+      testInsetTop = 0;
+      phase = "net";
+      NET.sub = "room";
+      NET.st = "online";
+      NET.you = 1;
+      NET.evOff = 0;
+      var players: any[] = [];
+      var names: any = {};
+      var wins: any = {};
+      var best: any = {};
+      var n = Math.max(1, Math.min(8, count || 1));
+      for (var i = 1; i <= Math.min(4, n); i++) {
+        players.push({ pid: i, slot: i - 1, name: "P" + i, kind: 0, ready: true, on: true });
+      }
+      for (var j = 1; j <= n; j++) { names[j] = "P" + j; wins[j] = n - j; best[j] = 100 - j; }
+      NET.room = { code: "1234", you: 1, host: 1, map: "city", players: players };
+      NET.session = {
+        rounds: [{ round: 1 }, { round: 2 }, { round: 3 }, { round: 4 }, { round: 5 }],
+        names: names, wins: wins, best: best,
+      };
+      var seen: any = {};
+      var pages = 0;
+      var state: any = null;
+      while (pages < 8) {
+        screenLay = [];
+        hits = [];
+        NET.draw(netApi);
+        state = NET.eveningState;
+        if (!state) break;
+        for (var s = 0; s < state.fit; s++) seen[state.off + s] = 1;
+        pages++;
+        if (state.off + state.fit >= state.total) break;
+        NET.evOff = state.off + state.fit;
+      }
+      var covered = 0;
+      for (var k in seen) covered++;
+      var boxes = screenLay.slice();
+      testInsetTop = 0;
+      return { round: state && state.round, title: state && state.title, total: state && state.total, covered: covered, pages: pages, boxes: boxes, lh: LH };
     },
     inspectMap: function (seed: number, toM: number, mapId?: string) {
       var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);

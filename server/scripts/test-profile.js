@@ -15,6 +15,7 @@ const { RunStart } = require('../dist/profile/run-start.entity');
 const { SuspiciousRun } = require('../dist/profile/suspicious-run.entity');
 const { plausBuckets, bucketFor } = require('../dist/profile/plausibility');
 const { clientAddress } = require('../dist/profile/client-ip');
+const { countryOfIp } = require('../dist/profile/geo');
 const { displayName } = require('../dist/profile/display-name');
 const { ITEM_PRICES, RUN_COINS_MAX, RUN_BONUS_MAX, HEIGHT_AWARD_MIN } = require('../dist/profile/limits');
 const { AddBestBuyRunId1795642000000 } = require('../dist/db/migrations/1795642000000-AddBestBuyRunId');
@@ -23,6 +24,7 @@ const { AddCampaign1795644000000 } = require('../dist/db/migrations/179564400000
 const { AddTelegramProfile1795645000000 } = require('../dist/db/migrations/1795645000000-AddTelegramProfile');
 const { CommentProfileSchema1795646000000 } = require('../dist/db/migrations/1795646000000-CommentProfileSchema');
 const { SplitTelegramGeoOnlinePlausibility1795647000000 } = require('../dist/db/migrations/1795647000000-SplitTelegramGeoOnlinePlausibility');
+const { DropPlayerTelegramId1795648000000 } = require('../dist/db/migrations/1795648000000-DropPlayerTelegramId');
 const { parseAndVerifyInitData, clipTelegramField } = require('../dist/profile/telegram');
 
 function clone(v) {
@@ -154,8 +156,11 @@ function makeMemoryRepos() {
           getRepository(ent) {
             if (ent === Player) return txPlayer;
             if (ent === PlayerRun) return runRepo;
+            if (ent === RunStart) return startRepo;
+            if (ent === SuspiciousRun) return suspiciousRepo;
             throw new Error('unexpected entity');
           },
+          query() { return Promise.resolve(); },
         });
       } finally {
         while (held.length) held.pop()();
@@ -164,6 +169,17 @@ function makeMemoryRepos() {
   };
 
   return { playerRepo, runRepo, players, runs, telegramRepo, geoRepo, startRepo, rulesRepo, suspiciousRepo, telegrams, geos, starts, suspicious };
+}
+
+async function primeRun(base, token, runId, starts, ms) {
+  const s = await req(base, 'POST', '/api/run/start', { runId, map: 'city', hero: 0 }, token);
+  assert.strictEqual(s.status, 201, runId + ' start ' + JSON.stringify(s.data));
+  if (starts && ms) {
+    for (const [k, row] of starts) {
+      if (String(k).endsWith(':' + runId) && row) row.startedAt = new Date(Date.now() - ms);
+    }
+  }
+  return s;
 }
 
 async function req(base, method, path, body, token) {
@@ -207,7 +223,7 @@ async function testWithoutDb() {
 
 async function testProfileFlow() {
   const { Module } = require('@nestjs/common');
-  const { playerRepo, runRepo, players, telegramRepo, geoRepo, startRepo, rulesRepo, suspiciousRepo } = makeMemoryRepos();
+  const { playerRepo, runRepo, players, starts, telegramRepo, geoRepo, startRepo, rulesRepo, suspiciousRepo } = makeMemoryRepos();
 
   class TestProfileModule {}
   Module({
@@ -269,6 +285,7 @@ async function testProfileFlow() {
     assert.deepStrictEqual(m2.data.profile.purchases, { 'char:1': 1 });
 
     // 4. Run finish updates coins + best, idempotent on runId even within 8s
+    await primeRun(base, token, 'run-abc-1', starts, 0);
     const r1 = await req(base, 'POST', '/api/run/finish', {
       runId: 'run-abc-1',
       height: 500,
@@ -293,6 +310,7 @@ async function testProfileFlow() {
     assert.strictEqual(r1Dup.data.profile.coins, 235);
 
     // A second finish in the same second is credited. There is no 8s gap.
+    await primeRun(base, token, 'run-abc-2', starts, 0);
     const r2 = await req(base, 'POST', '/api/run/finish', {
       runId: 'run-abc-2',
       height: 250,
@@ -513,7 +531,7 @@ async function testTelegramMerge() {
 }
 
 async function testAwardSeries() {
-  const { app, base } = await startTestApp();
+  const { app, base, starts } = await startTestApp();
   process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
   try {
     assert.strictEqual(HEIGHT_AWARD_MIN, 100);
@@ -522,6 +540,7 @@ async function testAwardSeries() {
     async function prove(label, token) {
       let coins = 100;
       for (let i = 0; i < 10; i++) {
+        await primeRun(base, token, label + '-s' + i, starts, 400000);
         const r = await req(base, 'POST', '/api/run/finish', {
           runId: label + '-s' + i, height: 2500, runCoins: 0, bonusCoins: 0,
         }, token);
@@ -531,18 +550,21 @@ async function testAwardSeries() {
         coins += 100;
         assert.strictEqual(r.data.profile.coins, coins);
       }
+      await primeRun(base, token, label + '-long', starts, 400000);
       const long = await req(base, 'POST', '/api/run/finish', {
         runId: label + '-long', height: 7500, runCoins: 0, bonusCoins: 0,
       }, token);
       assert.strictEqual(long.data.awarded, 300);
       coins += 300;
       assert.strictEqual(long.data.profile.coins, coins);
+      await primeRun(base, token, label + '-99', starts, 400000);
       const low = await req(base, 'POST', '/api/run/finish', {
         runId: label + '-99', height: 99, runCoins: 5, bonusCoins: 0,
       }, token);
       assert.strictEqual(low.data.awarded, 5);
       assert.strictEqual(low.data.limited, 'HEIGHT_MIN');
       coins += 5;
+      await primeRun(base, token, label + '-100', starts, 400000);
       const edge = await req(base, 'POST', '/api/run/finish', {
         runId: label + '-100', height: 100, runCoins: 0, bonusCoins: 0,
       }, token);
@@ -550,6 +572,7 @@ async function testAwardSeries() {
       assert.ok(!edge.data.limited);
       coins += 4;
       assert.strictEqual(edge.data.profile.coins, coins);
+      await primeRun(base, token, label + '-cut', starts, 400000);
       const cut = await req(base, 'POST', '/api/run/finish', {
         runId: label + '-cut', height: 100, runCoins: RUN_COINS_MAX + 50, bonusCoins: 0,
       }, token);
@@ -705,10 +728,29 @@ async function testMigrationSql() {
     assert.ok(seed.indexOf("'" + b.map + "', " + b.tSeconds + ", " + b.maxCoins + ", " + b.maxHeightM + ", " + b.maxTreasures) >= 0, b.map + ' ' + b.tSeconds);
   }
   console.log('PASS telegram split, geo, online, plausibility migration SQL');
+
+  const m7 = new DropPlayerTelegramId1795648000000();
+  const up7 = [];
+  const down7 = [];
+  await m7.up({ query: async (q) => up7.push(q) });
+  await m7.down({ query: async (q) => down7.push(q) });
+  assert.ok(up7.some((q) => /ALTER TABLE "player_telegram" DROP COLUMN IF EXISTS "telegram_id"/i.test(q)));
+  assert.ok(down7.some((q) => /ADD COLUMN IF NOT EXISTS "telegram_id"/i.test(q)));
+  assert.ok(down7.some((q) => /UPDATE "player_telegram" t SET "telegram_id"/i.test(q)));
+  for (const col of ['player_id', 'username', 'first_name', 'last_name', 'language', 'is_premium', 'updated_at']) {
+    assert.ok(up7.some((q) => new RegExp('COMMENT ON COLUMN "player_telegram"\\."' + col + '"').test(q)), col);
+  }
+  assert.ok(!up7.some((q) => /COMMENT ON COLUMN "player_telegram"\."telegram_id"/.test(q)));
+  assert.ok(up7.some((q) => /COMMENT ON COLUMN "suspicious_runs"\."reason"/.test(q)));
+  console.log('PASS drop duplicate telegram_id');
 }
 
 async function testPlausibilityAndSession() {
   process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
+  assert.strictEqual(countryOfIp('10.1.2.3'), null);
+  assert.strictEqual(countryOfIp('192.168.1.9'), null);
+  assert.strictEqual(countryOfIp('172.16.5.5'), null);
+  assert.strictEqual(countryOfIp('127.0.0.1'), null);
   assert.strictEqual(clientAddress('1.2.3.4, 5.6.7.8', '127.0.0.1'), '5.6.7.8');
   assert.strictEqual(clientAddress('', '::ffff:10.0.0.9'), '10.0.0.9');
   assert.strictEqual(displayName('Roman', 'other', 'abcd1234'), 'ROMAN');
@@ -717,13 +759,20 @@ async function testPlausibilityAndSession() {
   const rule = bucketFor(plausBuckets(), 'city', 1);
   assert.strictEqual(rule.tSeconds, 30);
 
-  const { app, base, players, starts, suspicious } = await startTestApp();
+  const { app, base, players, starts, suspicious, geos } = await startTestApp();
   try {
     const g = await req(base, 'POST', '/api/profile/guest', undefined, undefined);
     const tok = g.data.token;
     const id = g.data.profile.id;
     const geo = await req(base, 'GET', '/api/profile', undefined, tok);
     assert.strictEqual(geo.status, 200);
+    const keptGeo = geos.get(id);
+    assert.ok(keptGeo, 'geo row');
+    keptGeo.country = 'RU';
+    keptGeo.originLanguage = 'ru';
+    await req(base, 'GET', '/api/profile', undefined, tok);
+    assert.strictEqual(geos.get(id).country, 'RU', 'private ip keeps the country');
+    assert.strictEqual(geos.get(id).originLanguage, 'ru');
 
     const run = 'honest-1';
     const started = await req(base, 'POST', '/api/run/start', { runId: run, map: 'city', hero: 4 }, tok);
@@ -763,6 +812,27 @@ async function testPlausibilityAndSession() {
       assert.strictEqual(again.data.awarded, 0, field);
       assert.strictEqual(suspicious.filter((s) => s.runId === rid).length, 1, 'one suspicious row');
     }
+    const coinsMid = (await req(base, 'GET', '/api/profile', undefined, tok)).data.profile.coins;
+    const noId = await req(base, 'POST', '/api/run/finish', {
+      map: 'city', hero: 0, ver: '0.6rc', height: 500, runCoins: 100, bonusCoins: 0,
+    }, tok);
+    assert.strictEqual(noId.data.awarded, 0);
+    assert.strictEqual(noId.data.limited, 'REJECTED');
+    assert.ok(suspicious.some((s) => s.reason === 'NO_RUN_ID'));
+    const noStart = await req(base, 'POST', '/api/run/finish', {
+      runId: 'ghost-run', map: 'city', hero: 0, ver: '0.6rc', height: 200, runCoins: 10, bonusCoins: 0,
+    }, tok);
+    assert.strictEqual(noStart.data.awarded, 0);
+    assert.strictEqual(noStart.data.limited, 'REJECTED');
+    assert.ok(suspicious.some((s) => s.runId === 'ghost-run' && s.reason === 'NO_RUN_START'));
+    const noStartAgain = await req(base, 'POST', '/api/run/finish', {
+      runId: 'ghost-run', map: 'city', hero: 0, height: 200, runCoins: 10, bonusCoins: 0,
+    }, tok);
+    assert.strictEqual(noStartAgain.data.duplicate, true);
+    assert.strictEqual(noStartAgain.data.awarded, 0);
+    assert.strictEqual(suspicious.filter((s) => s.runId === 'ghost-run').length, 1);
+    assert.strictEqual((await req(base, 'GET', '/api/profile', undefined, tok)).data.profile.coins, coinsMid);
+
     await reject('height');
     await reject('coins');
     await reject('treasures');
@@ -799,7 +869,7 @@ async function testPlausibilityAndSession() {
 
 async function testTwoDevices() {
   process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
-  const { app, base, players } = await startTestApp();
+  const { app, base, players, starts } = await startTestApp();
   const init = (uid) => makeInitData(TEST_BOT_TOKEN, uid);
   try {
     const pc = await req(base, 'POST', '/api/profile/guest');
@@ -854,6 +924,7 @@ async function testTwoDevices() {
     const repeatLive = await req(base, 'GET', '/api/profile', undefined, repeat.data.token);
     assert.strictEqual(repeatLive.data.profile.coins, 1615);
 
+    await primeRun(base, repeat.data.token, 'map-lava-1', starts, 0);
     const fin = await req(base, 'POST', '/api/run/finish', {
       height: 400, runCoins: 0, bonusCoins: 0, runId: 'map-lava-1', map: 'lava',
     }, repeat.data.token);
@@ -866,6 +937,7 @@ async function testTwoDevices() {
     assert.strictEqual(again.data.profile.coins, coinsAfter);
     assert.strictEqual(again.data.profile.campaign.best.lava, 20000);
 
+    await primeRun(base, repeat.data.token, 'map-city-2', starts, 0);
     const live = await req(base, 'POST', '/api/run/finish', {
       height: 250, runCoins: 0, bonusCoins: 0, runId: 'map-city-2', map: 'city',
     }, repeat.data.token);

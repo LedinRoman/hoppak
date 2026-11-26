@@ -38,7 +38,7 @@ export class SuspiciousRun {
   @Column({ name: 'max_treasures', type: 'int', comment: 'Потолок кладов, с которым сравнивали заявку.' })
   maxTreasures: number;
 
-  @Column({ type: 'varchar', length: 64, comment: 'Какие поля превышены: height, coins, treasures, через запятую.' })
+  @Column({ type: 'varchar', length: 64, comment: 'Почему не начислено: height, coins, treasures через запятую, либо NO_RUN_ID, либо NO_RUN_START.' })
   reason: string;
 
   @Column({ name: 'client_version', type: 'varchar', length: 16, default: '', comment: 'Версия клиента из заявки, как прислал finish. Не показывается игроку как причина.' })

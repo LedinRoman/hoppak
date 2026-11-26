@@ -5,9 +5,6 @@ export class PlayerTelegram {
   @PrimaryColumn('uuid', { name: 'player_id', comment: 'UUID игрока, первичный ключ и внешний ключ на player.id.' })
   playerId: string;
 
-  @Column({ name: 'telegram_id', type: 'bigint', unique: true, comment: 'id пользователя Telegram (bigint) из проверенного initData. UNIQUE.' })
-  telegramId: string;
-
   @Column({ type: 'varchar', length: 64, nullable: true, comment: 'username из проверенного initData, до 64 символов. Обновляется при каждом успешном входе. В API не отдаётся.' })
   username: string | null;
 

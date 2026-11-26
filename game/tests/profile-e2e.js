@@ -1,9 +1,21 @@
 'use strict';
+/**
+ * Client profile e2e. Always rebuilds the prod site first (same-origin /api, title v0.6).
+ * A staging build (HOP_STAGING, baked remote origin) is the wrong page for this script.
+ *
+ *   cd game && bash build.sh site && node tests/profile-e2e.js
+ */
 const assert = require('assert');
 const crypto = require('crypto');
+const { execFileSync } = require('child_process');
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const path = require('path');
 const { createServer } = require('../../tools/profile-mock');
+
+execFileSync('bash', ['build.sh', 'site'], {
+  cwd: path.resolve(__dirname, '..'),
+  stdio: 'inherit',
+});
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -234,16 +246,25 @@ async function admin(base, body) {
         }));
       });
       await pg.reload();
-      await sleep(400);
+      await pg.waitForFunction(() => {
+        const p = window.__hoppak && window.__hoppak.profile && window.__hoppak.profile.getState();
+        return !!(p && p.profile && p.profile.best === 240 && p.st === 'ready');
+      }, { timeout: 4000 });
       await pg.evaluate(() => {
         window.__hoppak.tap('shop');
         window.__hoppak.tap('hero:2');
         window.__hoppak.tap('hero:act');
         window.__hoppak.tap('hero:act'); // confirm buy ninja (200)
       });
-      await sleep(400);
+      await pg.waitForFunction(() => {
+        const p = window.__hoppak && window.__hoppak.profile && window.__hoppak.profile.getState();
+        return !!(p && p.profile && p.profile.coins === 50 && p.profile.purchases && p.profile.purchases['char:2'] === 1);
+      }, { timeout: 4000 });
       await pg.reload();
-      await sleep(400);
+      await pg.waitForFunction(() => {
+        const s = window.__hoppak && window.__hoppak.getSave && window.__hoppak.getSave();
+        return !!(s && s.coins === 50 && s.owned && s.owned['char:2'] === 1);
+      }, { timeout: 4000 });
       const v06st = await pg.evaluate(() => ({
         st: window.__hoppak.profile.getState(),
         save: window.__hoppak.getSave(),
@@ -499,8 +520,21 @@ async function admin(base, body) {
           finish(7500, 0);
           finish(100, 0);
           finish(99, 5);
+          /* Room start (startNet/startRun) calls the same beginRun as solo. */
+          g.profile.beginRun('city', 0);
           await g.profile.flush();
         });
+        if (!tg) {
+          const started = await (await fetch(origin + '/__mock/log')).json();
+          const order = started.log.map((x) => x.path).filter((p) => p === '/api/run/start' || p === '/api/run/finish');
+          const firstFin = order.indexOf('/api/run/finish');
+          const starts = order.filter((p) => p === '/api/run/start').length;
+          const fins = order.filter((p) => p === '/api/run/finish').length;
+          assert.ok(firstFin > 0, 'run_start is posted before finish ' + order.join(','));
+          assert.ok(order.slice(0, firstFin).every((p) => p === '/api/run/start'));
+          assert.strictEqual(fins, 13, 'solo finishes ' + order.join(','));
+          assert.strictEqual(starts, 14, 'each finish has a start, plus the extra beginRun');
+        }
         const last = await pg.evaluate(() => {
           const st = window.__hoppak.profile.getState();
           const w = window.__hoppak.getWorld();
@@ -539,6 +573,11 @@ async function admin(base, body) {
       await pg.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
       pg.on('pageerror', (e) => errs.push('r8 pageerror: ' + e.message));
       await pg.evaluateOnNewDocument(() => {
+        localStorage.setItem('hoppak_save', JSON.stringify({
+          v5: 1, coins: 100, best: 10, mapBest: { city: 10, lava: 20 },
+          owned: { 'char:0': 1 }, char: 0, bg: 'city', sfx: true, vib: true,
+          music: 0.2, sfxVol: 0.7, musicOn: true,
+        }));
         window.Telegram = {
           WebApp: {
             initData: 'user=' + encodeURIComponent(JSON.stringify({ id: 42, first_name: 'Roman' })) + '&auth_date=1&hash=00',
@@ -551,15 +590,6 @@ async function admin(base, body) {
       });
       await pg.goto(base + '/index.html');
       await settle(pg);
-      await pg.evaluate(() => {
-        localStorage.setItem('hoppak_save', JSON.stringify({
-          v5: 1, coins: 100, best: 10, mapBest: { city: 10, lava: 20 },
-          owned: { 'char:0': 1 }, char: 0, bg: 'city', sfx: true, vib: true,
-          music: 0.2, sfxVol: 0.7, musicOn: true, sfx: true,
-        }));
-      });
-      await pg.reload();
-      await sleep(500);
       await pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
       const migrated = await pg.evaluate(() => window.__hoppak.getSave().vol);
       assert.strictEqual(migrated, 0.7, 'volume migrates to the louder slider');
@@ -1049,6 +1079,21 @@ async function admin(base, body) {
       assert.ok(leave.y + leave.h <= lay.lh + 1);
     }
     console.log('PASS 15: lobby buttons stay clear of the evening score');
+
+    for (const n of [5, 6]) {
+      const ev = await pg.evaluate((count) => window.__hoppak.eveningProbe(count), n);
+      assert.strictEqual(ev.round, 5, n + ' players header is the round, not the row count ' + JSON.stringify(ev));
+      assert.strictEqual(ev.title, 'РАУНД 5', JSON.stringify(ev));
+      assert.strictEqual(ev.total, n);
+      assert.strictEqual(ev.covered, n, n + ' evening rows are reachable ' + JSON.stringify(ev));
+      const start = ev.boxes.find((b) => b.id === 'net:start' || b.id === 'net:ready');
+      const leave = ev.boxes.find((b) => b.id === 'net:leave');
+      const evening = ev.boxes.find((b) => b.id === 'evening');
+      assert.ok(start && leave && evening, 'evening layout ' + n);
+      assert.ok(!overlap(evening, start) && !overlap(evening, leave), 'evening overlaps buttons ' + n);
+      assert.ok(evening.y + evening.h <= start.y + 0.5, 'evening above start ' + n);
+    }
+    console.log('PASS 15b: evening header is the round; 5 and 6 names fit');
       await pg.setViewport({ width: 360, height: 560, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
       const narrow = await pg.evaluate(() => window.__hoppak.lobbyProbe(36));
       const ns = narrow.boxes.find((b) => b.id === 'net:start');

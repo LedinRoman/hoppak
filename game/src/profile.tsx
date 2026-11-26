@@ -420,6 +420,40 @@ var PROFILE: any = (function () {
   }
 
   var runRefs: any = {};
+  var startInflight: any = {};
+  var startDone: any = {};
+  function postStart(id: string, map: string, hero: number, tok: string) {
+    return req("POST", "/api/run/start", { runId: id, map: map || "", hero: hero == null ? 0 : hero }, tok).then(function (res: any) {
+      if (res && res.ok && res.data && res.data.ok) startDone[id] = 1;
+      return res;
+    });
+  }
+  function markStarted(runId: string) {
+    startDone[runId] = 1;
+    var q = getRunQueue();
+    var changed = false;
+    for (var i = 0; i < q.length; i++) if (q[i] && q[i].runId === runId && !q[i].started) { q[i].started = 1; changed = true; }
+    if (changed) setRunQueue(q);
+  }
+  /** Start must land before finish, including after a reload. A 404 means an old server without the route. */
+  function ensureStart(head: any, tok: string) {
+    if (!head || !head.runId) return Promise.resolve("nostart");
+    if (head.started) startDone[head.runId] = 1;
+    if (startDone[head.runId]) return Promise.resolve("ok");
+    var pending = startInflight[head.runId] || Promise.resolve(null);
+    return pending.then(function (res: any) {
+      if (startDone[head.runId]) { markStarted(head.runId); return "ok"; }
+      if (res && (res.status === 404 || res.status === 405 || res.status === 501)) return "skip";
+      if (res && res.status === 401) return "auth";
+      if (!tok) return "later";
+      return postStart(head.runId, head.map || "", head.hero, tok).then(function (again: any) {
+        if (startDone[head.runId]) { markStarted(head.runId); return "ok"; }
+        if (again && (again.status === 404 || again.status === 405 || again.status === 501)) return "skip";
+        if (again && again.status === 401) return "auth";
+        return "later";
+      });
+    });
+  }
   function worldOf(head: any) {
     if (!head) return null;
     return head._wRef || runRefs[head.runId] || null;
@@ -448,7 +482,17 @@ var PROFILE: any = (function () {
     if (head.ver) body.ver = head.ver;
     if (head.hero != null) body.hero = head.hero;
 
-    return req("POST", "/api/run/finish", body, tok).then(function (res: any) {
+    return ensureStart(head, tok).then(function (started: string) {
+      if (started === "later") {
+        markRun(head, "OFFLINE");
+        var waitS = P.backoffMs;
+        P.backoffMs = Math.min(60000, P.backoffMs * 2);
+        scheduleRetry(waitS);
+        return null;
+      }
+      return req("POST", "/api/run/finish", body, tok);
+    }).then(function (res: any) {
+      if (!res) return null;
       if (res.status === 401) {
         setToken("");
         if (!authRetried) {
@@ -568,7 +612,7 @@ var PROFILE: any = (function () {
   P.beginRun = function (map: string, hero: number) {
     var id = makeRunId();
     var tok = getToken();
-    if (tok) req("POST", "/api/run/start", { runId: id, map: map || "", hero: hero }, tok);
+    if (tok) startInflight[id] = postStart(id, map || "", hero, tok);
     return id;
   };
 
@@ -578,7 +622,7 @@ var PROFILE: any = (function () {
     var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
     var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
     var item: any = {
-      runId: (meta && meta.runId) || makeRunId(),
+      runId: (meta && meta.runId) ? meta.runId : "",
       hero: meta && meta.hero != null ? meta.hero : 0,
       height: h,
       runCoins: c,

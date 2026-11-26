@@ -36,16 +36,21 @@ export class OnlineService {
   private async write(p: Presence) {
     if (!p.playerId || !this.now) return;
     const screen = p.screen === 'game' || p.screen === 'spectator' || p.screen === 'lobby' ? p.screen : 'lobby';
+    const ver = String(p.clientVersion || '').slice(0, 16);
+    const plat = String(p.platform || '').slice(0, 16);
     const job = (async () => {
-      const row = this.now!.create({
-        playerId: p.playerId,
-        room: String(p.room || '').slice(0, 16),
-        screen,
-        clientVersion: String(p.clientVersion || '').slice(0, 16),
-        platform: String(p.platform || '').slice(0, 16),
-        lastSeen: new Date(),
-      });
-      await this.now!.save(row);
+      /* Empty version or platform must not wipe a value the client already sent. */
+      await this.now!.query(
+        `INSERT INTO "online_now" ("player_id", "room", "screen", "client_version", "platform", "last_seen")
+         VALUES ($1, $2, $3, $4, $5, now())
+         ON CONFLICT ("player_id") DO UPDATE SET
+           "room" = EXCLUDED."room",
+           "screen" = EXCLUDED."screen",
+           "client_version" = COALESCE(NULLIF(EXCLUDED."client_version", ''), "online_now"."client_version"),
+           "platform" = COALESCE(NULLIF(EXCLUDED."platform", ''), "online_now"."platform"),
+           "last_seen" = now()`,
+        [p.playerId, String(p.room || '').slice(0, 16), screen, ver, plat],
+      );
       await this.now!.createQueryBuilder().delete()
         .where("last_seen < now() - interval '60 seconds'").execute();
       const minute = Math.floor(Date.now() / 60000);

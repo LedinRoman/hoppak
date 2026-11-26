@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Player } from './player.entity';
 import { PlayerRun } from './player-run.entity';
 import { PlayerTelegram } from './player-telegram.entity';
@@ -14,6 +14,7 @@ import { bucketFor, plausBuckets, PlausRule } from './plausibility';
 import { displayName } from './display-name';
 import { countryOfIp, originLanguage } from './geo';
 import { kickAccount } from '../session-kick';
+import { publishAccountKick } from '../account-kick-bus';
 import { randomUUID } from 'crypto';
 import {
   ITEM_PRICES, MAP_IDS, MIGRATE_COINS_MAX, RUN_HEIGHT_MAX,
@@ -197,9 +198,12 @@ export class ProfileService {
     }
 
     const execute = async (
-      playerRepo: Repository<Player>,
-      runRepo?: Repository<PlayerRun>,
+      em: EntityManager | null,
     ): Promise<{ awarded: number; profile: PublicProfile; limited?: string; duplicate?: boolean }> => {
+      const playerRepo = em ? em.getRepository(Player) : repo;
+      const runRepo = em ? em.getRepository(PlayerRun) : this.runs;
+      const startRepo = em ? em.getRepository(RunStart) : this.starts;
+      const susRepo = em ? em.getRepository(SuspiciousRun) : this.suspicious;
       const fresh = (await playerRepo.findOne({
         where: { id: p.id },
         ...(repo.manager ? { lock: { mode: 'pessimistic_write' } } : {}),
@@ -215,7 +219,9 @@ export class ProfileService {
       const claimedC = Math.max(0, Math.floor(Number(runCoins) || 0));
       const claimedB = Math.max(0, Math.floor(Number(bonusCoins) || 0));
       const mapIdEarly = typeof rawMap === 'string' && (MAP_IDS as readonly string[]).indexOf(rawMap) >= 0 ? rawMap : 'city';
-      const over = await this.plausibilityBreach(fresh.id, runId || '', mapIdEarly, claimedH, claimedC, claimedB, rawHero, rawVer);
+      const over = await this.plausibilityBreach(
+        susRepo, startRepo, fresh.id, runId || '', mapIdEarly, claimedH, claimedC, claimedB, rawHero, rawVer,
+      );
       if (over) {
         if (runId && runRepo) {
           try { await runRepo.insert(runRepo.create({ playerId: fresh.id, runId, awarded: 0 })); }
@@ -261,11 +267,23 @@ export class ProfileService {
     };
 
     if (repo.manager && typeof repo.manager.transaction === 'function') {
-      return repo.manager.transaction(async (em) =>
-        execute(em.getRepository(Player), this.runs ? em.getRepository(PlayerRun) : undefined),
-      );
+      return repo.manager.transaction(async (em) => {
+        await this.armFinishTx(em);
+        return execute(em);
+      });
     }
-    return execute(repo, this.runs);
+    return execute(null);
+  }
+
+  /** A stuck lock must release the pool connection instead of waiting forever. */
+  private async armFinishTx(em: EntityManager) {
+    if (!em || typeof em.query !== 'function') return;
+    try {
+      await em.query(`SET LOCAL statement_timeout = '3000'`);
+      await em.query(`SET LOCAL lock_timeout = '1000'`);
+    } catch {
+      /* Engines without these settings still finish the transaction. */
+    }
   }
 
   /** Guest server wallet folded into an existing Telegram player. Local caches are not part of this number. */
@@ -320,8 +338,7 @@ export class ProfileService {
   private async saveTelegram(playerId: string, tg: VerifiedTelegramInitData) {
     if (!this.telegrams || !playerId) return;
     const existing = await this.telegrams.findOne({ where: { playerId } });
-    const row = existing || this.telegrams.create({ playerId, telegramId: tg.telegramId });
-    row.telegramId = tg.telegramId;
+    const row = existing || this.telegrams.create({ playerId });
     row.username = tg.username;
     row.firstName = tg.firstName;
     row.lastName = tg.lastName;
@@ -416,7 +433,11 @@ export class ProfileService {
     };
     const result = await run();
     try { await this.saveTelegram(result.playerId, verified); } catch (err) { console.error('telegram profile write failed'); }
-    if (result.kicked) kickAccount(result.playerId);
+    if (result.kicked) {
+      const sessionId = hashToken(result.token);
+      kickAccount(result.playerId, sessionId);
+      publishAccountKick(result.playerId, sessionId);
+    }
     const { playerId: _id, kicked: _k, ...rest } = result;
     return rest;
   }
@@ -425,13 +446,28 @@ export class ProfileService {
     if (!playerId || !this.geos) return;
     try {
       const country = countryOfIp(ip);
+      const lang = country ? originLanguage(country) : null;
+      /* A private address must not wipe a country learned from a public one. */
+      if (typeof this.geos.query === 'function') {
+        await this.geos.query(
+          `INSERT INTO "player_geo" ("player_id", "last_ip", "country", "origin_language", "first_seen", "last_seen")
+           VALUES ($1, $2, $3, $4, now(), now())
+           ON CONFLICT ("player_id") DO UPDATE SET
+             "last_ip" = COALESCE(NULLIF($2, ''), "player_geo"."last_ip"),
+             "last_seen" = now(),
+             "country" = COALESCE($3, "player_geo"."country"),
+             "origin_language" = COALESCE($4, "player_geo"."origin_language")`,
+          [playerId, ip || '', country, lang],
+        );
+        return;
+      }
       const now = new Date();
       const existing = await this.geos.findOne({ where: { playerId } });
       const row = existing || this.geos.create({ playerId, firstSeen: now });
       if (ip) row.lastIp = ip;
       if (country) {
         row.country = country;
-        row.originLanguage = originLanguage(country);
+        row.originLanguage = lang;
       }
       row.lastSeen = now;
       if (!row.firstSeen) row.firstSeen = now;
@@ -441,7 +477,7 @@ export class ProfileService {
     }
   }
 
-  async identityForToken(token: string | null): Promise<{ id: string; name: string } | null> {
+  async identityForToken(token: string | null): Promise<{ id: string; name: string; sessionId: string } | null> {
     if (!token || !this.players) return null;
     try {
       const p = await this.findByToken(token);
@@ -452,7 +488,7 @@ export class ProfileService {
         const t = await this.telegrams.findOne({ where: { playerId: p.id } });
         if (t) { first = t.firstName; user = t.username; }
       }
-      return { id: p.id, name: displayName(first, user, p.id) };
+      return { id: p.id, name: displayName(first, user, p.id), sessionId: hashToken(token) };
     } catch (err) {
       console.error('identity lookup failed');
       return null;
@@ -504,59 +540,70 @@ export class ProfileService {
     }
   }
 
-  /** Returns true when the claim is over the ceiling. Missing start time fails open. */
+  /**
+   * True when the finish must not be paid. Missing runId or server start is a reject,
+   * same as a claim over the ceiling. The suspicious row is written on `susRepo`,
+   * which is the finish transaction when one is open.
+   */
   private async plausibilityBreach(
+    susRepo: Repository<SuspiciousRun> | undefined,
+    startRepo: Repository<RunStart> | undefined,
     playerId: string, runId: string, map: string,
     height: number, coins: number, bonusCoins: number, rawHero: unknown, rawVer: unknown,
   ): Promise<boolean> {
-    if (!runId) return false;
+    const treasures = Math.ceil(Math.max(0, bonusCoins) / 25);
+    const hero = Math.max(0, Math.min(5, Math.floor(Number(rawHero) || 0)));
+    const ver = String(rawVer || '').slice(0, 16);
+    const reject = async (
+      reason: string, duration: number,
+      rule?: { maxCoins: number; maxHeightM: number; maxTreasures: number },
+    ) => {
+      if (susRepo) {
+        try {
+          await susRepo.save(susRepo.create({
+            id: randomUUID(),
+            playerId,
+            runId: (runId || '').slice(0, 64),
+            map,
+            hero,
+            durationS: Math.max(0, Math.round(duration)),
+            claimedCoins: coins,
+            claimedHeight: height,
+            claimedTreasures: treasures,
+            maxCoins: rule ? rule.maxCoins : 0,
+            maxHeight: rule ? rule.maxHeightM : 0,
+            maxTreasures: rule ? rule.maxTreasures : 0,
+            reason: reason.slice(0, 64),
+            clientVersion: ver,
+            createdAt: new Date(),
+          }));
+        } catch (err) {
+          console.error('suspicious_runs write failed');
+        }
+      }
+      return true;
+    };
+
+    if (!runId) return reject('NO_RUN_ID', 0);
     let started: Date | null = null;
     try {
-      if (this.starts) {
-        const row = await this.starts.findOne({ where: { playerId, runId } });
-        started = row ? row.startedAt : null;
-      }
+      if (!startRepo) return reject('NO_RUN_START', 0);
+      const row = await startRepo.findOne({ where: { playerId, runId } });
+      started = row ? row.startedAt : null;
     } catch (err) {
       console.error('run start read failed');
-      return false;
+      return reject('NO_RUN_START', 0);
     }
-    if (!started) {
-      console.error('run start missing, plausibility skipped');
-      return false;
-    }
+    if (!started) return reject('NO_RUN_START', 0);
     const duration = Math.max(0, (Date.now() - new Date(started).getTime()) / 1000);
     const rows = await this.loadRules();
     const rule = bucketFor(rows, map, duration) || bucketFor(plausBuckets(), map, duration);
-    if (!rule) return false;
-    const treasures = Math.ceil(bonusCoins / 25);
+    if (!rule) return reject('NO_RUN_START', duration);
     const reasons: string[] = [];
     if (height > rule.maxHeightM) reasons.push('height');
     if (coins > rule.maxCoins) reasons.push('coins');
     if (treasures > rule.maxTreasures || bonusCoins > rule.maxTreasures * 25) reasons.push('treasures');
     if (!reasons.length) return false;
-    if (this.suspicious) {
-      try {
-        await this.suspicious.save(this.suspicious.create({
-          id: randomUUID(),
-          playerId,
-          runId,
-          map,
-          hero: Math.max(0, Math.min(5, Math.floor(Number(rawHero) || 0))),
-          durationS: Math.round(duration),
-          claimedCoins: coins,
-          claimedHeight: height,
-          claimedTreasures: treasures,
-          maxCoins: rule.maxCoins,
-          maxHeight: rule.maxHeightM,
-          maxTreasures: rule.maxTreasures,
-          reason: reasons.join(','),
-          clientVersion: String(rawVer || '').slice(0, 16),
-          createdAt: new Date(),
-        }));
-      } catch (err) {
-        console.error('suspicious_runs write failed');
-      }
-    }
-    return true;
+    return reject(reasons.join(','), duration, rule);
   }
 }

@@ -26,6 +26,8 @@ export interface Player {
   bot: boolean;
   /** Profile id when the socket presented a bearer. Two seats of one account are not allowed. */
   accountId?: string;
+  /** Hash of the bearer this socket logged in with. A newer login does not close itself. */
+  sessionId?: string;
 }
 
 export interface Room {
@@ -52,7 +54,11 @@ export class RoomError extends Error {
 }
 
 /** Per-socket session data, stored on the ws object. */
-export interface Sess { room?: Room; player?: Player; win: number; winN: number; accountId?: string; }
+export interface Sess {
+  room?: Room; player?: Player; win: number; winN: number;
+  accountId?: string; sessionId?: string;
+  clientVersion?: string; platform?: string;
+}
 
 export const stats = { msgsIn: 0, msgsOut: 0, bytesOut: 0, snaps: 0 };
 
@@ -64,7 +70,7 @@ export class RoomsService implements OnModuleDestroy {
   private sweeper = setInterval(() => this.sweep(), 2000);
 
   constructor() {
-    setAccountKick((id) => this.kickAccount(id));
+    setAccountKick((id, sessionId) => this.kickAccount(id, sessionId));
   }
 
   onModuleDestroy() {
@@ -125,10 +131,14 @@ export class RoomsService implements OnModuleDestroy {
     const t = String(name ?? '').trim().slice(0, 16);
     return t || 'HOPP';
   }
-  kickAccount(accountId: string) {
+  kickAccount(accountId: string, keepSession?: string) {
     if (!accountId) return;
     for (const r of [...this.rooms.values()]) {
-      for (const p of [...r.players]) if (p.accountId === accountId) this.dropReplaced(r, p);
+      for (const p of [...r.players]) {
+        if (p.accountId !== accountId) continue;
+        if (keepSession && p.sessionId === keepSession) continue;
+        this.dropReplaced(r, p);
+      }
     }
   }
   private dropReplaced(r: Room, p: Player) {

@@ -13,9 +13,24 @@ export function originLanguage(country: string | null): string | null {
   return LANG[country] || null;
 }
 
+/** Loopback, link-local and RFC1918 addresses have no country. */
+export function isPublicIp(ip: string): boolean {
+  if (!ip) return false;
+  const s = ip.toLowerCase().replace(/^::ffff:/, '');
+  if (s === '::1' || s === '0.0.0.0') return false;
+  if (s.startsWith('fe80:') || s.startsWith('fc') || s.startsWith('fd')) return false;
+  if (/^127\./.test(s) || /^10\./.test(s) || /^192\.168\./.test(s) || /^169\.254\./.test(s)) return false;
+  const m = /^172\.(\d+)\./.exec(s);
+  if (m) {
+    const n = Number(m[1]);
+    if (n >= 16 && n <= 31) return false;
+  }
+  return true;
+}
+
 /** Offline lookup. A missing database must not throw into the request. */
 export function countryOfIp(ip: string): string | null {
-  if (!ip || ip === '127.0.0.1' || ip === '::1') return null;
+  if (!isPublicIp(ip)) return null;
   try {
     // geoip-lite ships a local MaxMind country file. No network call.
     const geoip = require('geoip-lite');

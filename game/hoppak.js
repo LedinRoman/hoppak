@@ -4276,6 +4276,14 @@
         if (hm > (N.session.best[r.pid] || 0)) N.session.best[r.pid] = hm;
       }
     }
+    function eveningRoundNo(S) {
+      var n = 0;
+      for (var i = 0; i < S.rounds.length; i++) {
+        var r = Number(S.rounds[i] && S.rounds[i].round);
+        if (r > n) n = r;
+      }
+      return n || S.rounds.length;
+    }
     N.drawEvening = function(ctx, x, y) {
       var S = N.session;
       if (!S || !S.rounds || !S.rounds.length) return y;
@@ -4290,7 +4298,8 @@
         if (wb !== wa) return wb - wa;
         return (S.best[b] || 0) - (S.best[a2] || 0);
       });
-      var head = 13, rowH = 11, maxY = arguments.length > 3 ? arguments[3] : 0;
+      var roundNo = eveningRoundNo(S);
+      var head = 12, rowH = 9, maxY = arguments.length > 3 ? arguments[3] : 0;
       var fit = pids.length;
       if (maxY > y + head) fit = Math.max(1, Math.min(pids.length, Math.floor((maxY - y - head) / rowH)));
       else if (maxY) fit = 0;
@@ -4299,12 +4308,13 @@
       if ((N.evOff || 0) < 0) N.evOff = 0;
       var off = N.evOff || 0;
       var h = head + fit * rowH;
+      N.eveningState = { round: roundNo, title: "\u0420\u0410\u0423\u041D\u0414 " + roundNo, total: pids.length, fit, off };
       box(ctx, x, y, 152, h, C.navy, C.gold);
       if (N.api && N.api.markBox) N.api.markBox("evening", x, y, 152, h);
-      drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 " + S.rounds.length + " \u0420\u0410\u0423\u041D\u0414", LW / 2, y + 3, C.gold, 1, "center");
+      drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 \u0420\u0410\u0423\u041D\u0414 " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
       for (var i2 = 0; i2 < fit; i2++) {
         var pid = pids[off + i2], nm = drawableChars(String(S.names[pid] || "\u0418\u0413\u0420\u041E\u041A")).slice(0, 10);
-        var lineY = y + 13 + i2 * 11;
+        var lineY = y + 12 + i2 * 9;
         drawText(ctx, nm || "HOPP", x + 6, lineY, C.cream, 1, "left");
         drawText(ctx, (S.wins[pid] || 0) + "\u041F  " + (S.best[pid] || 0) + "\u041C", x + 146, lineY, C.cream, 1, "right");
       }
@@ -5338,6 +5348,48 @@
       });
     }
     var runRefs = {};
+    var startInflight = {};
+    var startDone = {};
+    function postStart(id, map, hero, tok) {
+      return req("POST", "/api/run/start", { runId: id, map: map || "", hero: hero == null ? 0 : hero }, tok).then(function(res) {
+        if (res && res.ok && res.data && res.data.ok) startDone[id] = 1;
+        return res;
+      });
+    }
+    function markStarted(runId) {
+      startDone[runId] = 1;
+      var q = getRunQueue();
+      var changed = false;
+      for (var i = 0; i < q.length; i++) if (q[i] && q[i].runId === runId && !q[i].started) {
+        q[i].started = 1;
+        changed = true;
+      }
+      if (changed) setRunQueue(q);
+    }
+    function ensureStart(head, tok) {
+      if (!head || !head.runId) return Promise.resolve("nostart");
+      if (head.started) startDone[head.runId] = 1;
+      if (startDone[head.runId]) return Promise.resolve("ok");
+      var pending = startInflight[head.runId] || Promise.resolve(null);
+      return pending.then(function(res) {
+        if (startDone[head.runId]) {
+          markStarted(head.runId);
+          return "ok";
+        }
+        if (res && (res.status === 404 || res.status === 405 || res.status === 501)) return "skip";
+        if (res && res.status === 401) return "auth";
+        if (!tok) return "later";
+        return postStart(head.runId, head.map || "", head.hero, tok).then(function(again) {
+          if (startDone[head.runId]) {
+            markStarted(head.runId);
+            return "ok";
+          }
+          if (again && (again.status === 404 || again.status === 405 || again.status === 501)) return "skip";
+          if (again && again.status === 401) return "auth";
+          return "later";
+        });
+      });
+    }
     function worldOf(head) {
       if (!head) return null;
       return head._wRef || runRefs[head.runId] || null;
@@ -5364,7 +5416,17 @@
       if (head.map) body.map = head.map;
       if (head.ver) body.ver = head.ver;
       if (head.hero != null) body.hero = head.hero;
-      return req("POST", "/api/run/finish", body, tok).then(function(res) {
+      return ensureStart(head, tok).then(function(started) {
+        if (started === "later") {
+          markRun(head, "OFFLINE");
+          var waitS = P.backoffMs;
+          P.backoffMs = Math.min(6e4, P.backoffMs * 2);
+          scheduleRetry(waitS);
+          return null;
+        }
+        return req("POST", "/api/run/finish", body, tok);
+      }).then(function(res) {
+        if (!res) return null;
         if (res.status === 401) {
           setToken("");
           if (!authRetried) {
@@ -5489,7 +5551,7 @@
     P.beginRun = function(map, hero) {
       var id = makeRunId();
       var tok = getToken();
-      if (tok) req("POST", "/api/run/start", { runId: id, map: map || "", hero }, tok);
+      if (tok) startInflight[id] = postStart(id, map || "", hero, tok);
       return id;
     };
     P.finishRun = function(height, runCoins, bonusCoins, worldRef, meta) {
@@ -5498,7 +5560,7 @@
       var b = Math.max(0, Math.floor(Number(bonusCoins) || 0));
       var pre = meta && typeof meta.awarded === "number" ? Math.max(0, Math.floor(meta.awarded)) : computeAward(h, c, b).awarded;
       var item = {
-        runId: meta && meta.runId || makeRunId(),
+        runId: meta && meta.runId ? meta.runId : "",
         hero: meta && meta.hero != null ? meta.hero : 0,
         height: h,
         runCoins: c,
@@ -7776,7 +7838,10 @@
       var h = 11 + pids.length * 9;
       box(ctx, x, y, 152, h, C.navy, C.gold);
       pushRes("evening", x, y, 152, h);
-      drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 " + S.rounds.length + " \u0420\u0410\u0423\u041D\u0414", LW / 2, y + 2, C.gold, 1, "center");
+      var roundNo = 0;
+      for (var ri = 0; ri < S.rounds.length; ri++) roundNo = Math.max(roundNo, Number(S.rounds[ri] && S.rounds[ri].round) || 0);
+      if (!roundNo) roundNo = S.rounds.length;
+      drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 \u0420\u0410\u0423\u041D\u0414 " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
       for (var i = 0; i < pids.length; i++) {
         var pid = pids[i];
         var lineY = y + 11 + i * 9;
@@ -7888,13 +7953,10 @@
         }
         y += compact ? ah + 3 : note ? 72 : 60;
       }
-      if (evN && y + (compact ? 11 + evN * 9 + 3 : 13 + evN * 11 + 6) <= limitY) {
-        if (compact) y = drawEveningCompact(x, y);
-        else {
-          var ey = y;
-          y = NET.drawEvening(ctx, x, y);
-          pushRes("evening", x, ey, 152, y - ey - 6);
-        }
+      if (evN && y + 16 <= limitY) {
+        var ey = y;
+        y = NET.drawEvening(ctx, x, y, limitY);
+        pushRes("evening", x, ey, 152, Math.max(12, y - ey - 4));
       }
       var recH = world.newBest ? 13 : 11;
       if (y + recH <= limitY) {
@@ -8578,7 +8640,54 @@
         NET.draw(netApi);
         var boxes = screenLay.slice();
         testInsetTop = 0;
-        return { lw: LW, lh: LH, boxes };
+        return { lw: LW, lh: LH, boxes, evening: NET.eveningState || null };
+      },
+      eveningProbe: function(count) {
+        testInsetTop = 0;
+        phase = "net";
+        NET.sub = "room";
+        NET.st = "online";
+        NET.you = 1;
+        NET.evOff = 0;
+        var players = [];
+        var names = {};
+        var wins = {};
+        var best = {};
+        var n = Math.max(1, Math.min(8, count || 1));
+        for (var i = 1; i <= Math.min(4, n); i++) {
+          players.push({ pid: i, slot: i - 1, name: "P" + i, kind: 0, ready: true, on: true });
+        }
+        for (var j = 1; j <= n; j++) {
+          names[j] = "P" + j;
+          wins[j] = n - j;
+          best[j] = 100 - j;
+        }
+        NET.room = { code: "1234", you: 1, host: 1, map: "city", players };
+        NET.session = {
+          rounds: [{ round: 1 }, { round: 2 }, { round: 3 }, { round: 4 }, { round: 5 }],
+          names,
+          wins,
+          best
+        };
+        var seen = {};
+        var pages = 0;
+        var state = null;
+        while (pages < 8) {
+          screenLay = [];
+          hits = [];
+          NET.draw(netApi);
+          state = NET.eveningState;
+          if (!state) break;
+          for (var s = 0; s < state.fit; s++) seen[state.off + s] = 1;
+          pages++;
+          if (state.off + state.fit >= state.total) break;
+          NET.evOff = state.off + state.fit;
+        }
+        var covered = 0;
+        for (var k in seen) covered++;
+        var boxes = screenLay.slice();
+        testInsetTop = 0;
+        return { round: state && state.round, title: state && state.title, total: state && state.total, covered, pages, boxes, lh: LH };
       },
       inspectMap: function(seed, toM, mapId) {
         var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);

@@ -331,6 +331,14 @@ var NET: any = (function () {
       if (hm > (N.session.best[r.pid] || 0)) N.session.best[r.pid] = hm;
     }
   }
+  function eveningRoundNo(S: any) {
+    var n = 0;
+    for (var i = 0; i < S.rounds.length; i++) {
+      var r = Number(S.rounds[i] && S.rounds[i].round);
+      if (r > n) n = r;
+    }
+    return n || S.rounds.length;
+  }
   N.drawEvening = function (ctx: any, x: number, y: number) {
     var S = N.session;
     if (!S || !S.rounds || !S.rounds.length) return y;
@@ -345,7 +353,9 @@ var NET: any = (function () {
       if (wb !== wa) return wb - wa;
       return (S.best[b] || 0) - (S.best[a] || 0);
     });
-    var head = 13, rowH = 11, maxY = arguments.length > 3 ? arguments[3] : 0;
+    /* Round number, not the number of name rows. 9px rows so five and six names fit the lobby gap. */
+    var roundNo = eveningRoundNo(S);
+    var head = 12, rowH = 9, maxY = arguments.length > 3 ? arguments[3] : 0;
     var fit = pids.length;
     if (maxY > y + head) fit = Math.max(1, Math.min(pids.length, Math.floor((maxY - y - head) / rowH)));
     else if (maxY) fit = 0;
@@ -354,12 +364,13 @@ var NET: any = (function () {
     if ((N.evOff || 0) < 0) N.evOff = 0;
     var off = N.evOff || 0;
     var h = head + fit * rowH;
+    N.eveningState = { round: roundNo, title: "РАУНД " + roundNo, total: pids.length, fit: fit, off: off };
     box(ctx, x, y, 152, h, C.navy, C.gold);
     if (N.api && N.api.markBox) N.api.markBox("evening", x, y, 152, h);
-    drawText(ctx, "СЧЁТ ВЕЧЕРА · " + S.rounds.length + " РАУНД", LW / 2, y + 3, C.gold, 1, "center");
+    drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
     for (var i2 = 0; i2 < fit; i2++) {
       var pid = pids[off + i2], nm = drawableChars(String(S.names[pid] || "ИГРОК")).slice(0, 10);
-      var lineY = y + 13 + i2 * 11;
+      var lineY = y + 12 + i2 * 9;
       drawText(ctx, nm || "HOPP", x + 6, lineY, C.cream, 1, "left");
       drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, C.cream, 1, "right");
     }
