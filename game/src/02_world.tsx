@@ -435,7 +435,7 @@ function useShield(w: any, p: any) {
   p.shieldT = 0;
   p.invT = 60;
   spawnParts(w, p.x + 6, p.y + 8, 14, "#8ae8ff", 2.6, 0.02, 2);
-  if (p.id === 0) { w.shake = 4; toast(w, "ЩИТ СПАС!"); }
+  if (p.id === 0) { w.shake = 4; toast(w, "ЩИТ СПАС!"); hopSfx("shield"); }
   return true;
 }
 /* any harmful touch: shield absorbs one hit, otherwise KO */
@@ -472,7 +472,6 @@ function landOn(w: any, p: any, pl: any) {
   p.y = pl.y - PH;
   p.baseY = pl.y;
   p.squash = 7;
-  if (p.id === 0) hopSfx("jump");
   var spr = pl.spring && overlapsX(p.x + 2, PW - 4, pl.x + pl.w / 2 - 5, 10);
   if (spr) {
     p.vy = SPRING_V;
@@ -523,6 +522,8 @@ function landOn(w: any, p: any, pl: any) {
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
   }
+  /* Takeoff: every landing here is the bounce that leaves the platform. */
+  if (p.id === 0) hopSfx("jump");
 }
 function killMob(w: any, mo: any, p: any, noBounce?: boolean) {
   if (!mo.alive) return;
@@ -533,7 +534,7 @@ function killMob(w: any, mo: any, p: any, noBounce?: boolean) {
   addCharge(p, "kills", 1);
   var pal = MOBPAL[mo.kind] || ["#ffd070"];
   spawnParts(w, mo.x + mo.w / 2, mo.y + 4, 12, pal[0], 2.6, 0.15);
-  if (p.id === 0) w.shake = 5;
+  if (p.id === 0) { w.shake = 5; hopSfx("hit"); }
 }
 function mobBox(mo: any) {
   if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
@@ -635,7 +636,7 @@ function pickItem(w: any, p: any, it: any) {
   else if (B.id === "magnet") p.magnetT = Math.max(p.magnetT, B.t);
   else if (B.id === "rocket") { p.rocketT = B.t; p.grabT = 0; p.poundT = 0; p.invT = Math.max(p.invT, B.t + 40); }
   toast(w, B.id === "bigcoin" ? "КЛАД +" + BIGCOIN : B.name + "!");
-  if (p.id === 0) { w.shake = 3; hopSfx("bonus"); }
+  if (p.id === 0) { w.shake = 3; hopSfx(B.id === "shield" ? "shield" : "bonus"); }
 }
 
 function tickWorld(w: any, inputs: any) {

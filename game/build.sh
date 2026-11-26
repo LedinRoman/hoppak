@@ -76,6 +76,9 @@ print("site js", Path("site/hoppak.js").stat().st_size, "bytes")
 PY
   # fix the printed origin (the heredoc was unquoted wrongly for the env var)
   echo "site origin ${SITE_ORIGIN}"
+  rm -rf site/audio
+  mkdir -p site/audio
+  cp -R audio/. site/audio/
   node --check site/hoppak.js && echo "site js ok $(wc -c < site/hoppak.js) bytes"
   # confirm the origin string is baked in
   grep -o "${SITE_ORIGIN}" site/hoppak.js | head -1 | sed "s/^/baked: /"

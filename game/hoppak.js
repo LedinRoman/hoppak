@@ -560,6 +560,15 @@
     if (!s.seen || typeof s.seen !== "object") s.seen = {};
     sfxOn = !!s.sfx;
     vibOn = !!s.vib;
+    if (typeof s.sfxVol !== "number") s.sfxVol = 0.8;
+    s.sfxVol = clamp(s.sfxVol, 0, 1);
+    if (typeof s.music !== "number") s.music = 0.55;
+    s.music = clamp(s.music, 0, 1);
+    if (s.musicOn !== false) s.musicOn = true;
+    else s.musicOn = false;
+    sfxVol = s.sfxVol;
+    musicVol = s.music;
+    musicOn = !!s.musicOn;
     return s;
   }
   function writeSave(s) {
@@ -568,20 +577,62 @@
   var audioCtx = null;
   var sfxOn = true;
   var vibOn = true;
+  var sfxVol = 0.8;
+  var musicOn = true;
+  var musicVol = 0.55;
+  var audioUnlocked = false;
+  var audioExt = "";
+  var sfxPool = {};
+  var sfxCursor = {};
+  var SFX_GAIN = { jump: 0.32, coin: 0.7, bonus: 0.75, shield: 0.7, death: 0.8, warn: 0.5, deny: 0.48, tick: 0.22, hit: 0.6 };
+  var MUSIC_TRACKS = {
+    hush: { ogg: "audio/hush.ogg", mp3: "audio/hush.mp3" }
+  };
+  var MUSIC_CUES = [
+    { track: "hush", screens: ["*"], maps: ["*"] }
+  ];
+  var musicDeck = [null, null];
+  var musicIdx = 0;
+  var musicCur = "";
+  var musicFade = null;
   function audioUnlock() {
+    audioUnlocked = true;
     try {
       var AC = typeof window !== "undefined" && (window.AudioContext || window.webkitAudioContext);
-      if (!AC) return;
-      if (!audioCtx) audioCtx = new AC();
-      if (audioCtx.state === "suspended") audioCtx.resume();
+      if (AC) {
+        if (!audioCtx) audioCtx = new AC();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+      }
     } catch (_e) {
     }
+    hopMusic(musicCur || musicCue("menu", "city"));
   }
   function hopVib(ms) {
     if (!vibOn) return;
     try {
       if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms);
     } catch (_e) {
+    }
+  }
+  function pickAudioExt() {
+    if (audioExt) return audioExt;
+    audioExt = "mp3";
+    try {
+      var a = typeof document !== "undefined" && document.createElement("audio");
+      if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"')) audioExt = "ogg";
+    } catch (_e) {
+    }
+    return audioExt;
+  }
+  function makeAudio(src) {
+    try {
+      if (typeof Audio === "undefined") return null;
+      var a = new Audio();
+      a.preload = "none";
+      a.src = src;
+      return a;
+    } catch (_e) {
+      return null;
     }
   }
   function beep(freq, dur, vol, type, slide) {
@@ -592,7 +643,7 @@
       osc.frequency.setValueAtTime(freq, t0);
       if (slide) osc.frequency.linearRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
       g.gain.setValueAtTime(1e-4, t0);
-      g.gain.exponentialRampToValueAtTime(vol, t0 + 8e-3);
+      g.gain.exponentialRampToValueAtTime(Math.max(2e-4, vol * sfxVol), t0 + 8e-3);
       g.gain.exponentialRampToValueAtTime(1e-4, t0 + dur);
       osc.connect(g);
       g.connect(audioCtx.destination);
@@ -602,31 +653,124 @@
     }
   }
   function hopSfx(kind) {
-    if (!sfxOn) return;
-    audioUnlock();
-    if (!audioCtx) return;
-    if (kind === "jump") {
-      beep(200 + Math.random() * 36, 0.045, 0.045, "sine", 40);
-    } else if (kind === "coin") {
+    if (!sfxOn || sfxVol <= 0) return;
+    if (kind === "bonus") hopVib(18);
+    else if (kind === "hit") hopVib(30);
+    else if (kind === "death") hopVib([40, 40, 60]);
+    else if (kind === "deny") hopVib(12);
+    if (!audioUnlocked) return;
+    var ext = pickAudioExt();
+    var pool = sfxPool[kind];
+    if (!pool) {
+      pool = [];
+      sfxPool[kind] = pool;
+      sfxCursor[kind] = 0;
+      for (var i = 0; i < 3; i++) {
+        var el = makeAudio("audio/" + kind + "." + ext);
+        if (el) pool.push(el);
+      }
+    }
+    if (!pool.length) {
+      beepFallback(kind);
+      return;
+    }
+    var n = sfxCursor[kind] % pool.length;
+    sfxCursor[kind] = n + 1;
+    var node = pool[n];
+    try {
+      node.volume = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
+      node.currentTime = 0;
+      var p = node.play();
+      if (p && p.catch) p.catch(function() {
+        beepFallback(kind);
+      });
+    } catch (_e) {
+      beepFallback(kind);
+    }
+  }
+  function beepFallback(kind) {
+    if (kind === "jump") beep(200, 0.045, 0.045, "sine", 40);
+    else if (kind === "coin") {
       beep(880, 0.04, 0.05, "square");
       beep(1170, 0.06, 0.04, "square");
-    } else if (kind === "bonus") {
-      beep(520, 0.06, 0.06, "triangle", 200);
-      beep(780, 0.1, 0.05, "triangle");
-      hopVib(18);
-    } else if (kind === "hit") {
-      beep(140, 0.1, 0.08, "sawtooth", -80);
-      hopVib(30);
-    } else if (kind === "death") {
-      beep(220, 0.22, 0.08, "sawtooth", -160);
-      hopVib([40, 40, 60]);
-    } else if (kind === "warn") {
-      beep(160, 0.08, 0.05, "square", -20);
-    } else if (kind === "deny") {
-      beep(110, 0.07, 0.05, "square");
-      hopVib(12);
-    } else if (kind === "tick") {
-      beep(940, 0.02, 0.03, "square");
+    } else if (kind === "bonus" || kind === "shield") beep(520, 0.06, 0.06, "triangle", 200);
+    else if (kind === "hit") beep(140, 0.1, 0.08, "sawtooth", -80);
+    else if (kind === "death") beep(220, 0.22, 0.08, "sawtooth", -160);
+    else if (kind === "warn") beep(160, 0.08, 0.05, "square", -20);
+    else if (kind === "deny") beep(110, 0.07, 0.05, "square");
+    else if (kind === "tick") beep(940, 0.02, 0.03, "square");
+  }
+  function musicCue(screen, map) {
+    for (var i = 0; i < MUSIC_CUES.length; i++) {
+      var c = MUSIC_CUES[i];
+      var scr = c.screens || ["*"];
+      var maps = c.maps || ["*"];
+      if ((scr.indexOf("*") >= 0 || scr.indexOf(screen) >= 0) && (maps.indexOf("*") >= 0 || maps.indexOf(map) >= 0)) return c.track;
+    }
+    return "";
+  }
+  function musicSrc(id) {
+    var t = MUSIC_TRACKS[id];
+    if (!t) return "";
+    return pickAudioExt() === "ogg" ? t.ogg : t.mp3;
+  }
+  function musicTarget() {
+    return musicOn && musicVol > 0 ? musicVol : 0;
+  }
+  function hopMusic(id) {
+    if (!audioUnlocked || typeof Audio === "undefined") {
+      musicCur = id || "";
+      return;
+    }
+    var want = musicOn && musicVol > 0 ? id || "" : "";
+    if (want === musicCur && (musicDeck[musicIdx] || !want)) {
+      var live = musicDeck[musicIdx];
+      if (live) live.volume = musicTarget();
+      return;
+    }
+    var prev = musicDeck[musicIdx];
+    var nextI = 1 - musicIdx;
+    var nxt = musicDeck[nextI];
+    if (want) {
+      var src = musicSrc(want);
+      if (!nxt || nxt.getAttribute("data-src") !== src) {
+        nxt = makeAudio(src);
+        if (!nxt) return;
+        nxt.loop = true;
+        nxt.setAttribute("data-src", src);
+        musicDeck[nextI] = nxt;
+      }
+      try {
+        nxt.volume = 0;
+        nxt.currentTime = 0;
+        var pr = nxt.play();
+        if (pr && pr.catch) pr.catch(function() {
+        });
+      } catch (_e) {
+      }
+    }
+    musicFade = { from: prev, to: want ? nxt : null, t: 0, dur: 36 };
+    musicIdx = want ? nextI : musicIdx;
+    musicCur = want;
+  }
+  function hopMusicTick() {
+    if (!musicFade) return;
+    musicFade.t++;
+    var u = clamp(musicFade.t / musicFade.dur, 0, 1);
+    var goal = musicTarget();
+    try {
+      if (musicFade.from) musicFade.from.volume = clamp(goal * (1 - u), 0, 1);
+      if (musicFade.to) musicFade.to.volume = clamp(goal * u, 0, 1);
+    } catch (_e) {
+    }
+    if (u >= 1) {
+      try {
+        if (musicFade.from && musicFade.from !== musicFade.to) {
+          musicFade.from.pause();
+        }
+      } catch (_e2) {
+      }
+      musicFade = null;
     }
   }
   var FIRST_TOAST = {
@@ -1497,6 +1641,7 @@
     if (p.id === 0) {
       w.shake = 4;
       toast(w, "\u0429\u0418\u0422 \u0421\u041F\u0410\u0421!");
+      hopSfx("shield");
     }
     return true;
   }
@@ -1535,7 +1680,6 @@
     p.y = pl.y - PH;
     p.baseY = pl.y;
     p.squash = 7;
-    if (p.id === 0) hopSfx("jump");
     var spr = pl.spring && overlapsX(p.x + 2, PW - 4, pl.x + pl.w / 2 - 5, 10);
     if (spr) {
       p.vy = SPRING_V;
@@ -1586,6 +1730,7 @@
       spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
       spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
     }
+    if (p.id === 0) hopSfx("jump");
   }
   function killMob(w, mo, p, noBounce) {
     if (!mo.alive) return;
@@ -1599,7 +1744,10 @@
     addCharge(p, "kills", 1);
     var pal = MOBPAL[mo.kind] || ["#ffd070"];
     spawnParts(w, mo.x + mo.w / 2, mo.y + 4, 12, pal[0], 2.6, 0.15);
-    if (p.id === 0) w.shake = 5;
+    if (p.id === 0) {
+      w.shake = 5;
+      hopSfx("hit");
+    }
   }
   function mobBox(mo) {
     if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
@@ -1739,7 +1887,7 @@
     toast(w, B.id === "bigcoin" ? "\u041A\u041B\u0410\u0414 +" + BIGCOIN : B.name + "!");
     if (p.id === 0) {
       w.shake = 3;
-      hopSfx("bonus");
+      hopSfx(B.id === "shield" ? "shield" : "bonus");
     }
   }
   function tickWorld(w, inputs) {
@@ -5236,7 +5384,7 @@
       rect(ctx, x - 2, 2, w + 4, 9, C.navy);
       coinsLabel(LW - 4, 3, save.coins, "right", false);
       var mark = tgMark();
-      if (mark) drawText(ctx, mark, 24, 1, C.mov, 1, "left");
+      if (mark) drawText(ctx, mark, 4, 1, C.mov, 1, "left");
     }
     function drawBuy(id, x, y, w, h, price) {
       addHit(id, x, y, w, h);
@@ -5451,7 +5599,15 @@
         toggleTilt();
         return;
       }
-      if (id === "sfx") {
+      if (id === "mus:mute") {
+        musicOn = !musicOn;
+        save.musicOn = musicOn;
+        writeSave(save);
+        hopMusic(musicCue(phase, world && world.map || save.bg));
+        if (musicOn) hopSfx("tick");
+        return;
+      }
+      if (id === "sfx:mute") {
         sfxOn = !sfxOn;
         save.sfx = sfxOn;
         writeSave(save);
@@ -5612,6 +5768,41 @@
       held.left = l;
       held.right = r;
     }
+    var musGeom = { x: 0, w: 1 }, sfxGeom = { x: 0, w: 1 };
+    function setSlider(id, x) {
+      var g = id === "mus" ? musGeom : sfxGeom;
+      var v = Math.round(clamp((x - g.x) / Math.max(1, g.w), 0, 1) * 10) / 10;
+      if (id === "mus") {
+        musicVol = v;
+        save.music = v;
+        if (v > 0 && !musicOn) {
+          musicOn = true;
+          save.musicOn = true;
+        }
+        hopMusic(musicCue(phase, world && world.map || save.bg));
+      } else {
+        sfxVol = v;
+        save.sfxVol = v;
+        if (v > 0 && !sfxOn) {
+          sfxOn = true;
+          save.sfx = true;
+        }
+      }
+      writeSave(save);
+    }
+    function volRow(id, x, y, w, label, vol, on) {
+      drawText(ctx, label, x, y, on ? C.cream : "#9a8ab8", 1, "left");
+      btn(id + ":mute", x + w - 36, y - 2, 36, 12, on ? C.mint : "#1a1430", on ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B", on ? INK : C.cream);
+      var bx = x, bw = w, by = y + 12;
+      addHit(id, bx, by, bw, 8);
+      if (id === "mus") musGeom = { x: bx, w: bw };
+      else sfxGeom = { x: bx, w: bw };
+      rect(ctx, bx, by, bw, 5, "#120c28");
+      var fw = Math.max(0, Math.round(bw * (on ? vol : 0)));
+      if (fw > 0) rect(ctx, bx, by, fw, 5, C.mint);
+      rect(ctx, bx, by, bw, 1, on ? C.cream : "#5a5668");
+      rect(ctx, bx + Math.min(bw - 1, fw), by - 1, 1, 7, C.gold);
+    }
     function onPtrDown(e) {
       e.preventDefault();
       audioUnlock();
@@ -5626,6 +5817,10 @@
       var loc = toLogic(e.clientX, e.clientY);
       var id = hitAt(loc.x, loc.y);
       pressId = id;
+      if (id === "mus" || id === "sfx") {
+        setSlider(id, loc.x);
+        return;
+      }
       if (phase === "results") coinSkip = true;
       if (phase !== "play") return;
       if (paused) return;
@@ -5635,6 +5830,10 @@
     }
     function onPtrMove(e) {
       var loc = toLogic(e.clientX, e.clientY);
+      if (pressId === "mus" || pressId === "sfx") {
+        setSlider(pressId, loc.x);
+        return;
+      }
       if (phase !== "play" || paused) return;
       var pid = e.pointerId != null ? e.pointerId : 1;
       var p = pointers[pid];
@@ -5662,6 +5861,8 @@
         else if (id === "ab" && pressId === "ab") requestAbility();
         delete pointers[e.pointerId != null ? e.pointerId : 1];
         recomputeHold();
+      } else if (pressId === "mus" || pressId === "sfx") {
+        if (id === pressId) setSlider(pressId, loc.x);
       } else if (id && id === pressId) activate(id);
       pressId = null;
     }
@@ -5763,21 +5964,11 @@
       coinsLabel(x + 4, 51, save.coins, void 0, true);
       drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + (save.best || 0) + " \u041C", x + 148, 51, C.cream, 1, "right");
     }
-    function gear(x, y) {
-      addHit("set", x, y, 18, 18);
-      var on = pressId === "set";
-      box(ctx, x, y, 18, 18, on ? "#3a4a7a" : C.navy, C.cream);
-      rect(ctx, x + 7, y + 3, 4, 12, C.cream);
-      rect(ctx, x + 3, y + 7, 12, 4, C.cream);
-      rect(ctx, x + 6, y + 6, 6, 6, C.navy);
-      rect(ctx, x + 8, y + 8, 2, 2, C.cream);
-    }
     function drawMenu() {
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
       dimView(ctx, "rgba(18,14,44,0.14)");
       var x = colX();
       drawBig(ctx, "\u0425\u041E\u041F\u041F\u0410\u041A", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
-      gear(4, 4);
       drawTextO(ctx, "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", LW / 2, 41, C.cream, "center");
       var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
       var sub = M.goal ? M.name + " \xB7 " + b + "/" + M.goal + " \u041C" : M.name + " \xB7 " + b + " \u041C";
@@ -5805,15 +5996,20 @@
         btn("shop", x, by + 66, 72, 22, C.navy, "\u041C\u0410\u0413\u0410\u0417\u0418\u041D");
         btn("mp", x + 80, by + 66, 72, 22, C.navy, "\u0421 \u0411\u041E\u0422\u0410\u041C\u0418");
       }
+      btn("set", x, by + 92, 152, 22, C.navy, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418");
       if (showSet) {
+        hits = [];
+        dimView(ctx, "rgba(8,6,20,0.62)");
         var stg = stagingBuild();
-        box(ctx, x, 70, 152, stg ? 154 : 128, C.navy, C.cream);
-        drawText(ctx, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", LW / 2, 76, C.gold, 1, "center");
-        btn("tilt", x + 8, 94, 136, 22, tiltOn ? C.mint : "#1a1430", "\u041D\u0410\u041A\u041B\u041E\u041D: " + (tiltOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), tiltOn ? INK : C.cream);
-        btn("sfx", x + 8, 120, 136, 22, sfxOn ? C.mint : "#1a1430", "\u0417\u0412\u0423\u041A: " + (sfxOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), sfxOn ? INK : C.cream);
-        btn("vib", x + 8, 146, 136, 22, vibOn ? C.mint : "#1a1430", "\u0412\u0418\u0411\u0420\u041E: " + (vibOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), vibOn ? INK : C.cream);
-        if (stg) btn("ralpha", x + 8, 172, 136, 22, "#1a1430", "\u0427\u0423\u0416\u0418\u0415: " + remoteAlpha(), C.cream);
-        btn("set", x + 26, stg ? 200 : 174, 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
+        var py0 = 50;
+        box(ctx, x, py0, 152, stg ? 168 : 144, C.navy, C.cream);
+        drawText(ctx, "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", LW / 2, py0 + 6, C.gold, 1, "center");
+        btn("tilt", x + 8, py0 + 20, 136, 20, tiltOn ? C.mint : "#1a1430", "\u041D\u0410\u041A\u041B\u041E\u041D: " + (tiltOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), tiltOn ? INK : C.cream);
+        volRow("mus", x + 8, py0 + 44, 136, "\u041C\u0423\u0417\u042B\u041A\u0410", musicVol, musicOn);
+        volRow("sfx", x + 8, py0 + 68, 136, "\u0417\u0412\u0423\u041A\u0418", sfxVol, sfxOn);
+        btn("vib", x + 8, py0 + 94, 136, 20, vibOn ? C.mint : "#1a1430", "\u0412\u0418\u0411\u0420\u041E: " + (vibOn ? "\u0412\u041A\u041B" : "\u0412\u042B\u041A\u041B"), vibOn ? INK : C.cream);
+        if (stg) btn("ralpha", x + 8, py0 + 118, 136, 20, "#1a1430", "\u0427\u0423\u0416\u0418\u0415: " + remoteAlpha(), C.cream);
+        btn("set", x + 26, py0 + (stg ? 144 : 120), 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
       }
       drawFlash();
     }
@@ -6634,6 +6830,8 @@
         ctx.restore();
       }
       if (netFixedLW() !== netLW || (fieldLocked && phase === "play" && !isWide) !== lastFill) resize();
+      hopMusicTick();
+      if (audioUnlocked) hopMusic(musicCue(phase, phase === "play" && world && world.map || save.bg || "city"));
       if (running && !driving) raf = requestAnimationFrame(frame);
     }
     var netApi = {

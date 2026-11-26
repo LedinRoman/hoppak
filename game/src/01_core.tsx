@@ -409,23 +409,64 @@ function loadSave() {
   if (s.vib !== false) s.vib = true; else s.vib = false;
   if (!s.seen || typeof s.seen !== "object") s.seen = {};
   sfxOn = !!s.sfx; vibOn = !!s.vib;
+  if (typeof s.sfxVol !== "number") s.sfxVol = 0.8;
+  s.sfxVol = clamp(s.sfxVol, 0, 1);
+  if (typeof s.music !== "number") s.music = 0.55;
+  s.music = clamp(s.music, 0, 1);
+  if (s.musicOn !== false) s.musicOn = true; else s.musicOn = false;
+  sfxVol = s.sfxVol; musicVol = s.music; musicOn = !!s.musicOn;
   return s;
 }
 function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
 
-/* ---- audio / vibro (WebAudio, no files: Canvas CSP blocks data-URI) ---- */
-var audioCtx: any = null, sfxOn = true, vibOn = true, sfxMem: any = {};
+/* ---- audio: files under audio/, started only after a gesture. Beeps remain if a file cannot play. ---- */
+var audioCtx: any = null, sfxOn = true, vibOn = true, sfxVol = 0.8, musicOn = true, musicVol = 0.55;
+var audioUnlocked = false, audioExt = "";
+var sfxPool: any = {}, sfxCursor: any = {};
+/* Relative loudness. Jump and the results tick fire constantly, so they stay quieter than a coin. */
+var SFX_GAIN: any = { jump: 0.32, coin: 0.7, bonus: 0.75, shield: 0.7, death: 0.8, warn: 0.5, deny: 0.48, tick: 0.22, hit: 0.6 };
+/* Track id -> files. Add a row here, then a row in MUSIC_CUES, to bring in another loop. */
+var MUSIC_TRACKS: any = {
+  hush: { ogg: "audio/hush.ogg", mp3: "audio/hush.mp3" }
+};
+/* First matching row wins. "*" matches every screen or every map. Crossfade runs when the chosen id changes. */
+var MUSIC_CUES: any[] = [
+  { track: "hush", screens: ["*"], maps: ["*"] }
+];
+var musicDeck: any[] = [null, null], musicIdx = 0, musicCur = "", musicFade: any = null;
+
 function audioUnlock() {
+  audioUnlocked = true;
   try {
     var AC: any = (typeof window !== "undefined") && ((window as any).AudioContext || (window as any).webkitAudioContext);
-    if (!AC) return;
-    if (!audioCtx) audioCtx = new AC();
-    if (audioCtx.state === "suspended") audioCtx.resume();
+    if (AC) {
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    }
   } catch (_e) {}
+  hopMusic(musicCur || musicCue("menu", "city"));
 }
 function hopVib(ms: any) {
   if (!vibOn) return;
   try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); } catch (_e) {}
+}
+function pickAudioExt() {
+  if (audioExt) return audioExt;
+  audioExt = "mp3";
+  try {
+    var a = (typeof document !== "undefined") && document.createElement("audio");
+    if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"')) audioExt = "ogg";
+  } catch (_e) {}
+  return audioExt;
+}
+function makeAudio(src: string) {
+  try {
+    if (typeof Audio === "undefined") return null;
+    var a = new Audio();
+    a.preload = "none";
+    a.src = src;
+    return a;
+  } catch (_e) { return null; }
 }
 function beep(freq: number, dur: number, vol: number, type: string, slide?: number) {
   if (!sfxOn || !audioCtx) return;
@@ -435,24 +476,105 @@ function beep(freq: number, dur: number, vol: number, type: string, slide?: numb
     osc.frequency.setValueAtTime(freq, t0);
     if (slide) osc.frequency.linearRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol * sfxVol), t0 + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     osc.connect(g); g.connect(audioCtx.destination);
     osc.start(t0); osc.stop(t0 + dur + 0.02);
   } catch (_e) {}
 }
 function hopSfx(kind: string) {
-  if (!sfxOn) return;
-  audioUnlock();
-  if (!audioCtx) return;
-  if (kind === "jump") { beep(200 + Math.random() * 36, 0.045, 0.045, "sine", 40); }
+  if (!sfxOn || sfxVol <= 0) return;
+  if (kind === "bonus") hopVib(18);
+  else if (kind === "hit") hopVib(30);
+  else if (kind === "death") hopVib([40, 40, 60]);
+  else if (kind === "deny") hopVib(12);
+  if (!audioUnlocked) return;
+  var ext = pickAudioExt();
+  var pool = sfxPool[kind];
+  if (!pool) {
+    pool = [];
+    sfxPool[kind] = pool;
+    sfxCursor[kind] = 0;
+    for (var i = 0; i < 3; i++) {
+      var el = makeAudio("audio/" + kind + "." + ext);
+      if (el) pool.push(el);
+    }
+  }
+  if (!pool.length) { beepFallback(kind); return; }
+  var n = sfxCursor[kind] % pool.length;
+  sfxCursor[kind] = n + 1;
+  var node = pool[n];
+  try {
+    node.volume = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
+    node.currentTime = 0;
+    var p = node.play();
+    if (p && p.catch) p.catch(function () { beepFallback(kind); });
+  } catch (_e) { beepFallback(kind); }
+}
+function beepFallback(kind: string) {
+  if (kind === "jump") beep(200, 0.045, 0.045, "sine", 40);
   else if (kind === "coin") { beep(880, 0.04, 0.05, "square"); beep(1170, 0.06, 0.04, "square"); }
-  else if (kind === "bonus") { beep(520, 0.06, 0.06, "triangle", 200); beep(780, 0.1, 0.05, "triangle"); hopVib(18); }
-  else if (kind === "hit") { beep(140, 0.1, 0.08, "sawtooth", -80); hopVib(30); }
-  else if (kind === "death") { beep(220, 0.22, 0.08, "sawtooth", -160); hopVib([40, 40, 60]); }
-  else if (kind === "warn") { beep(160, 0.08, 0.05, "square", -20); }
-  else if (kind === "deny") { beep(110, 0.07, 0.05, "square"); hopVib(12); }
-  else if (kind === "tick") { beep(940, 0.02, 0.03, "square"); }
+  else if (kind === "bonus" || kind === "shield") beep(520, 0.06, 0.06, "triangle", 200);
+  else if (kind === "hit") beep(140, 0.1, 0.08, "sawtooth", -80);
+  else if (kind === "death") beep(220, 0.22, 0.08, "sawtooth", -160);
+  else if (kind === "warn") beep(160, 0.08, 0.05, "square", -20);
+  else if (kind === "deny") beep(110, 0.07, 0.05, "square");
+  else if (kind === "tick") beep(940, 0.02, 0.03, "square");
+}
+function musicCue(screen: string, map: string) {
+  for (var i = 0; i < MUSIC_CUES.length; i++) {
+    var c = MUSIC_CUES[i];
+    var scr = c.screens || ["*"];
+    var maps = c.maps || ["*"];
+    if ((scr.indexOf("*") >= 0 || scr.indexOf(screen) >= 0) && (maps.indexOf("*") >= 0 || maps.indexOf(map) >= 0)) return c.track;
+  }
+  return "";
+}
+function musicSrc(id: string) {
+  var t = MUSIC_TRACKS[id];
+  if (!t) return "";
+  return pickAudioExt() === "ogg" ? t.ogg : t.mp3;
+}
+function musicTarget() { return musicOn && musicVol > 0 ? musicVol : 0; }
+function hopMusic(id: string) {
+  if (!audioUnlocked || typeof Audio === "undefined") { musicCur = id || ""; return; }
+  var want = musicOn && musicVol > 0 ? (id || "") : "";
+  if (want === musicCur && (musicDeck[musicIdx] || !want)) {
+    var live = musicDeck[musicIdx];
+    if (live) live.volume = musicTarget();
+    return;
+  }
+  var prev = musicDeck[musicIdx];
+  var nextI = 1 - musicIdx;
+  var nxt = musicDeck[nextI];
+  if (want) {
+    var src = musicSrc(want);
+    if (!nxt || nxt.getAttribute("data-src") !== src) {
+      nxt = makeAudio(src);
+      if (!nxt) return;
+      nxt.loop = true;
+      nxt.setAttribute("data-src", src);
+      musicDeck[nextI] = nxt;
+    }
+    try { nxt.volume = 0; nxt.currentTime = 0; var pr = nxt.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (_e) {}
+  }
+  musicFade = { from: prev, to: want ? nxt : null, t: 0, dur: 36 };
+  musicIdx = want ? nextI : musicIdx;
+  musicCur = want;
+}
+function hopMusicTick() {
+  if (!musicFade) return;
+  musicFade.t++;
+  var u = clamp(musicFade.t / musicFade.dur, 0, 1);
+  var goal = musicTarget();
+  try {
+    if (musicFade.from) musicFade.from.volume = clamp(goal * (1 - u), 0, 1);
+    if (musicFade.to) musicFade.to.volume = clamp(goal * u, 0, 1);
+  } catch (_e) {}
+  if (u >= 1) {
+    try { if (musicFade.from && musicFade.from !== musicFade.to) { musicFade.from.pause(); } } catch (_e2) {}
+    musicFade = null;
+  }
 }
 
 var FIRST_TOAST: any = {

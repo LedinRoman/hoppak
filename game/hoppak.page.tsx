@@ -409,23 +409,64 @@ function loadSave() {
   if (s.vib !== false) s.vib = true; else s.vib = false;
   if (!s.seen || typeof s.seen !== "object") s.seen = {};
   sfxOn = !!s.sfx; vibOn = !!s.vib;
+  if (typeof s.sfxVol !== "number") s.sfxVol = 0.8;
+  s.sfxVol = clamp(s.sfxVol, 0, 1);
+  if (typeof s.music !== "number") s.music = 0.55;
+  s.music = clamp(s.music, 0, 1);
+  if (s.musicOn !== false) s.musicOn = true; else s.musicOn = false;
+  sfxVol = s.sfxVol; musicVol = s.music; musicOn = !!s.musicOn;
   return s;
 }
 function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
 
-/* ---- audio / vibro (WebAudio, no files: Canvas CSP blocks data-URI) ---- */
-var audioCtx: any = null, sfxOn = true, vibOn = true, sfxMem: any = {};
+/* ---- audio: files under audio/, started only after a gesture. Beeps remain if a file cannot play. ---- */
+var audioCtx: any = null, sfxOn = true, vibOn = true, sfxVol = 0.8, musicOn = true, musicVol = 0.55;
+var audioUnlocked = false, audioExt = "";
+var sfxPool: any = {}, sfxCursor: any = {};
+/* Relative loudness. Jump and the results tick fire constantly, so they stay quieter than a coin. */
+var SFX_GAIN: any = { jump: 0.32, coin: 0.7, bonus: 0.75, shield: 0.7, death: 0.8, warn: 0.5, deny: 0.48, tick: 0.22, hit: 0.6 };
+/* Track id -> files. Add a row here, then a row in MUSIC_CUES, to bring in another loop. */
+var MUSIC_TRACKS: any = {
+  hush: { ogg: "audio/hush.ogg", mp3: "audio/hush.mp3" }
+};
+/* First matching row wins. "*" matches every screen or every map. Crossfade runs when the chosen id changes. */
+var MUSIC_CUES: any[] = [
+  { track: "hush", screens: ["*"], maps: ["*"] }
+];
+var musicDeck: any[] = [null, null], musicIdx = 0, musicCur = "", musicFade: any = null;
+
 function audioUnlock() {
+  audioUnlocked = true;
   try {
     var AC: any = (typeof window !== "undefined") && ((window as any).AudioContext || (window as any).webkitAudioContext);
-    if (!AC) return;
-    if (!audioCtx) audioCtx = new AC();
-    if (audioCtx.state === "suspended") audioCtx.resume();
+    if (AC) {
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    }
   } catch (_e) {}
+  hopMusic(musicCur || musicCue("menu", "city"));
 }
 function hopVib(ms: any) {
   if (!vibOn) return;
   try { if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); } catch (_e) {}
+}
+function pickAudioExt() {
+  if (audioExt) return audioExt;
+  audioExt = "mp3";
+  try {
+    var a = (typeof document !== "undefined") && document.createElement("audio");
+    if (a && a.canPlayType && a.canPlayType('audio/ogg; codecs="vorbis"')) audioExt = "ogg";
+  } catch (_e) {}
+  return audioExt;
+}
+function makeAudio(src: string) {
+  try {
+    if (typeof Audio === "undefined") return null;
+    var a = new Audio();
+    a.preload = "none";
+    a.src = src;
+    return a;
+  } catch (_e) { return null; }
 }
 function beep(freq: number, dur: number, vol: number, type: string, slide?: number) {
   if (!sfxOn || !audioCtx) return;
@@ -435,24 +476,105 @@ function beep(freq: number, dur: number, vol: number, type: string, slide?: numb
     osc.frequency.setValueAtTime(freq, t0);
     if (slide) osc.frequency.linearRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol * sfxVol), t0 + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     osc.connect(g); g.connect(audioCtx.destination);
     osc.start(t0); osc.stop(t0 + dur + 0.02);
   } catch (_e) {}
 }
 function hopSfx(kind: string) {
-  if (!sfxOn) return;
-  audioUnlock();
-  if (!audioCtx) return;
-  if (kind === "jump") { beep(200 + Math.random() * 36, 0.045, 0.045, "sine", 40); }
+  if (!sfxOn || sfxVol <= 0) return;
+  if (kind === "bonus") hopVib(18);
+  else if (kind === "hit") hopVib(30);
+  else if (kind === "death") hopVib([40, 40, 60]);
+  else if (kind === "deny") hopVib(12);
+  if (!audioUnlocked) return;
+  var ext = pickAudioExt();
+  var pool = sfxPool[kind];
+  if (!pool) {
+    pool = [];
+    sfxPool[kind] = pool;
+    sfxCursor[kind] = 0;
+    for (var i = 0; i < 3; i++) {
+      var el = makeAudio("audio/" + kind + "." + ext);
+      if (el) pool.push(el);
+    }
+  }
+  if (!pool.length) { beepFallback(kind); return; }
+  var n = sfxCursor[kind] % pool.length;
+  sfxCursor[kind] = n + 1;
+  var node = pool[n];
+  try {
+    node.volume = clamp((SFX_GAIN[kind] != null ? SFX_GAIN[kind] : 0.5) * sfxVol, 0, 1);
+    node.currentTime = 0;
+    var p = node.play();
+    if (p && p.catch) p.catch(function () { beepFallback(kind); });
+  } catch (_e) { beepFallback(kind); }
+}
+function beepFallback(kind: string) {
+  if (kind === "jump") beep(200, 0.045, 0.045, "sine", 40);
   else if (kind === "coin") { beep(880, 0.04, 0.05, "square"); beep(1170, 0.06, 0.04, "square"); }
-  else if (kind === "bonus") { beep(520, 0.06, 0.06, "triangle", 200); beep(780, 0.1, 0.05, "triangle"); hopVib(18); }
-  else if (kind === "hit") { beep(140, 0.1, 0.08, "sawtooth", -80); hopVib(30); }
-  else if (kind === "death") { beep(220, 0.22, 0.08, "sawtooth", -160); hopVib([40, 40, 60]); }
-  else if (kind === "warn") { beep(160, 0.08, 0.05, "square", -20); }
-  else if (kind === "deny") { beep(110, 0.07, 0.05, "square"); hopVib(12); }
-  else if (kind === "tick") { beep(940, 0.02, 0.03, "square"); }
+  else if (kind === "bonus" || kind === "shield") beep(520, 0.06, 0.06, "triangle", 200);
+  else if (kind === "hit") beep(140, 0.1, 0.08, "sawtooth", -80);
+  else if (kind === "death") beep(220, 0.22, 0.08, "sawtooth", -160);
+  else if (kind === "warn") beep(160, 0.08, 0.05, "square", -20);
+  else if (kind === "deny") beep(110, 0.07, 0.05, "square");
+  else if (kind === "tick") beep(940, 0.02, 0.03, "square");
+}
+function musicCue(screen: string, map: string) {
+  for (var i = 0; i < MUSIC_CUES.length; i++) {
+    var c = MUSIC_CUES[i];
+    var scr = c.screens || ["*"];
+    var maps = c.maps || ["*"];
+    if ((scr.indexOf("*") >= 0 || scr.indexOf(screen) >= 0) && (maps.indexOf("*") >= 0 || maps.indexOf(map) >= 0)) return c.track;
+  }
+  return "";
+}
+function musicSrc(id: string) {
+  var t = MUSIC_TRACKS[id];
+  if (!t) return "";
+  return pickAudioExt() === "ogg" ? t.ogg : t.mp3;
+}
+function musicTarget() { return musicOn && musicVol > 0 ? musicVol : 0; }
+function hopMusic(id: string) {
+  if (!audioUnlocked || typeof Audio === "undefined") { musicCur = id || ""; return; }
+  var want = musicOn && musicVol > 0 ? (id || "") : "";
+  if (want === musicCur && (musicDeck[musicIdx] || !want)) {
+    var live = musicDeck[musicIdx];
+    if (live) live.volume = musicTarget();
+    return;
+  }
+  var prev = musicDeck[musicIdx];
+  var nextI = 1 - musicIdx;
+  var nxt = musicDeck[nextI];
+  if (want) {
+    var src = musicSrc(want);
+    if (!nxt || nxt.getAttribute("data-src") !== src) {
+      nxt = makeAudio(src);
+      if (!nxt) return;
+      nxt.loop = true;
+      nxt.setAttribute("data-src", src);
+      musicDeck[nextI] = nxt;
+    }
+    try { nxt.volume = 0; nxt.currentTime = 0; var pr = nxt.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (_e) {}
+  }
+  musicFade = { from: prev, to: want ? nxt : null, t: 0, dur: 36 };
+  musicIdx = want ? nextI : musicIdx;
+  musicCur = want;
+}
+function hopMusicTick() {
+  if (!musicFade) return;
+  musicFade.t++;
+  var u = clamp(musicFade.t / musicFade.dur, 0, 1);
+  var goal = musicTarget();
+  try {
+    if (musicFade.from) musicFade.from.volume = clamp(goal * (1 - u), 0, 1);
+    if (musicFade.to) musicFade.to.volume = clamp(goal * u, 0, 1);
+  } catch (_e) {}
+  if (u >= 1) {
+    try { if (musicFade.from && musicFade.from !== musicFade.to) { musicFade.from.pause(); } } catch (_e2) {}
+    musicFade = null;
+  }
 }
 
 var FIRST_TOAST: any = {
@@ -1105,7 +1227,7 @@ function useShield(w: any, p: any) {
   p.shieldT = 0;
   p.invT = 60;
   spawnParts(w, p.x + 6, p.y + 8, 14, "#8ae8ff", 2.6, 0.02, 2);
-  if (p.id === 0) { w.shake = 4; toast(w, "ЩИТ СПАС!"); }
+  if (p.id === 0) { w.shake = 4; toast(w, "ЩИТ СПАС!"); hopSfx("shield"); }
   return true;
 }
 /* any harmful touch: shield absorbs one hit, otherwise KO */
@@ -1142,7 +1264,6 @@ function landOn(w: any, p: any, pl: any) {
   p.y = pl.y - PH;
   p.baseY = pl.y;
   p.squash = 7;
-  if (p.id === 0) hopSfx("jump");
   var spr = pl.spring && overlapsX(p.x + 2, PW - 4, pl.x + pl.w / 2 - 5, 10);
   if (spr) {
     p.vy = SPRING_V;
@@ -1193,6 +1314,8 @@ function landOn(w: any, p: any, pl: any) {
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 10, C.brk, 2.2, 0.22, 2);
     spawnParts(w, pl.x + pl.w / 2, pl.y + 2, 4, C.brkRim, 1.6, 0.22, 1);
   }
+  /* Takeoff: every landing here is the bounce that leaves the platform. */
+  if (p.id === 0) hopSfx("jump");
 }
 function killMob(w: any, mo: any, p: any, noBounce?: boolean) {
   if (!mo.alive) return;
@@ -1203,7 +1326,7 @@ function killMob(w: any, mo: any, p: any, noBounce?: boolean) {
   addCharge(p, "kills", 1);
   var pal = MOBPAL[mo.kind] || ["#ffd070"];
   spawnParts(w, mo.x + mo.w / 2, mo.y + 4, 12, pal[0], 2.6, 0.15);
-  if (p.id === 0) w.shake = 5;
+  if (p.id === 0) { w.shake = 5; hopSfx("hit"); }
 }
 function mobBox(mo: any) {
   if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
@@ -1305,7 +1428,7 @@ function pickItem(w: any, p: any, it: any) {
   else if (B.id === "magnet") p.magnetT = Math.max(p.magnetT, B.t);
   else if (B.id === "rocket") { p.rocketT = B.t; p.grabT = 0; p.poundT = 0; p.invT = Math.max(p.invT, B.t + 40); }
   toast(w, B.id === "bigcoin" ? "КЛАД +" + BIGCOIN : B.name + "!");
-  if (p.id === 0) { w.shake = 3; hopSfx("bonus"); }
+  if (p.id === 0) { w.shake = 3; hopSfx(B.id === "shield" ? "shield" : "bonus"); }
 }
 
 function tickWorld(w: any, inputs: any) {
@@ -3903,8 +4026,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (mark && align !== "right") drawText(ctx, mark, x0 + w + 4, y - 0.5, C.mov, 1, "left");
   }
   /* Same pixel on every screen except the in-run HUD (that counter is coins picked up this run).
-     The Telegram name sits top-left, clear of the gear (18px at x=4) and of the coin plate,
-     so a long name never slides the coins or covers a centered title. */
+     The Telegram name sits in the top-left corner. Coins stay top-right, so a long name does not move them. */
   function drawWallet() {
     var s = String(save.coins);
     var w = textWidth(s, 1) + 9;
@@ -3913,7 +4035,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x - 2, 2, w + 4, 9, C.navy);
     coinsLabel(LW - 4, 3, save.coins, "right", false);
     var mark = tgMark();
-    if (mark) drawText(ctx, mark, 24, 1, C.mov, 1, "left");
+    if (mark) drawText(ctx, mark, 4, 1, C.mov, 1, "left");
   }
   function drawBuy(id: string, x: number, y: number, w: number, h: number, price: number) {
     addHit(id, x, y, w, h);
@@ -4047,7 +4169,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (id === "set") { showSet = !showSet; return; }
     if (id === "ralpha" && stagingBuild()) { cycleRemoteAlpha(); return; }
     if (id === "tilt") { toggleTilt(); return; }
-    if (id === "sfx") { sfxOn = !sfxOn; save.sfx = sfxOn; writeSave(save); if (sfxOn) { audioUnlock(); hopSfx("tick"); } return; }
+    if (id === "mus:mute") { musicOn = !musicOn; save.musicOn = musicOn; writeSave(save); hopMusic(musicCue(phase, (world && world.map) || save.bg)); if (musicOn) hopSfx("tick"); return; }
+    if (id === "sfx:mute") { sfxOn = !sfxOn; save.sfx = sfxOn; writeSave(save); if (sfxOn) { audioUnlock(); hopSfx("tick"); } return; }
     if (id === "vib") { vibOn = !vibOn; save.vib = vibOn; writeSave(save); if (vibOn) hopVib(18); return; }
     if (id === "menu") { goMenu(); return; }
     if (id === "back") { showSet = false; campCard = -1; phase = "menu"; return; }
@@ -4127,6 +4250,32 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     held.left = l; held.right = r;
   }
+  var musGeom = { x: 0, w: 1 }, sfxGeom = { x: 0, w: 1 };
+  function setSlider(id: string, x: number) {
+    var g = id === "mus" ? musGeom : sfxGeom;
+    var v = Math.round(clamp((x - g.x) / Math.max(1, g.w), 0, 1) * 10) / 10;
+    if (id === "mus") {
+      musicVol = v; save.music = v;
+      if (v > 0 && !musicOn) { musicOn = true; save.musicOn = true; }
+      hopMusic(musicCue(phase, (world && world.map) || save.bg));
+    } else {
+      sfxVol = v; save.sfxVol = v;
+      if (v > 0 && !sfxOn) { sfxOn = true; save.sfx = true; }
+    }
+    writeSave(save);
+  }
+  function volRow(id: string, x: number, y: number, w: number, label: string, vol: number, on: boolean) {
+    drawText(ctx, label, x, y, on ? C.cream : "#9a8ab8", 1, "left");
+    btn(id + ":mute", x + w - 36, y - 2, 36, 12, on ? C.mint : "#1a1430", on ? "ВКЛ" : "ВЫКЛ", on ? INK : C.cream);
+    var bx = x, bw = w, by = y + 12;
+    addHit(id, bx, by, bw, 8);
+    if (id === "mus") musGeom = { x: bx, w: bw }; else sfxGeom = { x: bx, w: bw };
+    rect(ctx, bx, by, bw, 5, "#120c28");
+    var fw = Math.max(0, Math.round(bw * (on ? vol : 0)));
+    if (fw > 0) rect(ctx, bx, by, fw, 5, C.mint);
+    rect(ctx, bx, by, bw, 1, on ? C.cream : "#5a5668");
+    rect(ctx, bx + Math.min(bw - 1, fw), by - 1, 1, 7, C.gold);
+  }
   function onPtrDown(e: any) {
     e.preventDefault();
     audioUnlock();
@@ -4135,6 +4284,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var loc = toLogic(e.clientX, e.clientY);
     var id = hitAt(loc.x, loc.y);
     pressId = id;
+    if (id === "mus" || id === "sfx") { setSlider(id, loc.x); return; }
     if (phase === "results") coinSkip = true;
     if (phase !== "play") return;
     if (paused) return;
@@ -4144,6 +4294,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function onPtrMove(e: any) {
     var loc = toLogic(e.clientX, e.clientY);
+    if (pressId === "mus" || pressId === "sfx") { setSlider(pressId, loc.x); return; }
     if (phase !== "play" || paused) return;
     var pid = e.pointerId != null ? e.pointerId : 1;
     var p = pointers[pid];
@@ -4169,6 +4320,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       else if (id === "ab" && pressId === "ab") requestAbility();
       delete pointers[e.pointerId != null ? e.pointerId : 1];
       recomputeHold();
+    } else if (pressId === "mus" || pressId === "sfx") {
+      if (id === pressId) setSlider(pressId, loc.x);
     } else if (id && id === pressId) activate(id);
     pressId = null;
   }
@@ -4236,19 +4389,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     coinsLabel(x + 4, 51, save.coins, undefined, true);
     drawText(ctx, "РЕКОРД " + (save.best || 0) + " М", x + 148, 51, C.cream, 1, "right");
   }
-  function gear(x: number, y: number) {
-    addHit("set", x, y, 18, 18);
-    var on = pressId === "set";
-    box(ctx, x, y, 18, 18, on ? "#3a4a7a" : C.navy, C.cream);
-    rect(ctx, x + 7, y + 3, 4, 12, C.cream); rect(ctx, x + 3, y + 7, 12, 4, C.cream);
-    rect(ctx, x + 6, y + 6, 6, 6, C.navy); rect(ctx, x + 8, y + 8, 2, 2, C.cream);
-  }
   function drawMenu() {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
     dimView(ctx, "rgba(18,14,44,0.14)");
     var x = colX();
     drawBig(ctx, "ХОППАК", LW / 2, 12, TITLE.face, 3, "center", TITLE.outline, TITLE.shadow);
-    gear(4, 4);
     drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, 41, C.cream, "center");
     var mi = mapIdx(save.bg), M = MAPS[mi], b = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + b + "/" + M.goal + " М") : (M.name + " · " + b + " М");
@@ -4274,15 +4419,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       btn("shop", x, by + 66, 72, 22, C.navy, "МАГАЗИН");
       btn("mp", x + 80, by + 66, 72, 22, C.navy, "С БОТАМИ");
     }
+    btn("set", x, by + 92, 152, 22, C.navy, "НАСТРОЙКИ");
     if (showSet) {
+      hits = [];
+      dimView(ctx, "rgba(8,6,20,0.62)");
       var stg = stagingBuild();
-      box(ctx, x, 70, 152, stg ? 154 : 128, C.navy, C.cream);
-      drawText(ctx, "НАСТРОЙКИ", LW / 2, 76, C.gold, 1, "center");
-      btn("tilt", x + 8, 94, 136, 22, tiltOn ? C.mint : "#1a1430", "НАКЛОН: " + (tiltOn ? "ВКЛ" : "ВЫКЛ"), tiltOn ? INK : C.cream);
-      btn("sfx", x + 8, 120, 136, 22, sfxOn ? C.mint : "#1a1430", "ЗВУК: " + (sfxOn ? "ВКЛ" : "ВЫКЛ"), sfxOn ? INK : C.cream);
-      btn("vib", x + 8, 146, 136, 22, vibOn ? C.mint : "#1a1430", "ВИБРО: " + (vibOn ? "ВКЛ" : "ВЫКЛ"), vibOn ? INK : C.cream);
-      if (stg) btn("ralpha", x + 8, 172, 136, 22, "#1a1430", "ЧУЖИЕ: " + remoteAlpha(), C.cream);
-      btn("set", x + 26, stg ? 200 : 174, 100, 16, C.navy, "ЗАКРЫТЬ");
+      var py0 = 50;
+      box(ctx, x, py0, 152, stg ? 168 : 144, C.navy, C.cream);
+      drawText(ctx, "НАСТРОЙКИ", LW / 2, py0 + 6, C.gold, 1, "center");
+      btn("tilt", x + 8, py0 + 20, 136, 20, tiltOn ? C.mint : "#1a1430", "НАКЛОН: " + (tiltOn ? "ВКЛ" : "ВЫКЛ"), tiltOn ? INK : C.cream);
+      volRow("mus", x + 8, py0 + 44, 136, "МУЗЫКА", musicVol, musicOn);
+      volRow("sfx", x + 8, py0 + 68, 136, "ЗВУКИ", sfxVol, sfxOn);
+      btn("vib", x + 8, py0 + 94, 136, 20, vibOn ? C.mint : "#1a1430", "ВИБРО: " + (vibOn ? "ВКЛ" : "ВЫКЛ"), vibOn ? INK : C.cream);
+      if (stg) btn("ralpha", x + 8, py0 + 118, 136, 20, "#1a1430", "ЧУЖИЕ: " + remoteAlpha(), C.cream);
+      btn("set", x + 26, py0 + (stg ? 144 : 120), 100, 16, C.navy, "ЗАКРЫТЬ");
     }
     drawFlash();
   }
@@ -4952,6 +5102,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.restore();
     }
     if (netFixedLW() !== netLW || (fieldLocked && phase === "play" && !isWide) !== lastFill) resize();
+    hopMusicTick();
+    if (audioUnlocked) hopMusic(musicCue(phase, (phase === "play" && world && world.map) || save.bg || "city"));
     if (running && !driving) raf = requestAnimationFrame(frame);
   }
 
