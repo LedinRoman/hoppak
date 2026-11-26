@@ -5229,13 +5229,14 @@
       if (mark && align !== "right") drawText(ctx, mark, x0 + w + 4, y - 0.5, C.mov, 1, "left");
     }
     function drawWallet() {
-      var mark = tgMark();
       var s = String(save.coins);
-      var w = textWidth(s, 1) + 9 + (mark ? textWidth(mark, 1) + 4 : 0);
+      var w = textWidth(s, 1) + 9;
       var x = LW - 4 - w;
       rect(ctx, x - 3, 1, w + 6, 11, INK);
       rect(ctx, x - 2, 2, w + 4, 9, C.navy);
-      coinsLabel(LW - 4, 3, save.coins, "right", true);
+      coinsLabel(LW - 4, 3, save.coins, "right", false);
+      var mark = tgMark();
+      if (mark) drawText(ctx, mark, 24, 1, C.mov, 1, "left");
     }
     function drawBuy(id, x, y, w, h, price) {
       addHit(id, x, y, w, h);
@@ -6149,7 +6150,18 @@
       ctx.restore();
       var me = w.players[0];
       var wantPause = wantTouchPause();
-      drawTextO(ctx, metersOf(me) + " \u041C", 80, hudY(6), C.cream, "center");
+      var meter = metersOf(me) + " \u041C";
+      var meterX = 80;
+      if (heroHasAb(me) && me.alive && me.abCharge >= CHARS[me.kind].need) {
+        var ab = abBar();
+        var labRight = ab.x + ab.w + 3 + textWidth("\u0413\u041E\u0422\u041E\u0412", 1) - 1;
+        var half = (textWidth(meter, 1) - 1) / 2;
+        var need = Math.round(labRight + 4 + half);
+        if (need > meterX) meterX = need;
+        var cap = Math.round((wantPause ? 136 : LW - 2) - half);
+        if (meterX > cap) meterX = cap;
+      }
+      drawTextO(ctx, meter, meterX, hudY(6), C.cream, "center");
       coinsLabel(5, hudY(6), w.runCoins);
       if (w.mode === "squad") {
         var place = 1, lead = me, leadM = metersOf(me);

@@ -284,15 +284,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
     if (mark && align !== "right") drawText(ctx, mark, x0 + w + 4, y - 0.5, C.mov, 1, "left");
   }
-  /* Same pixel on every screen except the in-run HUD (that counter is coins picked up this run). */
+  /* Same pixel on every screen except the in-run HUD (that counter is coins picked up this run).
+     The Telegram name sits top-left, clear of the gear (18px at x=4) and of the coin plate,
+     so a long name never slides the coins or covers a centered title. */
   function drawWallet() {
-    var mark = tgMark();
     var s = String(save.coins);
-    var w = textWidth(s, 1) + 9 + (mark ? textWidth(mark, 1) + 4 : 0);
+    var w = textWidth(s, 1) + 9;
     var x = LW - 4 - w;
     rect(ctx, x - 3, 1, w + 6, 11, INK);
     rect(ctx, x - 2, 2, w + 4, 9, C.navy);
-    coinsLabel(LW - 4, 3, save.coins, "right", true);
+    coinsLabel(LW - 4, 3, save.coins, "right", false);
+    var mark = tgMark();
+    if (mark) drawText(ctx, mark, 24, 1, C.mov, 1, "left");
   }
   function drawBuy(id: string, x: number, y: number, w: number, h: number, price: number) {
     addHit(id, x, y, w, h);
@@ -951,7 +954,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
     var me = w.players[0];
     var wantPause = wantTouchPause();
-    drawTextO(ctx, metersOf(me) + " М", 80, hudY(6), C.cream, "center");
+    var meter = metersOf(me) + " М";
+    var meterX = 80;
+    /* "ГОТОВ" sits just right of the ability disc and would otherwise land on the height. */
+    if (heroHasAb(me) && me.alive && me.abCharge >= CHARS[me.kind].need) {
+      var ab = abBar();
+      var labRight = ab.x + ab.w + 3 + textWidth("ГОТОВ", 1) - 1;
+      var half = (textWidth(meter, 1) - 1) / 2;
+      var need = Math.round(labRight + 4 + half);
+      if (need > meterX) meterX = need;
+      var cap = Math.round((wantPause ? 136 : LW - 2) - half);
+      if (meterX > cap) meterX = cap;
+    }
+    drawTextO(ctx, meter, meterX, hudY(6), C.cream, "center");
     coinsLabel(5, hudY(6), w.runCoins);
     if (w.mode === "squad") {
       var place = 1, lead = me, leadM = metersOf(me);
