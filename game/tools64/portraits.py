@@ -37,6 +37,18 @@ for hid in IDS:
                     gap = 27  # staff joins the sleeve here; the ink at x 26-27 stays as the sleeve edge
                 if gap is not None:
                     cut += int((a[y, gap + 1:, 3] > 0).sum()); a[y, gap + 1:, 3] = 0
+        # After the mage staff-tip cut, a leftover staff pixel can sit on the
+        # new outer edge. Recolor any non-ink outer-edge pixel to the ink
+        # outline so the silhouette stays closed (Advisor sources themselves
+        # are not edited).
+        al = a[..., 3]
+        op = al > 0
+        pad = np.pad(~op, 1, constant_values=True)
+        edge = op & (pad[:-2, 1:-1] | pad[2:, 1:-1] | pad[1:-1, :-2] | pad[1:-1, 2:])
+        bad = edge & (np.abs(a[..., :3].astype(int) - INK).max(2) > 6)
+        if bad.any():
+            a[bad, :3] = INK
+            report[f'{hid}_{s}_edge_ink'] = int(bad.sum())
         check(a, f'{hid}_{s}')
         name = f'portrait_{hid}.png' if s == 32 else f'portrait64_{hid}.png'
         Image.fromarray(a, 'RGBA').save(os.path.join(DST, name), optimize=True)
