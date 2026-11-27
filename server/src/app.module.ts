@@ -3,6 +3,7 @@ import { GameGateway } from './game.gateway';
 import { RoomsService, stats } from './rooms.service';
 import { DbModule } from './db/db.module';
 import { ProfileModule } from './profile/profile.module';
+import { TranslationsController } from './translations.controller';
 import { AccountKickBus } from './account-kick-bus';
 
 @Controller('api')
@@ -18,5 +19,5 @@ export class HealthController {
   }
 }
 
-@Module({ imports: [DbModule.forRoot(), ProfileModule.forRoot()], controllers: [HealthController], providers: [RoomsService, GameGateway, AccountKickBus] })
+@Module({ imports: [DbModule.forRoot(), ProfileModule.forRoot()], controllers: [HealthController, TranslationsController], providers: [RoomsService, GameGateway, AccountKickBus] })
 export class AppModule {}

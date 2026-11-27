@@ -169,7 +169,7 @@ var PROFILE: any = (function () {
       P.st = "ready";
       applyProfile(res.data.profile);
       if (P.api && P.api.sessionOk) P.api.sessionOk();
-      if (res.data.merged && P.api && P.api.say) P.api.say("ПРОГРЕСС ОБЪЕДИНЁН");
+      if (res.data.merged && P.api && P.api.say) P.api.say(t('profile.merged'));
       return res.data;
     });
   }

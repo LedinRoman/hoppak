@@ -21,6 +21,15 @@ execFileSync('bash', ['build.sh', 'site'], {
   stdio: 'inherit',
 });
 
+async function newRussianPage(context) {
+  const page = await context.newPage();
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'language', { get: () => 'ru-RU' });
+    Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru'] });
+  });
+  return page;
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function settle(pg) {
@@ -171,7 +180,7 @@ async function admin(base, body) {
       JSON.stringify({ runnerPid: process.pid, chromePid: browser.process()?.pid }));
     // 1. file:// offline fallback
     {
-      const pg = await browser.newPage();
+      const pg = await newRussianPage(browser);
       pg.on('pageerror', (e) => errs.push('file pageerror: ' + e.message));
       const fileUrl = pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
       await pg.goto(fileUrl);
@@ -189,7 +198,7 @@ async function admin(base, body) {
     {
       await admin(base, { mode: '2284797', clearLog: true });
       const ctx = await browser.createBrowserContext();
-      const pg = await ctx.newPage();
+      const pg = await newRussianPage(ctx);
       await pg.setViewport({ width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
       pg.on('pageerror', (e) => errs.push('v058 pageerror: ' + e.message));
 
@@ -341,7 +350,7 @@ async function admin(base, body) {
     {
       await admin(base2, { mode: 'v06', clearLog: true });
       const ctx = await browser.createBrowserContext();
-      const pg = await ctx.newPage();
+      const pg = await newRussianPage(ctx);
       pg.on('pageerror', (e) => errs.push('v06-fresh pageerror: ' + e.message));
       await seedSave(pg, base2, { coins: 250, best: 240 });
       await pg.goto(base2 + '/v/0.6/index.html');
@@ -382,7 +391,7 @@ async function admin(base, body) {
     {
       await admin(base2, { mode: 'v06', clearLog: true });
       const ctx = await browser.createBrowserContext();
-      const pg = await ctx.newPage();
+      const pg = await newRussianPage(ctx);
       pg.on('pageerror', (e) => errs.push('override pageerror: ' + e.message));
       await pg.goto(base + '/index.html?api=' + encodeURIComponent(base2));
       await settle(pg);
@@ -400,7 +409,7 @@ async function admin(base, body) {
 
     // 4. Built-site sanity: Hz invariance + inspectMap determinism (unchanged by profile)
     {
-      const pg = await browser.newPage();
+      const pg = await newRussianPage(browser);
       pg.on('pageerror', (e) => errs.push('verify pageerror: ' + e.message));
       await pg.goto(base + '/index.html');
       await sleep(300);
@@ -428,7 +437,7 @@ async function admin(base, body) {
       const initData = 'user=' + encodeURIComponent(JSON.stringify({ id: 4242 })) + '&auth_date=1&hash=00';
       async function openTg(origin, seed) {
         const ctx = await browser.createBrowserContext();
-        const pg = await ctx.newPage();
+        const pg = await newRussianPage(ctx);
         pg.on('pageerror', (e) => errs.push('tg pageerror: ' + e.message));
         await pg.evaluateOnNewDocument((d) => {
           window.Telegram = { WebApp: { initData: d } };
@@ -494,7 +503,7 @@ async function admin(base, body) {
     {
       await admin(base, { mode: '503', clearLog: true });
       const ctx = await browser.createBrowserContext();
-      const pg = await ctx.newPage();
+      const pg = await newRussianPage(ctx);
       pg.on('pageerror', (e) => errs.push('cap pageerror: ' + e.message));
       await pg.goto(base + '/index.html');
       await settle(pg);
@@ -535,7 +544,7 @@ async function admin(base, body) {
     {
       await admin(base, { mode: 'v06', tgAuth: '503', clearLog: true });
       const ctx = await browser.createBrowserContext();
-      const pg = await ctx.newPage();
+      const pg = await newRussianPage(ctx);
       pg.on('pageerror', (e) => errs.push('buy400 pageerror: ' + e.message));
       await seedSave(pg, base, { coins: 50 });
       await pg.goto(base + '/v/0.6/index.html');
@@ -573,7 +582,7 @@ async function admin(base, body) {
     {
       async function series(label, origin, tg) {
         const ctx = await browser.createBrowserContext();
-        const pg = await ctx.newPage();
+        const pg = await newRussianPage(ctx);
         pg.on('pageerror', (e) => errs.push(label + ' pageerror: ' + e.message));
         await seedSave(pg, origin, { coins: 100 });
         if (tg) {
@@ -653,7 +662,7 @@ async function admin(base, body) {
     {
       await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
       const ctx = await browser.createBrowserContext();
-      const pg = await ctx.newPage();
+      const pg = await newRussianPage(ctx);
       await pg.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
       pg.on('pageerror', (e) => errs.push('r8 pageerror: ' + e.message));
       await pg.evaluateOnNewDocument(() => {
@@ -874,7 +883,7 @@ async function admin(base, body) {
         owned: { 'char:0': 1, 'map:aqua': 1 }, char: 0, bg: 'aqua', sfx: true, vib: true,
       });
       const ctxA = await browser.createBrowserContext();
-      const a = await ctxA.newPage();
+      const a = await newRussianPage(ctxA);
       a.on('pageerror', (e) => errs.push('devA pageerror: ' + e.message));
       await a.evaluateOnNewDocument(seedDoc, saveA);
       await a.goto(base2 + '/index.html');
@@ -890,7 +899,7 @@ async function admin(base, body) {
       assert.strictEqual(left.camp.city, 207);
 
       const ctxB = await browser.createBrowserContext();
-      const b = await ctxB.newPage();
+      const b = await newRussianPage(ctxB);
       b.on('pageerror', (e) => errs.push('devB pageerror: ' + e.message));
       await b.evaluateOnNewDocument(seedDoc, saveB);
       await b.goto(base2 + '/index.html');
@@ -985,7 +994,7 @@ async function admin(base, body) {
 
       await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
       const ctxA = await browser.createBrowserContext();
-      const a = await ctxA.newPage();
+      const a = await newRussianPage(ctxA);
       a.on('pageerror', (e) => errs.push('tgboot-a pageerror: ' + e.message));
       const hitsA = [];
       a.on('request', (rq) => { if (/telegram\.org/i.test(rq.url())) hitsA.push(rq.url()); });
@@ -1011,7 +1020,7 @@ async function admin(base, body) {
       const initData = 'user=' + encodeURIComponent(JSON.stringify({ id: 9091, first_name: 'Roman' })) + '&auth_date=1&hash=00';
       await admin(base, { mode: 'v06', tgAuth: 'ok', clearLog: true });
       const ctxB = await browser.createBrowserContext();
-      const b = await ctxB.newPage();
+      const b = await newRussianPage(ctxB);
       b.on('pageerror', (e) => errs.push('tgboot-b pageerror: ' + e.message));
       const hitsB = [];
       await b.setRequestInterception(true);
@@ -1053,7 +1062,7 @@ async function admin(base, body) {
       await ctxB.close();
 
       const ctxOld = await browser.createBrowserContext();
-      const old = await ctxOld.newPage();
+      const old = await newRussianPage(ctxOld);
       old.on('pageerror', (e) => errs.push('tgboot-old pageerror: ' + e.message));
       await old.setRequestInterception(true);
       old.on('request', (rq) => {
@@ -1076,7 +1085,7 @@ async function admin(base, body) {
 
       async function desk(platform) {
         const ctx = await browser.createBrowserContext();
-        const pg = await ctx.newPage();
+        const pg = await newRussianPage(ctx);
         pg.on('pageerror', (e) => errs.push('tgboot-' + platform + ' pageerror: ' + e.message));
         await pg.setRequestInterception(true);
         pg.on('request', (rq) => {
@@ -1104,7 +1113,7 @@ async function admin(base, body) {
 
     {
       const ctx = await browser.createBrowserContext();
-      const pg = await ctx.newPage();
+      const pg = await newRussianPage(ctx);
       await pg.setViewport({ width: 390, height: 600, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
       pg.on('pageerror', (e) => errs.push('v061 pageerror: ' + e.message));
       await pg.goto(base + '/index.html');
@@ -1197,7 +1206,7 @@ async function admin(base, body) {
       ];
       for (const v of views) {
         const ctx = await browser.createBrowserContext();
-        const pg = await ctx.newPage();
+        const pg = await newRussianPage(ctx);
         await pg.setViewport({ width: v.w, height: v.h, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
         pg.on('pageerror', (e) => errs.push('menu ' + v.w + ' pageerror: ' + e.message));
         const top = v.inset, bot = v.inset ? 34 : 0;
@@ -1264,7 +1273,7 @@ async function admin(base, body) {
       }
       const soon = await (async () => {
         const ctx = await browser.createBrowserContext();
-        const pg = await ctx.newPage();
+        const pg = await newRussianPage(ctx);
         await pg.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 });
         await pg.goto(base + '/index.html');
         await settle(pg);
@@ -1310,7 +1319,7 @@ async function admin(base, body) {
       assert.strictEqual(soon.camp, 'camp');
       const aligned = await (async () => {
         const ctx = await browser.createBrowserContext();
-        const pg = await ctx.newPage();
+        const pg = await newRussianPage(ctx);
         await pg.goto(base + '/index.html');
         await settle(pg);
         const rows = await pg.evaluate(() => {
@@ -1345,7 +1354,7 @@ async function admin(base, body) {
       const note = (pg) => pg.evaluate(() => !!window.__hoppak.sessionNote());
       const who = (pg) => pg.evaluate(() => { const p = window.__hoppak.profile.getState(); return { id: p.profile && p.profile.id, tg: p.telegramId || (p.profile && p.profile.telegramId) || null }; });
       const open = async (ctx, tok) => {
-        const pg = await ctx.newPage();
+        const pg = await newRussianPage(ctx);
         pg.on('pageerror', (e) => errs.push('17 pageerror: ' + e.message));
         await pg.evaluateOnNewDocument(seedTg, 6101, tok || '');
         await pg.goto(base2 + '/index.html');
@@ -1427,7 +1436,7 @@ async function admin(base, body) {
         };
       };
       const open2 = async (ctx) => {
-        const pg = await ctx.newPage();
+        const pg = await newRussianPage(ctx);
         pg.on('pageerror', (e) => errs.push('18 pageerror: ' + e.message));
         await pg.evaluateOnNewDocument(seedTg2, 6102);
         await pg.goto(base2 + '/index.html');

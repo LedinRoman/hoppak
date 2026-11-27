@@ -406,7 +406,7 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     var bk = botKinds(humanKind);
     for (var i = 1; i < 4; i++) {
       var bp = newPlayer(i, bk[i - 1], makeLook(bk[i - 1], "base", "none"), xs[i], true);
-      bp.name = "БОТ " + i; /* label only: «БОТ 1..3» in game, results and spectator */
+      bp.name = t('lobby.bot_number', { n: i }); /* label only: «БОТ 1..3» in game, results and spectator */
       w.players.push(bp);
     }
   }
@@ -509,7 +509,7 @@ function useShield(w: any, p: any) {
   p.shieldT = 0;
   p.invT = 60;
   spawnParts(w, p.x + 6, p.y + 8, 14, "#8ae8ff", 2.6, 0.02, 2);
-  if (p.id === 0) { w.shake = 4; toast(w, "ЩИТ СПАС!"); hopSfx("shield"); }
+  if (p.id === 0) { w.shake = 4; toast(w, t('play.shield_saved')); hopSfx("shield"); }
   return true;
 }
 /* any harmful touch: shield absorbs one hit, otherwise KO */
@@ -523,13 +523,13 @@ function freezePlayer(w: any, p: any) {
   if (useShield(w, p)) return;
   p.freezeT = 75;
   spawnParts(w, p.x + 6, p.y + 6, 10, "#c8f8ff", 2, 0.02, 1);
-  if (p.id === 0) toast(w, "ЗАМОРОЗКА!");
+  if (p.id === 0) toast(w, t('play.frozen'));
 }
 function grabPlayer(w: any, p: any, mo: any) {
   if (!p.alive || invuln(p) || mo.cool > 0) return;
   if (useShield(w, p)) { killMob(w, mo, p, true); return; }
   p.grabT = 45; p.grabMob = mo; mo.cool = 160;
-  if (p.id === 0) toast(w, "ЗМЕЯ СХВАТИЛА!");
+  if (p.id === 0) toast(w, t('play.snake_caught'));
 }
 function toast(w: any, s: string) { w.toast = s; w.toastT = 70; }
 function hasLandablePlat(w: any, p: any) {
@@ -662,7 +662,7 @@ function useAbility(w: any, p: any) {
   var col = p.look.hood, i;
   if (H.ab === "hook") {
     var tg = hookTarget(w, p);
-    if (!tg) { if (p.id === 0) toast(w, "НЕТ ЦЕЛИ"); return false; }
+    if (!tg) { if (p.id === 0) toast(w, t('play.no_target')); return false; }
     p.hookT = 0; p.hx0 = p.x; p.hy0 = p.y; p.htx = tg.x - PW / 2; p.hty = tg.y; p.hookPl = tg.pl; p.hookCoin = tg.coin;
     var hd = Math.sqrt(Math.pow(p.htx - p.x, 2) + Math.pow(p.hty - p.y, 2));
     p.hookN = Math.round(clamp(hd / 5, 10, 22));
@@ -680,7 +680,7 @@ function useAbility(w: any, p: any) {
       for (var mi = 0; mi < w.monsters.length; mi++) { var mo = w.monsters[mi]; if (mo.alive && Math.abs(mo.y + mo.h - q.y) < 22 && overlapsX(mo.x - 4, mo.w + 8, q.x, q.w)) busy = true; }
       if (!busy && (!best || q.y < best.y)) best = q;
     }
-    if (!best) { if (p.id === 0) toast(w, "НЕТ ПЛАТФОРМЫ"); return false; }
+    if (!best) { if (p.id === 0) toast(w, t('play.no_platform')); return false; }
     spawnParts(w, p.x + 6, p.y + 8, 14, "#c890ff", 2.4, 0, 2);
     /* Same destination as the old snap. Ten ticks of interpolation, then the same jump. */
     p.tx0 = p.x; p.ty0 = p.y; p.ttx = clamp(best.x + best.w / 2 - PW / 2, 0, LW - PW); p.tty = best.y - PH;
@@ -715,7 +715,7 @@ function pickItem(w: any, p: any, it: any) {
   else if (B.id === "shield") p.shieldT = B.t;
   else if (B.id === "magnet") p.magnetT = Math.max(p.magnetT, B.t);
   else if (B.id === "rocket") { p.rocketT = B.t; p.grabT = 0; p.poundT = 0; p.invT = Math.max(p.invT, B.t + 40); }
-  toast(w, B.id === "bigcoin" ? "КЛАД +" + BIGCOIN : B.name + "!");
+  toast(w, B.id === "bigcoin" ? t('pickup.treasure', { n: BIGCOIN }) : t('pickup.collected', { name: B.name }));
   if (p.id === 0) { w.shake = 3; hopSfx(B.id === "shield" ? "shield" : "bonus"); }
 }
 
@@ -1097,7 +1097,7 @@ function tickWorld(w: any, inputs: any) {
     /* Below the bottom edge is always death. Platforms below the edge no longer land.
        BUG-14: if already bouncing (vy < 0) at the rim, do not kill. */
     if (w.tick > 80 && ep.vy >= 0 && ep.y > ep.camY + LH) {
-      if (ep.domeT > 0 && ep.domeSave) { ep.domeSave = false; ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; ep.invT = 40; spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2); if (ep.id === 0) toast(w, "КОСМОЩИТ СПАС!"); }
+      if (ep.domeT > 0 && ep.domeSave) { ep.domeSave = false; ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; ep.invT = 40; spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2); if (ep.id === 0) toast(w, t('play.dome_saved')); }
       else killPlayer(w, ep, "fall");
     }
   }
