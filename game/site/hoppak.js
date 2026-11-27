@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("6f2928a") return String("6f2928a");
+      if ("da739cb") return String("da739cb");
     } catch (_e) {
     }
     return "";
@@ -3150,7 +3150,7 @@
   function killMob(w, mo, p, noBounce) {
     if (!mo.alive) return;
     mo.alive = false;
-    mo.squish = 10;
+    mo.squish = mo.kind === "trash" ? 16 : 10;
     if (!noBounce) {
       p.vy = STOMP_V;
       p.y = mo.y - PH;
@@ -3158,16 +3158,31 @@
     p.kills++;
     if (!(p.poundT > 0 || p.dashT > 0)) addCharge(p, "kills", 1);
     var pal = MOBPAL[mo.kind] || ["#ffd070"];
-    spawnParts(w, mo.x + mo.w / 2, mo.y + 4, 12, pal[0], 2.6, 0.15);
+    var cx = mo.x + mo.w / 2, cy = mo.y + 4;
+    if (mo.kind === "trash") {
+      spawnParts(w, cx, cy, 8, pal[0], 2.4, 0.18, 2);
+      spawnParts(w, cx, cy, 5, pal[1], 2, 0.18, 1);
+      spawnParts(w, cx, cy, 4, pal[2], 2.8, 0.12, 1);
+    } else spawnParts(w, cx, cy, 12, pal[0], 2.6, 0.15);
     if (p.id === 0) {
       w.shake = 5;
       hopSfx("hit");
     }
   }
+  function bumpOffTrash(w, p, mo) {
+    if (mo.cool > 0) return;
+    var s = wrapDx(p.x + PW / 2 - (mo.x + mo.w / 2)) >= 0 ? 1 : -1;
+    p.vx = s * 2.4;
+    if (p.vy > -2) p.vy = -2.2;
+    p.x += s * 3;
+    mo.cool = 10;
+    if (p.id === 0) w.shake = 2;
+  }
   function mobBox(mo) {
     if (mo.b === "snake") return snakeHeadBox(mo);
     if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
-    if (mo.kind === "blob" || mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
+    if (mo.kind === "blob") return [mo.x + 2, mo.y - 3, mo.w - 4, mo.h + 2];
+    if (mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
     return [mo.x, mo.y, mo.w, mo.h];
   }
   function abReady(p) {
@@ -3753,6 +3768,12 @@
         }
         var bb = mobBox(m2);
         if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bb[0] + 1, bb[2] - 2) && p.y + HURT_PAD_Y < bb[1] + bb[3] && p.y + PH > bb[1]) {
+          var mid = bb[1] + bb[3] / 2;
+          var fromAbove = p.vy > 0 && (p.y + PH <= mid || p.prevY + PH <= mid || p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5);
+          if (m2.kind === "trash" && !fromAbove) {
+            bumpOffTrash(w, p, m2);
+            continue;
+          }
           if (p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0) {
             killMob(w, m2, p, true);
             continue;
@@ -3765,7 +3786,6 @@
           var stomped = false;
           if (stompable && p.vy > 0) {
             if (m2.b === "snake") {
-              var mid = bb[1] + bb[3] / 2;
               stomped = p.y + PH <= mid || p.prevY + PH <= mid;
             } else {
               stomped = p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5;
@@ -4661,6 +4681,39 @@
     var u = (m.t || 0) % 131;
     return u >= 125 ? 1 : 0;
   }
+  function drawTrashDeath(ctx, m, cam) {
+    var spr = MOB_SPRITES.trash;
+    if (!spr || !spr.src || m.squish <= 0) return false;
+    var cv = mobSprCache.trash;
+    if (cv === void 0) cv = mobSprCache.trash = pngToCanvas(spr.src) || null;
+    if (!cv) return false;
+    var age = 16 - m.squish;
+    if (age < 0) age = 0;
+    var x = Math.round(m.x), y = Math.round(m.y - cam);
+    var dx = x + (spr.ox || 0), dy = y + (spr.oy || 0);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    if (age <= 3) {
+      var sh = [32, 26, 22, 18][age];
+      ctx.drawImage(cv, 0, 0, 64, 64, dx, dy + (32 - sh), 32, sh);
+    } else {
+      var a2 = 1;
+      if (age >= 8) {
+        var left = 16 - age;
+        a2 = left <= 0 ? 0 : left <= 2 ? 0.25 : left <= 4 ? 0.5 : left <= 6 ? 0.75 : 1;
+      }
+      if (a2 > 0) {
+        ctx.globalAlpha = a2;
+        var pop = Math.min(18, (age - 3) * 2);
+        var wob = age >> 1 & 1;
+        ctx.drawImage(cv, 0, 18, 64, 12, dx + wob, dy + 9 - pop, 32, 6);
+        ctx.drawImage(cv, 0, 30, 64, 34, dx, dy + 15 + (age - 3) * 2, 32, 17);
+        ctx.globalAlpha = 1;
+      }
+    }
+    ctx.restore();
+    return true;
+  }
   function frogFrame(m) {
     if (!m.alive) return m.squish > 5 ? 2 : 3;
     return m.hy < 0 ? 1 : 0;
@@ -4695,7 +4748,7 @@
       if (m.kind === "bat" && drawMobSprite(ctx, "bat", x, y, batFrame(m), (m.vx || 0) < 0)) return;
       if (m.kind === "ufo" && drawMobSprite(ctx, "ufo", x, y, ufoFrame(m), (m.vx || 0) < 0)) return;
       if (m.kind === "hole" && drawMobSprite(ctx, "hole", x, y, holeFrame(m), false)) return;
-      if (m.kind === "trash" && drawMobSprite(ctx, "trash", x, y, 0, false)) return;
+      if (m.kind === "trash" && drawTrashDeath(ctx, m, cam)) return;
       if (m.kind === "frog" && drawMobSprite(ctx, "frog", x, y, frogFrame(m), (m.dir || 1) < 0)) return;
       if (m.kind === "parrot" && drawMobSprite(ctx, "parrot", x, y, parrotFrame(m), (m.vx || 0) < 0)) return;
       if (m.kind === "monkey" && drawMobSprite(ctx, "monkey", x, y, monkeyFrame(m), (m.dir || 1) < 0)) return;
