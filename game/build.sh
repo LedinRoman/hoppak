@@ -12,6 +12,15 @@
 #       Default HOP_SERVER for the site target is https://76-13-250-251.sslip.io
 set -e
 cd "$(dirname "$0")"
+# Build-time version for Settings (and versions.json). Label is v1.0; sha is short HEAD.
+# Override with HOP_BUILD_LABEL / HOP_BUILD_SHA if needed. Not hardcoded in game source.
+BUILD_LABEL="${HOP_BUILD_LABEL:-v1.0}"
+BUILD_SHA="${HOP_BUILD_SHA:-$(git -C .. rev-parse --short HEAD 2>/dev/null || true)}"
+export BUILD_LABEL BUILD_SHA
+BUILD_DEFS=""
+if [ -n "${BUILD_LABEL}" ]; then BUILD_DEFS="${BUILD_DEFS} --define:HOP_BUILD_LABEL=\"${BUILD_LABEL}\""; fi
+if [ -n "${BUILD_SHA}" ]; then BUILD_DEFS="${BUILD_DEFS} --define:HOP_BUILD_SHA=\"${BUILD_SHA}\""; fi
+echo "build version ${BUILD_LABEL} · ${BUILD_SHA:-?}"
 ESB=/tmp/esb/node_modules/.bin/esbuild
 python3 - << 'I18N'
 import json
@@ -32,7 +41,7 @@ game = src.split("/* @@APP */")[0]
 game = game.split("\n", 1)[1]  # drop grok/canvas import
 open("/tmp/hoppak.game.ts", "w", encoding="utf-8").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
 PY
-$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 ${HOP_I18N_DEV:+--define:HOP_I18N_DEV=true} --outfile=hoppak.js --log-level=warning
+$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 ${HOP_I18N_DEV:+--define:HOP_I18N_DEV=true} ${BUILD_DEFS} --outfile=hoppak.js --log-level=warning
 sed -i '1i /* Хоппак v0.6 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
 $ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --outfile=/tmp/hop.min.tsx --log-level=warning
@@ -62,10 +71,12 @@ open("page-build/hop.canvas.tsx", "w", encoding="utf-8").write("// @ts-nocheck\n
 print("page bytes", len(t.encode()))
 PY
 node --check hoppak.js && echo "js ok $(wc -c < hoppak.js) bytes"
+python3 -c 'import json,os; from pathlib import Path; Path("versions.json").write_text(json.dumps({"version": os.environ["BUILD_LABEL"], "sha": os.environ.get("BUILD_SHA",""), "label": os.environ["BUILD_LABEL"]}, indent=2)+"\n"); print("versions.json", os.environ["BUILD_LABEL"], os.environ.get("BUILD_SHA",""))'
 
 if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
   SITE_ORIGIN="${HOP_SERVER:-https://76-13-250-251.sslip.io}"
   mkdir -p site
+  if [ -f versions.json ]; then cp versions.json site/versions.json; fi
   DEFS="--define:HOP_SERVER=\"${SITE_ORIGIN}\""
   HTML_SRC="index.html"
   if [ -n "${HOP_API:-}" ]; then DEFS="${DEFS} --define:HOP_API=\"${HOP_API}\""; fi
@@ -79,7 +90,7 @@ if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
     VER_LABEL="${HOP_VER_LABEL:-v0.6rc}"
   fi
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
-    ${DEFS} \
+    ${DEFS} ${BUILD_DEFS} \
     --outfile=site/hoppak.js --log-level=warning
   sed -i "1i /* Хоппак ${VER_LABEL} site — HOP_SERVER baked in, do not edit */" site/hoppak.js
   python3 - << PY

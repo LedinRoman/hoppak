@@ -49,6 +49,20 @@ var MAX_VX = 2.7;
 var ACCEL = 0.16;
 var TURN_ACCEL = 0.24;
 var AIR_FRIC = 0.91;
+/* Black hole (city + space). Visual +15% and hitbox ~+20% vs the previous
+   14×14 / scale 0.5. Pull is an extra local acceleration only — ACCEL, GRAVITY
+   and springs stay as they are. Cap is below ACCEL (0.16) so a held direction
+   always wins. Whirl keeps the old 14×14 / range 36 / accel 0.11 numbers. */
+var HOLE_W = 17;
+var HOLE_H = 17;
+var HOLE_SPRITE_SCALE = 0.575;
+var HOLE_ART_CX = 31.5;
+var HOLE_DARKEN = 0.87;
+var HOLE_PULL_RANGE_MUL = 2.5;
+var HOLE_KILL_RADIUS = 7.2;
+var HOLE_PULL_ACCEL = 0.10;
+var HOLE_PULL_ACCEL_CAP = 0.10;
+var HOLE_PULL_VY = 0.6;
 var ICE_FRIC = 0.975;
 var STEP = 1 / 50; /* slowed in v0.1.1, keep */
 var ROW_SEP = 28; /* min vertical distance between platform rows */
@@ -80,6 +94,20 @@ var TYPECOL: any = {
   mint: C.mint,
   danger: C.red
 };
+/* Injected at build time by build.sh (--define HOP_BUILD_LABEL / HOP_BUILD_SHA). Fallback is v1.0 with no sha. */
+function buildLabel() {
+  try { if (typeof HOP_BUILD_LABEL !== "undefined" && HOP_BUILD_LABEL) return String(HOP_BUILD_LABEL); } catch (_e) {}
+  return "v1.0";
+}
+function buildSha() {
+  try { if (typeof HOP_BUILD_SHA !== "undefined" && HOP_BUILD_SHA) return String(HOP_BUILD_SHA); } catch (_e) {}
+  return "";
+}
+function buildVersionText() {
+  var sha = buildSha();
+  return sha ? (buildLabel() + " · " + sha) : buildLabel();
+}
+
 
 /* Heroes: look + ability. Each ability has its own TYPE (no repeats) and its own CHARGE:
    charge: time (ticks, 50/s) | coins (coins picked) | height (metres climbed) | kills (mobs stomped) */
@@ -427,7 +455,7 @@ var MOBS: any = {
   ember: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.ember'); }, g: "m" },
   snake: { b: "snake", w: 10, h: 8, gap: 38, get name() { return t('mob.snake'); }, g: "f" },
   puffer: { b: "puff", w: 12, h: 12, gap: 40, get name() { return t('mob.puffer'); }, g: "f" },
-  hole: { b: "pull", w: 14, h: 14, gap: 44, get name() { return t('mob.hole'); }, g: "f" },
+  hole: { b: "pull", w: HOLE_W, h: HOLE_H, gap: 44, get name() { return t('mob.hole'); }, g: "f" },
   whirl: { b: "pull", w: 14, h: 14, gap: 44, get name() { return t('mob.whirl'); }, g: "m" },
   wind: { b: "wind", w: 24, h: 10, gap: 40, get name() { return t('mob.wind'); }, g: "f" },
   ufo: { b: "shoot", w: 14, h: 8, gap: 34, get name() { return t('mob.ufo'); }, g: "m" },

@@ -1370,7 +1370,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       screenLay = [];
       dimView(ctx, "rgba(8,6,20,0.62)");
       var py0 = belowBand();
-      var setH = 166;
+      var setH = 178;
       box(ctx, x, py0, 152, setH, C.navy, C.cream);
       markBox("settings", x, py0, 152, setH);
       drawText(ctx, t('settings.title'), LW / 2, py0 + 6, TYPECOL.accent, TYPE.M, "center");
@@ -1380,6 +1380,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       btn("set:language", x + 8, py0 + 94, 136, 20, C.navy, t('settings.language', { mode: gameLanguageLabel() }));
       btn("set:prof", x + 8, py0 + 118, 136, 20, "#1a1430", t('profile.title'), TYPECOL.primary);
       btn("set", x + 26, py0 + 142, 100, 16, C.navy, t('common.close'));
+      uiText(ctx, buildVersionText(), LW / 2, py0 + 164, TYPECOL.muted, "S", "center");
     }
     drawFlash();
   }

@@ -992,13 +992,18 @@ function tickWorld(w: any, inputs: any) {
         continue;
       }
       if (h.b !== "pull" || p.rocketT > 0 || mobFrozen) continue;
-      var hx = wrapDx(h.x + 7 - (p.x + PW / 2)), hy = h.y + 7 - (p.y + PH / 2);
+      var isHole = h.kind === "hole";
+      var crx = (h.w || (isHole ? HOLE_W : 14)) / 2, cry = (h.h || (isHole ? HOLE_H : 14)) / 2;
+      var hx = wrapDx(h.x + crx - (p.x + PW / 2)), hy = h.y + cry - (p.y + PH / 2);
       var dist = Math.sqrt(hx * hx + hy * hy);
-      if (dist < 6) { hurt(w, p, "hole", h); if (!p.alive) break; continue; }
-      if (dist < 36 && !invuln(p)) {
-        var fpull = 0.11 * (1 - dist / 36);
+      var killR = isHole ? HOLE_KILL_RADIUS : 6;
+      var pullR = isHole ? crx * HOLE_PULL_RANGE_MUL : 36;
+      if (dist < killR) { hurt(w, p, "hole", h); if (!p.alive) break; continue; }
+      if (dist < pullR && !invuln(p)) {
+        var fpull = (isHole ? HOLE_PULL_ACCEL : 0.11) * (1 - dist / pullR);
+        if (isHole && fpull > HOLE_PULL_ACCEL_CAP) fpull = HOLE_PULL_ACCEL_CAP;
         p.vx += (hx / dist) * fpull;
-        p.vy += (hy / dist) * fpull * 0.6;
+        p.vy += (hy / dist) * fpull * (isHole ? HOLE_PULL_VY : 0.6);
       }
     }
     if (!p.alive) continue;
