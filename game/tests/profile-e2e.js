@@ -11,6 +11,9 @@ const fs = require('fs');
 const { execFileSync } = require('child_process');
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const path = require('path');
+const os = require('os');
+const { once } = require('events');
+const { pathToFileURL } = require('url');
 const { createServer, seenLog } = require('../../tools/profile-mock');
 
 execFileSync('bash', ['build.sh', 'site'], {
@@ -27,6 +30,83 @@ async function settle(pg) {
   }, { timeout: 4000 }).catch(() => {});
 }
 
+const WAIT_MS = 8000;
+const WAIT_OPTIONS = { timeout: WAIT_MS, polling: 50 };
+const PROFILE_PREFIX = 'hoppak-profile-e2e-';
+const OWNER_FILE = 'e2e-owner.json';
+
+async function waitForState(pg, label, predicate, ...args) {
+  try {
+    const handle = await pg.waitForFunction(predicate, WAIT_OPTIONS, ...args);
+    await handle.dispose();
+  } catch (error) {
+    throw new Error(label + ' (' + WAIT_MS + ' ms)', { cause: error });
+  }
+}
+
+function waitCoins(pg, coins, label, telegramId = '', best = 0) {
+  return waitForState(pg, label, (coins, telegramId, best) => {
+    const g = window.__hoppak;
+    const state = g?.profile?.getState();
+    return state?.st === 'ready' && state.profile?.migratedAt
+      && state.profile.coins === coins && g.getSave().coins === coins
+      && (best === 0 || state.profile.best >= best) && state.telegramId === telegramId
+      && state.queueLen === 0 && state.pendingBuysLen === 0;
+  }, coins, telegramId, best);
+}
+
+async function seedSave(pg, origin, { coins, best = 0, owned = {}, char = 0 }) {
+  await pg.evaluateOnNewDocument((expectedOrigin, save) => {
+    if (location.origin === expectedOrigin && !localStorage.getItem('hoppak_save')) {
+      localStorage.setItem('hoppak_save', save);
+    }
+  }, origin, JSON.stringify({
+    v5: 1, coins, best, mapBest: { city: best }, owned, char,
+    bg: 'city', sfx: true, vib: true,
+  }));
+}
+
+async function waitSeen(playerId, since, exit, label) {
+  const deadline = Date.now() + WAIT_MS;
+  do {
+    const entry = seenLog.slice(since).find((entry) => entry.playerId === playerId && entry.exit === exit);
+    if (entry) return entry;
+    await sleep(25);
+  } while (Date.now() < deadline);
+  throw new Error(label + ' (' + WAIT_MS + ' ms)');
+}
+
+function closeServer(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => error && error.code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve());
+    server.closeAllConnections();
+  });
+}
+
+function reapOrphanedBrowsers() {
+  if (process.platform !== 'linux') return;
+  const temp = os.tmpdir();
+  for (const entry of fs.readdirSync(temp, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith(PROFILE_PREFIX)) continue;
+    const profile = path.join(temp, entry.name);
+    try {
+      if (fs.statSync(profile).uid !== process.getuid()) continue;
+      const { runnerPid, chromePid } = JSON.parse(fs.readFileSync(path.join(profile, OWNER_FILE), 'utf8'));
+      if (![runnerPid, chromePid].every(pid => Number.isInteger(pid) && pid > 1)) continue;
+      try {
+        process.kill(runnerPid, 0);
+        continue;
+      } catch (error) {
+        if (error.code !== 'ESRCH') continue;
+      }
+      const args = fs.readFileSync('/proc/' + chromePid + '/cmdline', 'utf8').split('\0');
+      if (args.includes('--user-data-dir=' + profile)) process.kill(chromePid, 'SIGTERM');
+    } catch {
+      // The directory might lack a marker, or the recorded process may already have exited.
+    }
+  }
+}
+
 async function admin(base, body) {
   const r = await fetch(base + '/__mock/admin', {
     method: 'POST',
@@ -37,29 +117,63 @@ async function admin(base, body) {
 }
 
 (async () => {
-  const srv = createServer();
-  await new Promise((res) => srv.listen(0, '127.0.0.1', res));
-  const port = srv.address().port;
-  const base = `http://127.0.0.1:${port}`;
+  const servers = [];
+  reapOrphanedBrowsers();
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), PROFILE_PREFIX));
+  let launch;
+  let cleanupPromise;
+  let interrupted = false;
+  function cleanup() {
+    cleanupPromise ??= (async () => {
+      try {
+        const browser = await launch?.catch(() => undefined);
+        await browser?.close();
+      } finally {
+        try {
+          await Promise.all(servers.map(closeServer));
+        } finally {
+          fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3 });
+        }
+      }
+    })();
+    return cleanupPromise;
+  }
 
-  const srv2 = createServer();
-  await new Promise((res) => srv2.listen(0, '127.0.0.1', res));
-  const port2 = srv2.address().port;
-  const base2 = `http://127.0.0.1:${port2}`;
+  async function startMock() {
+    const server = createServer();
+    servers.push(server);
+    const listening = once(server, 'listening');
+    server.listen(0, '127.0.0.1');
+    await listening;
+    return `http://127.0.0.1:${server.address().port}`;
+  }
 
-  const browser = await pp.launch({
-    executablePath: '/usr/bin/google-chrome',
-    args: ['--no-sandbox', '--allow-file-access-from-files'],
-    headless: 'new',
-  });
-
+  const interrupt = () => {
+    interrupted = true;
+    cleanup().then(() => process.exit(130), () => process.exit(130));
+  };
+  process.once('SIGINT', interrupt);
   const errs = [];
   try {
+    const base = await startMock();
+    if (interrupted) return;
+    const base2 = await startMock();
+    if (interrupted) return;
+    launch = pp.launch({
+      executablePath: '/usr/bin/google-chrome',
+      args: ['--no-sandbox', '--allow-file-access-from-files'],
+      headless: 'new',
+      userDataDir,
+      handleSIGINT: false,
+    });
+    const browser = await launch;
+    fs.writeFileSync(path.join(userDataDir, OWNER_FILE),
+      JSON.stringify({ runnerPid: process.pid, chromePid: browser.process()?.pid }));
     // 1. file:// offline fallback
     {
       const pg = await browser.newPage();
       pg.on('pageerror', (e) => errs.push('file pageerror: ' + e.message));
-      const fileUrl = 'file://' + path.resolve(__dirname, '..', 'index.html');
+      const fileUrl = pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
       await pg.goto(fileUrl);
       await pg.evaluate(() => localStorage.clear());
       await pg.reload();
@@ -80,17 +194,9 @@ async function admin(base, body) {
       pg.on('pageerror', (e) => errs.push('v058 pageerror: ' + e.message));
 
       // Pre-seed an existing local save before visiting /v/0.58/
+      await seedSave(pg, base, { coins: 120, best: 240, owned: { 'char:1': 1 }, char: 1 });
       await pg.goto(base + '/v/0.58/index.html');
-      await settle(pg);
-      await pg.evaluate(() => {
-        localStorage.clear();
-        localStorage.setItem('hoppak_save', JSON.stringify({
-          v5: 1, coins: 120, best: 240, mapBest: { city: 240 },
-          owned: { 'char:1': 1 }, char: 1, bg: 'city', sfx: true, vib: true
-        }));
-      });
-      await pg.reload();
-      await sleep(400);
+      await waitCoins(pg, 120, '2 legacy save migrates before the first run');
 
       const st1 = await pg.evaluate(async () => {
         await window.__hoppak.profile.flush();
@@ -131,7 +237,7 @@ async function admin(base, body) {
         save: window.__hoppak.getSave(),
         tok: window.__hoppak.profile.getToken(),
       }));
-      assert.strictEqual(st3.tok, tok1);
+      assert.ok(st3.tok === tok1, '2 the same origin keeps the same guest session');
       assert.strictEqual(st3.st.profile.id, guestId);
       assert.strictEqual(st3.st.profile.coins, 130);
       assert.strictEqual(st3.save.coins, 130);
@@ -237,35 +343,28 @@ async function admin(base, body) {
       const ctx = await browser.createBrowserContext();
       const pg = await ctx.newPage();
       pg.on('pageerror', (e) => errs.push('v06-fresh pageerror: ' + e.message));
+      await seedSave(pg, base2, { coins: 250, best: 240 });
       await pg.goto(base2 + '/v/0.6/index.html');
-      await settle(pg);
-      await pg.evaluate(() => {
-        localStorage.clear();
-        localStorage.setItem('hoppak_save', JSON.stringify({
-          v5: 1, coins: 250, best: 240, mapBest: { city: 240 },
-          owned: {}, char: 0, bg: 'city', sfx: true, vib: true
-        }));
-      });
-      await pg.reload();
-      await pg.waitForFunction(() => {
-        const p = window.__hoppak && window.__hoppak.profile && window.__hoppak.profile.getState();
-        return !!(p && p.profile && p.profile.best === 240 && p.st === 'ready');
-      }, { timeout: 4000 });
+      await waitCoins(pg, 250, '2b seed migrates with the original record', '', 240);
       await pg.evaluate(() => {
         window.__hoppak.tap('shop');
         window.__hoppak.tap('hero:2');
         window.__hoppak.tap('hero:act');
         window.__hoppak.tap('hero:act'); // confirm buy ninja (200)
       });
-      await pg.waitForFunction(() => {
-        const p = window.__hoppak && window.__hoppak.profile && window.__hoppak.profile.getState();
-        return !!(p && p.profile && p.profile.coins === 50 && p.profile.purchases && p.profile.purchases['char:2'] === 1);
-      }, { timeout: 4000 });
+      await waitCoins(pg, 50, '2b purchase settles', '', 240);
+      await waitForState(pg, '2b char:2 appears in server purchases and local owned', () => {
+        const g = window.__hoppak;
+        const state = g.profile.getState();
+        return state?.profile?.purchases?.['char:2'] === 1 && g.getSave().owned?.['char:2'] === 1;
+      });
       await pg.reload();
-      await pg.waitForFunction(() => {
-        const s = window.__hoppak && window.__hoppak.getSave && window.__hoppak.getSave();
-        return !!(s && s.coins === 50 && s.owned && s.owned['char:2'] === 1);
-      }, { timeout: 4000 });
+      await waitCoins(pg, 50, '2b purchased hero balance survives reload', '', 240);
+      await waitForState(pg, '2b char:2 purchase survives reload', () => {
+        const g = window.__hoppak;
+        const state = g.profile.getState();
+        return state?.profile?.purchases?.['char:2'] === 1 && g.getSave().owned?.['char:2'] === 1;
+      });
       const v06st = await pg.evaluate(() => ({
         st: window.__hoppak.profile.getState(),
         save: window.__hoppak.getSave(),
@@ -438,27 +537,25 @@ async function admin(base, body) {
       const ctx = await browser.createBrowserContext();
       const pg = await ctx.newPage();
       pg.on('pageerror', (e) => errs.push('buy400 pageerror: ' + e.message));
+      await seedSave(pg, base, { coins: 50 });
       await pg.goto(base + '/v/0.6/index.html');
-      await settle(pg);
-      await pg.evaluate(() => {
-        localStorage.clear();
-        localStorage.setItem('hoppak_save', JSON.stringify({
-          v5: 1, coins: 50, best: 0, mapBest: { city: 0 },
-          owned: {}, char: 0, bg: 'city', sfx: true, vib: true
-        }));
-      });
-      await pg.reload();
-      await sleep(400);
-      await pg.evaluate(async () => {
-        await window.__hoppak.profile.flush();
-        const s = window.__hoppak.getSave();
-        s.coins = 0;
-        s.owned['char:2'] = 1;
-        s.char = 2;
-        window.__hoppak.profile.buy('char:2', 200);
-        await window.__hoppak.profile.flush();
-      });
-      await sleep(300);
+      await waitCoins(pg, 50, '7 seed migrates before attempting the purchase');
+      const [rejection] = await Promise.all([
+        pg.waitForResponse((response) => response.url() === base + '/api/profile/buy'
+          && response.request().method() === 'POST', { timeout: WAIT_MS })
+          .catch(error => { throw new Error('7 purchase response did not arrive', { cause: error }); }),
+        pg.evaluate(async () => {
+          const g = window.__hoppak;
+          const s = g.getSave();
+          s.coins = 0;
+          s.owned['char:2'] = 1;
+          s.char = 2;
+          await g.profile.buy('char:2', 200);
+        }),
+      ]);
+      assert.strictEqual(rejection.status(), 400, '7 purchase is rejected by the server');
+      assert.strictEqual((await rejection.json()).error, 'INSUFFICIENT_COINS');
+      await waitCoins(pg, 50, '7 rejection rolls back the optimistic balance');
       const st = await pg.evaluate(() => ({
         st: window.__hoppak.profile.getState(),
         save: window.__hoppak.getSave(),
@@ -478,30 +575,15 @@ async function admin(base, body) {
         const ctx = await browser.createBrowserContext();
         const pg = await ctx.newPage();
         pg.on('pageerror', (e) => errs.push(label + ' pageerror: ' + e.message));
-        const startSave = JSON.stringify({
-          v5: 1, coins: 100, best: 0, mapBest: { city: 0 },
-          owned: {}, char: 0, bg: 'city', sfx: true, vib: true
-        });
+        await seedSave(pg, origin, { coins: 100 });
         if (tg) {
           const initData = 'user=' + encodeURIComponent(JSON.stringify({ id: 7771, first_name: 'Roman' })) + '&auth_date=1&hash=00';
-          await pg.evaluateOnNewDocument((d, raw) => {
+          await pg.evaluateOnNewDocument((d) => {
             window.Telegram = { WebApp: { initData: d } };
-            try {
-              if (!localStorage.getItem('hoppak_guest_token')) localStorage.setItem('hoppak_save', raw);
-            } catch (e) {}
-          }, initData, startSave);
+          }, initData);
         }
         await pg.goto(origin + '/index.html');
-        await settle(pg);
-        if (!tg) {
-          await pg.evaluate((raw) => {
-            localStorage.clear();
-            localStorage.setItem('hoppak_save', raw);
-          }, startSave);
-          await pg.reload();
-          await sleep(500);
-        }
-        await pg.evaluate(async () => { await window.__hoppak.profile.flush(); });
+        await waitCoins(pg, 100, '8 ' + label + ' seed migrates', tg ? '7771' : '');
         const seeded = await pg.evaluate(() => window.__hoppak.profile.getState());
         assert.strictEqual(seeded.st, 'ready', label + ' profile');
         assert.strictEqual(seeded.profile.coins, 100, label + ' start coins');
@@ -525,6 +607,7 @@ async function admin(base, body) {
           g.profile.beginRun('city', 0);
           await g.profile.flush();
         });
+        await waitCoins(pg, 1409, '8 ' + label + ' all run rewards settle', tg ? '7771' : '');
         if (!tg) {
           const started = await (await fetch(origin + '/__mock/log')).json();
           const order = started.log.map((x) => x.path).filter((p) => p === '/api/run/start' || p === '/api/run/finish');
@@ -1282,7 +1365,7 @@ async function admin(base, body) {
       assert.strictEqual(await note(a1), false, '17a tab 1 must not show the banner');
       assert.strictEqual(await note(a2), false, '17a tab 2 must not show the banner');
       assert.strictEqual((await who(a2)).id, idA, '17a same account');
-      assert.strictEqual(await tokenOf(a1), await tokenOf(a2), '17a one token per browser');
+      assert.ok((await tokenOf(a1)) === (await tokenOf(a2)), '17a one token per browser');
 
       // b) a really different client logs in: the first one is told, once
       const ctxB = await browser.createBrowserContext();
@@ -1348,27 +1431,33 @@ async function admin(base, body) {
         pg.on('pageerror', (e) => errs.push('18 pageerror: ' + e.message));
         await pg.evaluateOnNewDocument(seedTg2, 6102);
         await pg.goto(base2 + '/index.html');
-        await settle(pg);
-        await sleep(300);
+        await waitForState(pg, '18 Telegram login becomes ready', () => {
+          const state = window.__hoppak?.profile?.getState();
+          return state?.st === 'ready' && state.telegramId === '6102';
+        });
         return pg;
       };
       const ctxH = await browser.createBrowserContext();
       const h1 = await open2(ctxH);
-      const n0 = seenLog.length;
+      const playerId = await h1.evaluate(() => window.__hoppak.profile.getState().profile.id);
+      const heartbeatStart = seenLog.length;
       await h1.evaluate(() => window.__hoppak.profile.beat());
-      await sleep(400);
-      assert.strictEqual(seenLog.length, n0 + 1, '18 heartbeat reaches the server');
-      assert.strictEqual(seenLog[seenLog.length - 1].exit, false, '18 heartbeat is not an exit');
-      assert.strictEqual(seenLog[seenLog.length - 1].p, 'android', '18 heartbeat carries the Telegram platform');
+      const heartbeat = await waitSeen(playerId, heartbeatStart, false, '18 heartbeat reaches the server');
+      assert.strictEqual(heartbeat.p, 'android', '18 heartbeat carries the Telegram platform');
+      const exitStart = seenLog.length;
       await h1.evaluate(() => window.__hoppak.profile.exit());
-      await sleep(400);
-      assert.strictEqual(seenLog[seenLog.length - 1].exit, true, '18 exit beacon reaches the server');
+      await waitSeen(playerId, exitStart, true, '18 exit beacon reaches the server');
       // another device takes the account over: the next heartbeat of the first one shows the banner
       const ctxI = await browser.createBrowserContext();
       await open2(ctxI);
-      await h1.evaluate(() => window.__hoppak.profile.beat());
-      await sleep(700);
-      assert.strictEqual(await h1.evaluate(() => !!window.__hoppak.sessionNote()), true, '18 first device learns about the takeover from its heartbeat');
+      await Promise.all([
+        h1.waitForResponse((response) => response.url() === base2 + '/api/profile/seen'
+          && response.request().method() === 'POST' && response.status() === 401, { timeout: WAIT_MS })
+          .catch(error => { throw new Error('18 old device heartbeat was not rejected', { cause: error }); }),
+        h1.evaluate(() => window.__hoppak.profile.beat()),
+      ]);
+      await waitForState(h1, '18 the old device shows the takeover banner',
+        () => !!window.__hoppak?.sessionNote());
       for (const c of [ctxH, ctxI]) await c.close();
       console.log('PASS 18: heartbeat, exit beacon, takeover learned from the heartbeat');
     }
@@ -1376,9 +1465,11 @@ async function admin(base, body) {
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));
     console.log('ALL CLIENT PROFILE E2E TESTS PASS');
   } finally {
-    await browser.close();
-    srv.close();
-    srv2.close();
+    try {
+      await cleanup();
+    } finally {
+      process.removeListener('SIGINT', interrupt);
+    }
   }
 })().catch((e) => {
   console.error(e);
