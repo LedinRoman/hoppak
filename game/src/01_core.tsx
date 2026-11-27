@@ -16,6 +16,7 @@ function viewW() { return LW + VIEW_PAD * 2; }
 function viewY0() { return VIEW_CROP; }
 function viewY1() { return LH - VIEW_BOT; }
 function hudY(y: number) { return y + VIEW_CROP + HUD_INSET; }
+var VIEW_TOPPAD = 0; /* v1.0: game px above the view under the phone/Telegram top safe area: sky only, no play */
 var VIEW_BOT = 0; /* v0.59: world px hidden at the BOTTOM when play fills the phone width; render-only (sim view stays LH) */
 var VIEW_SHIFT = 0; /* v0.59: render-only look-down offset (0..VIEW_BOT) so a falling hero stays on screen until the sim death line */
 function viewBottom() { return LH - VIEW_BOT; } /* screen y (world px) of the visible bottom edge during play */
@@ -940,9 +941,14 @@ function makeLook(kind: number, _color?: string, _hat?: string) {
   var b = CHARS[kind] || CHARS[0];
   return { id: b.id, name: b.name, hood: b.hood, kind: kind };
 }
-function drawJumper(ctx: Ctx, x: number, y: number, lk: any, face: number, pose: string, blink: boolean, alive: boolean, sc?: number) {
+function drawJumper(ctx: Ctx, x: number, y: number, lk: any, face: number, pose: string, blink: boolean, alive: boolean, sc?: number, fine?: boolean) {
   var s = sc || 1;
-  x = Math.round(x); y = Math.round(y);
+  if (fine && ctx.getTransform) {
+    /* Menu heroes: sub-game-pixel motion snapped to the DEVICE pixel (a menu game px is ~7 device px). */
+    var mt = ctx.getTransform();
+    x = mt.a ? (Math.round(mt.a * x + mt.e) - mt.e) / mt.a : Math.round(x);
+    y = mt.d ? (Math.round(mt.d * y + mt.f) - mt.f) / mt.d : Math.round(y);
+  } else { x = Math.round(x); y = Math.round(y); }
   var flip = face < 0;
   var spr = heroSprite(lk.id);
   if (spr) {

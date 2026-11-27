@@ -74,21 +74,14 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   var m = alt / PX_PER_M;
   var sky = skyAt(map, m);
   var i, k;
-  /* v1.0: smooth sky. One game-px row per colour step (runs of equal colour merged) instead of 24 visible
-     bands with dashed edges; the 1-RGB-level steps are invisible, so layers meet a continuous gradient. */
-  var skyTop = Math.floor(viewY0()), skyBot = Math.ceil(viewY1()), skyH = skyBot - skyTop;
-  var runCol = "", runY = skyTop;
-  for (var ry = 0; ry <= skyH; ry++) {
-    var col = "";
-    if (ry < skyH) {
-      var t = skyH > 1 ? ry / (skyH - 1) : 0;
-      col = t < 0.5 ? mixHex(sky[0], sky[1], t / 0.5) : mixHex(sky[1], sky[2], (t - 0.5) / 0.5);
-    }
-    if (col !== runCol) {
-      if (runCol) rect(ctx, viewX0(), runY, viewW(), skyTop + ry - runY, runCol);
-      runCol = col; runY = skyTop + ry;
-    }
-  }
+  /* v1.0: smooth sky (no 24 dashed bands)
+     so layers meet a continuous gradient. */
+  var skyTop = Math.floor(viewY0() - VIEW_TOPPAD), skyBot = Math.ceil(viewY1()), skyH = skyBot - skyTop;
+  /* One gradient fill: separate 1-px rows leave faint seams once the phone scale is fractional (anti-aliased edges). */
+  var skyG = ctx.createLinearGradient(0, skyTop, 0, skyBot);
+  skyG.addColorStop(0, sky[0]); skyG.addColorStop(0.5, sky[1]); skyG.addColorStop(1, sky[2]);
+  ctx.fillStyle = skyG;
+  ctx.fillRect(Math.floor(viewX0()) - 1, skyTop, Math.ceil(viewW()) + 2, skyH);
   /* stars / plankton / embers */
   if (map === "city" || map === "space" || map === "ice" || (map === "jungle" && m > 500)) {
     var starA = map === "space" ? 0.9 : clamp(0.55 + m / 2200, 0.55, 1);

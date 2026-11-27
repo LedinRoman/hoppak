@@ -238,22 +238,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
          view (HUD uses hudY). Sim stays LW×LH; death and camera still use LH. */
       var fillWidth = fieldLocked && phase === "play";
       if (fillWidth) {
-        /* v1.0 (Roman): integer device-px per art-px (art is 0.5 game px, so pScale is even).
-           The 160-wide sim field is unchanged; leftover width is scenery padding.
-           Extra height is shown ABOVE the 346 field (VIEW_CROP < 0), death line stays at the bottom. */
+        /* v1.0 (Roman 15:18): the 180 field fills the full screen width (fractional scale, positions snapped
+           to device pixels; on 360 px phones it is exactly 6). The top safe area (status bar + Telegram
+           buttons) is not part of the play view: VIEW_TOPPAD game px there show sky only, the HUD and the
+           first visible platform start below it. Extra height is shown ABOVE the 346 field (VIEW_CROP < 0). */
         var devW = Math.round(availW * dpr), devH = Math.round(availH * dpr);
-        var maxPs = Math.floor(devW / lw);
-        var pInt = maxPs >= 2 ? (maxPs % 2 === 0 ? maxPs : maxPs - 1) : Math.max(1, maxPs);
-        var visH, tries = 0;
-        while (tries < 4) {
-          cssScale = pInt / dpr;
+        var pF = devW / lw, visH;
+        var insetCss = insetTopCss();
+        for (var tries = 0; tries < 3; tries++) {
+          cssScale = pF / dpr;
           VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
-          visH = devH / pInt;
-          if (visH >= lh) {
-            VIEW_CROP = -(visH - lh);
-            VIEW_BOT = 0;
-            break;
-          }
+          VIEW_TOPPAD = Math.max(0, Math.round(insetCss / cssScale));
+          visH = devH / pF - VIEW_TOPPAD;
+          if (visH >= lh) { VIEW_CROP = -(visH - lh); VIEW_BOT = 0; break; }
           VIEW_CROP = 0;
           VIEW_BOT = Math.max(0, lh - visH);
           var botMax = viewBotMax(lh);
@@ -261,25 +258,23 @@ function startHoppak(canvas: HTMLCanvasElement): any {
           VIEW_CROP = Math.min(TOP_CROP_MAX, VIEW_BOT - botMax);
           VIEW_BOT = botMax;
           if (lh - VIEW_CROP - VIEW_BOT <= visH + 1e-6) break;
-          /* Too short for this scale even after the crop cap: zoom out one even step. */
-          if (pInt <= 2) break;
-          pInt -= 2;
-          tries++;
+          /* Too short even after the crop cap: zoom out so the cropped field fits the height (side pads). */
+          pF = devH / (lh - VIEW_CROP - VIEW_BOT + VIEW_TOPPAD);
         }
         cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
-        cssHpx = (lh - VIEW_CROP - VIEW_BOT) * cssScale;
+        cssHpx = (lh - VIEW_CROP - VIEW_BOT + VIEW_TOPPAD) * cssScale;
       } else if (!fieldLocked && phase !== "play" && availH * lw > availW * lh) {
         /* Menus on a tall phone: fill the whole screen (no stripes under the TG header or below the tab bar).
            Width sets the scale, the menu just gets taller. Runs always go back to 346 (startRun). */
         cssScale = availW / lw;
         lh = Math.max(lh, Math.floor(availH / cssScale));
-        VIEW_PAD = 0;
+        VIEW_PAD = 0; VIEW_TOPPAD = 0;
         VIEW_CROP = 0; VIEW_BOT = 0;
         cssWpx = availW;
         cssHpx = availH;
       } else {
         cssScale = Math.min(availW / lw, availH / lh);
-        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2); VIEW_TOPPAD = 0;
         VIEW_CROP = 0; VIEW_BOT = 0;
         cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
         cssHpx = lh * cssScale;
@@ -289,14 +284,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.width = pxW;
       canvas.height = pxH;
       var worldW = lw + 2 * VIEW_PAD;
-      var worldH = lh - VIEW_CROP - VIEW_BOT;
+      var worldH = lh - VIEW_CROP - VIEW_BOT + VIEW_TOPPAD;
       pScale = pxW / worldW;
       pScaleY = pxH / Math.max(1e-6, worldH);
       sx = pScale;
       sy = pScaleY;
       /* Snap the field origin to a device pixel so the clip has no 1 px sliver. */
       FIELD_OX = Math.round(VIEW_PAD * sx);
-      FIELD_OY = Math.round(-VIEW_CROP * sy);
+      FIELD_OY = Math.round((-VIEW_CROP + VIEW_TOPPAD) * sy);
       PHONE_INT = false;
       DEV_W = pxW; DEV_H = pxH;
       canvas.style.position = "absolute";
@@ -306,7 +301,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.style.boxShadow = "none";
       canvas.style.borderRadius = "0px";
     }
-    if (isWide) { VIEW_PAD = 0; VIEW_CROP = 0; VIEW_BOT = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
+    if (isWide) { VIEW_PAD = 0; VIEW_TOPPAD = 0; VIEW_CROP = 0; VIEW_BOT = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
     lastFill = fieldLocked && phase === "play" && !isWide;
     netLW = netFixedLW();
     LW = lw; LH = lh; SCALE = cssScale;
@@ -1192,16 +1187,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     };
     var mi = mapIdx(save.bg), M = MAPS[mi], bestM = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + bestM + "/" + M.goal + " М") : (M.name + " · " + bestM + " М");
-    var ph = (ui % 60) / 60;
-    var hop = Math.round(Math.sin(ph * Math.PI) * 10);
-    var pose = ph < 0.08 || ph > 0.95 ? "squash" : ph < 0.5 ? "up" : "fall";
+    var mh = menuHop(820, 10), hop = mh.hop, pose = mh.pose;
     var platY = L.platY;
     rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood); rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
     var heroId = (CHARS[save.char] || CHARS[0]).id;
     var heroVis = heroArtH(heroId, 2);
     var heroY = platY - 32 - hop;
     if (platY - heroVis - hop < L.tagBot + 2) { hop = Math.max(0, platY - heroVis - (L.tagBot + 2)); heroY = platY - 32 - hop; }
-    drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, 2), heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2);
+    drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, 2), heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2, true);
     markBox("hero", LW / 2 - 18, platY - hop - heroVis, 36, heroVis);
     markBox("plat", LW / 2 - 28, platY, 56, 7);
     var pickW = 120;
@@ -1322,11 +1315,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var mid = showHero ? y0 + heroRoom - 8 : y0 - 10;
     if (showHero) {
       rect(ctx, x + 40, mid + 8, 72, 4, C.wood); rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
-      var ph = (ui % 70) / 70, pose = ui % 280 > 230 ? "ability" : ph < 0.08 ? "squash" : ph < 0.5 ? "up" : "fall";
-      var hop = pose === "ability" ? 6 : Math.round(Math.sin(ph * Math.PI) * 10);
+      var mh = menuHop(860, 10), pose = mh.pose, hop = mh.hop;
+      if ((menuNow() % 4300) > 3440) { pose = "ability"; hop = 6; }
       var hopMax = Math.max(0, mid + 8 - shopVis - (y0 + 1));
       if (hop > hopMax) hop = hopMax;
-      drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2);
+      drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2, true);
     }
     drawText(ctx, H2.name, LW / 2, mid + 16, C.cream, 2, "center");
     var tw = textWidth(H2.abName, 1) + 10;
@@ -1418,6 +1411,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return out;
   }
 
+  /* v1.0 menu hop (start screen, shop): time-based, float height (drawJumper snaps it to the device pixel),
+     ground beat squash -> crouch, then a parabola with the 64-px transition frames up -> apex -> fstart -> fall. */
+  function menuNow() { return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now(); }
+  function menuHop(periodMs: number, H: number) {
+    var t = (menuNow() % periodMs) / periodMs, G = 0.14;
+    if (t < G) return { hop: 0, pose: t < G * 0.5 ? "squash" : "crouch" };
+    var sF = (t - G) / (1 - G), v = 1 - 2 * sF;
+    return { hop: H * 4 * sF * (1 - sF), pose: v > 0.4 ? "up" : v > -0.2 ? "apex" : v > -0.5 ? "fstart" : "fall" };
+  }
   function poseOf(p: any) {
     if (!(p.domeT > 0) && (p.abFx > 0 || p.poundT > 0 || p.dashT > 0 || p.hookN > 0 || p.wall || p.teleFx > 10)) return "ability";
     if (p.squash > 3) return "squash";
@@ -2128,7 +2130,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     bindTgInsets();
-    HUD_INSET = phase === "play" ? Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) : 0;
+    HUD_INSET = phase === "play" ? Math.max(0, Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) - VIEW_TOPPAD) : 0;
     syncBackdrop(menuMap());
     if (phase === "play" && world && world.phase === "play" && !paused) {
       acc += dt;
@@ -2242,6 +2244,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var testInsetTop = 0;
   function insetSideCss(side: string) {
     var sum = 0;
+    var tov = (window as any).__hopTestInset;
+    if (tov && tov[side] != null) return Number(tov[side]) || 0;
     try {
       var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
       if (tg) {
@@ -2368,7 +2372,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     profile: typeof PROFILE !== "undefined" ? PROFILE : null,
     getSave: function () { return save; },
     getFlash: function () { return flash; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, viewTopPad: VIEW_TOPPAD, hudInset: HUD_INSET, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
     tap: function (id: string) { activate(id); },
     audioUnlock: function () { audioUnlock(); },
     sfxPlay: function (k: string) { hopSfx(k); },
