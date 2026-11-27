@@ -18,6 +18,16 @@ for (const locale of ['ru', 'en']) {
   }
   for (const [key, message] of Object.entries(catalog)) {
     if (!keys.has(key)) errors.push(locale + ': unused ' + key);
+    for (const value of typeof message === 'string' ? [message] : Object.values(message ?? {})) {
+      if (typeof value !== 'string') continue;
+      let visible = value.replace(/\{[a-z][a-z0-9_]*\}/gi, '');
+      if (locale === 'ru') {
+        if (key === 'play.desktop_hint' || key === 'play.desktop_ability_hint') visible = visible.replace(/\b(?:A|D|F|Esc)\b/g, '');
+        if (key === 'profile.telegram') visible = visible.replace(/\bTELEGRAM\b/g, '');
+        if (key === 'settings.ru' || key === 'settings.en') visible = visible.replace(/^(RU|EN)$/, '');
+      }
+      if ((locale === 'en' ? /[а-яё]/i : /[a-z]/i).test(visible)) errors.push(locale + ': unexpected alphabet in ' + key);
+    }
     if (typeof message === 'string') continue;
     const categories = new Intl.PluralRules(locale).resolvedOptions().pluralCategories;
     if (!message || Object.keys(message).length !== categories.length || categories.some(category => typeof message[category] !== 'string')) {

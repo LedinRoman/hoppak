@@ -11,6 +11,7 @@ try {
   var storedGameLanguage = localStorage.getItem(gameLanguageKey);
   if (storedGameLanguage === "ru" || storedGameLanguage === "en") gameLanguageChoice = storedGameLanguage;
 } catch (_e) {}
+var defaultGameLanguage: GameLanguage | undefined;
 var gameTranslations: Partial<Record<GameLanguage, GameDictionary>> = {};
 var gamePluralRules = { ru: new Intl.PluralRules("ru"), en: new Intl.PluralRules("en") };
 var gameMissingTranslations = new Set<string>();
@@ -18,7 +19,9 @@ var gameMissingTranslations = new Set<string>();
 function gameLanguage(): GameLanguage {
   if (gameLanguageChoice) return gameLanguageChoice;
   var tg = (window as any).Telegram?.WebApp;
-  var raw = tg?.initDataUnsafe?.user?.language_code || navigator.language || "";
+  var raw = tg?.initDataUnsafe?.user?.language_code;
+  if (!raw && defaultGameLanguage) return defaultGameLanguage;
+  raw = raw || navigator.language || "";
   var base = String(raw).toLowerCase().split(/[-_]/)[0];
   return base === "ru" || base === "uk" || base === "be" || base === "kk" ? "ru" : "en";
 }
@@ -55,14 +58,31 @@ function t(key: string, params: Record<string, string | number> = {}) {
 function loadGameTranslations(origin: string, onLoaded: () => void) {
   if (!origin) return;
   fetch(origin + "/api/translations", {
-    cache: "no-store",
     credentials: "omit",
     signal: typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(5000) : undefined
   }).then(function (response) {
     if (!response.ok) throw new Error("Translation request failed");
     return response.json();
   }).then(function (catalog) {
-    gameTranslations = catalog;
+    if (!catalog || catalog.version !== 1 || !validGameDictionary(catalog.ru, "ru") ||
+        !validGameDictionary(catalog.en, "en")) return;
+    defaultGameLanguage = catalog.defaultLanguage === "ru" || catalog.defaultLanguage === "en"
+      ? catalog.defaultLanguage : undefined;
+    gameTranslations = { ru: catalog.ru, en: catalog.en };
     onLoaded();
   }).catch(function () { /* Built-in translations are available offline. */ });
+}
+
+function validGameDictionary(value: unknown, language: GameLanguage): value is GameDictionary {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  var builtin = GAME_I18N_BUILTIN[language];
+  return Object.keys(builtin).every(function (key) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return true;
+    var fallback = builtin[key], message = (value as GameDictionary)[key];
+    if (typeof fallback === "string") return typeof message === "string" && !!message.trim();
+    if (!message || typeof message !== "object" || Array.isArray(message)) return false;
+    return Object.keys(fallback).every(function (form) {
+      return typeof message[form] === "string" && !!message[form].trim();
+    });
+  });
 }

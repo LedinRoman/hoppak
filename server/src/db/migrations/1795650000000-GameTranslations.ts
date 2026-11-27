@@ -53,37 +53,37 @@ const seed = [
   {"key": "hero.knight.ability", "locale": "ru", "form": "", "value": "ТАРАН"},
   {"key": "hero.knight.description1", "locale": "ru", "form": "", "value": "ПИКЕ ЩИТОМ ВНИЗ,"},
   {"key": "hero.knight.description2", "locale": "ru", "form": "", "value": "С ПЛАТФОРМЫ СУПЕРПРЫЖОК"},
-  {"key": "hero.knight.destination", "locale": "ru", "form": "", "value": "THEN SUPER JUMP"},
+  {"key": "hero.knight.destination", "locale": "ru", "form": "", "value": "РЫЦАРЯ"},
   {"key": "hero.knight.name", "locale": "ru", "form": "", "value": "Рыцарь"},
   {"key": "hero.knight.type", "locale": "ru", "form": "", "value": "АТАКА"},
   {"key": "hero.mage.ability", "locale": "ru", "form": "", "value": "ТЕЛЕПОРТ"},
   {"key": "hero.mage.description1", "locale": "ru", "form": "", "value": "МИГОМ НА НАДЁЖНУЮ"},
   {"key": "hero.mage.description2", "locale": "ru", "form": "", "value": "ПЛАТФОРМУ ВЫШЕ"},
-  {"key": "hero.mage.destination", "locale": "ru", "form": "", "value": "PLATFORM ABOVE"},
+  {"key": "hero.mage.destination", "locale": "ru", "form": "", "value": "МАГА"},
   {"key": "hero.mage.name", "locale": "ru", "form": "", "value": "Маг"},
   {"key": "hero.mage.type", "locale": "ru", "form": "", "value": "ТЕЛЕПОРТ"},
   {"key": "hero.ninja.ability", "locale": "ru", "form": "", "value": "СТЕНЫ"},
   {"key": "hero.ninja.description1", "locale": "ru", "form": "", "value": "6 СЕК ЦЕПЛЯЕТСЯ ЗА КРАЙ,"},
   {"key": "hero.ninja.description2", "locale": "ru", "form": "", "value": "ТАП - ПРЫЖОК ОТ СТЕНЫ"},
-  {"key": "hero.ninja.destination", "locale": "ru", "form": "", "value": "TAP TO WALL JUMP"},
+  {"key": "hero.ninja.destination", "locale": "ru", "form": "", "value": "НИНДЗЯ"},
   {"key": "hero.ninja.name", "locale": "ru", "form": "", "value": "Ниндзя"},
   {"key": "hero.ninja.type", "locale": "ru", "form": "", "value": "ПАРКУР"},
   {"key": "hero.pilot.ability", "locale": "ru", "form": "", "value": "РЫВОК"},
   {"key": "hero.pilot.description1", "locale": "ru", "form": "", "value": "КОРОТКИЙ БЫСТРЫЙ"},
   {"key": "hero.pilot.description2", "locale": "ru", "form": "", "value": "ВЗЛЁТ НА РАНЦЕ"},
-  {"key": "hero.pilot.destination", "locale": "ru", "form": "", "value": "WITH A JETPACK"},
+  {"key": "hero.pilot.destination", "locale": "ru", "form": "", "value": "КАПИТАНА"},
   {"key": "hero.pilot.name", "locale": "ru", "form": "", "value": "Капитан"},
   {"key": "hero.pilot.type", "locale": "ru", "form": "", "value": "БАЗОВЫЙ"},
   {"key": "hero.pirate.ability", "locale": "ru", "form": "", "value": "КРЮК"},
   {"key": "hero.pirate.description1", "locale": "ru", "form": "", "value": "КРЮК К ПЛАТФОРМЕ"},
   {"key": "hero.pirate.description2", "locale": "ru", "form": "", "value": "ИЛИ МОНЕТЕ, БЬЁТ МОБОВ"},
-  {"key": "hero.pirate.destination", "locale": "ru", "form": "", "value": "OR COIN, HITS MOBS"},
+  {"key": "hero.pirate.destination", "locale": "ru", "form": "", "value": "ПИРАТА"},
   {"key": "hero.pirate.name", "locale": "ru", "form": "", "value": "Пират"},
   {"key": "hero.pirate.type", "locale": "ru", "form": "", "value": "МАНЁВР"},
   {"key": "hero.robot.ability", "locale": "ru", "form": "", "value": "КОСМОЩИТ"},
   {"key": "hero.robot.description1", "locale": "ru", "form": "", "value": "ЩИТ 4 СЕК, СПАСЁТ"},
   {"key": "hero.robot.description2", "locale": "ru", "form": "", "value": "ОТ ПАДЕНИЯ"},
-  {"key": "hero.robot.destination", "locale": "ru", "form": "", "value": "YOU FROM FALLS"},
+  {"key": "hero.robot.destination", "locale": "ru", "form": "", "value": "РОБОТА"},
   {"key": "hero.robot.name", "locale": "ru", "form": "", "value": "Робот"},
   {"key": "hero.robot.type", "locale": "ru", "form": "", "value": "ЗАЩИТА"},
   {"key": "kick.line1", "locale": "ru", "form": "", "value": "АККАУНТ ОТКРЫТ"},
@@ -142,7 +142,7 @@ const seed = [
   {"key": "map.space.name", "locale": "ru", "form": "", "value": "КОСМОС"},
   {"key": "map.unlock_first", "locale": "ru", "form": "", "value": "СНАЧАЛА ОТКРОЙ {name}"},
   {"key": "menu.choose_hero", "locale": "ru", "form": "", "value": "ВЫБРАТЬ ГЕРОЯ"},
-  {"key": "menu.encyclopedia", "locale": "ru", "form": "", "value": "ЭНЦИКЛОПЕДИЯ"},
+  {"key": "menu.encyclopedia", "locale": "ru", "form": "", "value": "СПРАВОЧНИК"},
   {"key": "menu.friends", "locale": "ru", "form": "", "value": "ДРУЗЬЯ"},
   {"key": "menu.friends_soon", "locale": "ru", "form": "", "value": "Скоро в 0.9"},
   {"key": "menu.home", "locale": "ru", "form": "", "value": "ГЛАВНАЯ"},
@@ -325,37 +325,37 @@ const seed = [
   {"key": "hero.knight.ability", "locale": "en", "form": "", "value": "SLAM"},
   {"key": "hero.knight.description1", "locale": "en", "form": "", "value": "DIVE WITH SHIELD"},
   {"key": "hero.knight.description2", "locale": "en", "form": "", "value": "THEN SUPER JUMP"},
-  {"key": "hero.knight.destination", "locale": "en", "form": "", "value": "РЫЦАРЯ"},
+  {"key": "hero.knight.destination", "locale": "en", "form": "", "value": "KNIGHT"},
   {"key": "hero.knight.name", "locale": "en", "form": "", "value": "Knight"},
   {"key": "hero.knight.type", "locale": "en", "form": "", "value": "ATTACK"},
   {"key": "hero.mage.ability", "locale": "en", "form": "", "value": "TELEPORT"},
   {"key": "hero.mage.description1", "locale": "en", "form": "", "value": "WARP TO A SAFE"},
   {"key": "hero.mage.description2", "locale": "en", "form": "", "value": "PLATFORM ABOVE"},
-  {"key": "hero.mage.destination", "locale": "en", "form": "", "value": "МАГА"},
+  {"key": "hero.mage.destination", "locale": "en", "form": "", "value": "MAGE"},
   {"key": "hero.mage.name", "locale": "en", "form": "", "value": "Mage"},
   {"key": "hero.mage.type", "locale": "en", "form": "", "value": "TELEPORT"},
   {"key": "hero.ninja.ability", "locale": "en", "form": "", "value": "WALLS"},
   {"key": "hero.ninja.description1", "locale": "en", "form": "", "value": "GRAB LEDGES FOR 6S"},
   {"key": "hero.ninja.description2", "locale": "en", "form": "", "value": "TAP TO WALL JUMP"},
-  {"key": "hero.ninja.destination", "locale": "en", "form": "", "value": "НИНДЗЯ"},
+  {"key": "hero.ninja.destination", "locale": "en", "form": "", "value": "NINJA"},
   {"key": "hero.ninja.name", "locale": "en", "form": "", "value": "Ninja"},
   {"key": "hero.ninja.type", "locale": "en", "form": "", "value": "PARKOUR"},
   {"key": "hero.pilot.ability", "locale": "en", "form": "", "value": "DASH"},
   {"key": "hero.pilot.description1", "locale": "en", "form": "", "value": "SHORT FAST BOOST"},
   {"key": "hero.pilot.description2", "locale": "en", "form": "", "value": "WITH A JETPACK"},
-  {"key": "hero.pilot.destination", "locale": "en", "form": "", "value": "КАПИТАНА"},
+  {"key": "hero.pilot.destination", "locale": "en", "form": "", "value": "CAPTAIN"},
   {"key": "hero.pilot.name", "locale": "en", "form": "", "value": "Captain"},
   {"key": "hero.pilot.type", "locale": "en", "form": "", "value": "BASIC"},
   {"key": "hero.pirate.ability", "locale": "en", "form": "", "value": "HOOK"},
   {"key": "hero.pirate.description1", "locale": "en", "form": "", "value": "HOOK A PLATFORM"},
   {"key": "hero.pirate.description2", "locale": "en", "form": "", "value": "OR COIN, HITS MOBS"},
-  {"key": "hero.pirate.destination", "locale": "en", "form": "", "value": "ПИРАТА"},
+  {"key": "hero.pirate.destination", "locale": "en", "form": "", "value": "PIRATE"},
   {"key": "hero.pirate.name", "locale": "en", "form": "", "value": "Pirate"},
   {"key": "hero.pirate.type", "locale": "en", "form": "", "value": "MOBILITY"},
   {"key": "hero.robot.ability", "locale": "en", "form": "", "value": "SPACE SHIELD"},
   {"key": "hero.robot.description1", "locale": "en", "form": "", "value": "4S SHIELD SAVES"},
   {"key": "hero.robot.description2", "locale": "en", "form": "", "value": "YOU FROM FALLS"},
-  {"key": "hero.robot.destination", "locale": "en", "form": "", "value": "РОБОТА"},
+  {"key": "hero.robot.destination", "locale": "en", "form": "", "value": "ROBOT"},
   {"key": "hero.robot.name", "locale": "en", "form": "", "value": "Robot"},
   {"key": "hero.robot.type", "locale": "en", "form": "", "value": "DEFENSE"},
   {"key": "kick.line1", "locale": "en", "form": "", "value": "ACCOUNT OPEN"},
@@ -559,19 +559,27 @@ export class GameTranslations1795650000000 implements MigrationInterface {
         form text NOT NULL CHECK (form IN ('', 'one', 'few', 'many', 'other')),
         value text NOT NULL CHECK (char_length(value) BETWEEN 1 AND 300 AND btrim(value) <> ''),
         default_value text NOT NULL,
+        max_len integer NOT NULL CHECK (max_len BETWEEN 1 AND 300),
+        CHECK (char_length(value) <= max_len),
         updated_at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (key, locale, form),
         CHECK (public.game_translation_placeholders(value) = public.game_translation_placeholders(default_value))
       );
+      CREATE TABLE public.game_translation_settings (
+        singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+        default_locale text CHECK (default_locale IN ('ru', 'en'))
+      );
+      INSERT INTO public.game_translation_settings DEFAULT VALUES;
     `);
     await queryRunner.query(`
-      INSERT INTO public.game_translation (key, locale, form, value, default_value)
-      SELECT key, locale, form, value, value
+      INSERT INTO public.game_translation (key, locale, form, value, default_value, max_len)
+      SELECT key, locale, form, value, value, char_length(value)
       FROM jsonb_to_recordset($1::jsonb) AS rows(key text, locale text, form text, value text)
     `, [JSON.stringify(seed)]);
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query('DROP TABLE public.game_translation_settings');
     await queryRunner.query('DROP TABLE public.game_translation');
     await queryRunner.query('DROP FUNCTION public.game_translation_placeholders(text)');
   }
