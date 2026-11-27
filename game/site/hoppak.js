@@ -4415,6 +4415,7 @@
         }
         if (storedTok && N.sessTok && storedTok !== N.sessTok) {
           if (N.api) N.api.goMenu();
+        } else if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.serverSaysReplaced && PROFILE.serverSaysReplaced()) {
         } else if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
         else if (N.api) N.api.goMenu();
       } else if (ev === "kicked") {
@@ -5223,7 +5224,9 @@
       backoffMs: 5e3,
       retryTimer: 0,
       onlineBound: false,
-      tgTried: false
+      tgTried: false,
+      live: false
+      /* a profile was applied in this page load: the session is established */
     };
     function lsGet(k) {
       try {
@@ -5261,6 +5264,9 @@
     }
     function setToken(t) {
       lsSet(TOKEN_KEY, t);
+    }
+    function dropToken(used) {
+      if (!used || getToken() === used) setToken("");
     }
     function getRunQueue() {
       var q = readJson(QUEUE_KEY, []);
@@ -5371,6 +5377,7 @@
         if (res.data.token) setToken(res.data.token);
         P.st = "ready";
         applyProfile(res.data.profile);
+        if (P.api && P.api.sessionOk) P.api.sessionOk();
         if (res.data.merged && P.api && P.api.say) P.api.say("\u041F\u0420\u041E\u0413\u0420\u0415\u0421\u0421 \u041E\u0411\u042A\u0415\u0414\u0418\u041D\u0401\u041D");
         return res.data;
       });
@@ -5492,7 +5499,7 @@
         return r.json().catch(function() {
           return null;
         }).then(function(data) {
-          if (r.status === 401 && data && data.error === "SESSION_REPLACED") noteReplaced();
+          if (r.status === 401 && data && data.error === "SESSION_REPLACED") noteReplaced(token || "");
           return { status: r.status, ok: !!r.ok, data };
         });
       }).catch(function() {
@@ -5500,20 +5507,49 @@
         return { status: 0, ok: false, data: null };
       });
     }
-    function noteReplaced() {
+    function noteReplaced(usedTok) {
+      var cur = getToken();
+      if (usedTok && cur && cur !== usedTok) return;
+      if (!P.live) return;
       if (P.replaced) return;
       P.replaced = true;
       var tok = getToken();
       if (P.api && P.api.sessionReplaced) P.api.sessionReplaced();
       var done = tok ? flushRunsStep(tok, true) : Promise.resolve(null);
       Promise.resolve(done).then(function() {
-        setToken("");
-        ensureProfile();
+        dropToken(tok);
+        return ensureProfile();
+      }).then(function() {
+        P.replaced = false;
+      }, function() {
+        P.replaced = false;
       });
+    }
+    P.serverSaysReplaced = function() {
+      if (!P.live || P.replaced) return false;
+      noteReplaced(getToken());
+      return true;
+    };
+    P.recheck = function() {
+      if (!P.live || P.replaced) return;
+      var tok = getToken();
+      var t = Date.now();
+      if (!tok || t - (P.lastCheck || 0) < 3e3) return;
+      P.lastCheck = t;
+      req("GET", "/api/profile", void 0, tok);
+    };
+    try {
+      if (typeof document !== "undefined" && document.addEventListener) {
+        document.addEventListener("visibilitychange", function() {
+          if (document.visibilityState === "visible") P.recheck();
+        });
+      }
+    } catch (_eV) {
     }
     function applyProfile(prof, wRef, awarded, limited) {
       if (!prof) return;
       P.profile = prof;
+      P.live = true;
       writeJson(CACHE_KEY, prof);
       pruneConfirmedBuys(prof);
       var effectiveCoins = Math.max(0, (prof.coins || 0) - pendingSpend()) + queuedEst();
@@ -5604,7 +5640,12 @@
       if (tok) {
         return req("GET", "/api/profile", void 0, tok).then(function(res) {
           if (res.status === 401) {
-            setToken("");
+            var newer = getToken();
+            if (newer && newer !== tok && !P.adopted) {
+              P.adopted = true;
+              return ensureProfile(deferCoins);
+            }
+            dropToken(tok);
             return createGuest().then(function(made) {
               if (!made) return null;
               return finish2(made.token, made.profile);
@@ -5640,7 +5681,7 @@
           return;
         }
         if (res.status === 401) {
-          setToken("");
+          dropToken(tok);
           return;
         }
         if (res.status === 400) {
@@ -5748,7 +5789,7 @@
       }).then(function(res) {
         if (!res) return null;
         if (res.status === 401) {
-          setToken("");
+          dropToken(tok);
           if (!authRetried) {
             return ensureProfile().then(function() {
               var nt = getToken();

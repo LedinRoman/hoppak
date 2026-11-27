@@ -55,6 +55,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (!this.profiles || typeof token !== 'string' || !token) return null;
     try { return await this.profiles.identityForToken(token); } catch { return null; }
   }
+  /** The login behind this socket's token was replaced by another device: no seat, tell the client, close 4001. */
+  private denyReplaced(ws: Sock) {
+    this.log.log('ws: a replaced login tried to enter a room, refused (4001)');
+    this.rooms.send(ws, 'replaced', {});
+    try { ws.close(4001, 'replaced'); } catch { /* ignore */ }
+  }
   private seen(ws: Sock, room: string, d: any, screen: string) {
     const id = ws.sess && ws.sess.accountId;
     if (!id || !this.online) return;
@@ -155,9 +161,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
   @SubscribeMessage('create')
   async create(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
-    const idn = await this.identity(d?.pt);
+    const idn0 = await this.identity(d?.pt);
+    if (idn0 && 'replaced' in idn0) { this.denyReplaced(ws); return; }
+    const idn = idn0;
     this.guard(ws, () => {
-      if (idn) { ws.sess.accountId = idn.id; ws.sess.sessionId = idn.sessionId; }
+      if (idn) {
+        ws.sess.accountId = idn.id; ws.sess.sessionId = idn.sessionId;
+        /* One account = one player: seats of this account under any other (older) login are dropped first. */
+        this.rooms.kickAccount(idn.id, idn.sessionId);
+      }
       const hit = this.rooms.create(ws, this.roomName(idn, d), d?.kind, d?.g, idn?.id);
       if (idn && hit.player) hit.player.sessionId = idn.sessionId;
       this.attach(ws, hit);
@@ -167,9 +179,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   }
   @SubscribeMessage('join')
   async join(@ConnectedSocket() ws: Sock, @MessageBody() d: any) {
-    const idn = await this.identity(d?.pt);
+    const idn0 = await this.identity(d?.pt);
+    if (idn0 && 'replaced' in idn0) { this.denyReplaced(ws); return; }
+    const idn = idn0;
     this.guard(ws, () => {
-      if (idn) { ws.sess.accountId = idn.id; ws.sess.sessionId = idn.sessionId; }
+      if (idn) {
+        ws.sess.accountId = idn.id; ws.sess.sessionId = idn.sessionId;
+        /* One account = one player: seats of this account under any other (older) login are dropped first. */
+        this.rooms.kickAccount(idn.id, idn.sessionId);
+      }
       const hit = this.rooms.join(ws, d?.code, this.roomName(idn, d), d?.kind, d?.g, idn?.id);
       if (idn && hit.player) hit.player.sessionId = idn.sessionId;
       this.attach(ws, hit);

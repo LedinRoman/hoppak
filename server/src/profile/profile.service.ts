@@ -479,11 +479,15 @@ export class ProfileService {
     }
   }
 
-  async identityForToken(token: string | null): Promise<{ id: string; name: string; sessionId: string } | null> {
+  /** null = unknown token (offline guest); { replaced: true } = a token that a newer login has rotated out. */
+  async identityForToken(token: string | null): Promise<{ id: string; name: string; sessionId: string } | { replaced: true } | null> {
     if (!token || !this.players) return null;
     try {
       const p = await this.findByToken(token);
-      if (!p) return null;
+      if (!p) {
+        const prev = await this.players.findOne({ where: { previousTokenHash: hashToken(token) } });
+        return prev ? { replaced: true } : null;
+      }
       let first: string | null = null;
       let user: string | null = null;
       if (this.telegrams) {

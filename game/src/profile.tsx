@@ -282,8 +282,29 @@ var PROFILE: any = (function () {
     var tok = getToken();
     if (P.api && P.api.sessionReplaced) P.api.sessionReplaced();
     var done = tok ? flushRunsStep(tok, true) : Promise.resolve(null);
-    Promise.resolve(done).then(function () { dropToken(tok); ensureProfile(); });
+    Promise.resolve(done).then(function () { dropToken(tok); return ensureProfile(); }).then(function () { P.replaced = false; }, function () { P.replaced = false; });
   }
+  /* The game server refused a socket because its login was replaced (another device took the account). */
+  P.serverSaysReplaced = function () {
+    if (!P.live || P.replaced) return false;
+    noteReplaced(getToken());
+    return true;
+  };
+  /* Coming back to the app (a suspended phone Mini App): ask the server once whether this login is still the active one.
+     A replaced login answers SESSION_REPLACED and shows the banner, instead of staying silent until the next request. */
+  P.recheck = function () {
+    if (!P.live || P.replaced) return;
+    var tok = getToken();
+    var t = Date.now();
+    if (!tok || t - (P.lastCheck || 0) < 3000) return;
+    P.lastCheck = t;
+    req("GET", "/api/profile", undefined, tok);
+  };
+  try {
+    if (typeof document !== "undefined" && document.addEventListener) {
+      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") P.recheck(); });
+    }
+  } catch (_eV) {}
 
   function applyProfile(prof: any, wRef?: any, awarded?: number, limited?: string) {
     if (!prof) return;

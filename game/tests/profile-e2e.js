@@ -1313,7 +1313,18 @@ async function admin(base, body) {
       await poke(e1); await poke(e2);
       assert.strictEqual(await note(e1), false, '17e tab 1 no banner');
       assert.strictEqual(await note(e2), false, '17e tab 2 no banner');
-      for (const c of [ctxA, ctxB, ctxD, ctxE]) await c.close();
+      // f) a suspended app comes back: no takeover = nothing; after a takeover it learns it without any user action
+      const ctxF = await browser.createBrowserContext();
+      const f1 = await open(ctxF);
+      const wake = async (pg) => { await pg.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); await sleep(500); };
+      await wake(f1);
+      assert.strictEqual(await note(f1), false, '17f returning to the app with the active login: no banner');
+      const ctxG = await browser.createBrowserContext();
+      await open(ctxG);
+      await sleep(3200);
+      await wake(f1);
+      assert.strictEqual(await note(f1), true, '17f returning to a replaced app shows the banner');
+      for (const c of [ctxA, ctxB, ctxD, ctxE, ctxF, ctxG]) await c.close();
       console.log('PASS 17: banner only for a different client; same browser, reopen and stale token never self-kick');
     }
 

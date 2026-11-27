@@ -282,6 +282,7 @@ var NET: any = (function () {
       var storedTok = "";
       try { storedTok = (typeof PROFILE !== "undefined" && PROFILE && PROFILE.getToken) ? (PROFILE.getToken() || "") : ""; } catch (_e) {}
       if (storedTok && N.sessTok && storedTok !== N.sessTok) { if (N.api) N.api.goMenu(); }
+      else if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.serverSaysReplaced && PROFILE.serverSaysReplaced()) { /* banner + menu via profile */ }
       else if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
       else if (N.api) N.api.goMenu();
     } else if (ev === "kicked") {
