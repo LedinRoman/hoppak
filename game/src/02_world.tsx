@@ -540,7 +540,29 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
-  w.platforms.push(stampPlat(w, mkPlat(8, 0, LW - 16, "normal", 0)));
+  /* Opening row: a few normal-width platforms (early-game size), not one nearly full-width floor.
+     Fixed positions (no extra RNG), ~10 px gaps so they do not read as one bar.
+     Cover every solo / squad / net spawn X (22, 48, 74, 124) and mid-field solo at LW=180 (x=84). */
+  var startSpecs = [
+    { x: 16, w: 48 }, /* 16-64 covers 22-34 and 48-60 */
+    { x: 74, w: 40 }, /* 74-114 covers 74-86 and solo 84 */
+    { x: 124, w: 44 } /* 124-168 covers 124-136 */
+  ];
+  var startRow: any[] = [];
+  for (var si = 0; si < startSpecs.length; si++) {
+    var sx = startSpecs[si].x;
+    var startW = startSpecs[si].w;
+    if (sx < 2) sx = 2;
+    if (sx + startW > LW - 2) startW = (LW - 2) - sx;
+    if (startW < 24) {
+      startW = Math.min(44, LW - 4);
+      sx = Math.max(2, LW - 2 - startW);
+    }
+    var sp = stampPlat(w, mkPlat(sx, 0, startW, "normal", 0));
+    w.platforms.push(sp);
+    startRow.push(sp);
+  }
+  w.reachFrom = startRow.map(function (pl: any) { return { x: pl.x, w: pl.w }; });
   var xs = mode === "squad" ? [74, 22, 124, 48] : [Math.round(LW / 2) - 6];
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
   if (mode === "squad") {
