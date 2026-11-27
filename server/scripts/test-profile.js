@@ -546,7 +546,7 @@ async function testTelegramMerge() {
 }
 
 async function testAwardSeries() {
-  const { app, base, starts } = await startTestApp();
+  const { app, base, players, starts } = await startTestApp();
   process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
   try {
     assert.strictEqual(HEIGHT_AWARD_MIN, 100);
@@ -611,6 +611,25 @@ async function testAwardSeries() {
     assert.strictEqual(String(linked.data.profile.telegramId), '5150');
     assert.strictEqual(linked.data.profile.coins, 100);
     await prove('tg', linked.data.token);
+
+    const walletMax = 2147483647;
+    players.get(linked.data.profile.id).coins = walletMax - 2;
+    await primeRun(base, linked.data.token, 'full-wallet', starts, 400000);
+    const fullWallet = { runId: 'full-wallet', height: 100, runCoins: 0, bonusCoins: 0 };
+    const capped = await req(base, 'POST', '/api/run/finish', fullWallet, linked.data.token);
+    assert.strictEqual(capped.data.awarded, 2);
+    assert.strictEqual(capped.data.profile.coins, walletMax);
+    const repeated = await req(base, 'POST', '/api/run/finish', fullWallet, linked.data.token);
+    assert.strictEqual(repeated.data.duplicate, true);
+    assert.strictEqual(repeated.data.awarded, 2);
+
+    const guestToMerge = await req(base, 'POST', '/api/profile/guest');
+    players.get(guestToMerge.data.profile.id).coins = 100;
+    const merged = await req(base, 'POST', '/api/auth/telegram', {
+      initData: makeInitData(TEST_BOT_TOKEN, 5150),
+    }, guestToMerge.data.token);
+    assert.strictEqual(merged.data.mergedCoins, 0);
+    assert.strictEqual(merged.data.profile.coins, walletMax);
   } finally {
     delete process.env.TELEGRAM_BOT_TOKEN;
     await app.close();

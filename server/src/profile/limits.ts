@@ -3,6 +3,9 @@
 /** Max coins accepted in a one-time local-save migration. */
 export const MIGRATE_COINS_MAX = 8000;
 
+/** Upper bound of the PostgreSQL integer column used for the wallet. */
+export const WALLET_COINS_MAX = 2147483647;
+
 /** Highest height (metres) accepted from a run. Space has no goal; 20_000 is a hard cap. */
 export const RUN_HEIGHT_MAX = 20000;
 
