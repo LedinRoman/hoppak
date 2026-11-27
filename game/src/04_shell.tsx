@@ -855,6 +855,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (id === "set:language") { toggleGameLanguage(); try { document.documentElement.lang = gameLanguage(); } catch (_e) {} updateDesktopLanguage(); resize(); return; }
     if (id === "set:prof") { showSet = false; showProf = true; return; }
     if (id === "prof:close" || id === "prof:out") { showProf = false; return; }
+    if (id === "prof:login") {
+      if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.startTelegramWebLogin) PROFILE.startTelegramWebLogin();
+      return;
+    }
+    if (id === "prof:logout") {
+      if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.logoutWeb) PROFILE.logoutWeb();
+      return;
+    }
     if (id === "prof:card") return;
     if (id === "set") { showSet = !showSet; showProf = false; return; }
     if (id === "tilt") { toggleTilt(); return; }
@@ -1137,6 +1145,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     coinsLabel(x + 4, 51, save.coins, undefined, true);
     drawText(ctx, t('score.record', { n: save.best || 0 }), x + 148, 51, TYPECOL.primary, TYPE.M, "right");
   }
+  function webLoginAvailable() {
+    try {
+      var st = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState();
+      return !!(st && st.plainBrowser && !st.telegramId);
+    } catch (_e) { return false; }
+  }
+  function webLogoutAvailable() {
+    try {
+      var st = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState();
+      return !!(st && st.plainBrowser && st.cookieSession && st.telegramId);
+    } catch (_e) { return false; }
+  }
   function drawProfileCard() {
     hits = [];
     screenLay = [];
@@ -1144,7 +1164,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     addHit("prof:out", -40, -40, LW + 80, LH + 80);
     var x = colX();
     var linked = telegramLinked();
-    var h = linked ? 118 : 132;
+    var webLogin = !linked && webLoginAvailable();
+    var webLogout = linked && webLogoutAvailable();
+    var h = (linked ? 118 : 132) + (webLogin || webLogout ? 22 : 0);
     var y = Math.max(belowBand(), menuTop() + 28, 70);
     addHit("prof:card", x, y, 152, h);
     box(ctx, x, y, 152, h, C.navy, C.cream);
@@ -1170,7 +1192,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var entryY = y + 54;
     drawText(ctx, linked ? t('profile.telegram') : t('profile.guest'), x + 8, entryY, TYPECOL.primary, TYPE.M, "left");
     if (!linked) drawText(ctx, t('profile.local_progress'), x + 8, entryY + 12, TYPECOL.muted, TYPE.M, "left");
-    drawText(ctx, t('score.record', { n: save.best || 0 }), x + 8, y + h - 36, TYPECOL.accent, TYPE.M, "left");
+    var extraY = (webLogin || webLogout) ? 20 : 0;
+    drawText(ctx, t('score.record', { n: save.best || 0 }), x + 8, y + h - 36 - extraY, TYPECOL.accent, TYPE.M, "left");
+    if (webLogin) btn("prof:login", x + 8, y + h - 40, 136, 16, C.gold, t('profile.login_telegram'));
+    if (webLogout) btn("prof:logout", x + 8, y + h - 40, 136, 16, C.navy, t('profile.logout'));
     btn("prof:close", x + 26, y + h - 22, 100, 16, C.navy, t('common.close'));
   }
   function uiImgReady(key: string) {

@@ -26,7 +26,8 @@ const { CommentProfileSchema1795646000000 } = require('../dist/db/migrations/179
 const { SplitTelegramGeoOnlinePlausibility1795647000000 } = require('../dist/db/migrations/1795647000000-SplitTelegramGeoOnlinePlausibility');
 const { DropPlayerTelegramId1795648000000 } = require('../dist/db/migrations/1795648000000-DropPlayerTelegramId');
 const { SplitPlayerAuthStatsPresence1795649000000 } = require('../dist/db/migrations/1795649000000-SplitPlayerAuthStatsPresence');
-const { parseAndVerifyInitData, clipTelegramField } = require('../dist/profile/telegram');
+const { parseAndVerifyInitData, parseAndVerifyWidgetData, clipTelegramField, publicBotId, TELEGRAM_AUTH_MAX_AGE_SEC } = require('../dist/profile/telegram');
+const { SESSION_COOKIE, SESSION_MAX_AGE_SEC } = require('../dist/profile/auth');
 
 function clone(v) {
   return v == null ? v : JSON.parse(JSON.stringify(v));
@@ -197,9 +198,10 @@ async function primeRun(base, token, runId, starts, ms) {
   return s;
 }
 
-async function req(base, method, path, body, token) {
+async function req(base, method, path, body, token, opts) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (opts && opts.cookie) headers.Cookie = opts.cookie;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const r = await fetch(base + path, {
     method,
@@ -207,7 +209,10 @@ async function req(base, method, path, body, token) {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const data = await r.json().catch(() => null);
-  return { status: r.status, data };
+  const setCookie = typeof r.headers.getSetCookie === 'function'
+    ? r.headers.getSetCookie()
+    : (r.headers.get('set-cookie') ? [r.headers.get('set-cookie')] : []);
+  return { status: r.status, data, setCookie };
 }
 
 async function testWithoutDb() {
@@ -371,6 +376,12 @@ async function testProfileFlow() {
     const tg = await req(base, 'POST', '/api/auth/telegram', { initData: 'x' }, token);
     assert.strictEqual(tg.status, 503);
     assert.strictEqual(tg.data.error, 'TELEGRAM_AUTH_UNAVAILABLE');
+    const widgetOff = await req(base, 'POST', '/api/auth/telegram-widget', { id: '1', hash: '00' }, token);
+    assert.strictEqual(widgetOff.status, 503);
+    assert.strictEqual(widgetOff.data.error, 'TELEGRAM_AUTH_UNAVAILABLE');
+    const loginOff = await req(base, 'GET', '/api/auth/telegram-login');
+    assert.strictEqual(loginOff.status, 503);
+    assert.strictEqual(loginOff.data.error, 'TELEGRAM_AUTH_UNAVAILABLE');
   } finally {
     await app.close();
   }
@@ -1337,12 +1348,150 @@ async function testRunTelemetry() {
   console.log('PASS run telemetry (start, accepted finish, duplicate, zero metres, mode mapping)');
 }
 
+
+function makeWidgetData(botToken, userId, extra = {}) {
+  const auth_date = extra.auth_date != null ? String(extra.auth_date) : String(Math.floor(Date.now() / 1000));
+  const fields = { id: String(userId), first_name: extra.first_name || 'T', auth_date };
+  if (extra.last_name) fields.last_name = extra.last_name;
+  if (extra.username) fields.username = extra.username;
+  if (extra.photo_url) fields.photo_url = extra.photo_url;
+  const dataCheckString = Object.keys(fields).sort().map((k) => `${k}=${fields[k]}`).join('\n');
+  const secret = crypto.createHash('sha256').update(botToken, 'utf8').digest();
+  const hash = crypto.createHmac('sha256', secret).update(dataCheckString, 'utf8').digest('hex');
+  if (extra.badHash) {
+    const flip = hash[0] === 'a' ? 'b' : 'a';
+    return { ...fields, hash: flip + hash.slice(1) };
+  }
+  return { ...fields, hash };
+}
+
+function sessionLine(setCookie) {
+  const list = Array.isArray(setCookie) ? setCookie : [];
+  return list.find((line) => /^hoppak_session=/i.test(String(line))) || '';
+}
+
+function assertSessionCookie(setCookie, cleared) {
+  const line = sessionLine(setCookie);
+  assert.ok(line, 'Set-Cookie hoppak_session must be present');
+  assert.ok(/;\s*HttpOnly/i.test(line), 'cookie must be HttpOnly');
+  assert.ok(/;\s*Secure/i.test(line), 'cookie must be Secure');
+  assert.ok(/;\s*SameSite=Lax/i.test(line), 'cookie must be SameSite=Lax');
+  assert.ok(/;\s*Path=\//i.test(line), 'cookie Path must be /');
+  if (cleared) {
+    assert.ok(/;\s*Max-Age=0/i.test(line), 'cleared cookie Max-Age must be 0');
+    return '';
+  }
+  assert.ok(new RegExp(';\\s*Max-Age=' + SESSION_MAX_AGE_SEC + '(?:;|$)', 'i').test(line), 'cookie Max-Age');
+  const m = /^hoppak_session=([^;]+)/i.exec(line);
+  assert.ok(m && /^[0-9a-f]{64}$/i.test(m[1]), 'cookie value must be a session token');
+  assert.strictEqual(SESSION_COOKIE, 'hoppak_session');
+  return m[1];
+}
+
+async function testTelegramWidget() {
+  process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
+  const { app, base, players } = await startTestApp();
+  try {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const valid = makeWidgetData(TEST_BOT_TOKEN, 61001, { first_name: 'Roman', username: 'unit_widget_nick' });
+    const parsed = parseAndVerifyWidgetData(valid, TEST_BOT_TOKEN);
+    assert.strictEqual(parsed.telegramId, '61001');
+    assert.strictEqual(parsed.firstName, 'Roman');
+    assert.strictEqual(parsed.username, 'unit_widget_nick');
+
+    const bad = makeWidgetData(TEST_BOT_TOKEN, 61001, { first_name: 'Roman', badHash: true });
+    assert.throws(() => parseAndVerifyWidgetData(bad, TEST_BOT_TOKEN), (err) => err && err.getStatus && err.getStatus() === 401 && err.getResponse().error === 'INVALID_WIDGET_DATA');
+
+    const stale = makeWidgetData(TEST_BOT_TOKEN, 61001, { auth_date: nowSec - TELEGRAM_AUTH_MAX_AGE_SEC - 10 });
+    assert.throws(() => parseAndVerifyWidgetData(stale, TEST_BOT_TOKEN), (err) => err && err.getStatus && err.getStatus() === 401 && err.getResponse().error === 'EXPIRED_WIDGET_DATA');
+
+    const guest = await req(base, 'POST', '/api/profile/guest');
+    const gTok = guest.data.token;
+    const gId = guest.data.profile.id;
+    players.get(gId).coins = 1500;
+
+    const badHttp = await req(base, 'POST', '/api/auth/telegram-widget', bad, gTok);
+    assert.strictEqual(badHttp.status, 401);
+    assert.strictEqual(badHttp.data.error, 'INVALID_WIDGET_DATA');
+    assert.ok(!sessionLine(badHttp.setCookie), 'invalid hash must not set a session cookie');
+
+    const staleHttp = await req(base, 'POST', '/api/auth/telegram-widget', stale, gTok);
+    assert.strictEqual(staleHttp.status, 401);
+    assert.strictEqual(staleHttp.data.error, 'EXPIRED_WIDGET_DATA');
+    assert.ok(!sessionLine(staleHttp.setCookie), 'stale auth_date must not set a session cookie');
+
+    const linked = await req(base, 'POST', '/api/auth/telegram-widget', valid, gTok);
+    assert.strictEqual(linked.status, 201, 'widget link: ' + JSON.stringify(linked.data && { ok: linked.data.ok, error: linked.data.error, linked: linked.data.linked }));
+    assert.strictEqual(linked.data.linked, true);
+    assert.strictEqual(linked.data.session, 'cookie');
+    assert.strictEqual(linked.data.token, undefined, 'widget login must not return the raw token');
+    assert.strictEqual(linked.data.profile.telegramId, '61001');
+    assert.strictEqual(linked.data.profile.displayName, 'ROMAN');
+    const cookieVal = assertSessionCookie(linked.setCookie, false);
+
+    const viaCookie = await req(base, 'GET', '/api/profile', undefined, undefined, { cookie: SESSION_COOKIE + '=' + cookieVal });
+    assert.strictEqual(viaCookie.status, 200);
+    assert.strictEqual(viaCookie.data.profile.id, gId);
+    assert.strictEqual(viaCookie.data.profile.telegramId, '61001');
+    assert.strictEqual(viaCookie.data.token, undefined);
+
+    const guestViaCookie = await req(base, 'POST', '/api/profile/guest', undefined, undefined, { cookie: SESSION_COOKIE + '=' + cookieVal });
+    assert.strictEqual(guestViaCookie.status, 201);
+    assert.strictEqual(guestViaCookie.data.session, 'cookie');
+    assert.strictEqual(guestViaCookie.data.token, undefined, 'cookie session must not leak the token');
+    assert.strictEqual(guestViaCookie.data.profile.id, gId);
+
+    const g2 = await req(base, 'POST', '/api/profile/guest');
+    const g2id = g2.data.profile.id;
+    players.get(g2id).coins = 2000;
+    const merged = await req(base, 'POST', '/api/auth/telegram-widget', makeWidgetData(TEST_BOT_TOKEN, 61001, { first_name: 'Ro' }), g2.data.token);
+    assert.strictEqual(merged.status, 201, 'widget merge');
+    assert.strictEqual(merged.data.merged, true);
+    assert.strictEqual(merged.data.mergedCoins, 2000);
+    assert.strictEqual(merged.data.profile.id, gId);
+    assert.strictEqual(merged.data.profile.coins, 3500);
+    assert.strictEqual(merged.data.token, undefined);
+    const mergedCookie = assertSessionCookie(merged.setCookie, false);
+    const afterMerge = await req(base, 'GET', '/api/profile', undefined, undefined, { cookie: SESSION_COOKIE + '=' + mergedCookie });
+    assert.strictEqual(afterMerge.status, 200);
+    assert.strictEqual(afterMerge.data.profile.coins, 3500);
+
+    const oldCookie = await req(base, 'GET', '/api/profile', undefined, undefined, { cookie: SESSION_COOKIE + '=' + cookieVal });
+    assert.ok(oldCookie.status === 401 || oldCookie.status === 409, 'previous cookie must not stay valid after a later login');
+
+    const loggedOut = await req(base, 'POST', '/api/auth/logout', undefined, undefined, { cookie: SESSION_COOKIE + '=' + mergedCookie });
+    assert.strictEqual(loggedOut.status, 201);
+    assertSessionCookie(loggedOut.setCookie, true);
+    const afterLogout = await req(base, 'GET', '/api/profile', undefined, undefined, { cookie: SESSION_COOKIE + '=' + mergedCookie });
+    assert.strictEqual(afterLogout.status, 401);
+
+    process.env.TELEGRAM_BOT_TOKEN = '1234567:unit-test-bot-token-not-real';
+    assert.strictEqual(publicBotId(process.env.TELEGRAM_BOT_TOKEN), 1234567);
+    const cfg = await req(base, 'GET', '/api/auth/telegram-login');
+    assert.strictEqual(cfg.status, 200);
+    assert.strictEqual(cfg.data.botId, 1234567);
+    assert.strictEqual(cfg.data.botUsername, 'HoppakBot');
+    assert.ok(!JSON.stringify(cfg.data).includes('unit-test-bot-token-not-real'));
+    process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
+    const cfgMissing = await (async () => {
+      /* Placeholder tokens without id:secret are not a public bot id. */
+      return req(base, 'GET', '/api/auth/telegram-login');
+    })();
+    assert.strictEqual(cfgMissing.status, 503);
+  } finally {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    await app.close();
+  }
+  console.log('PASS telegram widget (hash, stale, merge, cookie flags, logout)');
+}
+
 (async () => {
   await testWithoutDb();
   await testRunTelemetry();
   await testProfileFlow();
   await testTelegramMerge();
   await testTelegramProfileFields();
+  await testTelegramWidget();
   await testAwardSeries();
   await testMigrationSql();
   await testPlausibilityAndSession();

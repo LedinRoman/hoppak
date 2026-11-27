@@ -8,6 +8,7 @@
 
 var PROFILE: any = (function () {
   var TOKEN_KEY = "hoppak_guest_token";
+  var COOKIE_FLAG = "hoppak_cookie_session";
   var QUEUE_KEY = "hoppak_profile_queue";
   var BUYS_KEY = "hoppak_profile_buys";
   var CACHE_KEY = "hoppak_profile_cache";
@@ -57,6 +58,97 @@ var PROFILE: any = (function () {
   /* Forget a token only if it is still the stored one: another tab of this same browser may already have logged in
      again and stored a newer token, which must survive (that is the same client, not a second device). */
   function dropToken(used: string) { if (!used || getToken() === used) setToken(""); }
+  function hasCookieSession(): boolean { return lsGet(COOKIE_FLAG) === "1"; }
+  function setCookieSession(on: boolean) { lsSet(COOKIE_FLAG, on ? "1" : ""); }
+  function hasSession(): boolean { return !!getToken() || hasCookieSession(); }
+  /* Mini App: Telegram.WebApp.initData or tgWebAppData in the URL. Plain browser gets the Login Widget. */
+  function isPlainBrowser(): boolean {
+    try {
+      var w: any = typeof window !== "undefined" ? window : null;
+      if (!w) return true;
+      var d = w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.initData;
+      if (typeof d === "string" && d) return false;
+      var q = String((w.location && w.location.search) || "") + String((w.location && w.location.hash) || "");
+      if (/tgWebAppData|tgWebAppPlatform/i.test(q)) return false;
+    } catch (_e) {}
+    return true;
+  }
+  function appBasePath(): string {
+    try {
+      var path = String((window as any).location && (window as any).location.pathname || "/");
+      if (/\/stage(\/|$)/.test(path)) return "/stage/";
+      if (/\/play(\/|$)/.test(path)) return "/play/";
+      var ver = path.match(/^(\/v\/[^/]+)\//);
+      if (ver) return ver[1] + "/";
+    } catch (_e) {}
+    return "/";
+  }
+  function widgetCallbackUrl(): string {
+    var origin = "";
+    try { origin = String(window.location.origin || ""); } catch (_e) {}
+    return origin + appBasePath().replace(/\/$/, "") + "/tg-auth";
+  }
+  function readWidgetAuthFromUrl(): any {
+    if (!isPlainBrowser()) return null;
+    try {
+      var loc: any = (window as any).location;
+      if (!loc) return null;
+      var path = String(loc.pathname || "");
+      var params = new URLSearchParams(String(loc.search || "").replace(/^\?/, ""));
+      var hashStr = String(loc.hash || "");
+      var fromHash = /(?:^|#|&)tgAuthResult=([A-Za-z0-9\-_=]+)/.exec(hashStr);
+      if (fromHash) {
+        var raw = fromHash[1].replace(/-/g, "+").replace(/_/g, "/");
+        var pad = raw.length % 4;
+        if (pad > 1) raw += "====".slice(0, 4 - pad);
+        var obj = JSON.parse((window as any).atob(raw));
+        if (obj && obj.hash && (obj.id != null) && obj.auth_date) return widgetBody(obj);
+      }
+      if (params.get("hash") && params.get("id") && params.get("auth_date")) {
+        return widgetBody({
+          id: params.get("id"),
+          first_name: params.get("first_name"),
+          last_name: params.get("last_name"),
+          username: params.get("username"),
+          photo_url: params.get("photo_url"),
+          auth_date: params.get("auth_date"),
+          hash: params.get("hash")
+        });
+      }
+      if (/\/tg-auth\/?$/.test(path) && params.get("hash")) return widgetBody({
+        id: params.get("id"),
+        first_name: params.get("first_name"),
+        last_name: params.get("last_name"),
+        username: params.get("username"),
+        photo_url: params.get("photo_url"),
+        auth_date: params.get("auth_date"),
+        hash: params.get("hash")
+      });
+    } catch (_e) {}
+    return null;
+  }
+  function widgetBody(src: any): any {
+    var out: any = {};
+    var keys = ["id", "first_name", "last_name", "username", "photo_url", "auth_date", "hash"];
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (src[k] != null && src[k] !== "") out[k] = String(src[k]);
+    }
+    if (!out.hash || !out.id || !out.auth_date) return null;
+    return out;
+  }
+  function cleanWidgetUrl() {
+    try {
+      var loc: any = (window as any).location;
+      if (!loc || !loc.replaceState && !(window as any).history) return;
+      var back = appBasePath();
+      try {
+        var stored = (window as any).sessionStorage && (window as any).sessionStorage.getItem("hoppak_tg_return");
+        if (stored && stored.charAt(0) === "/") back = stored;
+      } catch (_e0) {}
+      (window as any).history.replaceState({}, "", back);
+    } catch (_e) {}
+  }
 
   function getRunQueue(): any[] {
     var q = readJson(QUEUE_KEY, []);
@@ -181,6 +273,36 @@ var PROFILE: any = (function () {
     });
   }
 
+  function adoptCookieSession(res: any) {
+    if (!res || !res.ok || !res.data || !res.data.ok || !res.data.profile) return null;
+    setCookieSession(true);
+    dropToken(getToken());
+    lsSet(LOCK_KEY, "");
+    P.st = "ready";
+    applyProfile(res.data.profile);
+    if (P.api && P.api.sessionOk) P.api.sessionOk();
+    if (res.data.merged && P.api && P.api.say) P.api.say(t('profile.merged'));
+    return res.data;
+  }
+
+  function widgetAuth(token: string) {
+    var payload = readWidgetAuthFromUrl();
+    if (!payload) return Promise.resolve(null);
+    return req("POST", "/api/auth/telegram-widget", payload, token || "").then(function (res: any) {
+      cleanWidgetUrl();
+      var adopted = adoptCookieSession(res);
+      if (!adopted && P.api && P.api.say) {
+        var err = res && res.data && res.data.error;
+        P.api.say(err === "TELEGRAM_AUTH_UNAVAILABLE" ? t('profile.login_unavailable') : t('profile.login_failed'));
+      }
+      return adopted;
+    }, function () {
+      cleanWidgetUrl();
+      if (P.api && P.api.say) P.api.say(t('profile.login_failed'));
+      return null;
+    });
+  }
+
   function makeRunId(): string {
     var r = "";
     try {
@@ -256,7 +378,13 @@ var PROFILE: any = (function () {
     if (token) headers["Authorization"] = "Bearer " + token;
     var sameOrig = false;
     try { sameOrig = typeof window !== "undefined" && window.location && window.location.origin === base; } catch (_e0) {}
-    var opts: any = { method: method, headers: headers, cache: "no-store", mode: sameOrig ? "same-origin" : "cors" };
+    var opts: any = {
+      method: method,
+      headers: headers,
+      cache: "no-store",
+      mode: sameOrig ? "same-origin" : "cors",
+      credentials: "include"
+    };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
@@ -326,7 +454,7 @@ var PROFILE: any = (function () {
     if (!P.live || isLocked()) return;
     var tok = getToken();
     var nowMs = Date.now();
-    if (!tok || nowMs - (P.lastCheck || 0) < 3000) return;
+    if (!hasSession() || nowMs - (P.lastCheck || 0) < 3000) return;
     P.lastCheck = nowMs;
     req("GET", "/api/profile", undefined, tok);
   };
@@ -340,7 +468,7 @@ var PROFILE: any = (function () {
   P.beat = function () {
     if (!P.live || isLocked()) return;
     var tok = getToken();
-    if (!tok) return;
+    if (!hasSession()) return;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     req("POST", "/api/profile/seen", { v: "0.6rc", p: tgPlatform() }, tok);
   };
@@ -348,11 +476,13 @@ var PROFILE: any = (function () {
     if (!P.live || isLocked()) return;
     var tok = getToken();
     var base = apiOrigin();
-    if (!tok || !base || typeof fetch === "undefined") return;
+    if (!hasSession() || !base || typeof fetch === "undefined") return;
     try {
+      var headers: any = { "Content-Type": "application/json" };
+      if (tok) headers["Authorization"] = "Bearer " + tok;
       fetch(base + "/api/profile/seen", {
-        method: "POST", keepalive: true, cache: "no-store",
-        headers: { "Authorization": "Bearer " + tok, "Content-Type": "application/json" },
+        method: "POST", keepalive: true, cache: "no-store", credentials: "include",
+        headers: headers,
         body: JSON.stringify({ exit: true }),
       }).catch(function () {});
     } catch (_eX) {}
@@ -489,6 +619,21 @@ var PROFILE: any = (function () {
         return finish(tok, res.data.profile);
       });
     }
+    if (isPlainBrowser()) {
+      return req("GET", "/api/profile").then(function (res: any) {
+        if (isLocked()) return null;
+        if (res.ok && res.data && res.data.ok && res.data.profile) {
+          setCookieSession(true);
+          dropToken(getToken());
+          return finish("", res.data.profile);
+        }
+        setCookieSession(false);
+        return createGuest().then(function (made: any) {
+          if (!made) return null;
+          return finish(made.token, made.profile);
+        });
+      });
+    }
     return createGuest().then(function (made: any) {
       if (!made) return null;
       return finish(made.token, made.profile);
@@ -496,7 +641,7 @@ var PROFILE: any = (function () {
   }
 
   function syncRecords(tok: string): Promise<void> {
-    if (!tok || isLocked()) return Promise.resolve();
+    if (isLocked() || (!tok && !hasCookieSession())) return Promise.resolve();
     return req("POST", "/api/profile/campaign", localCampaign(), tok).then(function (res: any) {
       if (isLocked()) return;
       if (res.status === 404 || res.status === 405 || res.status === 501) return;
@@ -507,7 +652,7 @@ var PROFILE: any = (function () {
   function flushBuysOnce(tok: string): Promise<void> {
     if (isLocked() || P.buySupported === false) return Promise.resolve();
     var buys = getPendingBuys();
-    if (!buys.length || !tok) return Promise.resolve();
+    if (!buys.length || (!tok && !hasCookieSession())) return Promise.resolve();
     var item = buys[0];
     return req("POST", "/api/profile/buy", { key: item.key }, tok).then(function (res: any) {
       if (isLocked() || replaced(res.status, res.data)) return;
@@ -568,7 +713,7 @@ var PROFILE: any = (function () {
       if (res && (res.status === 404 || res.status === 405 || res.status === 501)) return "skip";
       if (res && res.status === 401) return "auth";
       if (isLocked()) return "locked";
-      if (!tok) return "later";
+      if (!tok && !hasCookieSession()) return "later";
       return postStart(head.runId, head.map || "", head.hero, tok).then(function (again: any) {
         if (startDone[head.runId]) { markStarted(head.runId); return "ok"; }
         if (again && (again.status === 404 || again.status === 405 || again.status === 501)) return "skip";
@@ -624,7 +769,7 @@ var PROFILE: any = (function () {
         if (!authRetried) {
           return ensureProfile().then(function () {
             var nt = getToken();
-            return nt ? flushRunsStep(nt, true) : null;
+            return (nt || hasCookieSession()) ? flushRunsStep(nt, true) : null;
           });
         }
         return null;
@@ -665,16 +810,16 @@ var PROFILE: any = (function () {
   }
 
   function flushAll(allowInit: boolean) {
-    if (isLocked()) return getToken() ? flushRunsStep(getToken(), true) : Promise.resolve(null);
+    if (isLocked()) return hasSession() ? flushRunsStep(getToken(), true) : Promise.resolve(null);
     var base = apiOrigin();
     if (!base || typeof fetch === "undefined") {
       P.st = "offline";
       return Promise.resolve(null);
     }
     var tok = getToken();
-    var ready = tok ? Promise.resolve(tok) : (allowInit ? ensureProfile().then(function () { return getToken(); }) : Promise.resolve(""));
+    var ready = hasSession() ? Promise.resolve(tok) : (allowInit ? ensureProfile().then(function () { return getToken(); }) : Promise.resolve(""));
     return ready.then(function (t: string) {
-      if (!t) {
+      if (!t && !hasCookieSession()) {
         if (getRunQueue().length || getPendingBuys().length) {
           markQueued("OFFLINE");
           var wait = P.backoffMs;
@@ -743,12 +888,16 @@ var PROFILE: any = (function () {
         }
         return flushAll(false).then(function () {
           if (isLocked()) return null;
-          if (prof.telegramId) return syncMigrate(getToken(), P.profile || prof);
-          return tryTelegramAuth(getToken()).then(function (auth: any) {
-            /* Apply the merged profile with the campaign records captured before Telegram auth. */
-            if (auth && auth.merged) return syncCampaign(getToken(), auth.profile || P.profile, campSnap);
-            return syncMigrate(getToken(), (auth && auth.profile) || P.profile || prof);
-          });
+          var afterAuth = function (auth: any) {
+            var tok = getToken();
+            if (auth && auth.merged) return syncCampaign(tok, auth.profile || P.profile, campSnap);
+            return syncMigrate(tok, (auth && auth.profile) || P.profile || prof);
+          };
+          if (isPlainBrowser() && readWidgetAuthFromUrl()) {
+            return widgetAuth(getToken()).then(afterAuth);
+          }
+          if (prof.telegramId || hasCookieSession()) return syncMigrate(getToken(), P.profile || prof);
+          return tryTelegramAuth(getToken()).then(afterAuth);
         });
       });
     });
@@ -758,7 +907,7 @@ var PROFILE: any = (function () {
     if (isLocked()) return "";
     var id = makeRunId();
     var tok = getToken();
-    if (tok) startInflight[id] = postStart(id, map || "", hero, tok);
+    if (tok || hasCookieSession()) startInflight[id] = postStart(id, map || "", hero, tok);
     return id;
   };
 
@@ -804,9 +953,9 @@ var PROFILE: any = (function () {
       var base = apiOrigin();
       if (!base || typeof fetch === "undefined") { P.st = "offline"; return null; }
       var tok = getToken();
-      var ready = tok ? Promise.resolve(tok) : ensureProfile().then(function () { return getToken(); });
+      var ready = hasSession() ? Promise.resolve(tok) : ensureProfile().then(function () { return getToken(); });
       return ready.then(function (t: string) {
-        if (!t) return null;
+        if (!t && !hasCookieSession()) return null;
         return flushBuysOnce(t);
       });
     });
@@ -819,7 +968,7 @@ var PROFILE: any = (function () {
   P.getToken = getToken;
   P.apiOrigin = apiOrigin;
   P.cachedCoins = function () {
-    var cached = getToken() && readJson(CACHE_KEY, null);
+    var cached = hasSession() && readJson(CACHE_KEY, null);
     return cached && typeof cached.coins === "number" ? Math.max(0, cached.coins) : 0;
   };
   P.computeAward = computeAward;
@@ -830,7 +979,7 @@ var PROFILE: any = (function () {
     return {
       st: P.st,
       profile: prof,
-      tokenPresent: !!getToken(),
+      tokenPresent: !!getToken() || hasCookieSession(),
       queueLen: getRunQueue().length,
       pendingBuysLen: getPendingBuys().length,
       pendingSpend: pendingSpend(),
@@ -838,8 +987,58 @@ var PROFILE: any = (function () {
       buySupported: P.buySupported,
       apiOrigin: apiOrigin(),
       tgTried: !!P.tgTried,
-      telegramId: prof && prof.telegramId ? String(prof.telegramId) : ""
+      telegramId: prof && prof.telegramId ? String(prof.telegramId) : "",
+      cookieSession: hasCookieSession(),
+      plainBrowser: isPlainBrowser()
     };
+  };
+  P.isPlainBrowser = isPlainBrowser;
+  P.hasCookieSession = hasCookieSession;
+  P.startTelegramWebLogin = function () {
+    if (!isPlainBrowser() || isLocked()) return;
+    if (P.tgWebStarting) return;
+    P.tgWebStarting = true;
+    try {
+      if ((window as any).sessionStorage) (window as any).sessionStorage.setItem("hoppak_tg_return", appBasePath());
+    } catch (_e) {}
+    req("GET", "/api/auth/telegram-login").then(function (res: any) {
+      if (!res.ok || !res.data || !res.data.botId) {
+        P.tgWebStarting = false;
+        if (P.api && P.api.say) P.api.say(t('profile.login_unavailable'));
+        return;
+      }
+      var origin = "";
+      try { origin = String(window.location.origin || ""); } catch (_e1) {}
+      var url = "https://oauth.telegram.org/auth"
+        + "?bot_id=" + encodeURIComponent(String(res.data.botId))
+        + "&origin=" + encodeURIComponent(origin)
+        + "&return_to=" + encodeURIComponent(widgetCallbackUrl())
+        + "&request_access=write";
+      (window as any).location.href = url;
+    }, function () {
+      P.tgWebStarting = false;
+      if (P.api && P.api.say) P.api.say(t('profile.login_failed'));
+    });
+  };
+  P.logoutWeb = function () {
+    if (!isPlainBrowser() || isLocked()) return Promise.resolve(null);
+    return enqueue(function () {
+      return req("POST", "/api/auth/logout").then(function () {
+        setCookieSession(false);
+        dropToken(getToken());
+        P.live = false;
+        return createGuest().then(function (made: any) {
+          if (!made) return null;
+          P.st = "ready";
+          applyProfile(made.profile);
+          return made;
+        });
+      }, function () {
+        setCookieSession(false);
+        dropToken(getToken());
+        return null;
+      });
+    });
   };
   return P;
 })();

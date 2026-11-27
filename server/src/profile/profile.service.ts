@@ -8,7 +8,7 @@ import { RunStart } from './run-start.entity';
 import { RulesPlausibility } from './rules-plausibility.entity';
 import { SuspiciousRun } from './suspicious-run.entity';
 import { hashToken, newGuestToken } from './auth';
-import { parseAndVerifyInitData, VerifiedTelegramInitData } from './telegram';
+import { parseAndVerifyInitData, parseAndVerifyWidgetData, VerifiedTelegramInitData } from './telegram';
 import { bucketFor, plausBuckets, PlausRule } from './plausibility';
 import { displayName } from './display-name';
 import { countryOfIp, originLanguage } from './geo';
@@ -368,16 +368,49 @@ export class ProfileService {
     });
   }
 
-  async authTelegram(
-    guestToken: string | null,
-    initData: unknown,
-  ): Promise<{ token: string; profile: PublicProfile; linked: boolean; merged?: boolean; mergedCoins?: number }> {
-    const repo = this.requireDb();
+  private requireBotToken(): string {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
       throw new HttpException({ ok: false, error: 'TELEGRAM_AUTH_UNAVAILABLE' }, HttpStatus.SERVICE_UNAVAILABLE);
     }
-    const verified = parseAndVerifyInitData(initData, botToken);
+    return botToken;
+  }
+
+  async authTelegram(
+    guestToken: string | null,
+    initData: unknown,
+  ): Promise<{ token: string; profile: PublicProfile; linked: boolean; merged?: boolean; mergedCoins?: number }> {
+    const verified = parseAndVerifyInitData(initData, this.requireBotToken());
+    return this.completeTelegramAuth(guestToken, verified);
+  }
+
+  async authTelegramWidget(
+    guestToken: string | null,
+    body: unknown,
+  ): Promise<{ token: string; profile: PublicProfile; linked: boolean; merged?: boolean; mergedCoins?: number }> {
+    const verified = parseAndVerifyWidgetData(body, this.requireBotToken());
+    return this.completeTelegramAuth(guestToken, verified);
+  }
+
+  /** Invalidate the current bearer/cookie value. Logout also drops previousTokenHash so the old value cannot finish a run. */
+  async revokeSession(token: string): Promise<void> {
+    if (!token) return;
+    const repo = this.requireDb();
+    const hash = hashToken(token);
+    const found = await repo.findOne({ where: { auth: { tokenHash: hash } } })
+      || await repo.findOne({ where: { auth: { previousTokenHash: hash } } });
+    if (!found) return;
+    this.rotateSession(found);
+    found.previousTokenHash = null;
+    found.previousTokenAt = null;
+    await repo.save(found);
+  }
+
+  private async completeTelegramAuth(
+    guestToken: string | null,
+    verified: VerifiedTelegramInitData,
+  ): Promise<{ token: string; profile: PublicProfile; linked: boolean; merged?: boolean; mergedCoins?: number }> {
+    const repo = this.requireDb();
     const { telegramId } = verified;
     const tokenHash = guestToken ? hashToken(guestToken) : null;
 

@@ -111,7 +111,39 @@ Credit coins after a completed run (note path: `/api/run/finish`, not `/api/prof
   - If the current guest is already linked to a different `telegramId` → `409` `GUEST_ALREADY_LINKED`.
   - Otherwise the guest is linked (`linked: true`, same token), or a new Telegram player is created when there is no guest.
 - **Client:** on `merged: true`, a one-shot toast `ПРОГРЕСС ОБЪЕДИНЁН`. `initData` is sent only to this endpoint and is not logged.
-- **Client:** When `window.Telegram.WebApp.initData` is non-empty (Mini App), the client calls this once per session after the guest profile is ready, stores the returned token/profile, and on any error stays on the guest profile without retrying. The game HTML does not load `telegram-web-app.js` (plain web builds stay unchanged).
+- **Client:** When `window.Telegram.WebApp.initData` is non-empty (Mini App), the client calls this once per session after the guest profile is ready, stores the returned token/profile, and on any error stays on the guest profile without retrying. The game HTML does not load `telegram-web-app.js` (plain web builds stay unchanged). The Mini App session stays in `localStorage` (`hoppak_guest_token`) and is sent as `Authorization: Bearer`.
+
+### `POST /api/auth/telegram-widget`
+
+Browser Telegram Login Widget / `oauth.telegram.org` redirect (plain website, not the Mini App).
+
+- **Auth:** Optional `Authorization: Bearer <guest-token>` so a guest can be linked or merged. After success the API also accepts the session cookie on every profile route (`Bearer` still wins if both are present).
+- **Request body:** `{ "id", "first_name", "last_name?", "username?", "photo_url?", "auth_date", "hash" }` as returned by the widget. The hash is never logged.
+- **Verification:** `data_check_string` is the received fields except `hash`, sorted, `key=value` joined by `\n`. `secret_key = SHA256(bot_token)`, then `hex(HMAC_SHA256(data_check_string, secret_key))` must match `hash` (timing-safe). `auth_date` older than 24 h → `401` `EXPIRED_WIDGET_DATA`; bad or future data → `401` `INVALID_WIDGET_DATA`. No `TELEGRAM_BOT_TOKEN` → `503` `TELEGRAM_AUTH_UNAVAILABLE`.
+- **Account:** the same upsert, guest→Telegram merge and session rotation as `POST /api/auth/telegram`.
+- **Session cookie:** `Set-Cookie: hoppak_session=<token>; Max-Age=2592000; Path=/; HttpOnly; Secure; SameSite=Lax`. The raw token is **not** returned in the JSON body (`session: "cookie"`).
+- **Client:** shown only in the plain browser (no `initData` / `tgWebAppData`). After a redirect back to `/tg-auth` (on staging `/stage/tg-auth`, on prod also `/play/tg-auth`) the game posts this endpoint, drops the guest token from `localStorage`, and keeps a non-secret flag `hoppak_cookie_session`. Logout is `POST /api/auth/logout` (clears the cookie, revokes the server session, returns to a new guest).
+
+### `GET /api/auth/telegram-login`
+
+Public bot id and username for the `oauth.telegram.org/auth` redirect (`{ ok, botId, botUsername }`). The bot token is never returned. `503` `TELEGRAM_AUTH_UNAVAILABLE` when the token is missing or not in `id:secret` shape. Username defaults to `HoppakBot` or `TELEGRAM_BOT_USERNAME`.
+
+### `POST /api/auth/logout`
+
+Clears `hoppak_session` (`Max-Age=0`, same flags as above) and invalidates that session on the server when it is still valid.
+
+### BotFather domain (Roman)
+
+The legacy Login Widget is tied to **one exact domain** per bot (`/setdomain`). Official docs do not say that a parent domain covers a subdomain, and `staging.76-13-250-251.sslip.io` is a different host from `76-13-250-251.sslip.io`. Setting the parent will **not** enable staging.
+
+1. Open @BotFather in Telegram.
+2. Send `/setdomain`, pick **@HoppakBot**.
+3. Send the host **without** `https://` and without a path:
+   - to test on staging: `staging.76-13-250-251.sslip.io`
+   - at prod release: `76-13-250-251.sslip.io`
+4. Wait for the confirmation. Changing the domain replaces the previous one; after the switch to prod, staging login stops working unless the domain is set back (or a second bot is used).
+
+Do **not** switch this bot to OpenID Connect in BotFather: that permanently disables the legacy widget, and this build verifies the widget HMAC with the existing `TELEGRAM_BOT_TOKEN`.
 
 ### Error Codes (`2284797`)
 

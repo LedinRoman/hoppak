@@ -37,6 +37,8 @@
 	}
 
 	# Profile API (hs-profile). Must stay before handle /api/*.
+	# /api/auth/* covers POST /api/auth/telegram, /telegram-widget, /logout and GET /telegram-login.
+	# Browser Login Widget callback is /stage/tg-auth (try_files below falls through to the game shell).
 	@profile_api path /api/profile /api/profile/* /api/run/* /api/auth/* /api/translations /api/config/visual /api/admin/*
 	handle @profile_api {
 		reverse_proxy profile:8787
