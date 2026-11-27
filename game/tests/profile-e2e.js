@@ -1023,6 +1023,7 @@ async function admin(base, body) {
       const ctx = await browser.createBrowserContext();
       const pg = await ctx.newPage();
       await pg.setViewport({ width: 390, height: 600, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+      await pg.evaluateOnNewDocument(() => localStorage.setItem('hoppak.language', 'ru'));
       pg.on('pageerror', (e) => errs.push('v061 pageerror: ' + e.message));
       await pg.goto(base + '/index.html');
       await pg.waitForFunction(() => window.__hoppak && window.__hoppak.auditReach);
