@@ -399,11 +399,11 @@ var BUBBLE = {
 /* Campaign maps: open the next one by reaching `goal` m here AND paying its price.
    mobs: [kind, from metres] */
 var MAPS: any[] = [
-  { id: "city", name: "ГОРОД", price: 0, goal: 500, special: "", mobs: [["blob", 180], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
-  { id: "jungle", name: "ДЖУНГЛИ", price: 80, goal: 700, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
-  { id: "ice", name: "ЛЕДНИК", price: 100, goal: 900, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
-  { id: "lava", name: "ВУЛКАН", price: 120, goal: 1100, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
-  { id: "aqua", name: "ОКЕАН", price: 140, goal: 1300, special: "bubble", mobs: [["crab", 120], ["ray", 350], ["bob", 700], ["puffer", 1100], ["whirl", 1600]] },
+  { id: "city", name: "ГОРОД", price: 0, goal: 2000, special: "", mobs: [["blob", 120], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
+  { id: "jungle", name: "ДЖУНГЛИ", price: 80, goal: 2000, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
+  { id: "ice", name: "ЛЕДНИК", price: 100, goal: 2000, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
+  { id: "lava", name: "ВУЛКАН", price: 120, goal: 2000, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
+  { id: "aqua", name: "ОКЕАН", price: 140, goal: 2000, special: "bubble", mobs: [["crab", 120], ["ray", 350], ["bob", 700], ["puffer", 1100], ["whirl", 1600]] },
   { id: "space", name: "КОСМОС", price: 160, goal: 0, special: "grav", mobs: [["alien", 120], ["ufo", 400], ["comet", 800], ["hole", 1300]] }
 ];
 /* mob kinds. b = behaviour; plat = stands on a platform; gap = min vertical gap (px) it needs */
@@ -546,8 +546,8 @@ function loadSave() {
   s.music = s.vol; s.sfxVol = s.vol; s.musicOn = s.audioOn; s.sfx = s.audioOn;
   masterVol = s.vol; audioOn = !!s.audioOn;
   sfxVol = masterVol; musicVol = masterVol; sfxOn = audioOn; musicOn = audioOn;
-  /* TEMPORARY: background contrast (Settings). Invalid / missing → 100. */
-  if (typeof s.bgContrast !== "number") s.bgContrast = 100;
+  /* TEMPORARY: background contrast (Settings). Invalid / missing → 83. */
+  if (typeof s.bgContrast !== "number") s.bgContrast = 83;
   s.bgContrast = snapBgContrast(s.bgContrast);
   bgContrastPct = s.bgContrast;
   return s;
@@ -879,10 +879,11 @@ function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: 
 
 /* TEMPORARY (Nov 2026): Settings "Контраст фона" / Background contrast.
    Roman wants to try quieter backgrounds. Remove once the test is done.
-   Affects only drawBg layers (sky, parallax, horizons, floor). Heroes, platforms,
-   mobs, bonuses and UI stay untouched. Default 100 = current look. */
-var BG_CONTRAST_STEPS = [40, 55, 70, 85, 100];
-var bgContrastPct = 100;
+   Affects only drawBg layers (sky, parallax, horizons, floor). Heroes and UI
+   stay untouched. Default 83. Platforms and mobs use a separate 95% pass. */
+var BG_CONTRAST_STEPS = [40, 55, 70, 83, 100];
+var bgContrastPct = 83;
+var SPRITE_CONTRAST = 95;
 function applyBgContrast(ctx: Ctx, fn: any) {
   var p = bgContrastPct;
   if (!(p < 100)) { fn(); return; }
@@ -892,8 +893,17 @@ function applyBgContrast(ctx: Ctx, fn: any) {
   fn();
   ctx.restore();
 }
+function applySpriteContrast(ctx: Ctx, fn: any) {
+  var p = SPRITE_CONTRAST;
+  if (!(p < 100)) { fn(); return; }
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.filter = "saturate(" + p + "%) contrast(" + p + "%)";
+  fn();
+  ctx.restore();
+}
 function snapBgContrast(pct: number) {
-  var best = 100, bd = 1e9;
+  var best = 83, bd = 1e9;
   for (var i = 0; i < BG_CONTRAST_STEPS.length; i++) {
     var d = Math.abs(BG_CONTRAST_STEPS[i] - pct);
     if (d < bd) { bd = d; best = BG_CONTRAST_STEPS[i]; }

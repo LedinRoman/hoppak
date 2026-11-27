@@ -196,7 +196,7 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
       var canHang = false;
       for (var hi = 0; hi < row.length; hi++) {
         var hp = row[hi];
-        if (!isPerm(hp.type) || hp.broken || hp.w < M.w + 4) continue;
+        if (!isPerm(hp.type) || hp.broken || hp.spring || hp.type === "bounce" || hp.w < M.w + 4) continue;
         if (spaceBelow(w, hp, hp.x + 2, M.w) >= 22) { canHang = true; break; }
       }
       if (!canHang) continue;
@@ -224,7 +224,7 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
   var M2 = MOBS[kind];
   w.lastMobRow[kind] = w.rowN;
   if (M2.b === "snake") {
-    var hangs = row.filter(function (p: any) { return isPerm(p.type) && !p.broken && p.w >= M2.w + 4 && spaceBelow(w, p, p.x + 2, M2.w) >= 22; });
+    var hangs = row.filter(function (p: any) { return isPerm(p.type) && !p.broken && !p.spring && p.type !== "bounce" && p.w >= M2.w + 4 && spaceBelow(w, p, p.x + 2, M2.w) >= 22; });
     if (!hangs.length) return false;
     var hs = hangs[Math.floor(r() * hangs.length)];
     var sx = hs.x + randInt(r, 1, Math.max(1, hs.w - M2.w - 1));
@@ -369,7 +369,7 @@ function genRow(w: any) {
   if (minG > maxG) minG = maxG;
   var gap = randInt(r, minG, maxG);
 
-  var pMon = m < 180 ? 0 : m < 400 ? 0.045 : lerp(0.07, 0.26, d);
+  var pMon = m < 120 ? 0 : m < 400 ? 0.085 : lerp(0.13, 0.26, d);
   var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
   var bonus = false;
   if (!mob && m >= w.nextBonusM && gap >= 26) {

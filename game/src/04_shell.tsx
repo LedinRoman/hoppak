@@ -378,6 +378,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function mapOpen(i: number) { return i === 0 || !!save.owned["map:" + MAPS[i].id]; }
   function mapBest(i: number) { return save.mapBest[MAPS[i].id] || 0; }
   function mapGoalMet(i: number) { return i > 0 && mapOpen(i - 1) && mapBest(i - 1) >= MAPS[i - 1].goal; }
+  /* Campaign 2000 m line and results goal are solo-only. Co-op (online or bots) must not show it. */
+  function showRunGoal() { return mode !== "squad" && !(world && world.net); }
   function openMaps() { var o: string[] = []; for (var i = 0; i < MAPS.length; i++) if (mapOpen(i)) o.push(MAPS[i].id); return o; }
   function heroOwned(i: number) { return CHARS[i].price === 0 || !!save.owned["char:" + i]; }
   function mapTip(id: string) {
@@ -920,7 +922,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, bx, by, bw, 1, on ? C.cream : "#5a5668");
     rect(ctx, bx + Math.min(bw - 1, fw), by - 1, 1, 7, C.gold);
   }
-  /* TEMPORARY: background contrast row (Settings only). Five snap steps: 40/55/70/85/100. */
+  /* TEMPORARY: background contrast row (Settings only). Five snap steps: 40/55/70/83/100. Default 83. */
   function contrastRow(x: number, y: number, w: number) {
     drawText(ctx, "КОНТРАСТ ФОНА", x, y, TYPECOL.primary, TYPE.M, "left");
     drawText(ctx, bgContrastPct + "%", x + w, y, TYPECOL.muted, TYPE.M, "right");
@@ -1223,9 +1225,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawMenuPlat(x: number, y: number, w: number, map?: string) {
     var id = mapInfo(map || (save && save.bg) || "city").id;
-    if (typeof drawPlat64 === "function" && drawPlat64(ctx, { type: "normal", w: w }, x, y, w, id, 0)) return true;
-    rect(ctx, x, y, w, 5, C.wood); rect(ctx, x, y + 4, w, 2, C.woodD); rect(ctx, x, y, w, 1, C.edge);
-    return false;
+    var ok = false;
+    applySpriteContrast(ctx, function () {
+      if (typeof drawPlat64 === "function" && drawPlat64(ctx, { type: "normal", w: w }, x, y, w, id, 0)) ok = true;
+      else {
+        rect(ctx, x, y, w, 5, C.wood); rect(ctx, x, y + 4, w, 2, C.woodD); rect(ctx, x, y, w, 1, C.edge);
+        ok = false;
+      }
+    });
+    return ok;
   }
   function menuFrame() {
     var top = menuTop();
@@ -1512,22 +1520,30 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var bd = save.bg === M.id ? C.gold : open ? C.cream : can ? C.mint : "#4a3a6a";
       addHit("camp:" + i, x, y, 152, rh - 3);
       markBox("map" + i, x, y, 152, rh - 3);
-      box(ctx, x, y, 152, rh - 3, open ? (save.bg === M.id ? "#2a2050" : C.navy) : "#1a1430", bd);
-      drawBgSwatch(x + 3, y + 3, 20, rh - 9, M.id);
-      if (!open) { ctx.globalAlpha = 0.55; rect(ctx, x + 3, y + 3, 20, rh - 9, "#0c0818"); ctx.globalAlpha = 1; }
-      drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, open || can ? TYPECOL.primary : TYPECOL.muted, TYPE.M, "left");
+      box(ctx, x, y, 152, rh - 3, open ? (save.bg === M.id ? "#2a2050" : C.navy) : "#120c1c", bd);
       if (open) {
+        drawBgSwatch(x + 3, y + 3, 20, rh - 9, M.id);
+        drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, TYPECOL.primary, TYPE.M, "left");
         var b = mapBest(i);
         if (M.goal) {
           drawText(ctx, (b >= M.goal ? "✓ " : "") + "ЦЕЛЬ " + M.goal + " М", x + 28, y + 13, b >= M.goal ? TYPECOL.mint : TYPECOL.accent, TYPE.M, "left");
           drawText(ctx, b + "/" + M.goal, x + 148, y + 3, TYPECOL.primary, TYPE.M, "right");
           bar(x + 28, y + rh - 11, 107, 5, b / M.goal, b >= M.goal ? C.mint : C.gold);
         } else drawText(ctx, "РЕКОРД " + b + " М", x + 28, y + 15, TYPECOL.accent, TYPE.M, "left");
-      } else if (can) {
-        drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
       } else {
-        drawText(ctx, MAPS[i - 1].goal + " М " + WHERE[i - 1], x + 28, y + 13, TYPECOL.muted, TYPE.M, "left");
-        drawText(ctx, "● " + M.price, x + 28, y + 23, TYPECOL.accent, TYPE.M, "left");
+        /* Locked / unbought maps stay dark and unnamed — not their real look. */
+        rect(ctx, x + 3, y + 3, 20, rh - 9, "#0a0814");
+        ctx.globalAlpha = 0.35;
+        rect(ctx, x + 5, y + 6, 16, rh - 15, "#1a1430");
+        ctx.globalAlpha = 1;
+        box(ctx, x + 3, y + 3, 20, rh - 9, "transparent", "#2a2040");
+        drawText(ctx, (i + 1) + ". ???", x + 28, y + 3, TYPECOL.muted, TYPE.M, "left");
+        if (can) {
+          drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
+        } else {
+          drawText(ctx, MAPS[i - 1].goal + " М " + WHERE[i - 1], x + 28, y + 13, TYPECOL.muted, TYPE.M, "left");
+          drawText(ctx, "● " + M.price, x + 28, y + 23, TYPECOL.accent, TYPE.M, "left");
+        }
       }
     }
     btn("back", x + 26, LH - 34, 100, 22, C.navy, "НАЗАД");
@@ -1765,10 +1781,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.rect(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
     ctx.clip();
     ctx.setTransform(mclip.a, mclip.b, mclip.c, mclip.d, mclip.e, mclip.f);
-    for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
-    if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "ЦЕЛЬ " + w.goalM + " М");
+    applySpriteContrast(ctx, function () {
+      for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
+    });
+    if (showRunGoal() && w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "ЦЕЛЬ " + w.goalM + " М");
     if (w.recM) recLine(-w.recM * PX_PER_M - cam, "РЕКОРД " + w.recM);
-    if (w.goalM) { var gy = -w.goalM * PX_PER_M - cam; if (gy > viewY0() + 8 && gy < viewY1() - 8) showFirstTimeToast("goal"); }
+    if (showRunGoal() && w.goalM) { var gy = -w.goalM * PX_PER_M - cam; if (gy > viewY0() + 8 && gy < viewY1() - 8) showFirstTimeToast("goal"); }
     if (w.recM) { var ry = -w.recM * PX_PER_M - cam; if (ry > viewY0() + 8 && ry < viewY1() - 8) showFirstTimeToast("record"); }
     for (i = 0; i < w.platforms.length; i++) {
       var brk = w.platforms[i];
@@ -1789,13 +1807,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         var ox = it.x; it.x = xx; drawItem(ctx, it, cam, w.tick); it.x = ox;
       });
     }
-    for (i = 0; i < w.monsters.length; i++) {
-      var mo = w.monsters[i];
-      var mw = (MOBS[mo.kind] && MOBS[mo.kind].w) || 12;
-      withWrapX(mo.x, mw, function (xx: number) {
-        var ox = mo.x; mo.x = xx; drawMob(ctx, mo, cam, w.map, w.freezeMobT > 0); mo.x = ox;
-      });
-    }
+    applySpriteContrast(ctx, function () {
+      for (i = 0; i < w.monsters.length; i++) {
+        var mo = w.monsters[i];
+        var mw = (MOBS[mo.kind] && MOBS[mo.kind].w) || 12;
+        withWrapX(mo.x, mw, function (xx: number) {
+          var ox = mo.x; mo.x = xx; drawMob(ctx, mo, cam, w.map, w.freezeMobT > 0); mo.x = ox;
+        });
+      }
+    });
     for (i = 0; i < w.bullets.length; i++) {
       var bu = w.bullets[i];
       withWrapX(bu.x - 2, 5, function (xx: number) {
@@ -2220,7 +2240,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var note = limitLabel(world.limited);
     var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
     /* Only talk about the next map while it is still locked. «МОЖНО ОТКРЫТЬ» only when the goal is met AND coins suffice. */
-    var hasGoal = !!(M2.goal && mi2 + 1 < MAPS.length && !mapOpen(mi2 + 1));
+    var hasGoal = !!(showRunGoal() && M2.goal && mi2 + 1 < MAPS.length && !mapOpen(mi2 + 1));
     var met = hasGoal && mapBest(mi2) >= M2.goal;
     if (met && save.coins < (MAPS[mi2 + 1].price || 0)) hasGoal = false;
     var evN = eveningCount();
@@ -2694,7 +2714,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     setHero: function (k: number) { save.char = k; },
     /* TEMPORARY: hook for the background-contrast setting (and screenshots). */
     setBgContrast: function (p: number) {
-      bgContrastPct = snapBgContrast(typeof p === "number" ? p : 100);
+      bgContrastPct = snapBgContrast(typeof p === "number" ? p : 83);
       save.bgContrast = bgContrastPct;
       writeSave(save);
       return bgContrastPct;

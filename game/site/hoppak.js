@@ -1,4 +1,4 @@
-/* Хоппак v1.0-w15 site — HOP_SERVER baked in, do not edit */
+/* Хоппак v1.0-w16 site — HOP_SERVER baked in, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;
@@ -470,11 +470,11 @@
     hi: "#ffffff"
   };
   var MAPS = [
-    { id: "city", name: "\u0413\u041E\u0420\u041E\u0414", price: 0, goal: 500, special: "", mobs: [["blob", 180], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
-    { id: "jungle", name: "\u0414\u0416\u0423\u041D\u0413\u041B\u0418", price: 80, goal: 700, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
-    { id: "ice", name: "\u041B\u0415\u0414\u041D\u0418\u041A", price: 100, goal: 900, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
-    { id: "lava", name: "\u0412\u0423\u041B\u041A\u0410\u041D", price: 120, goal: 1100, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
-    { id: "aqua", name: "\u041E\u041A\u0415\u0410\u041D", price: 140, goal: 1300, special: "bubble", mobs: [["crab", 120], ["ray", 350], ["bob", 700], ["puffer", 1100], ["whirl", 1600]] },
+    { id: "city", name: "\u0413\u041E\u0420\u041E\u0414", price: 0, goal: 2e3, special: "", mobs: [["blob", 120], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
+    { id: "jungle", name: "\u0414\u0416\u0423\u041D\u0413\u041B\u0418", price: 80, goal: 2e3, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
+    { id: "ice", name: "\u041B\u0415\u0414\u041D\u0418\u041A", price: 100, goal: 2e3, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
+    { id: "lava", name: "\u0412\u0423\u041B\u041A\u0410\u041D", price: 120, goal: 2e3, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
+    { id: "aqua", name: "\u041E\u041A\u0415\u0410\u041D", price: 140, goal: 2e3, special: "bubble", mobs: [["crab", 120], ["ray", 350], ["bob", 700], ["puffer", 1100], ["whirl", 1600]] },
     { id: "space", name: "\u041A\u041E\u0421\u041C\u041E\u0421", price: 160, goal: 0, special: "grav", mobs: [["alien", 120], ["ufo", 400], ["comet", 800], ["hole", 1300]] }
   ];
   var MOBS = {
@@ -700,7 +700,7 @@
     musicVol = masterVol;
     sfxOn = audioOn;
     musicOn = audioOn;
-    if (typeof s.bgContrast !== "number") s.bgContrast = 100;
+    if (typeof s.bgContrast !== "number") s.bgContrast = 83;
     s.bgContrast = snapBgContrast(s.bgContrast);
     bgContrastPct = s.bgContrast;
     return s;
@@ -1114,8 +1114,9 @@
     if (role === "S") return drawTiny(ctx, s, x, y, color, align);
     return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
   }
-  var BG_CONTRAST_STEPS = [40, 55, 70, 85, 100];
-  var bgContrastPct = 100;
+  var BG_CONTRAST_STEPS = [40, 55, 70, 83, 100];
+  var bgContrastPct = 83;
+  var SPRITE_CONTRAST = 95;
   function applyBgContrast(ctx, fn) {
     var p = bgContrastPct;
     if (!(p < 100)) {
@@ -1128,8 +1129,20 @@
     fn();
     ctx.restore();
   }
+  function applySpriteContrast(ctx, fn) {
+    var p = SPRITE_CONTRAST;
+    if (!(p < 100)) {
+      fn();
+      return;
+    }
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.filter = "saturate(" + p + "%) contrast(" + p + "%)";
+    fn();
+    ctx.restore();
+  }
   function snapBgContrast(pct) {
-    var best = 100, bd = 1e9;
+    var best = 83, bd = 1e9;
     for (var i = 0; i < BG_CONTRAST_STEPS.length; i++) {
       var d = Math.abs(BG_CONTRAST_STEPS[i] - pct);
       if (d < bd) {
@@ -1932,7 +1945,7 @@
         var canHang = false;
         for (var hi = 0; hi < row.length; hi++) {
           var hp = row[hi];
-          if (!isPerm(hp.type) || hp.broken || hp.w < M.w + 4) continue;
+          if (!isPerm(hp.type) || hp.broken || hp.spring || hp.type === "bounce" || hp.w < M.w + 4) continue;
           if (spaceBelow(w, hp, hp.x + 2, M.w) >= 22) {
             canHang = true;
             break;
@@ -1969,7 +1982,7 @@
     w.lastMobRow[kind] = w.rowN;
     if (M2.b === "snake") {
       var hangs = row.filter(function(p) {
-        return isPerm(p.type) && !p.broken && p.w >= M2.w + 4 && spaceBelow(w, p, p.x + 2, M2.w) >= 22;
+        return isPerm(p.type) && !p.broken && !p.spring && p.type !== "bounce" && p.w >= M2.w + 4 && spaceBelow(w, p, p.x + 2, M2.w) >= 22;
       });
       if (!hangs.length) return false;
       var hs = hangs[Math.floor(r() * hangs.length)];
@@ -2134,7 +2147,7 @@
     maxG = Math.min(GAP_CAP, maxG + Math.round(2 * h059));
     if (minG > maxG) minG = maxG;
     var gap = randInt(r, minG, maxG);
-    var pMon = m < 180 ? 0 : m < 400 ? 0.045 : lerp(0.07, 0.26, d);
+    var pMon = m < 120 ? 0 : m < 400 ? 0.085 : lerp(0.13, 0.26, d);
     var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
     var bonus = false;
     if (!mob && m >= w.nextBonusM && gap >= 26) {
@@ -7310,6 +7323,9 @@
     function mapGoalMet(i) {
       return i > 0 && mapOpen(i - 1) && mapBest(i - 1) >= MAPS[i - 1].goal;
     }
+    function showRunGoal() {
+      return mode !== "squad" && !(world && world.net);
+    }
     function openMaps() {
       var o = [];
       for (var i = 0; i < MAPS.length; i++) if (mapOpen(i)) o.push(MAPS[i].id);
@@ -8476,11 +8492,17 @@
     }
     function drawMenuPlat(x, y, w, map) {
       var id = mapInfo(map || save && save.bg || "city").id;
-      if (typeof drawPlat64 === "function" && drawPlat64(ctx, { type: "normal", w }, x, y, w, id, 0)) return true;
-      rect(ctx, x, y, w, 5, C.wood);
-      rect(ctx, x, y + 4, w, 2, C.woodD);
-      rect(ctx, x, y, w, 1, C.edge);
-      return false;
+      var ok = false;
+      applySpriteContrast(ctx, function() {
+        if (typeof drawPlat64 === "function" && drawPlat64(ctx, { type: "normal", w }, x, y, w, id, 0)) ok = true;
+        else {
+          rect(ctx, x, y, w, 5, C.wood);
+          rect(ctx, x, y + 4, w, 2, C.woodD);
+          rect(ctx, x, y, w, 1, C.edge);
+          ok = false;
+        }
+      });
+      return ok;
     }
     function menuFrame() {
       var top = menuTop();
@@ -8804,26 +8826,29 @@
         var bd = save.bg === M.id ? C.gold : open ? C.cream : can ? C.mint : "#4a3a6a";
         addHit("camp:" + i, x, y, 152, rh - 3);
         markBox("map" + i, x, y, 152, rh - 3);
-        box(ctx, x, y, 152, rh - 3, open ? save.bg === M.id ? "#2a2050" : C.navy : "#1a1430", bd);
-        drawBgSwatch(x + 3, y + 3, 20, rh - 9, M.id);
-        if (!open) {
-          ctx.globalAlpha = 0.55;
-          rect(ctx, x + 3, y + 3, 20, rh - 9, "#0c0818");
-          ctx.globalAlpha = 1;
-        }
-        drawText(ctx, i + 1 + ". " + M.name, x + 28, y + 3, open || can ? TYPECOL.primary : TYPECOL.muted, TYPE.M, "left");
+        box(ctx, x, y, 152, rh - 3, open ? save.bg === M.id ? "#2a2050" : C.navy : "#120c1c", bd);
         if (open) {
+          drawBgSwatch(x + 3, y + 3, 20, rh - 9, M.id);
+          drawText(ctx, i + 1 + ". " + M.name, x + 28, y + 3, TYPECOL.primary, TYPE.M, "left");
           var b = mapBest(i);
           if (M.goal) {
             drawText(ctx, (b >= M.goal ? "\u2713 " : "") + "\u0426\u0415\u041B\u042C " + M.goal + " \u041C", x + 28, y + 13, b >= M.goal ? TYPECOL.mint : TYPECOL.accent, TYPE.M, "left");
             drawText(ctx, b + "/" + M.goal, x + 148, y + 3, TYPECOL.primary, TYPE.M, "right");
             bar(x + 28, y + rh - 11, 107, 5, b / M.goal, b >= M.goal ? C.mint : C.gold);
           } else drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + b + " \u041C", x + 28, y + 15, TYPECOL.accent, TYPE.M, "left");
-        } else if (can) {
-          drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
         } else {
-          drawText(ctx, MAPS[i - 1].goal + " \u041C " + WHERE[i - 1], x + 28, y + 13, TYPECOL.muted, TYPE.M, "left");
-          drawText(ctx, "\u25CF " + M.price, x + 28, y + 23, TYPECOL.accent, TYPE.M, "left");
+          rect(ctx, x + 3, y + 3, 20, rh - 9, "#0a0814");
+          ctx.globalAlpha = 0.35;
+          rect(ctx, x + 5, y + 6, 16, rh - 15, "#1a1430");
+          ctx.globalAlpha = 1;
+          box(ctx, x + 3, y + 3, 20, rh - 9, "transparent", "#2a2040");
+          drawText(ctx, i + 1 + ". ???", x + 28, y + 3, TYPECOL.muted, TYPE.M, "left");
+          if (can) {
+            drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
+          } else {
+            drawText(ctx, MAPS[i - 1].goal + " \u041C " + WHERE[i - 1], x + 28, y + 13, TYPECOL.muted, TYPE.M, "left");
+            drawText(ctx, "\u25CF " + M.price, x + 28, y + 23, TYPECOL.accent, TYPE.M, "left");
+          }
         }
       }
       btn("back", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
@@ -9115,10 +9140,12 @@
       ctx.rect(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
       ctx.clip();
       ctx.setTransform(mclip.a, mclip.b, mclip.c, mclip.d, mclip.e, mclip.f);
-      for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
-      if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "\u0426\u0415\u041B\u042C " + w.goalM + " \u041C");
+      applySpriteContrast(ctx, function() {
+        for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
+      });
+      if (showRunGoal() && w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "\u0426\u0415\u041B\u042C " + w.goalM + " \u041C");
       if (w.recM) recLine(-w.recM * PX_PER_M - cam, "\u0420\u0415\u041A\u041E\u0420\u0414 " + w.recM);
-      if (w.goalM) {
+      if (showRunGoal() && w.goalM) {
         var gy = -w.goalM * PX_PER_M - cam;
         if (gy > viewY0() + 8 && gy < viewY1() - 8) showFirstTimeToast("goal");
       }
@@ -9153,16 +9180,18 @@
           it.x = ox;
         });
       }
-      for (i = 0; i < w.monsters.length; i++) {
-        var mo = w.monsters[i];
-        var mw = MOBS[mo.kind] && MOBS[mo.kind].w || 12;
-        withWrapX(mo.x, mw, function(xx) {
-          var ox = mo.x;
-          mo.x = xx;
-          drawMob(ctx, mo, cam, w.map, w.freezeMobT > 0);
-          mo.x = ox;
-        });
-      }
+      applySpriteContrast(ctx, function() {
+        for (i = 0; i < w.monsters.length; i++) {
+          var mo = w.monsters[i];
+          var mw = MOBS[mo.kind] && MOBS[mo.kind].w || 12;
+          withWrapX(mo.x, mw, function(xx) {
+            var ox = mo.x;
+            mo.x = xx;
+            drawMob(ctx, mo, cam, w.map, w.freezeMobT > 0);
+            mo.x = ox;
+          });
+        }
+      });
       for (i = 0; i < w.bullets.length; i++) {
         var bu = w.bullets[i];
         withWrapX(bu.x - 2, 5, function(xx) {
@@ -9641,7 +9670,7 @@
       var me = world.players[0], mtr = metersOf(me), why = whyText(me);
       var note = limitLabel(world.limited);
       var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
-      var hasGoal = !!(M2.goal && mi2 + 1 < MAPS.length && !mapOpen(mi2 + 1));
+      var hasGoal = !!(showRunGoal() && M2.goal && mi2 + 1 < MAPS.length && !mapOpen(mi2 + 1));
       var met = hasGoal && mapBest(mi2) >= M2.goal;
       if (met && save.coins < (MAPS[mi2 + 1].price || 0)) hasGoal = false;
       var evN = eveningCount();
@@ -10281,7 +10310,7 @@
       },
       /* TEMPORARY: hook for the background-contrast setting (and screenshots). */
       setBgContrast: function(p) {
-        bgContrastPct = snapBgContrast(typeof p === "number" ? p : 100);
+        bgContrastPct = snapBgContrast(typeof p === "number" ? p : 83);
         save.bgContrast = bgContrastPct;
         writeSave(save);
         return bgContrastPct;
