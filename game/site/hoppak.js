@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("0c32298") return String("0c32298");
+      if ("cb6e0c4") return String("cb6e0c4");
     } catch (_e) {
     }
     return "";
