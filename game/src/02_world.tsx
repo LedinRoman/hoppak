@@ -370,6 +370,10 @@ function genRow(w: any) {
   var gap = randInt(r, minG, maxG);
 
   var pMon = m < 120 ? 0 : m < 400 ? 0.085 : lerp(0.13, 0.26, d);
+  /* City lost the mid-air jellyfish; trash (platform-only from 400 m) and bat from 800 m
+     would otherwise spawn fewer mobs than before. Boost attempts after 400 m so city
+     density stays at or above the previous table. */
+  if (mapInfo(w.map).id === "city" && m >= 400) pMon *= 1.18;
   var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
   var bonus = false;
   if (!mob && m >= w.nextBonusM && gap >= 26) {
@@ -557,7 +561,8 @@ function grabPlayer(w: any, p: any, mo: any) {
   p.grabT = 45; p.grabMob = mo; mo.cool = 160;
   if (p.id === 0) toast(w, t('play.snake_caught'));
 }
-function toast(w: any, s: string) { w.toast = s; w.toastT = 70; }
+/* v1.0: in-game floating/intro hint texts are off (break, ability names, pickups…). */
+function toast(w: any, _s: string) { /* no-op */ }
 function hasLandablePlat(w: any, p: any) {
   var feet = p.y + PH, reach = 28;
   for (var i = 0; i < w.platforms.length; i++) {
@@ -987,13 +992,18 @@ function tickWorld(w: any, inputs: any) {
         continue;
       }
       if (h.b !== "pull" || p.rocketT > 0 || mobFrozen) continue;
-      var hx = wrapDx(h.x + 7 - (p.x + PW / 2)), hy = h.y + 7 - (p.y + PH / 2);
+      var isHole = h.kind === "hole";
+      var crx = (h.w || (isHole ? HOLE_W : 14)) / 2, cry = (h.h || (isHole ? HOLE_H : 14)) / 2;
+      var hx = wrapDx(h.x + crx - (p.x + PW / 2)), hy = h.y + cry - (p.y + PH / 2);
       var dist = Math.sqrt(hx * hx + hy * hy);
-      if (dist < 6) { hurt(w, p, "hole", h); if (!p.alive) break; continue; }
-      if (dist < 36 && !invuln(p)) {
-        var fpull = 0.11 * (1 - dist / 36);
+      var killR = isHole ? HOLE_KILL_RADIUS : 6;
+      var pullR = isHole ? crx * HOLE_PULL_RANGE_MUL : 36;
+      if (dist < killR) { hurt(w, p, "hole", h); if (!p.alive) break; continue; }
+      if (dist < pullR && !invuln(p)) {
+        var fpull = (isHole ? HOLE_PULL_ACCEL : 0.11) * (1 - dist / pullR);
+        if (isHole && fpull > HOLE_PULL_ACCEL_CAP) fpull = HOLE_PULL_ACCEL_CAP;
         p.vx += (hx / dist) * fpull;
-        p.vy += (hy / dist) * fpull * 0.6;
+        p.vy += (hy / dist) * fpull * (isHole ? HOLE_PULL_VY : 0.6);
       }
     }
     if (!p.alive) continue;
