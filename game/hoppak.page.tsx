@@ -3589,11 +3589,25 @@ var NET: any = (function () {
     if (N.st === "online") return { t: "СЕРВЕР НА СВЯЗИ", c: C.mint };
     if (N.st === "connecting") return { t: "ПОДКЛЮЧАЕМСЯ...", c: C.gold };
     if (N.st === "reconnecting") return { t: "ПЕРЕПОДКЛЮЧАЕМСЯ...", c: C.gold };
+    if (N.st === "off") return { t: "ПОДКЛЮЧАЕМСЯ...", c: C.gold };
     if (N.st === "unsupported") return { t: N.err || "МУЛЬТИПЛЕЕР НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ", c: C.red, two: true };
     return { t: N.err || "НЕТ СВЯЗИ", c: C.red };
   }
+  /* An idle socket that simply closed (iOS suspends the Mini App while you're in the chat; the server's 25 s ping
+     then drops it) is not a network failure: reconnect quietly instead of showing a red «НЕТ СВЯЗИ». */
+  function quietReconnect() {
+    if (N.room || N.ws || N.probing) return;
+    if (N.st === "off" || (N.st === "error" && N.sub === "home")) N.connect();
+  }
+  N.quietReconnect = quietReconnect;
+  try {
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible" && N.api && N.api.phase() === "net") quietReconnect();
+    });
+  } catch (_e) {}
   N.draw = function (api: any) {
     N.api = api;
+    if (N.sub === "home" && N.st === "off") quietReconnect();
     var ctx = api.ctx, x = api.colX(), sl = statusLine();
     api.bg();
     if (N.sub === "update" || N.st === "update") return drawUpdate(api, x);

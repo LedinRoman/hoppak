@@ -4891,11 +4891,24 @@
       if (N.st === "online") return { t: "\u0421\u0415\u0420\u0412\u0415\u0420 \u041D\u0410 \u0421\u0412\u042F\u0417\u0418", c: C.mint };
       if (N.st === "connecting") return { t: "\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", c: C.gold };
       if (N.st === "reconnecting") return { t: "\u041F\u0415\u0420\u0415\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", c: C.gold };
+      if (N.st === "off") return { t: "\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", c: C.gold };
       if (N.st === "unsupported") return { t: N.err || "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", c: C.red, two: true };
       return { t: N.err || "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418", c: C.red };
     }
+    function quietReconnect() {
+      if (N.room || N.ws || N.probing) return;
+      if (N.st === "off" || N.st === "error" && N.sub === "home") N.connect();
+    }
+    N.quietReconnect = quietReconnect;
+    try {
+      document.addEventListener("visibilitychange", function() {
+        if (document.visibilityState === "visible" && N.api && N.api.phase() === "net") quietReconnect();
+      });
+    } catch (_e) {
+    }
     N.draw = function(api) {
       N.api = api;
+      if (N.sub === "home" && N.st === "off") quietReconnect();
       var ctx = api.ctx, x = api.colX(), sl = statusLine();
       api.bg();
       if (N.sub === "update" || N.st === "update") return drawUpdate(api, x);
