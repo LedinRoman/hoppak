@@ -558,19 +558,31 @@ var PROFILE: any = (function () {
     var open: any = {};
     var owned = (s && s.owned && typeof s.owned === "object") ? s.owned : {};
     for (var k in owned) if (owned[k] && String(k).indexOf("map:") === 0) open[k] = 1;
-    return { mapBest: mapBest, open: open };
+    return {
+      mapBest: mapBest,
+      open: open,
+      campaignEpoch: Math.max(0, Math.floor(Number(s && s.campaignEpoch) || 0))
+    };
+  }
+  function applyCampaignProfile(res: any, fallback: any) {
+    if (isLocked()) return null;
+    if (res.status === 409 && res.data && res.data.error === "CAMPAIGN_STALE" && res.data.profile) {
+      P.st = "ready";
+      applyProfile(res.data.profile);
+      return res.data.profile;
+    }
+    if (!handleStatus(res) || !res.data || !res.data.profile) {
+      if (fallback) { P.st = "ready"; applyProfile(fallback); }
+      return fallback;
+    }
+    P.st = "ready";
+    applyProfile(res.data.profile);
+    return res.data.profile;
   }
   function syncCampaign(token: string, fallback: any, bodySnap?: any) {
     var body = bodySnap || localCampaign();
     return req("POST", "/api/profile/campaign", body, token).then(function (res: any) {
-      if (isLocked()) return null;
-      if (!handleStatus(res) || !res.data || !res.data.profile) {
-        if (fallback) { P.st = "ready"; applyProfile(fallback); }
-        return fallback;
-      }
-      P.st = "ready";
-      applyProfile(res.data.profile);
-      return res.data.profile;
+      return applyCampaignProfile(res, fallback);
     });
   }
   function syncMigrate(token: string, prof: any) {
@@ -706,8 +718,7 @@ var PROFILE: any = (function () {
     return req("POST", "/api/profile/campaign", localCampaign(), tok).then(function (res: any) {
       if (isLocked()) return;
       if (res.status === 404 || res.status === 405 || res.status === 501) return;
-      if (!handleStatus(res) || !res.data || !res.data.profile) return;
-      applyProfile(res.data.profile);
+      applyCampaignProfile(res, null);
     }, function () { return; });
   }
   function flushBuysOnce(tok: string): Promise<void> {

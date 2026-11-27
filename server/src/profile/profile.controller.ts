@@ -99,11 +99,11 @@ export class ProfileController {
   async campaign(
     @Req() req: Request,
     @Headers('authorization') auth?: string,
-    @Body() body?: { mapBest?: Record<string, number>; open?: Record<string, number> },
+    @Body() body?: { mapBest?: Record<string, number>; open?: Record<string, number>; campaignEpoch?: number },
   ) {
     const { bearer, cookie } = this.tokens(req, auth);
     const { player } = await this.profiles.playerFromRequest(bearer, cookie);
-    const profile = await this.profiles.syncCampaign(player, body?.mapBest, body?.open);
+    const profile = await this.profiles.syncCampaign(player, body?.mapBest, body?.open, body?.campaignEpoch);
     return { ok: true, profile };
   }
 

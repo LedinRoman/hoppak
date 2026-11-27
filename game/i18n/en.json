@@ -222,7 +222,7 @@
   "results.hero_available": "CAN BUY {name}!",
   "results.hero_progress": "TO {name} ● {n}",
   "results.hero_remaining": "{name}: ● {n} LEFT",
-  "results.map_available": "NEXT MAP CAN UNLOCK",
+  "results.map_available": "NEW MAP AVAILABLE",
   "results.map_progress": "NEXT MAP {n}/{goal}",
   "results.map_record": "MAP BEST {n} M",
   "results.new_record": "MAP BEST: {n} M",

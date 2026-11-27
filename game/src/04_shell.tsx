@@ -3262,12 +3262,27 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (!prof) return;
       if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
       else if (typeof prof.coins === "number" && prof.coins >= 0) save.coins = prof.coins;
-      if (typeof prof.best === "number" && prof.best > (save.best || 0)) save.best = prof.best;
-      if (prof.campaign && prof.campaign.best && typeof prof.campaign.best === "object") {
-        if (!save.mapBest || typeof save.mapBest !== "object") save.mapBest = {};
-        for (var mk in prof.campaign.best) {
-          var mv = Math.floor(Number(prof.campaign.best[mk]) || 0);
-          if (mv > (save.mapBest[mk] || 0)) save.mapBest[mk] = mv;
+      var serverEpoch = Math.max(0, Math.floor(Number(prof.campaignEpoch) || 0));
+      var localEpoch = Math.max(0, Math.floor(Number(save.campaignEpoch) || 0));
+      if (serverEpoch > localEpoch) {
+        save.best = typeof prof.best === "number" && Number.isFinite(prof.best) ? Math.max(0, Math.floor(prof.best)) : 0;
+        var nextBest: any = {};
+        if (prof.campaign && prof.campaign.best && typeof prof.campaign.best === "object") {
+          for (var mk in prof.campaign.best) {
+            var mv = Math.floor(Number(prof.campaign.best[mk]) || 0);
+            if (mv > 0) nextBest[mk] = mv;
+          }
+        }
+        save.mapBest = nextBest;
+        save.campaignEpoch = serverEpoch;
+      } else {
+        if (typeof prof.best === "number" && prof.best > (save.best || 0)) save.best = prof.best;
+        if (prof.campaign && prof.campaign.best && typeof prof.campaign.best === "object") {
+          if (!save.mapBest || typeof save.mapBest !== "object") save.mapBest = {};
+          for (var mk2 in prof.campaign.best) {
+            var mv2 = Math.floor(Number(prof.campaign.best[mk2]) || 0);
+            if (mv2 > (save.mapBest[mk2] || 0)) save.mapBest[mk2] = mv2;
+          }
         }
       }
       if (prof.encyclopedia && prof.encyclopedia.mobs && typeof prof.encyclopedia.mobs === "object") {

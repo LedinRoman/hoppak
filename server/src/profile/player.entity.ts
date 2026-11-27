@@ -54,7 +54,7 @@ export class Player {
   }
 
   private ensureStats(): PlayerStats {
-    if (!this.stats) this.stats = Object.assign(new PlayerStats(), { playerId: this.id, best: 0, campaign: { best: {} } });
+    if (!this.stats) this.stats = Object.assign(new PlayerStats(), { playerId: this.id, best: 0, campaign: { best: {} }, campaignEpoch: 0 });
     return this.stats;
   }
 
@@ -74,6 +74,12 @@ export class Player {
   set best(v: number) { this.ensureStats().best = v; }
   get campaign(): { best: Record<string, number> } { return this.stats ? this.stats.campaign : { best: {} }; }
   set campaign(v: { best: Record<string, number> }) { this.ensureStats().campaign = v; }
+  get campaignEpoch(): number {
+    return this.stats && typeof this.stats.campaignEpoch === 'number' && Number.isFinite(this.stats.campaignEpoch)
+      ? Math.max(0, Math.floor(this.stats.campaignEpoch))
+      : 0;
+  }
+  set campaignEpoch(v: number) { this.ensureStats().campaignEpoch = Math.max(0, Math.floor(Number(v) || 0)); }
 
   get telegramId(): string | null { return this.tg ? this.tg.telegramId : null; }
   set telegramId(v: string | null) { if (v != null || this.tg) this.ensureTg().telegramId = v as string; }

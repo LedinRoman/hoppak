@@ -555,6 +555,8 @@ function loadSave() {
   }
   if (s.char < 0 || s.char >= CHARS.length) s.char = 0;
   if (!s.mapBest || typeof s.mapBest !== "object") s.mapBest = {};
+  if (typeof s.campaignEpoch !== "number" || !Number.isFinite(s.campaignEpoch) || s.campaignEpoch < 0) s.campaignEpoch = 0;
+  else s.campaignEpoch = Math.floor(s.campaignEpoch);
   if (!s.color) s.color = "base";
   if (!s.hat) s.hat = "none";
   if (s.owned["bg:sunset"]) s.owned["map:lava"] = 1;

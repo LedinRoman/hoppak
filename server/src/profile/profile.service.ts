@@ -28,6 +28,8 @@ export type PublicProfile = {
   best: number;
   purchases: Record<string, number>;
   campaign: Campaign;
+  /** Server campaign-reset epoch. Client overwrites local mapBest when this is newer. */
+  campaignEpoch: number;
   migratedAt: string | null;
   createdAt: string;
   telegramId: string | null;
@@ -80,6 +82,7 @@ export class ProfileService {
       best: p.best || 0,
       purchases: p.purchases || {},
       campaign: mergeCampaign(p.campaign, emptyCampaign()),
+      campaignEpoch: Math.max(0, Math.floor(Number(p.campaignEpoch) || 0)),
       migratedAt: p.migratedAt ? p.migratedAt.toISOString() : null,
       createdAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
       telegramId: p.telegramId ? String(p.telegramId) : null,
@@ -221,11 +224,19 @@ export class ProfileService {
    * a map is purchased, never unlocked by this endpoint.
    * Does not change coins or existing purchases.
    */
-  async syncCampaign(p: Player, mapBestRaw: unknown, _openRaw?: unknown): Promise<PublicProfile> {
+  async syncCampaign(p: Player, mapBestRaw: unknown, _openRaw?: unknown, clientEpochRaw?: unknown): Promise<PublicProfile> {
     void _openRaw;
     const repo = this.requireDb();
+    const incomingEpoch = Number.isFinite(Number(clientEpochRaw)) ? Math.max(0, Math.floor(Number(clientEpochRaw))) : 0;
     const execute = async (playerRepo: Repository<Player>): Promise<PublicProfile> => {
       const fresh = (await this.loadLocked(playerRepo, p.id)) || p;
+      const serverEpoch = Math.max(0, Math.floor(Number(fresh.campaignEpoch) || 0));
+      if (serverEpoch > incomingEpoch) {
+        throw new HttpException(
+          { ok: false, error: 'CAMPAIGN_STALE', profile: this.publicOf(fresh, p) },
+          HttpStatus.CONFLICT,
+        );
+      }
       fresh.campaign = mergeCampaign(fresh.campaign, { best: sanitizeMapBest(mapBestRaw) });
       let top = fresh.best || 0;
       for (const id of Object.keys(fresh.campaign.best || {})) top = Math.max(top, fresh.campaign.best[id] || 0);

@@ -222,7 +222,7 @@
   "results.hero_available": "ХВАТАЕТ НА {name}!",
   "results.hero_progress": "ДО {name} ● {n}",
   "results.hero_remaining": "ДО {name} ОСТАЛОСЬ ● {n}",
-  "results.map_available": "МОЖНО ОТКРЫТЬ СЛЕДУЮЩУЮ",
+  "results.map_available": "ДОСТУПНА НОВАЯ КАРТА",
   "results.map_progress": "СЛЕДУЮЩАЯ {n}/{goal}",
   "results.map_record": "РЕКОРД КАРТЫ {n} М",
   "results.new_record": "НОВЫЙ РЕКОРД КАРТЫ {n} М",

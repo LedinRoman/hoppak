@@ -878,7 +878,22 @@ async function testMigrationSql() {
   assert.ok(up8.some((q) => /COMMENT ON VIEW "player_online_v"/.test(q)));
   assert.ok(down8.some((q) => /DROP VIEW IF EXISTS "player_online_v"/.test(q)) && down8.some((q) => /CREATE TABLE "online_now"/.test(q)));
   console.log('PASS split player into auth/stats/telegram/presence + online view migration SQL');
+
+  const { CampaignEpochAndMapAvailable1795700000000 } = require('../dist/db/migrations/1795700000000-CampaignEpochAndMapAvailable');
+  const epochUp = [];
+  const epochDown = [];
+  const epochMig = new CampaignEpochAndMapAvailable1795700000000();
+  await epochMig.up({ query: async (q) => epochUp.push(q) });
+  await epochMig.down({ query: async (q) => epochDown.push(q) });
+  assert.match(epochUp[0], /ADD COLUMN IF NOT EXISTS campaign_epoch integer NOT NULL DEFAULT 0/);
+  assert.ok(epochUp.some((q) => /UPDATE player_stats/.test(q) && /campaign_epoch = 1/.test(q) && /01297000-3afa-48ba-a491-6de9665a0afb/.test(q)));
+  assert.ok(epochUp.some((q) => /results\.map_available/.test(q) && /ДОСТУПНА НОВАЯ КАРТА/.test(q) && /NEW MAP AVAILABLE/.test(q)));
+  assert.ok(epochUp.some((q) => /results\.map_available/.test(q) && !/\{name\}/.test(q)));
+  assert.ok(epochDown.some((q) => /DROP COLUMN IF EXISTS campaign_epoch/.test(q)));
+  assert.ok(epochDown.some((q) => /\{name\}: МОЖНО ОТКРЫТЬ/.test(q) && /\{name\}: CAN UNLOCK/.test(q)));
+  console.log('PASS campaign_epoch + map_available migration SQL');
 }
+
 
 async function testPlausibilityAndSession() {
   process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
@@ -1604,6 +1619,61 @@ async function testTelegramLoginCases() {
   console.log('PASS telegram login cases (existing TG merge vs first-time bind, widget + Mini App, hero union, stale bearer)');
 }
 
+
+async function testCampaignEpoch() {
+  const { app, base, players, starts } = await startTestApp();
+  try {
+    const g = await req(base, 'POST', '/api/profile/guest');
+    const tok = g.data.token;
+    const id = g.data.profile.id;
+    assert.strictEqual(g.data.profile.campaignEpoch, 0, JSON.stringify(g.data));
+
+    const up = await req(base, 'POST', '/api/profile/campaign', { mapBest: { city: 100 } }, tok);
+    assert.strictEqual(up.status, 201, JSON.stringify(up.data));
+    assert.strictEqual(up.data.profile.campaign.best.city, 100);
+    assert.strictEqual(up.data.profile.campaignEpoch, 0);
+    assert.strictEqual(up.data.profile.best, 100);
+
+    players.get(id).campaignEpoch = 1;
+    const stale = await req(base, 'POST', '/api/profile/campaign', { mapBest: { city: 9999, jungle: 2644 } }, tok);
+    assert.strictEqual(stale.status, 409, JSON.stringify(stale.data));
+    assert.strictEqual(stale.data.error, 'CAMPAIGN_STALE');
+    assert.strictEqual(stale.data.ok, false);
+    assert.strictEqual(stale.data.profile.campaign.best.city, 100);
+    assert.ok(!stale.data.profile.campaign.best.jungle);
+    assert.strictEqual(stale.data.profile.campaignEpoch, 1);
+    assert.strictEqual(stale.data.profile.best, 100);
+
+    const stale0 = await req(base, 'POST', '/api/profile/campaign', { mapBest: { jungle: 2644 }, campaignEpoch: 0 }, tok);
+    assert.strictEqual(stale0.status, 409, JSON.stringify(stale0.data));
+    assert.ok(!stale0.data.profile.campaign.best.jungle);
+
+    const got = await req(base, 'GET', '/api/profile', undefined, tok);
+    assert.strictEqual(got.status, 200);
+    assert.strictEqual(got.data.profile.campaignEpoch, 1);
+    assert.strictEqual(got.data.profile.campaign.best.city, 100);
+    assert.ok(!got.data.profile.campaign.best.jungle);
+
+    const fresh = await req(base, 'POST', '/api/profile/campaign', { mapBest: { city: 150, ice: 80 }, campaignEpoch: 1 }, tok);
+    assert.strictEqual(fresh.status, 201, JSON.stringify(fresh.data));
+    assert.strictEqual(fresh.data.profile.campaign.best.city, 150);
+    assert.strictEqual(fresh.data.profile.campaign.best.ice, 80);
+    assert.strictEqual(fresh.data.profile.best, 150);
+
+    await primeRun(base, tok, 'epoch-city-1', starts, 0);
+    const fin = await req(base, 'POST', '/api/run/finish', {
+      height: 400, runCoins: 0, bonusCoins: 0, runId: 'epoch-city-1', map: 'city',
+    }, tok);
+    assert.strictEqual(fin.status, 201, JSON.stringify(fin.data));
+    assert.strictEqual(fin.data.profile.campaign.best.city, 400);
+    assert.strictEqual(fin.data.profile.best, 400);
+    assert.strictEqual(fin.data.profile.campaignEpoch, 1);
+  } finally {
+    await app.close();
+  }
+  console.log('PASS campaign epoch (stale local save rejected, finishRun still raises)');
+}
+
 (async () => {
   await testWithoutDb();
   await testRunTelemetry();
@@ -1617,6 +1687,7 @@ async function testTelegramLoginCases() {
   await testPlausibilityAndSession();
   await testTwoDevices();
   await testMapPurchase();
+  await testCampaignEpoch();
   console.log('ALL SERVER PROFILE TESTS PASS');
 })().catch((e) => {
   console.error(e);
