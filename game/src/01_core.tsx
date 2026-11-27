@@ -455,7 +455,7 @@ var MOBS: any = {
   ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, get name() { return t('mob.ray'); }, g: "m" },
   bob: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.bob'); }, g: "f" },
   ember: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.ember'); }, g: "m" },
-  /* Visual scale 0.5*0.92 (Roman: -8%), contrast 83. w/h are overwritten to the head-skull box below. hangTop stays pl.y+5. */
+  /* Visual scale 0.5*0.92 (Roman: -8%), contrast 77. w/h are overwritten to the head-skull box below. hangTop stays pl.y+5. */
   snake: { b: "snake", w: 10 * 0.92, h: 8 * 0.92, gap: 38, get name() { return t('mob.snake'); }, g: "f" },
 
   puffer: { b: "puff", w: 12, h: 12, gap: 40, get name() { return t('mob.puffer'); }, g: "f" },
