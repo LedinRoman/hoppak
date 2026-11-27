@@ -72,7 +72,7 @@ if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
   # tg-boot.js loads telegram.org only inside Telegram. HOP_STAGING is the alpha toggle, not login.
   # The visible label is v0.6 on the prod page and v0.6rc on staging. Room admission
   # stays NET_GEN ("0.6") and NET_PROTO (1); this label is not that check.
-  VER_LABEL="v0.6"
+  VER_LABEL="${HOP_VER_LABEL:-v0.6}"
   if [ "${1:-}" = "staging" ]; then
     DEFS="${DEFS} --define:HOP_STAGING=true"
     HTML_SRC="index.staging.html"

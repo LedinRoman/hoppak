@@ -1,0 +1,27 @@
+name: Deploy prod (manual only)
+
+# Never runs on push. Start it from Actions only after Roman's explicit yes.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY_PROD to confirm. This updates the live /play site.'
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-hoppak-prod
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "DEPLOY_PROD" ]; then
+            echo "Refusing to deploy prod: confirm must be DEPLOY_PROD"
+            exit 1
+          fi
+          echo "Confirmation received. Wire the actual prod publish steps here after Roman's yes; this workflow does not change prod yet."
+          exit 1
