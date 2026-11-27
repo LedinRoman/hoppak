@@ -743,10 +743,130 @@ function drawText(ctx: Ctx, s: string, x: number, y: number, color: string, sc?:
   }
   return w;
 }
+/* 3×5 caps for tight UI labels (tab bar, grid). Pitch 4, no word-wrap needed at 32px tabs. */
+var TINY: any = {
+  "А": [2,5,7,5,5], "Б": [6,4,6,5,6], "В": [6,5,6,5,6], "Г": [7,4,4,4,4], "Д": [3,5,5,5,7],
+  "Е": [7,4,6,4,7], "Ё": [5,7,4,6,7], "Ж": [5,7,2,7,5], "З": [6,1,2,1,6], "И": [5,7,7,5,5],
+  "Й": [2,5,7,5,5], "К": [5,6,4,6,5], "Л": [3,5,5,5,5], "М": [5,7,5,5,5], "Н": [5,5,7,5,5],
+  "О": [2,5,5,5,2], "П": [7,5,5,5,5], "Р": [6,5,6,4,4], "С": [3,4,4,4,3], "Т": [7,2,2,2,2],
+  "У": [5,5,5,1,6], "Ф": [2,7,2,2,2], "Х": [5,2,2,2,5], "Ц": [5,5,5,5,7], "Ч": [5,5,3,1,1],
+  "Ш": [5,5,7,5,7], "Щ": [5,5,7,7,1], "Ъ": [6,2,6,2,6], "Ы": [5,5,7,5,7], "Ь": [4,4,6,5,6],
+  "Э": [7,1,3,1,7], "Ю": [5,7,7,5,5], "Я": [3,5,3,6,5],
+  " ": [0,0,0,0,0], "·": [0,0,2,0,0], "-": [0,0,7,0,0], ".": [0,0,0,2,2], "/": [1,1,2,4,4],
+  "0": [7,5,5,5,7], "1": [2,6,2,2,7], "2": [6,1,2,4,7], "3": [6,1,6,1,6], "4": [5,5,7,1,1],
+  "5": [7,4,6,1,6], "6": [3,4,6,5,2], "7": [7,1,2,2,2], "8": [2,5,2,5,2], "9": [2,5,3,1,6]
+};
+function tinyChars(s: string) {
+  s = String(s).toUpperCase();
+  var out = "";
+  for (var i = 0; i < s.length; i++) if (TINY[s[i]]) out += s[i];
+  return out;
+}
+function tinyWidth(s: string) {
+  var n = tinyChars(s).length;
+  return n ? n * 4 - 1 : 0;
+}
+function drawTiny(ctx: Ctx, s: string, x: number, y: number, color: string, align?: string) {
+  s = tinyChars(s);
+  var w = s.length ? tinyWidth(s) : 0;
+  var xx = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
+  y = Math.round(y);
+  ctx.fillStyle = color;
+  for (var i = 0; i < s.length; i++) {
+    var g = TINY[s[i]];
+    for (var r = 0; r < 5; r++) for (var c = 0; c < 3; c++) if (g[r] & (1 << (2 - c))) ctx.fillRect(xx + c, y + r, 1, 1);
+    xx += 4;
+  }
+  return w;
+}
+function tinyLines(s: string, maxW: number) {
+  s = tinyChars(s);
+  if (tinyWidth(s) <= maxW) return [s];
+  var parts = s.split(" ");
+  if (parts.length > 1) {
+    var lines: string[] = [], cur = parts[0];
+    for (var i = 1; i < parts.length; i++) {
+      var try_ = cur + " " + parts[i];
+      if (tinyWidth(try_) <= maxW) cur = try_;
+      else { lines.push(cur); cur = parts[i]; }
+    }
+    lines.push(cur);
+    return lines;
+  }
+  var a = "", b = s;
+  for (var k = 1; k < s.length; k++) {
+    if (tinyWidth(s.slice(0, k)) <= maxW) a = s.slice(0, k), b = s.slice(k);
+  }
+  return a && b ? [a, b] : [s];
+}
+
+var UI_IMGS: any = {};
+function loadUiImage(key: string, src: string) {
+  var im = new Image();
+  im.onload = function () { UI_IMGS[key] = im; };
+  im.src = src;
+}
+function warmUiImages() {
+  var tabs = ["shop", "leagues", "home", "friends", "settings"];
+  var grids = ["maps", "multiplayer", "encyclopedia", "quests"];
+  var ports = ["pilot", "pirate", "ninja", "robot", "mage", "knight"];
+  var i;
+  for (i = 0; i < tabs.length; i++) loadUiImage("bar_" + tabs[i], "ui/tab/bar_" + tabs[i] + ".png");
+  for (i = 0; i < grids.length; i++) loadUiImage("grid_" + grids[i], "ui/grid/grid_" + grids[i] + ".png");
+  for (i = 0; i < ports.length; i++) loadUiImage("portrait_" + ports[i], "ui/portrait/portrait_" + ports[i] + ".png");
+}
+warmUiImages();
+/* Nearest-neighbour only, dest size an integer multiple of the source. */
+function drawUiPx(ctx: Ctx, key: string, x: number, y: number, mul?: number) {
+  x = Math.round(x); y = Math.round(y);
+  var im = UI_IMGS[key];
+  var k = mul && mul >= 1 ? Math.round(mul) : 1;
+  if (k < 1) k = 1;
+  ctx.imageSmoothingEnabled = false;
+  if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
+  if (im && im.complete && im.naturalWidth) {
+    ctx.drawImage(im, x, y, im.naturalWidth * k, im.naturalHeight * k);
+    return im.naturalWidth * k;
+  }
+  var ph = 16 * k;
+  ctx.fillStyle = "#241838";
+  ctx.fillRect(x, y, ph, ph);
+  return ph;
+}
+function drawPortrait(ctx: Ctx, kind: number, x: number, y: number, mul?: number) {
+  var id = (CHARS[kind] && CHARS[kind].id) || "pilot";
+  return drawUiPx(ctx, "portrait_" + id, x, y, mul || 1);
+}
+function drawPortraitCrop(ctx: Ctx, kind: number, x: number, y: number, size: number) {
+  x = Math.round(x); y = Math.round(y); size = Math.round(size);
+  var id = (CHARS[kind] && CHARS[kind].id) || "pilot";
+  var im = UI_IMGS["portrait_" + id];
+  ctx.imageSmoothingEnabled = false;
+  if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
+  if (im && im.complete && im.naturalWidth) {
+    var nw = im.naturalWidth, nh = im.naturalHeight;
+    var sw = Math.min(size, nw), sh = Math.min(size, nh);
+    var sx = Math.round((nw - sw) / 2), sy = Math.max(0, Math.round((nh - sh) / 2) - 2);
+    ctx.drawImage(im, sx, sy, sw, sh, x, y, sw, sh);
+    return sw;
+  }
+  ctx.fillStyle = "#241838";
+  ctx.fillRect(x, y, size, size);
+  return size;
+}
+function uiReady(kind: string, n: number, w: number) {
+  var c = 0;
+  for (var k in UI_IMGS) {
+    if (k.indexOf(kind) === 0 && UI_IMGS[k] && UI_IMGS[k].naturalWidth === w) c++;
+  }
+  return c >= n;
+}
+
 function rect(ctx: Ctx, x: number, y: number, w: number, h: number, col: string) {
   ctx.fillStyle = col;
   ctx.fillRect(Math.round(x), Math.round(y), w, h);
 }
+
 function mixHex(a: string, b: string, t: number) {
   var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
   var r = Math.round(lerp((x >> 16) & 255, (y >> 16) & 255, t));

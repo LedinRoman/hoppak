@@ -951,6 +951,167 @@
     }
     return w;
   }
+  var TINY = {
+    "\u0410": [2, 5, 7, 5, 5],
+    "\u0411": [6, 4, 6, 5, 6],
+    "\u0412": [6, 5, 6, 5, 6],
+    "\u0413": [7, 4, 4, 4, 4],
+    "\u0414": [3, 5, 5, 5, 7],
+    "\u0415": [7, 4, 6, 4, 7],
+    "\u0401": [5, 7, 4, 6, 7],
+    "\u0416": [5, 7, 2, 7, 5],
+    "\u0417": [6, 1, 2, 1, 6],
+    "\u0418": [5, 7, 7, 5, 5],
+    "\u0419": [2, 5, 7, 5, 5],
+    "\u041A": [5, 6, 4, 6, 5],
+    "\u041B": [3, 5, 5, 5, 5],
+    "\u041C": [5, 7, 5, 5, 5],
+    "\u041D": [5, 5, 7, 5, 5],
+    "\u041E": [2, 5, 5, 5, 2],
+    "\u041F": [7, 5, 5, 5, 5],
+    "\u0420": [6, 5, 6, 4, 4],
+    "\u0421": [3, 4, 4, 4, 3],
+    "\u0422": [7, 2, 2, 2, 2],
+    "\u0423": [5, 5, 5, 1, 6],
+    "\u0424": [2, 7, 2, 2, 2],
+    "\u0425": [5, 2, 2, 2, 5],
+    "\u0426": [5, 5, 5, 5, 7],
+    "\u0427": [5, 5, 3, 1, 1],
+    "\u0428": [5, 5, 7, 5, 7],
+    "\u0429": [5, 5, 7, 7, 1],
+    "\u042A": [6, 2, 6, 2, 6],
+    "\u042B": [5, 5, 7, 5, 7],
+    "\u042C": [4, 4, 6, 5, 6],
+    "\u042D": [7, 1, 3, 1, 7],
+    "\u042E": [5, 7, 7, 5, 5],
+    "\u042F": [3, 5, 3, 6, 5],
+    " ": [0, 0, 0, 0, 0],
+    "\xB7": [0, 0, 2, 0, 0],
+    "-": [0, 0, 7, 0, 0],
+    ".": [0, 0, 0, 2, 2],
+    "/": [1, 1, 2, 4, 4],
+    "0": [7, 5, 5, 5, 7],
+    "1": [2, 6, 2, 2, 7],
+    "2": [6, 1, 2, 4, 7],
+    "3": [6, 1, 6, 1, 6],
+    "4": [5, 5, 7, 1, 1],
+    "5": [7, 4, 6, 1, 6],
+    "6": [3, 4, 6, 5, 2],
+    "7": [7, 1, 2, 2, 2],
+    "8": [2, 5, 2, 5, 2],
+    "9": [2, 5, 3, 1, 6]
+  };
+  function tinyChars(s) {
+    s = String(s).toUpperCase();
+    var out = "";
+    for (var i = 0; i < s.length; i++) if (TINY[s[i]]) out += s[i];
+    return out;
+  }
+  function tinyWidth(s) {
+    var n = tinyChars(s).length;
+    return n ? n * 4 - 1 : 0;
+  }
+  function drawTiny(ctx, s, x, y, color, align) {
+    s = tinyChars(s);
+    var w = s.length ? tinyWidth(s) : 0;
+    var xx = Math.round(align === "center" ? x - w / 2 : align === "right" ? x - w : x);
+    y = Math.round(y);
+    ctx.fillStyle = color;
+    for (var i = 0; i < s.length; i++) {
+      var g = TINY[s[i]];
+      for (var r = 0; r < 5; r++) for (var c = 0; c < 3; c++) if (g[r] & 1 << 2 - c) ctx.fillRect(xx + c, y + r, 1, 1);
+      xx += 4;
+    }
+    return w;
+  }
+  function tinyLines(s, maxW) {
+    s = tinyChars(s);
+    if (tinyWidth(s) <= maxW) return [s];
+    var parts = s.split(" ");
+    if (parts.length > 1) {
+      var lines = [], cur = parts[0];
+      for (var i = 1; i < parts.length; i++) {
+        var try_ = cur + " " + parts[i];
+        if (tinyWidth(try_) <= maxW) cur = try_;
+        else {
+          lines.push(cur);
+          cur = parts[i];
+        }
+      }
+      lines.push(cur);
+      return lines;
+    }
+    var a2 = "", b = s;
+    for (var k = 1; k < s.length; k++) {
+      if (tinyWidth(s.slice(0, k)) <= maxW) a2 = s.slice(0, k), b = s.slice(k);
+    }
+    return a2 && b ? [a2, b] : [s];
+  }
+  var UI_IMGS = {};
+  function loadUiImage(key, src) {
+    var im = new Image();
+    im.onload = function() {
+      UI_IMGS[key] = im;
+    };
+    im.src = src;
+  }
+  function warmUiImages() {
+    var tabs = ["shop", "leagues", "home", "friends", "settings"];
+    var grids = ["maps", "multiplayer", "encyclopedia", "quests"];
+    var ports = ["pilot", "pirate", "ninja", "robot", "mage", "knight"];
+    var i;
+    for (i = 0; i < tabs.length; i++) loadUiImage("bar_" + tabs[i], "ui/tab/bar_" + tabs[i] + ".png");
+    for (i = 0; i < grids.length; i++) loadUiImage("grid_" + grids[i], "ui/grid/grid_" + grids[i] + ".png");
+    for (i = 0; i < ports.length; i++) loadUiImage("portrait_" + ports[i], "ui/portrait/portrait_" + ports[i] + ".png");
+  }
+  warmUiImages();
+  function drawUiPx(ctx, key, x, y, mul) {
+    x = Math.round(x);
+    y = Math.round(y);
+    var im = UI_IMGS[key];
+    var k = mul && mul >= 1 ? Math.round(mul) : 1;
+    if (k < 1) k = 1;
+    ctx.imageSmoothingEnabled = false;
+    if (ctx.webkitImageSmoothingEnabled !== void 0) ctx.webkitImageSmoothingEnabled = false;
+    if (im && im.complete && im.naturalWidth) {
+      ctx.drawImage(im, x, y, im.naturalWidth * k, im.naturalHeight * k);
+      return im.naturalWidth * k;
+    }
+    var ph = 16 * k;
+    ctx.fillStyle = "#241838";
+    ctx.fillRect(x, y, ph, ph);
+    return ph;
+  }
+  function drawPortrait(ctx, kind, x, y, mul) {
+    var id = CHARS[kind] && CHARS[kind].id || "pilot";
+    return drawUiPx(ctx, "portrait_" + id, x, y, mul || 1);
+  }
+  function drawPortraitCrop(ctx, kind, x, y, size) {
+    x = Math.round(x);
+    y = Math.round(y);
+    size = Math.round(size);
+    var id = CHARS[kind] && CHARS[kind].id || "pilot";
+    var im = UI_IMGS["portrait_" + id];
+    ctx.imageSmoothingEnabled = false;
+    if (ctx.webkitImageSmoothingEnabled !== void 0) ctx.webkitImageSmoothingEnabled = false;
+    if (im && im.complete && im.naturalWidth) {
+      var nw = im.naturalWidth, nh = im.naturalHeight;
+      var sw = Math.min(size, nw), sh = Math.min(size, nh);
+      var sx = Math.round((nw - sw) / 2), sy = Math.max(0, Math.round((nh - sh) / 2) - 2);
+      ctx.drawImage(im, sx, sy, sw, sh, x, y, sw, sh);
+      return sw;
+    }
+    ctx.fillStyle = "#241838";
+    ctx.fillRect(x, y, size, size);
+    return size;
+  }
+  function uiReady(kind, n, w) {
+    var c = 0;
+    for (var k in UI_IMGS) {
+      if (k.indexOf(kind) === 0 && UI_IMGS[k] && UI_IMGS[k].naturalWidth === w) c++;
+    }
+    return c >= n;
+  }
   function rect(ctx, x, y, w, h, col) {
     ctx.fillStyle = col;
     ctx.fillRect(Math.round(x), Math.round(y), w, h);
@@ -3796,7 +3957,7 @@
   var NET_DELAY_MS = 150;
   var NET_GRACE_MS = 1e4;
   var NET_XS = [74, 22, 124, 48];
-  var NET = function() {
+  var NET = (function() {
     var N = {
       ws: null,
       st: "off",
@@ -4751,10 +4912,10 @@
         var rim = isMe ? C.gold : p.ready || p.bot ? C.mint : !p.on ? C.red : C.cream;
         box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, rim);
         if (api.markBox) api.markBox("slot" + i, x, y, 152, 23);
-        drawJumper(ctx, x + 6, y + 5, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
+        drawPortraitCrop(ctx, p.kind, x + 1, y + 1, 21);
         var heroNm = (CHARS[p.kind] && CHARS[p.kind].name || "").toUpperCase();
-        var slotLab = p.bot ? "\u0411\u041E\u0422" : slotLabel(p.name, heroNm, host && !isMe ? 90 : 112);
-        drawText(ctx, slotLab, x + 28, y + 8, C.cream, 1, "left");
+        var slotLab = p.bot ? "\u0411\u041E\u0422" : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
+        drawText(ctx, slotLab, x + 26, y + 8, C.cream, 1, "left");
         if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
       }
       var my = row0 + 4 * 26 + 4;
@@ -4934,8 +5095,8 @@
       N.connect();
     };
     return N;
-  }();
-  var PROFILE = function() {
+  })();
+  var PROFILE = (function() {
     var TOKEN_KEY = "hoppak_guest_token";
     var QUEUE_KEY = "hoppak_profile_queue";
     var BUYS_KEY = "hoppak_profile_buys";
@@ -5690,7 +5851,7 @@
       };
     };
     return P;
-  }();
+  })();
   function startHoppak(canvas) {
     var raw = canvas.getContext("2d");
     var noop = function() {
@@ -5730,26 +5891,6 @@
     var resultLay = [];
     var pauseLay = [];
     var showProf = false;
-    var TAB_ICONS = {
-      shop: "ui/tab/icon_shop.png",
-      leagues: "ui/tab/icon_leagues.png",
-      home: "ui/tab/icon_home.png",
-      friends: "ui/tab/icon_friends.png",
-      settings: "ui/tab/icon_settings.png"
-    };
-    var tabImgs = {};
-    function loadTabIcons() {
-      for (var key in TAB_ICONS) {
-        (function(k, src) {
-          var im = new Image();
-          im.onload = function() {
-            tabImgs[k] = im;
-          };
-          im.src = src;
-        })(key, TAB_ICONS[key]);
-      }
-    }
-    loadTabIcons();
     var photoSlot = { url: "", cv: null, fail: false };
     var tgInsetBound = false;
     var paused = false;
@@ -7163,47 +7304,36 @@
       drawText(ctx, "\u0420\u0415\u041A\u041E\u0420\u0414 " + (save.best || 0) + " \u041C", x + 8, y + h - 36, C.gold, 1, "left");
       btn("prof:close", x + 26, y + h - 22, 100, 16, C.navy, "\u0417\u0410\u041A\u0420\u042B\u0422\u042C");
     }
-    function drawTabIcon(key, x, y) {
-      var im = tabImgs[key];
-      x = Math.round(x);
-      y = Math.round(y);
-      if (im && im.complete && im.naturalWidth) {
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(im, x, y, 16, 16);
-      } else {
-        rect(ctx, x, y, 16, 16, "#241838");
-        rect(ctx, x, y, 16, 1, INK);
-        rect(ctx, x, y + 15, 16, 1, INK);
-        rect(ctx, x, y, 1, 16, INK);
-        rect(ctx, x + 15, y, 1, 16, INK);
-      }
+    function drawTabIcon(key, x, y, dim) {
+      if (dim) ctx.globalAlpha = 0.45;
+      drawUiPx(ctx, "bar_" + key, x, y, 1);
+      if (dim) ctx.globalAlpha = 1;
     }
     function drawTabLock(x, y) {
       x = Math.round(x);
       y = Math.round(y);
-      rect(ctx, x + 3, y, 6, 1, INK);
-      rect(ctx, x + 2, y + 1, 1, 4, INK);
-      rect(ctx, x + 9, y + 1, 1, 4, INK);
-      rect(ctx, x + 3, y + 1, 1, 3, INK);
-      rect(ctx, x + 8, y + 1, 1, 3, INK);
-      rect(ctx, x, y + 5, 12, 9, INK);
-      rect(ctx, x + 1, y + 6, 10, 7, C.cream);
-      rect(ctx, x + 5, y + 8, 2, 3, INK);
+      rect(ctx, x + 1, y, 3, 1, INK);
+      rect(ctx, x, y + 1, 1, 2, INK);
+      rect(ctx, x + 4, y + 1, 1, 2, INK);
+      rect(ctx, x, y + 3, 5, 4, INK);
+      rect(ctx, x + 1, y + 4, 3, 2, C.cream);
+      rect(ctx, x + 2, y + 4, 1, 2, INK);
     }
-    function drawSoonSlot(x, y, w, h) {
-      markBox("soon", x, y, w, h);
-      rect(ctx, x, y, w, h, "#12101c");
-      var i;
-      for (i = 0; i < w; i += 2) {
-        rect(ctx, x + i, y, 1, 1, "#5a4a72");
-        rect(ctx, x + i, y + h - 1, 1, 1, "#5a4a72");
-      }
-      for (i = 0; i < h; i += 2) {
-        rect(ctx, x, y + i, 1, 1, "#5a4a72");
-        rect(ctx, x + w - 1, y + i, 1, 1, "#5a4a72");
-      }
-      drawText(ctx, "?", x + w / 2, y + 4, "#9a8ab8", 1, "center");
-      drawText(ctx, "\u0421\u041A\u041E\u0420\u041E", x + w / 2, y + 14, "#9a8ab8", 1, "center");
+    function drawGridCell(id, x, y, w, h, icon, label, dim) {
+      addHit(id, x, y, w, h);
+      markBox(id, x, y, w, h);
+      var fill = dim ? "#12101c" : C.navy;
+      box(ctx, x, y, w, h, fill, dim ? "#5a4a72" : C.cream);
+      var ix = x + 2, iy = y + Math.round((h - 24) / 2);
+      if (dim) ctx.globalAlpha = 0.45;
+      drawUiPx(ctx, icon, ix, iy, 1);
+      if (dim) ctx.globalAlpha = 1;
+      var tx = ix + 24 + 2, tw = x + w - 3 - tx;
+      var col = dim ? "#9a8ab8" : C.cream;
+      var lines = tinyLines(label, tw);
+      var block = lines.length * 6 - 1;
+      var ly = y + Math.round((h - block) / 2);
+      for (var i = 0; i < lines.length; i++) drawTiny(ctx, lines[i], tx, ly + i * 6, col, "left");
     }
     function menuFrame() {
       var top = menuTop();
@@ -7228,7 +7358,6 @@
         L = stack();
       }
       if (L.heroTop < L.tagBot + 4) {
-        gridH = 22;
         gridGap = 2;
         pickH = 16;
         L = stack();
@@ -7298,16 +7427,16 @@
       var gw = Math.floor((152 - L.gridGap) / 2);
       var gx2 = x + gw + L.gridGap;
       var gy2 = L.gridY + L.gridH + L.gridGap;
-      btn("camp", x, L.gridY, gw, L.gridH, C.navy, "\u041A\u0410\u0420\u0422\u042B");
-      btn("net:menu", gx2, L.gridY, gw, L.gridH, C.navy, "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420");
-      btn("ency", x, gy2, gw, L.gridH, C.navy, "\u042D\u041D\u0426\u0418\u041A\u041B\u041E\u041F\u0415\u0414\u0418\u042F");
-      drawSoonSlot(gx2, gy2, gw, L.gridH);
+      drawGridCell("camp", x, L.gridY, gw, L.gridH, "grid_maps", "\u041A\u0410\u0420\u0422\u042B");
+      drawGridCell("net:menu", gx2, L.gridY, gw, L.gridH, "grid_multiplayer", "\u041C\u0423\u041B\u042C\u0422\u0418 \u041F\u041B\u0415\u0415\u0420");
+      drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", "\u042D\u041D\u0426\u0418\u041A\u041B\u041E \u041F\u0415\u0414\u0418\u042F");
+      drawGridCell("soon", gx2, gy2, gw, L.gridH, "grid_quests", "\u0417\u0410\u0414\u0410\u041D\u0418\u042F \xB7 \u0421\u041A\u041E\u0420\u041E", true);
       var tabs = [
-        { id: "tab:shop", key: "shop", a: "\u041C\u0410\u0413\u0410", b: "\u0417\u0418\u041D", lock: true },
-        { id: "tab:leagues", key: "leagues", a: "\u041B\u0418\u0413\u0418", b: "", lock: true },
-        { id: "tab:home", key: "home", a: "\u0413\u041B\u0410\u0412", b: "\u041D\u0410\u042F", lock: false },
-        { id: "tab:friends", key: "friends", a: "\u0414\u0420\u0423\u0417", b: "\u042C\u042F", lock: true },
-        { id: "set", key: "settings", a: "\u041D\u0410\u0421\u0422", b: "\u0420\u041E\u0419\u041A\u0418", lock: false }
+        { id: "tab:shop", key: "shop", label: "\u041C\u0410\u0413\u0410\u0417\u0418\u041D", lock: true },
+        { id: "tab:leagues", key: "leagues", label: "\u041B\u0418\u0413\u0418", lock: true },
+        { id: "tab:home", key: "home", label: "\u0413\u041B\u0410\u0412\u041D\u0410\u042F", lock: false },
+        { id: "tab:friends", key: "friends", label: "\u0414\u0420\u0423\u0417\u042C\u042F", lock: true },
+        { id: "set", key: "settings", label: "\u041E\u041F\u0426\u0418\u0418", lock: false }
       ];
       var tw = Math.floor(LW / tabs.length);
       var homeOn = phase === "menu" && !showSet && !showProf;
@@ -7322,19 +7451,11 @@
         rect(ctx, tx, L.tabY, tw, 1, INK);
         if (ti > 0) rect(ctx, tx, L.tabY, 1, L.tabH, INK);
         var ix = tx + Math.floor((tw - 16) / 2);
-        if (tb.lock) ctx.globalAlpha = 0.18;
-        drawTabIcon(tb.key, ix, L.tabY + 3);
-        if (tb.lock) ctx.globalAlpha = 0.4;
-        var ly = L.tabY + 20;
+        var iy = L.tabY + 3;
+        drawTabIcon(tb.key, ix, iy, !!tb.lock);
         var tc = tb.lock ? "#6a6080" : on ? C.cream : "#9a8ab8";
-        if (tb.b) {
-          drawText(ctx, tb.a, tx + tw / 2, ly, tc, 1, "center");
-          drawText(ctx, tb.b, tx + tw / 2, ly + 8, tc, 1, "center");
-        } else drawText(ctx, tb.a, tx + tw / 2, ly + 4, tc, 1, "center");
-        if (tb.lock) {
-          ctx.globalAlpha = 1;
-          drawTabLock(ix + 2, L.tabY + 2);
-        }
+        drawTiny(ctx, tb.label, tx + tw / 2, L.tabY + 22, tc, "center");
+        if (tb.lock) drawTabLock(ix + 11, iy - 1);
       }
       rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
       if (showSet) {
@@ -7386,21 +7507,20 @@
       dimView(ctx, "rgba(18,14,44,0.32)");
       var x = colX();
       var hdShop = header("\u041C\u0410\u0413\u0410\u0417\u0418\u041D", 2);
-      var pw = 22, gap = 4, sx = Math.round(LW / 2 - (6 * pw + 5 * gap) / 2);
+      var pw = 34, gap = 4, cols = 3, rows = 2;
+      var sx = Math.round(LW / 2 - (cols * pw + (cols - 1) * gap) / 2);
       var heroY = hdShop.bottom + 4;
-      markBox("heroes", sx, heroY, 6 * pw + 5 * gap, 22);
+      markBox("heroes", sx, heroY, cols * pw + (cols - 1) * gap, rows * pw + (rows - 1) * gap);
       for (var k = 0; k < 6; k++) {
-        var bx = sx + k * (pw + gap), by = heroY, H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
-        addHit("hero:" + k, bx, by, pw, 22);
-        box(ctx, bx, by, pw, 22, sel ? "#2a2050" : C.navy, sel ? C.gold : own ? C.cream : "#5a4a72");
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(bx + 1, by + 1, pw - 2, 20);
-        ctx.clip();
-        drawJumper(ctx, bx + 3, by + 4, makeLook(k, "base", "none"), 1, "idle", false, true, 1);
-        ctx.restore();
+        var col = k % cols, row = Math.floor(k / cols);
+        var bx = sx + col * (pw + gap), by = heroY + row * (pw + gap);
+        var H = CHARS[k], own = heroOwned(k), sel = k === shopHero, on = save.char === k;
+        addHit("hero:" + k, bx, by, pw, pw);
+        box(ctx, bx, by, pw, pw, sel ? "#2a2050" : C.navy, sel ? C.gold : own ? C.cream : "#5a4a72");
+        ctx.imageSmoothingEnabled = false;
+        drawPortrait(ctx, k, bx + 1, by + 1, 1);
         if (on) {
-          var qx = bx + pw - 8, qy = by + 1;
+          var qx = bx + pw - 9, qy = by + 1;
           rect(ctx, qx, qy, 7, 7, C.mint);
           rect(ctx, qx + 1, qy + 3, 2, 1, INK);
           rect(ctx, qx + 2, qy + 4, 2, 1, INK);
@@ -7409,7 +7529,7 @@
         }
       }
       var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
-      var y0 = heroY + 28, ch = LH - y0 - 42;
+      var y0 = heroY + rows * pw + (rows - 1) * gap + 6, ch = LH - y0 - 42;
       markBox("card", x, y0, 152, ch);
       box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
       var mid = y0 + 52;
@@ -7484,16 +7604,18 @@
       var hdLobby = header("\u0417\u0410\u0411\u0415\u0413 \u0421 \u0411\u041E\u0422\u0410\u041C\u0418", 1);
       var ps = lobbyNames();
       var row0 = hdLobby.bottom + 4;
+      var slotH = 36, slotGap = 2;
       for (var i = 0; i < ps.length; i++) {
-        var y = row0 + i * 26;
-        markBox("slot" + i, x, y, 152, 23);
-        box(ctx, x, y, 152, 23, i === 0 ? "#2a2050" : C.navy, i === 0 ? C.gold : C.cream);
-        drawJumper(ctx, x + 6, y + 5, ps[i].look, 1, "idle", (ui + i * 50) % 170 < 6, true, 1);
-        drawText(ctx, ps[i].name, x + 28, y + 3, C.cream, 1, "left");
-        drawText(ctx, ps[i].tag, x + 28, y + 13, i === 0 ? C.gold : "#9a8ab8", 1, "left");
-        drawText(ctx, CHARS[ps[i].kind].abName, x + 148, y + 8, "#9a8ab8", 1, "right");
+        var y = row0 + i * (slotH + slotGap);
+        markBox("slot" + i, x, y, 152, slotH);
+        box(ctx, x, y, 152, slotH, i === 0 ? "#2a2050" : C.navy, i === 0 ? C.gold : C.cream);
+        ctx.imageSmoothingEnabled = false;
+        drawPortrait(ctx, ps[i].kind, x + 2, y + 2, 1);
+        drawText(ctx, ps[i].name, x + 40, y + 6, C.cream, 1, "left");
+        drawText(ctx, ps[i].tag, x + 40, y + 18, i === 0 ? C.gold : "#9a8ab8", 1, "left");
+        drawText(ctx, CHARS[ps[i].kind].abName, x + 148, y + 14, "#9a8ab8", 1, "right");
       }
-      var my = row0 + 4 * 26 + 6;
+      var my = row0 + 4 * (slotH + slotGap) + 6;
       btn("lmap:prev", x, my, 20, 18, "#1a1430", "<", C.cream);
       btn("lmap:next", x + 132, my, 20, 18, "#1a1430", ">", C.cream);
       box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
@@ -8719,9 +8841,7 @@
         return rows;
       },
       tabIconsReady: function() {
-        var n = 0;
-        for (var k in TAB_ICONS) if (tabImgs[k] && tabImgs[k].naturalWidth === 16) n++;
-        return n === 5;
+        return uiReady("bar_", 5, 16);
       },
       resultsBoxes: function() {
         return resultLay;

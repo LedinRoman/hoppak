@@ -645,6 +645,7 @@ var NET: any = (function () {
     drawText(ctx, "СКАЖИ КОД ДРУЗЬЯМ", LW / 2, y0 + 38, "#9a8ab8", 1, "center");
     var sorted = R.players.slice().sort(function (a: any, b: any) { return a.slot - b.slot; });
     var row0 = y0 + 50;
+    /* Keep 23px rows so the evening table still fits 6 names. Portrait is a 1:1 21×21 crop, no scale. */
     for (var i = 0; i < 4; i++) {
       var y = row0 + i * 26, p = sorted[i];
       if (!p) {
@@ -656,10 +657,10 @@ var NET: any = (function () {
       var rim = isMe ? C.gold : p.ready || p.bot ? C.mint : !p.on ? C.red : C.cream;
       box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, rim);
       if (api.markBox) api.markBox("slot" + i, x, y, 152, 23);
-      drawJumper(ctx, x + 6, y + 5, lookOf(p.kind), 1, "idle", (api.ui() + i * 50) % 170 < 6, true, 1);
+      drawPortraitCrop(ctx, p.kind, x + 1, y + 1, 21);
       var heroNm = (CHARS[p.kind] && CHARS[p.kind].name || "").toUpperCase();
-      var slotLab = p.bot ? "БОТ" : slotLabel(p.name, heroNm, host && !isMe ? 90 : 112);
-      drawText(ctx, slotLab, x + 28, y + 8, C.cream, 1, "left");
+      var slotLab = p.bot ? "БОТ" : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
+      drawText(ctx, slotLab, x + 26, y + 8, C.cream, 1, "left");
       if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
     }
     var my = row0 + 4 * 26 + 4;
