@@ -541,6 +541,44 @@ const seed = [
   {"key": "unit.seconds", "locale": "en", "form": "", "value": "{n} SEC"}
 ];
 
+// Pixel fonts have a fixed pitch. Size shared labels for their narrowest use.
+const labelWidths = new Map<string, [number, number]>([
+  ['common.on', [36, 6]], ['common.off', [36, 6]],
+  ['common.menu', [72, 6]], ['shop.title', [72, 6]],
+  ['common.back', [100, 6]], ['common.close', [100, 6]], ['common.retry', [100, 6]],
+  ['menu.choose_hero', [120, 6]], ['menu.play', [152, 12]],
+  ['results.again', [152, 12]], ['results.rematch', [152, 12]],
+  ['menu.leagues', [32, 4]], ['menu.friends', [32, 4]], ['menu.home', [32, 4]],
+  ['menu.options', [32, 4]], ['menu.maps', [47, 4]], ['menu.multiplayer', [47, 4]],
+  ['menu.encyclopedia', [47, 4]],
+  ['lobby.map', [108, 6]], ['lobby.hero', [152, 6]], ['lobby.name', [152, 6]],
+  ['lobby.create', [152, 6]], ['lobby.enter_code', [152, 6]],
+  ['lobby.start', [152, 6]], ['lobby.start_solo', [152, 6]],
+  ['lobby.waiting_ready', [152, 6]], ['lobby.ready', [152, 6]],
+  ['lobby.set_ready', [152, 6]], ['lobby.leave', [152, 6]],
+  ['shop.buy', [132, 6]], ['shop.need', [132, 6]], ['shop.confirm', [132, 6]],
+  ['shop.select', [132, 6]], ['shop.selected', [132, 6]],
+  ['settings.language', [136, 6]], ['settings.tilt', [136, 6]],
+  ['settings.vibration', [136, 6]], ['profile.title', [136, 6]],
+]);
+const parameterWidths: Record<string, number> = { name: 10, mode: 2, state: 5, n: 5 };
+
+function translationLimit(key: string, value: string): number {
+  const measured = Array.from(value).length;
+  const control = labelWidths.get(key);
+  if (!control) {
+    const limit = key.startsWith('play.desktop_') ? 140 : key.startsWith('hero.') ? 23 : 30;
+    return Math.min(300, Math.max(measured + 2, limit));
+  }
+  const [width, pitch] = control;
+  // Budget for the rendered parameter rather than the token in the dictionary.
+  let tokenAdjustment = 0;
+  for (const [token, parameter] of value.matchAll(/\{([a-z][a-z0-9_]*)\}/gi)) {
+    tokenAdjustment += token.length - (parameterWidths[parameter] ?? 5);
+  }
+  return Math.max(measured, Math.floor((width - 4) / pitch) + tokenAdjustment);
+}
+
 export class GameTranslations1795650000000 implements MigrationInterface {
   async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
@@ -573,9 +611,9 @@ export class GameTranslations1795650000000 implements MigrationInterface {
     `);
     await queryRunner.query(`
       INSERT INTO public.game_translation (key, locale, form, value, default_value, max_len)
-      SELECT key, locale, form, value, value, char_length(value)
-      FROM jsonb_to_recordset($1::jsonb) AS rows(key text, locale text, form text, value text)
-    `, [JSON.stringify(seed)]);
+      SELECT key, locale, form, value, value, max_len
+      FROM jsonb_to_recordset($1::jsonb) AS rows(key text, locale text, form text, value text, max_len integer)
+    `, [JSON.stringify(seed.map(row => ({ ...row, max_len: translationLimit(row.key, row.value) })))]);
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
