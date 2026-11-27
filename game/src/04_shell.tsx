@@ -1113,9 +1113,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, t('score.record', { n: save.best || 0 }), x + 8, y + h - 36, TYPECOL.accent, TYPE.M, "left");
     btn("prof:close", x + 26, y + h - 22, 100, 16, C.navy, t('common.close'));
   }
+  function uiImgReady(key: string) {
+    var im = UI_IMGS[key];
+    return !!(im && im.complete && im.naturalWidth);
+  }
   function drawTabIcon(key: string, x: number, y: number, dim?: boolean) {
     if (dim) ctx.globalAlpha = 0.45;
-    drawUiPx(ctx, "bar_" + key, x, y, 1);
+    drawUiPx(ctx, uiImgReady("menu_icon_tab_" + key) ? "menu_icon_tab_" + key : "bar_" + key, x, y, 1);
     if (dim) ctx.globalAlpha = 1;
   }
   /* 5×7 padlock, meant for the top-right corner of a 16×16 tab icon — not a replacement for it. */
@@ -1130,14 +1134,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawGridCell(id: string, x: number, y: number, w: number, h: number, icon: string, label: string, dim?: boolean) {
     addHit(id, x, y, w, h);
     markBox(id, x, y, w, h);
-    var fill = dim ? "#12101c" : C.navy;
-    box(ctx, x, y, w, h, fill, dim ? "#5a4a72" : C.cream);
-    var ix = x + 1, iy = y + Math.round((h - 24) / 2);
+    var cellKey = dim ? "menu_cell_dim" : "menu_cell_idle";
+    if (!drawNineSlice(ctx, cellKey, x, y, w, h, UI_SLICE.cell)) {
+      box(ctx, x, y, w, h, dim ? "#12101c" : C.navy, dim ? "#5a4a72" : C.cream);
+    }
+    /* Advisor layout: 16×16 icon at (x+4,y+5), text from x+24, ≥4 px after the icon, right edge ≤ x+w-5. */
+    var ix = x + 4, iy = y + 5;
+    var iconKey = "menu_icon_" + icon;
     if (dim) ctx.globalAlpha = 0.45;
-    drawUiPx(ctx, icon, ix, iy, 1);
+    drawUiPx(ctx, uiImgReady(iconKey) ? iconKey : icon, ix, iy, 1);
     if (dim) ctx.globalAlpha = 1;
-    /* Text runs from 1 px after the icon to the inner edge of the frame: ЭНЦИКЛОПЕДИЯ (47 px) fits one line. */
-    var tx = ix + 24 + 1, tw = x + w - 1 - tx;
+    var tx = x + 24, tw = (x + w - 5) - tx;
     var col = dim ? TYPECOL.muted : TYPECOL.primary;
     var lines = tinyLines(label, tw);
     var block = lines.length * 6 - 1;
@@ -1256,13 +1263,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dimView(ctx, "rgba(18,14,44,0.14)");
     var x = colX();
     var L = menuFrame();
-    var logoW = bigWidth(t('menu.title'), L.logoSc);
-    drawBig(ctx, t('menu.title'), LW / 2, L.logoY, TITLE.face, L.logoSc, "center", TITLE.outline, TITLE.shadow);
+    var logoKey = (L.logoSc === TYPE.XL && uiImgReady("menu_logo_x2")) ? "menu_logo_x2" : (uiImgReady("menu_logo") ? "menu_logo" : "");
+    var logoW = logoKey === "menu_logo_x2" ? 136 : logoKey === "menu_logo" ? 68 : bigWidth(t('menu.title'), L.logoSc);
+    var logoH = logoKey === "menu_logo_x2" ? 30 : logoKey === "menu_logo" ? 15 : 7 * L.logoSc;
+    var logoX = Math.round((LW - logoW) / 2);
+    /* Anchor the logo above the existing tagline so hop room / hero / platform stay as they are. */
+    var logoY = logoKey ? L.tagY - 3 - logoH : L.logoY;
+    if (logoKey) drawUiPx(ctx, logoKey, logoX, logoY, 1);
+    else drawBig(ctx, t('menu.title'), LW / 2, L.logoY, TITLE.face, L.logoSc, "center", TITLE.outline, TITLE.shadow);
     drawTextO(ctx, t('menu.tagline'), LW / 2, L.tagY, TYPECOL.primary, "center");
     menuLay = {
       chip: { x: 3, y: 1 + L.top, w: CHIP, h: CHIP },
       coins: { x: 0, y: 1 + L.top, w: 0, h: CHIP },
-      logo: { x: Math.round(LW / 2 - logoW / 2) - 1, y: L.logoY - 1, w: logoW + 2, h: 7 * L.logoSc + 2 },
+      logo: { x: logoX, y: logoY, w: logoW, h: logoH },
       tag: { x: Math.round(LW / 2 - textWidth(t('menu.tagline'), TYPE.M) / 2) - 1, y: L.tagY - 1, w: textWidth(t('menu.tagline'), TYPE.M) + 2, h: 9 },
       logoSc: L.logoSc,
       safeTop: L.top,
@@ -1281,17 +1294,28 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     markBox("hero", LW / 2 - 18, platY - hop - L.heroH, 36, L.heroH);
     markBox("plat", mPlatX, platY, mPlatW, mPlatH);
     var pickW = 120;
-    btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", t('menu.choose_hero'), TYPECOL.primary, TYPE.M, C.gold);
-    btn("start", x, L.playY, 152, L.playH, C.mint, "", TYPECOL.ink, TYPE.L);
-    /* Same face as prod b683155: BIGF scale 2, ink, no outline, 4px under the button top. */
-    drawBig(ctx, t('menu.play'), LW / 2, L.playY + 4, TYPECOL.ink, TYPE.L, "center");
-    drawText(ctx, sub, LW / 2, L.playY + 23, TYPECOL.ink, TYPE.M, "center");
+    var pickX = x + Math.round((152 - pickW) / 2);
+    var pickSt = pressId === "hero:menu" ? "pressed" : "idle";
+    addHit("hero:menu", pickX, L.pickY, pickW, L.pickH);
+    markBox("hero:menu", pickX, L.pickY, pickW, L.pickH);
+    if (!drawNineSlice(ctx, "menu_btn_sec_" + pickSt, pickX, L.pickY, pickW, L.pickH, UI_SLICE.btn_sec)) {
+      btn("hero:menu", pickX, L.pickY, pickW, L.pickH, "#1a1430", "", TYPECOL.primary, TYPE.M, C.gold);
+    }
+    drawText(ctx, t('menu.choose_hero'), LW / 2, L.pickY + Math.round((L.pickH - 7) / 2) + (pickSt === "pressed" ? 1 : 0), TYPECOL.primary, TYPE.M, "center");
+    var playSt = pressId === "start" ? "pressed" : "idle";
+    addHit("start", x, L.playY, 152, L.playH);
+    markBox("start", x, L.playY, 152, L.playH);
+    if (!drawNineSlice(ctx, "menu_btn_play_" + playSt, x, L.playY, 152, L.playH, UI_SLICE.btn_play)) {
+      box(ctx, x, L.playY, 152, L.playH, C.mint, C.cream);
+    }
+    var playDy = playSt === "pressed" ? 1 : 0;
+    drawBig(ctx, t('menu.play_label'), LW / 2, L.playY + 4 + playDy, TYPECOL.ink, TYPE.L, "center");
+    drawText(ctx, sub, LW / 2, L.playY + 22 + playDy, TYPECOL.ink, TYPE.M, "center");
     var hgap = 2;
-    var gw = Math.floor((152 - hgap) / 2);
+    var gw = 75;
     var gx2 = x + gw + hgap;
     var gy2 = L.gridY + L.gridH + L.gridGap;
-    /* Grid cells are ~26px tall; 24px icons leave 1px padding. Labels sit to the right, tiny 3×5. */
-    drawGridCell("camp", x, L.gridY, gw, L.gridH, "grid_maps", t('menu.maps'));
+    drawGridCell("camp", x, L.gridY, gw, L.gridH, "grid_map", t('menu.maps'));
     drawGridCell("net:menu", gx2, L.gridY, gw, L.gridH, "grid_multiplayer", t('menu.multiplayer'));
     drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", t('menu.encyclopedia'));
     drawGridCell("soon", gx2, gy2, gw, L.gridH, "grid_quests", t('menu.quests_soon'), true);
@@ -1302,7 +1326,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       { id: "tab:friends", key: "friends", label: t('menu.friends'), lock: true },
       { id: "set", key: "settings", label: t('menu.options'), lock: false }
     ];
-    var tw = Math.floor(LW / tabs.length);
+    var tw = 32;
     var homeOn = phase === "menu" && !showSet && !showProf;
     for (var ti = 0; ti < tabs.length; ti++) {
       var tb = tabs[ti];
@@ -1310,19 +1334,29 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var on = (tb.id === "tab:home" && homeOn) || (tb.id === "set" && showSet);
       addHit(tb.id, tx, L.tabY, tw, L.tabH);
       markBox(tb.id === "set" ? "tab:settings" : tb.id, tx, L.tabY, tw, L.tabH);
-      /* Fill down to the screen edge (home-indicator area) so no map background shows under the bar. */
-      rect(ctx, tx, L.tabY, tw, LH - L.tabY, on ? "#24356a" : (tb.lock ? "#0c0a14" : "#100c22"));
-      if (on) rect(ctx, tx, L.tabY, tw, 2, C.cream);
-      rect(ctx, tx, L.tabY, tw, 1, INK);
-      if (ti > 0) rect(ctx, tx, L.tabY, 1, LH - L.tabY, INK);
-      var ix = tx + Math.floor((tw - 16) / 2);
-      var iy = L.tabY + 3;
+      var tabKey = tb.lock ? "menu_tab_locked" : (on ? "menu_tab_active" : "menu_tab_normal");
+      if (!drawNineSlice(ctx, tabKey, tx, L.tabY, tw, L.tabH, UI_SLICE.tab)) {
+        rect(ctx, tx, L.tabY, tw, LH - L.tabY, on ? "#24356a" : (tb.lock ? "#0c0a14" : "#100c22"));
+        if (on) rect(ctx, tx, L.tabY, tw, 2, C.cream);
+        rect(ctx, tx, L.tabY, tw, 1, INK);
+        if (ti > 0) rect(ctx, tx, L.tabY, 1, LH - L.tabY, INK);
+      } else if (L.tabY + L.tabH < LH) {
+        /* Extend the tab body into the home-indicator inset so the map does not show under the bar. */
+        var fill = on ? "#264575" : (tb.lock ? "#140e1e" : "#18172a");
+        rect(ctx, tx, L.tabY + L.tabH, tw, LH - L.tabY - L.tabH, fill);
+      }
+      var ix = tb.lock ? tx + 3 : tx + 8;
+      var iy = L.tabY + 4;
       drawTabIcon(tb.key, ix, iy, !!tb.lock);
       var tc = tb.lock ? "#6a6080" : (on ? TYPECOL.primary : TYPECOL.muted);
-      drawTiny(ctx, tb.label, tx + tw / 2, L.tabY + 22, tc, "center");
-      if (tb.lock) drawTabLock(ix + 11, iy - 1);
+      var labW = tinyWidth(tb.label);
+      var lx = tx + 1 + Math.floor((31 - labW) / 2);
+      drawTiny(ctx, tb.label, lx, L.tabY + 24, tc, "left");
+      if (tb.lock) {
+        if (uiImgReady("menu_icon_lock")) drawUiPx(ctx, "menu_icon_lock", tx + 22, L.tabY + 8, 1);
+        else drawTabLock(tx + 22, L.tabY + 8);
+      }
     }
-    if (LH - L.tabY <= L.tabH) rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
     if (showSet) {
       hits = [];
       screenLay = [];
@@ -1735,8 +1769,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var dm = metersOf(b) - metersOf(a);
       return dm || (a.id - b.id);
     });
+    var watching = !!(w.net && w.players[0] && !w.players[0].alive);
+    var watch = watching ? w.watchP : null;
     var pb = pauseBox();
+    /* Sit on the right of the pause button. While spectating, start below the
+       "СМОТРИМ …" banner (y=24, h=22, centred) so the gold frame never overlaps it. */
     var x = pb.x + pb.w - 13, y0 = hudY(26), step = 14;
+    if (watching) y0 = Math.max(y0, 48);
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       var target = y0 + i * step;
@@ -1746,12 +1785,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (Math.abs(target - next) < 1) next = target;
       rankY[p.id] = next;
       var iy = Math.round(next);
+      var isWatch = !!(watch && (p === watch || p.id === watch.id || (watch.pid != null && p.pid === watch.pid)));
+      var mark = watching ? isWatch : p.id === 0;
+      if (watching && !isWatch) ctx.globalAlpha = 0.45;
       drawFaceMark(x, iy, p.look, !!p.alive);
-      if (p.id === 0) {
+      ctx.globalAlpha = 1;
+      if (mark) {
         rect(ctx, x - 1, iy - 1, 10, 1, C.gold);
         rect(ctx, x - 1, iy + 8, 10, 1, C.gold);
         rect(ctx, x - 1, iy, 1, 8, C.gold);
         rect(ctx, x + 8, iy, 1, 8, C.gold);
+        /* Small left marker so the watched portrait is obvious at a glance. */
+        rect(ctx, x - 4, iy + 3, 2, 2, C.gold);
       }
       if (!p.alive) {
         for (var d = 1; d < 11; d++) {

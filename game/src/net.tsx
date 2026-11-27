@@ -722,25 +722,26 @@ var NET: any = (function () {
     drawText(ctx, t('lobby.share_code'), LW / 2, y0 + 38, "#9a8ab8", 1, "center");
     var sorted = R.players.slice().sort(function (a: any, b: any) { return a.slot - b.slot; });
     var row0 = y0 + 50;
-    /* Keep 23px rows so the evening table still fits 6 names. Portrait is a 1:1 21×21 crop, no scale. */
+    /* 36px rows like the bot lobby: full 32 px portrait with 2 px padding, no crop. Evening table already scrolls. */
+    var slotH = 36, slotGap = 2, slotStep = slotH + slotGap;
     for (var i = 0; i < 4; i++) {
-      var y = row0 + i * 26, p = sorted[i];
+      var y = row0 + i * slotStep, p = sorted[i];
       if (!p) {
-        if (host) api.btn("net:addbot", x, y, 152, 23, "#1a1430", t('lobby.add_bot'), C.cream);
-        else { box(ctx, x, y, 152, 23, "#141030", "#3a3450"); drawText(ctx, t('lobby.empty'), LW / 2, y + 8, "#5a4c82", 1, "center"); }
+        if (host) api.btn("net:addbot", x, y, 152, slotH, "#1a1430", t('lobby.add_bot'), C.cream);
+        else { box(ctx, x, y, 152, slotH, "#141030", "#3a3450"); drawText(ctx, t('lobby.empty'), LW / 2, y + 14, "#5a4c82", 1, "center"); }
         continue;
       }
       var isMe = p.pid === N.you;
       var rim = isMe ? C.gold : p.ready || p.bot ? C.mint : !p.on ? C.red : C.cream;
-      box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, rim);
-      if (api.markBox) api.markBox("slot" + i, x, y, 152, 23);
-      drawPortraitCrop(ctx, p.kind, x + 1, y + 1, 21);
+      box(ctx, x, y, 152, slotH, isMe ? "#2a2050" : C.navy, rim);
+      if (api.markBox) api.markBox("slot" + i, x, y, 152, slotH);
+      drawPortrait(ctx, p.kind, x + 2, y + 2, 1);
       var heroNm = (CHARS[p.kind] && CHARS[p.kind].name || "").toUpperCase();
       var slotLab = p.bot ? slotLabel(p.name || t('lobby.bot'), heroNm, host ? 84 : 104) : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
-      drawText(ctx, slotLab, x + 26, y + 8, C.cream, 1, "left");
-      if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
+      drawText(ctx, slotLab, x + 40, y + 14, C.cream, 1, "left");
+      if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 10, 18, 15, "#1a1430", "X", C.cream);
     }
-    var my = row0 + 4 * 26 + 4;
+    var my = row0 + 4 * slotStep + 4;
     if (host) {
       api.btn("net:mprev", x, my, 20, 18, "#1a1430", "<", C.cream);
       api.btn("net:mnext", x + 132, my, 20, 18, "#1a1430", ">", C.cream);

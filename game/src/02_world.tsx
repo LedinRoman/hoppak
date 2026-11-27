@@ -370,6 +370,10 @@ function genRow(w: any) {
   var gap = randInt(r, minG, maxG);
 
   var pMon = m < 120 ? 0 : m < 400 ? 0.085 : lerp(0.13, 0.26, d);
+  /* City lost the mid-air jellyfish; trash (platform-only from 400 m) and bat from 800 m
+     would otherwise spawn fewer mobs than before. Boost attempts after 400 m so city
+     density stays at or above the previous table. */
+  if (mapInfo(w.map).id === "city" && m >= 400) pMon *= 1.18;
   var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
   var bonus = false;
   if (!mob && m >= w.nextBonusM && gap >= 26) {

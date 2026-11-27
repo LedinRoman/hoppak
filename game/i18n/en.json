@@ -274,5 +274,7 @@
     "one": "{n} MOB",
     "other": "{n} MOBS"
   },
-  "unit.seconds": "{n} SEC"
+  "unit.seconds": "{n} SEC",
+  "menu.play_label": "PLAY",
+  "mob.trash": "TRASH CAN"
 }

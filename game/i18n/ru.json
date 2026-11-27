@@ -280,5 +280,7 @@
     "many": "{n} МОБОВ",
     "other": "{n} МОБОВ"
   },
-  "unit.seconds": "{n} СЕК"
+  "unit.seconds": "{n} СЕК",
+  "menu.play_label": "ИГРАТЬ",
+  "mob.trash": "БАЧОК"
 }

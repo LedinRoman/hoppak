@@ -399,7 +399,7 @@ var BUBBLE = {
 /* Campaign maps: open the next one by reaching `goal` m here AND paying its price.
    mobs: [kind, from metres] */
 var MAPS: any[] = [
-  { id: "city", get name() { return t('map.city.name'); }, price: 0, goal: 2000, special: "", mobs: [["blob", 120], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
+  { id: "city", get name() { return t('map.city.name'); }, price: 0, goal: 2000, special: "", mobs: [["blob", 120], ["trash", 400], ["bat", 800], ["hole", 1500], ["ufo", 2200]] },
   { id: "jungle", get name() { return t('map.jungle.name'); }, price: 80, goal: 2000, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
   { id: "ice", get name() { return t('map.ice.name'); }, price: 100, goal: 2000, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
   { id: "lava", get name() { return t('map.lava.name'); }, price: 120, goal: 2000, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
@@ -409,6 +409,8 @@ var MAPS: any[] = [
 /* mob kinds. b = behaviour; plat = stands on a platform; gap = min vertical gap (px) it needs */
 var MOBS: any = {
   blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.16, get name() { return t('mob.blob'); }, g: "m" },
+  /* Static city obstacle: stands on a platform, never moves. Hitbox is a fair inset of the 30×22.5 body (60×45 art at 0.5). */
+  trash: { b: "still", w: 24, h: 20, gap: 0, plat: true, get name() { return t('mob.trash'); }, g: "m" },
   magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, get name() { return t('mob.magma'); }, g: "f" },
   penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, get name() { return t('mob.penguin'); }, g: "m" },
   crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, get name() { return t('mob.crab'); }, g: "m" },
@@ -837,6 +839,13 @@ var TINY: any = {
   "У": [5,5,5,1,6], "Ф": [2,7,2,2,2], "Х": [5,2,2,2,5], "Ц": [5,5,5,5,7], "Ч": [5,5,3,1,1],
   "Ш": [5,5,7,5,7], "Щ": [5,5,7,7,1], "Ъ": [6,2,6,2,6], "Ы": [5,5,7,5,7], "Ь": [4,4,6,5,6],
   "Э": [7,1,3,1,7], "Ю": [5,7,7,5,5], "Я": [3,5,3,6,5],
+  "A": [2,5,7,5,5], "B": [6,5,6,5,6], "C": [3,4,4,4,3], "D": [6,5,5,5,6],
+  "E": [7,4,6,4,7], "F": [7,4,6,4,4], "G": [3,4,5,5,3], "H": [5,5,7,5,5],
+  "I": [7,2,2,2,7], "J": [1,1,1,5,2], "K": [5,6,4,6,5], "L": [4,4,4,4,7],
+  "M": [5,7,5,5,5], "N": [5,6,5,5,5], "O": [2,5,5,5,2], "P": [6,5,6,4,4],
+  "Q": [2,5,5,6,3], "R": [6,5,6,6,5], "S": [3,4,2,1,6], "T": [7,2,2,2,2],
+  "U": [5,5,5,5,2], "V": [5,5,5,5,2], "W": [5,5,5,7,5], "X": [5,2,2,2,5],
+  "Y": [5,5,2,2,2], "Z": [7,1,2,4,7],
   " ": [0,0,0,0,0], "·": [0,0,2,0,0], "-": [0,0,7,0,0], ".": [0,0,0,2,2], "/": [1,1,2,4,4],
   "0": [7,5,5,5,7], "1": [2,6,2,2,7], "2": [6,1,2,4,7], "3": [6,1,6,1,6], "4": [5,5,7,1,1],
   "5": [7,4,6,1,6], "6": [3,4,6,5,2], "7": [7,1,2,2,2], "8": [2,5,2,5,2], "9": [2,5,3,1,6]
@@ -874,13 +883,9 @@ function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: 
   return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
 }
 
-/* v1.0 contrast knobs, percent of full (100 = unchanged). Easy to tweak.
-   Background is hardcoded at 80 (no Settings slider). Platforms 95, hero 90, mobs 90, coins 88. */
-var BG_CONTRAST = 80;
-var PLAT_CONTRAST = 95;
-var HERO_CONTRAST = 90;
-var MOB_CONTRAST = 90;
-var COIN_CONTRAST = 88;
+/* v1.0 contrast knobs, percent of full (100 = unchanged). One object so a later
+   admin/server payload can overwrite the values. No Settings slider; bg stays 80. */
+var VISUAL_CONTRAST: any = { bg: 80, plat: 92, hero: 92, mob: 88, coin: 85 };
 function applyContrast(ctx: Ctx, pct: number, fn: any) {
   if (!(pct < 100)) { fn(); return; }
   ctx.save();
@@ -889,11 +894,11 @@ function applyContrast(ctx: Ctx, pct: number, fn: any) {
   fn();
   ctx.restore();
 }
-function applyBgContrast(ctx: Ctx, fn: any) { applyContrast(ctx, BG_CONTRAST, fn); }
-function applyPlatContrast(ctx: Ctx, fn: any) { applyContrast(ctx, PLAT_CONTRAST, fn); }
-function applyHeroContrast(ctx: Ctx, fn: any) { applyContrast(ctx, HERO_CONTRAST, fn); }
-function applyMobContrast(ctx: Ctx, fn: any) { applyContrast(ctx, MOB_CONTRAST, fn); }
-function applyCoinContrast(ctx: Ctx, fn: any) { applyContrast(ctx, COIN_CONTRAST, fn); }
+function applyBgContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.bg, fn); }
+function applyPlatContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.plat, fn); }
+function applyHeroContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.hero, fn); }
+function applyMobContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.mob, fn); }
+function applyCoinContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.coin, fn); }
 function tinyLines(s: string, maxW: number) {
   s = tinyChars(s);
   if (tinyWidth(s) <= maxW) return [s];
@@ -932,6 +937,17 @@ function warmUiImages() {
     loadUiImage("portrait_" + ports[i], "ui/portrait/portrait_" + ports[i] + ".png");
     loadUiImage("portrait64_" + ports[i], "ui/portrait/portrait64_" + ports[i] + ".png");
   }
+  var menuFiles = [
+    "btn_play_idle", "btn_play_hover", "btn_play_pressed",
+    "btn_sec_idle", "btn_sec_hover", "btn_sec_pressed",
+    "panel", "cell_idle", "cell_dim",
+    "tab_normal", "tab_active", "tab_locked",
+    "slot_idle", "slot_active", "name_row",
+    "logo", "logo_x2", "icon_lock",
+    "icon_tab_home", "icon_tab_shop", "icon_tab_leagues", "icon_tab_friends", "icon_tab_settings",
+    "icon_grid_map", "icon_grid_multiplayer", "icon_grid_encyclopedia", "icon_grid_quests"
+  ];
+  for (i = 0; i < menuFiles.length; i++) loadUiImage("menu_" + menuFiles[i], "ui/menu/" + menuFiles[i] + ".png");
 }
 warmUiImages();
 /* Nearest-neighbour only, dest size an integer multiple of the source. */
@@ -951,6 +967,42 @@ function drawUiPx(ctx: Ctx, key: string, x: number, y: number, mul?: number) {
   ctx.fillRect(x, y, ph, ph);
   return ph;
 }
+/* 9-slice: corners = slice insets, edges repeat the centre pixel of the edge, centre is a flat fill. */
+var UI_SLICE: any = {
+  btn_play: { l: 6, r: 6, t: 6, b: 7 },
+  btn_sec: { l: 4, r: 4, t: 4, b: 5 },
+  panel: { l: 4, r: 4, t: 4, b: 4 },
+  cell: { l: 3, r: 3, t: 3, b: 3 },
+  tab: { l: 1, r: 0, t: 3, b: 0 },
+  slot: { l: 3, r: 3, t: 3, b: 3 },
+  name_row: { l: 3, r: 3, t: 3, b: 3 }
+};
+function drawNineSlice(ctx: Ctx, key: string, x: number, y: number, w: number, h: number, sl?: any) {
+  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  var im = UI_IMGS[key];
+  if (!(im && im.complete && im.naturalWidth)) return false;
+  ctx.imageSmoothingEnabled = false;
+  if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
+  var iw = im.naturalWidth, ih = im.naturalHeight;
+  if (w === iw && h === ih) { ctx.drawImage(im, x, y); return true; }
+  sl = sl || { l: 4, r: 4, t: 4, b: 4 };
+  var L = sl.l, R = sl.r, T = sl.t, B = sl.b;
+  var midW = iw - L - R, midH = ih - T - B;
+  var dw = w - L - R, dh = h - T - B;
+  if (dw < 1 || dh < 1 || midW < 1 || midH < 1) { ctx.drawImage(im, x, y, w, h); return true; }
+  var cx = L + Math.floor(midW / 2), cy = T + Math.floor(midH / 2);
+  ctx.drawImage(im, 0, 0, L, T, x, y, L, T);
+  ctx.drawImage(im, iw - R, 0, R, T, x + w - R, y, R, T);
+  ctx.drawImage(im, 0, ih - B, L, B, x, y + h - B, L, B);
+  ctx.drawImage(im, iw - R, ih - B, R, B, x + w - R, y + h - B, R, B);
+  if (dw > 0 && T > 0) ctx.drawImage(im, cx, 0, 1, T, x + L, y, dw, T);
+  if (dw > 0 && B > 0) ctx.drawImage(im, cx, ih - B, 1, B, x + L, y + h - B, dw, B);
+  if (dh > 0 && L > 0) ctx.drawImage(im, 0, cy, L, 1, x, y + T, L, dh);
+  if (dh > 0 && R > 0) ctx.drawImage(im, iw - R, cy, R, 1, x + w - R, y + T, R, dh);
+  if (dw > 0 && dh > 0) ctx.drawImage(im, cx, cy, 1, 1, x + L, y + T, dw, dh);
+  return true;
+}
+
 /* v1.0: portraits are drawn on the DEVICE pixel grid with an integer scale (menus are 7.31 device px per
    game px, so game-px scaling would smear them). Uses the 64 px file when 64*k still fills >= 80% of the
    slot, else the 32 px one. Falls back to the plain game-px path if the transform is not available. */
@@ -961,23 +1013,29 @@ function portraitSnap(ctx: Ctx, id: string, x: number, y: number, size: number, 
   var m = g.getTransform(), sc = m.a;
   if (!(sc > 0) || Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6) return -1;
   var dev = size * sc, im: any = null, k = 0, srcN = 0, best = -1;
-  /* v1.0: the portrait fills ~85-100% of its slot at any window width / dpr. Whole device px per art px
-     (round, not floor); if that overflows the slot the edge rows are cropped (at most ~15%); the 64 px
-     portrait wins when it fills >= 85%, else whichever source fills more. */
-  var cand = [[im64, 64], [im32, 32]];
+  /* Full portrait, integer device px per art px, centred in the slot. Prefer the 32 px file,
+     or the 64 px file scaled down by an integer, whichever fills more without overflowing.
+     crop=true keeps the old tight crop for any leftover callers; lobby/shop use crop=false. */
+  var cand = [[im32, 32], [im64, 64]];
   for (var i = 0; i < cand.length; i++) {
     var c: any = cand[i][0], n = cand[i][1] as number;
     if (!(c && c.complete && c.naturalWidth)) continue;
-    var base = crop ? n * 0.66 : n;
-    var kk = Math.max(1, Math.round(dev / base));
-    while (kk > 1 && n * kk > dev * (crop ? 1.6 : 1.2)) kk--;
-    var fill = Math.min(1, (crop ? base : n) * kk / dev);
-    var score = fill + (n === 64 && fill >= 0.85 ? 1 : 0);
+    var kk: number;
+    if (crop) {
+      var base = n * 0.66;
+      kk = Math.max(1, Math.round(dev / base));
+      while (kk > 1 && n * kk > dev * 1.6) kk--;
+    } else {
+      kk = Math.max(1, Math.floor(dev / n));
+    }
+    var fill = Math.min(1, n * kk / dev);
+    var score = fill + (n === 64 && fill >= 0.85 ? 0.05 : 0);
     if (score > best) { best = score; im = c; k = kk; srcN = n; }
   }
   if (!im) return -1;
-  var side = Math.min(srcN, Math.floor(dev / k));
-  var sx = Math.round((srcN - side) / 2), sy = crop ? Math.max(0, Math.round((srcN - side) / 2) - Math.round(srcN / 16)) : Math.round((srcN - side) / 2);
+  var side = crop ? Math.min(srcN, Math.floor(dev / k)) : srcN;
+  var sx = crop ? Math.round((srcN - side) / 2) : 0;
+  var sy = crop ? Math.max(0, Math.round((srcN - side) / 2) - Math.round(srcN / 16)) : 0;
   var w = side * k;
   var dx = Math.round(m.e + x * sc + (dev - w) / 2), dy = Math.round(m.f + y * m.d + (size * m.d - w) / 2);
   g.save();

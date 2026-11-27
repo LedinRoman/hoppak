@@ -1,0 +1,499 @@
+{
+ "canvas": [
+  160,
+  346
+ ],
+ "column": 152,
+ "sprites": {
+  "btn_play_idle": {
+   "file": "btn_play_idle.png",
+   "w": 152,
+   "h": 34,
+   "role": "ИГРАТЬ 152×34; текст рисует игра (pressed: текст +1 px)",
+   "slice": {
+    "left": 6,
+    "right": 6,
+    "top": 6,
+    "bottom": 7
+   },
+   "group": "btn_play",
+   "state": "idle",
+   "source": "03/11/12"
+  },
+  "btn_sec_idle": {
+   "file": "btn_sec_idle.png",
+   "w": 120,
+   "h": 18,
+   "role": "вторичная кнопка 9-slice (120×18, 136×20, 152×20, 100×16)",
+   "slice": {
+    "left": 4,
+    "right": 4,
+    "top": 4,
+    "bottom": 5
+   },
+   "group": "btn_sec",
+   "state": "idle",
+   "source": "04/13/14"
+  },
+  "btn_play_hover": {
+   "file": "btn_play_hover.png",
+   "w": 152,
+   "h": 34,
+   "role": "ИГРАТЬ 152×34; текст рисует игра (pressed: текст +1 px)",
+   "slice": {
+    "left": 6,
+    "right": 6,
+    "top": 6,
+    "bottom": 7
+   },
+   "group": "btn_play",
+   "state": "hover",
+   "source": "03/11/12"
+  },
+  "btn_sec_hover": {
+   "file": "btn_sec_hover.png",
+   "w": 120,
+   "h": 18,
+   "role": "вторичная кнопка 9-slice (120×18, 136×20, 152×20, 100×16)",
+   "slice": {
+    "left": 4,
+    "right": 4,
+    "top": 4,
+    "bottom": 5
+   },
+   "group": "btn_sec",
+   "state": "hover",
+   "source": "04/13/14"
+  },
+  "btn_play_pressed": {
+   "file": "btn_play_pressed.png",
+   "w": 152,
+   "h": 34,
+   "role": "ИГРАТЬ 152×34; текст рисует игра (pressed: текст +1 px)",
+   "slice": {
+    "left": 6,
+    "right": 6,
+    "top": 6,
+    "bottom": 7
+   },
+   "group": "btn_play",
+   "state": "pressed",
+   "source": "03/11/12"
+  },
+  "btn_sec_pressed": {
+   "file": "btn_sec_pressed.png",
+   "w": 120,
+   "h": 18,
+   "role": "вторичная кнопка 9-slice (120×18, 136×20, 152×20, 100×16)",
+   "slice": {
+    "left": 4,
+    "right": 4,
+    "top": 4,
+    "bottom": 5
+   },
+   "group": "btn_sec",
+   "state": "pressed",
+   "source": "04/13/14"
+  },
+  "panel": {
+   "file": "panel.png",
+   "w": 24,
+   "h": 24,
+   "role": "панель/оверлей 9-slice (настройки, профиль)",
+   "slice": {
+    "left": 4,
+    "right": 4,
+    "top": 4,
+    "bottom": 4
+   },
+   "source": "05"
+  },
+  "cell_idle": {
+   "file": "cell_idle.png",
+   "w": 75,
+   "h": 26,
+   "role": "ячейка сетки 75×26; иконка 24×24 в (x+1,y+1), текст TINY с x+24",
+   "slice": {
+    "left": 3,
+    "right": 3,
+    "top": 3,
+    "bottom": 3
+   },
+   "group": "cell",
+   "state": "idle",
+   "source": "06/15"
+  },
+  "cell_dim": {
+   "file": "cell_dim.png",
+   "w": 75,
+   "h": 26,
+   "role": "ячейка сетки 75×26; иконка 24×24 в (x+1,y+1), текст TINY с x+24",
+   "slice": {
+    "left": 3,
+    "right": 3,
+    "top": 3,
+    "bottom": 3
+   },
+   "group": "cell",
+   "state": "dim",
+   "source": "06/15"
+  },
+  "tab_normal": {
+   "file": "tab_normal.png",
+   "w": 32,
+   "h": 36,
+   "role": "таб 32×36; заливку ниже рисовать цветом центра до низа экрана",
+   "slice": {
+    "left": 1,
+    "right": 0,
+    "top": 3,
+    "bottom": 0
+   },
+   "group": "tab",
+   "state": "normal",
+   "source": "07/16"
+  },
+  "tab_active": {
+   "file": "tab_active.png",
+   "w": 32,
+   "h": 36,
+   "role": "таб 32×36; заливку ниже рисовать цветом центра до низа экрана",
+   "slice": {
+    "left": 1,
+    "right": 0,
+    "top": 3,
+    "bottom": 0
+   },
+   "group": "tab",
+   "state": "active",
+   "source": "07/16"
+  },
+  "tab_locked": {
+   "file": "tab_locked.png",
+   "w": 32,
+   "h": 36,
+   "role": "таб 32×36; заливку ниже рисовать цветом центра до низа экрана",
+   "slice": {
+    "left": 1,
+    "right": 0,
+    "top": 3,
+    "bottom": 0
+   },
+   "group": "tab",
+   "state": "locked",
+   "source": "07/16"
+  },
+  "slot_idle": {
+   "file": "slot_idle.png",
+   "w": 26,
+   "h": 30,
+   "role": "слот цифры кода 26×30 (экран мультиплеера)",
+   "slice": {
+    "left": 3,
+    "right": 3,
+    "top": 3,
+    "bottom": 3
+   },
+   "group": "slot",
+   "state": "idle",
+   "source": "25"
+  },
+  "slot_active": {
+   "file": "slot_active.png",
+   "w": 26,
+   "h": 30,
+   "role": "слот цифры кода 26×30 (экран мультиплеера)",
+   "slice": {
+    "left": 3,
+    "right": 3,
+    "top": 3,
+    "bottom": 3
+   },
+   "group": "slot",
+   "state": "active",
+   "source": "25"
+  },
+  "name_row": {
+   "file": "name_row.png",
+   "w": 152,
+   "h": 20,
+   "role": "строка ИМЯ: <ник> 152×20 (экран мультиплеера)",
+   "slice": {
+    "left": 3,
+    "right": 3,
+    "top": 3,
+    "bottom": 3
+   },
+   "source": "26"
+  },
+  "logo": {
+   "file": "logo.png",
+   "w": 68,
+   "h": 15,
+   "role": "лого ХОППАК на родной сетке GPT (1 px = 1 пиксель арта)",
+   "source": "01"
+  },
+  "logo_x2": {
+   "file": "logo_x2.png",
+   "w": 136,
+   "h": 30,
+   "role": "то же лого ×2 nearest, для экрана (влезает в 152×32)",
+   "source": "01"
+  },
+  "icon_tab_home": {
+   "file": "icon_tab_home.png",
+   "w": 16,
+   "h": 16,
+   "role": "иконка таба ГЛАВНАЯ 16×16 (ручная чистка по 08)",
+   "source": "08"
+  },
+  "icon_grid_map": {
+   "file": "icon_grid_map.png",
+   "w": 16,
+   "h": 16,
+   "role": "иконка КАРТЫ 16×16 (в ячейке x+4, y+5)",
+   "source": "09 (ручная перерисовка 16×16)"
+  },
+  "icon_grid_quests": {
+   "file": "icon_grid_quests.png",
+   "w": 16,
+   "h": 16,
+   "role": "иконка ЗАДАНИЯ 16×16 (в ячейке x+4, y+5)",
+   "source": "24 (ручная перерисовка 16×16)"
+  },
+  "icon_tab_shop": {
+   "file": "icon_tab_shop.png",
+   "w": 16,
+   "h": 16,
+   "role": "иконка 16×16",
+   "source": "redo_17 (ручная чистка 16×16)"
+  },
+  "icon_tab_leagues": {
+   "file": "icon_tab_leagues.png",
+   "w": 16,
+   "h": 16,
+   "role": "иконка 16×16 (содержимое 16×16)",
+   "source": "redo_18_icon_leagues.png"
+  },
+  "icon_tab_friends": {
+   "file": "icon_tab_friends.png",
+   "w": 16,
+   "h": 16,
+   "role": "иконка 16×16 (содержимое 16×16)",
+   "source": "redo_19_icon_friends.png"
+  },
+  "icon_tab_settings": {
+   "file": "icon_tab_settings.png",
+   "w": 16,
+   "h": 16,
+   "role": "иконка 16×16 (содержимое 16×16)",
+   "source": "redo_20_icon_settings.png"
+  },
+  "icon_lock": {
+   "file": "icon_lock.png",
+   "w": 7,
+   "h": 8,
+   "role": "замок-значок 7×8 для закрытых табов",
+   "source": "redo_21 (ручная чистка, значок 7×8 в угол таба)"
+  },
+  "icon_grid_multiplayer": {
+   "file": "icon_grid_multiplayer.png",
+   "w": 16,
+   "h": 16,
+   "role": "иконка сетки 16×16, в ячейке (x+4, y+5)",
+   "source": "redo2_22 (ручная перерисовка 16×16, красный+синий)"
+  },
+  "icon_grid_encyclopedia": {
+   "file": "icon_grid_encyclopedia.png",
+   "w": 16,
+   "h": 16,
+   "role": "иконка сетки 16×16, в ячейке (x+4, y+5)",
+   "source": "redo_23 (ручная перерисовка 16×16)"
+  }
+ },
+ "palette": [
+  "#100e1a",
+  "#140e1e",
+  "#18172a",
+  "#131a2d",
+  "#211b32",
+  "#1c253b",
+  "#252339",
+  "#2f2b47",
+  "#3a3654",
+  "#7a1f24",
+  "#264575",
+  "#5a2f88",
+  "#2a4f96",
+  "#8c4a24",
+  "#b8322e",
+  "#1a7970",
+  "#5f636b",
+  "#a8542a",
+  "#8a4cd2",
+  "#4278c8",
+  "#2a9f88",
+  "#e0574a",
+  "#3bc6a0",
+  "#e5862a",
+  "#dd914a",
+  "#f0a43a",
+  "#5ce2b9",
+  "#fab766",
+  "#fcbf4a",
+  "#7aecc6",
+  "#fdc847",
+  "#fdc960",
+  "#fac580",
+  "#f2c88a",
+  "#b5f4d5",
+  "#fadda6",
+  "#fde08f",
+  "#feedc4",
+  "#fbf4d4"
+ ],
+ "layout_160x346": {
+  "wallet_row": [
+   0,
+   1,
+   160,
+   15
+  ],
+  "logo_x2": "x=12, y=19 (136×30..32); слоган 5×7 y = logo_y + logo_h + 3",
+  "btn_sec_idle": [
+   20,
+   172,
+   120,
+   18
+  ],
+  "btn_play_idle": [
+   4,
+   200,
+   152,
+   34
+  ],
+  "cell": [
+   [
+    4,
+    244
+   ],
+   [
+    81,
+    244
+   ],
+   [
+    4,
+    274
+   ],
+   [
+    81,
+    274
+   ]
+  ],
+  "cell_size": [
+   75,
+   26
+  ],
+  "cell_hgap": 2,
+  "cell_vgap": 4,
+  "cell_icon": "иконка 16×16 в (x+4, y+5): от рамки 2 px слева, 3 px сверху/снизу",
+  "cell_text": "TINY с x+24 (4 px воздуха после иконки), правый край <= x+70 (2 px до рамки), по центру по высоте; перенос по словам, ЭНЦИКЛОПЕДИЯ (47 px) влезает в одну строку",
+  "hero_platform_bg": "НЕ меняются: герой, платформа и фон карты остаются как в игре сейчас (меняется только HUD)",
+  "play_text": "ИГРАТЬ BIGF×2 в y+4, подпись 5×7 в y+22 (было y+23 — упиралось в нижнюю кромку)",
+  "tabs": "x = i*32, y = 310, 32×36; иконка 16×16 в (x+8, y+4); подпись TINY в y+24 (4 px под иконкой), x = tabX + 1 + floor((31 − w)/2) — центр по 31 px справа от разделителя, МАГАЗИН/ГЛАВНАЯ получают по 2 px с боков",
+  "tab_locked": "иконка (тусклая 45%) в (x+3, y+4), замок 7×8 в (x+22, y+8): 3 px от иконки, 3 px до правого края таба, 8 px над подписью"
+ },
+ "notes": [
+  "Все спрайты 1× (1 пиксель PNG = 1 игровой пиксель), альфа только 0/255.",
+  "pressed: тело кнопки сдвинуто на 1 px вниз внутри того же холста, губы снизу нет; текст тоже +1 px.",
+  "9-slice: углы = slice-отступы, края тянуть повтором центрального ряда/столбца края, центр — ровная заливка.",
+  "Фон меню остаётся от карты (drawBg), gpt/02_bg не используется."
+ ],
+ "check": {
+  "all_size_alpha_ok": true,
+  "states_same_size": {
+   "btn_play": true,
+   "btn_sec": true,
+   "cell": true,
+   "tab": true,
+   "slot": true
+  },
+  "palette_colors": 39,
+  "missing_icons": [],
+  "mock_gaps_px": {
+   "wallet/logo": 3,
+   "logo/tagline": 2,
+   "btn_sec/btn_play": 10,
+   "btn_play/cell1": 10,
+   "btn_play/cell2": 10,
+   "cell1/cell2": 2,
+   "cell1/cell3": 4,
+   "cell2/cell4": 4,
+   "cell3/cell4": 2,
+   "cell3/tabbar": 10,
+   "cell4/tabbar": 10
+  },
+  "icon_text_gaps_px": {
+   "cell КАРТЫ": {
+    "icon_text": 4,
+    "icon_frame": 2,
+    "text_frame": 8,
+    "text_too_wide": false
+   },
+   "cell МУЛЬТИПЛЕЕР": {
+    "icon_text": 4,
+    "icon_frame": 2,
+    "text_frame": 6,
+    "text_too_wide": false
+   },
+   "cell ЭНЦИКЛОПЕДИЯ": {
+    "icon_text": 5,
+    "icon_frame": 3,
+    "text_frame": 2,
+    "text_too_wide": false
+   },
+   "cell ЗАДАНИЯ · СКОРО": {
+    "icon_text": 6,
+    "icon_frame": 3,
+    "text_frame": 5,
+    "text_too_wide": false
+   },
+   "tab МАГАЗИН": {
+    "icon_text": 4,
+    "icon_edge": 2,
+    "text_edge": 2,
+    "lock_icon": 3,
+    "lock_text": 8,
+    "lock_edge": 3
+   },
+   "tab ЛИГИ": {
+    "icon_text": 5,
+    "icon_edge": 2,
+    "text_edge": 8,
+    "lock_icon": 3,
+    "lock_text": 8,
+    "lock_edge": 3
+   },
+   "tab ГЛАВНАЯ": {
+    "icon_text": 5,
+    "icon_edge": 7,
+    "text_edge": 2
+   },
+   "tab ДРУЗЬЯ": {
+    "icon_text": 5,
+    "icon_edge": 2,
+    "text_edge": 4,
+    "lock_icon": 3,
+    "lock_text": 8,
+    "lock_edge": 3
+   },
+   "tab ОПЦИИ": {
+    "icon_text": 4,
+    "icon_edge": 7,
+    "text_edge": 6
+   }
+  },
+  "min_icon_text_gap_px": 4,
+  "min_any_inner_gap_px": 2
+ }
+}
