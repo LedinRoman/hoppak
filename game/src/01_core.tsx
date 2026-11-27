@@ -928,11 +928,34 @@ function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: 
   return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
 }
 
-/* v1.0 contrast knobs, percent of full (100 = unchanged). One object so a later
-   admin/server payload can overwrite the values. No Settings slider; bg stays 80. */
-var VISUAL_CONTRAST: any = { bg: 80, plat: 92, hero: 92, mob: 88, coin: 85 };
+/* Percent of the original colors. These defaults also apply to offline play. */
+var VISUAL_CONTRAST = { bg: 80, platforms: 92, hero: 92, mobs: 88, coins: 85 };
+
+function loadVisualContrast(origin: string): Promise<void> {
+  if (typeof fetch === "undefined") return Promise.resolve();
+  return new Promise(function (resolve) {
+    var settled = false;
+    var timer = setTimeout(finish, 1500);
+    function finish(data?: any) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      var fields = Object.keys(VISUAL_CONTRAST) as (keyof typeof VISUAL_CONTRAST)[];
+      if (data && fields.every(function (key) {
+        return Number.isInteger(data[key]) && data[key] >= 50 && data[key] <= 110;
+      })) {
+        for (var field of fields) VISUAL_CONTRAST[field] = data[field];
+      }
+      resolve();
+    }
+    fetch(origin + "/api/config/visual", { cache: "no-cache" }).then(function (response) {
+      return response.ok ? response.json() : null;
+    }).then(finish, function () { finish(); });
+  });
+}
+
 function applyContrast(ctx: Ctx, pct: number, fn: any) {
-  if (!(pct < 100)) { fn(); return; }
+  if (pct === 100) { fn(); return; }
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.filter = "saturate(" + pct + "%) contrast(" + pct + "%)";
@@ -940,10 +963,10 @@ function applyContrast(ctx: Ctx, pct: number, fn: any) {
   ctx.restore();
 }
 function applyBgContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.bg, fn); }
-function applyPlatContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.plat, fn); }
+function applyPlatContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.platforms, fn); }
 function applyHeroContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.hero, fn); }
-function applyMobContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.mob, fn); }
-function applyCoinContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.coin, fn); }
+function applyMobContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.mobs, fn); }
+function applyCoinContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.coins, fn); }
 function tinyLines(s: string, maxW: number) {
   s = tinyChars(s);
   if (tinyWidth(s) <= maxW) return [s];
