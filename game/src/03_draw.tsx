@@ -726,11 +726,23 @@ function strokeDisk(ctx: Ctx, cx: number, cy: number, r: number, col: string) {
   }
 }
 function drawBubble(ctx: Ctx, cx: number, cy: number) {
-  ctx.globalAlpha = BUBBLE.fillA;
-  fillDisk(ctx, cx, cy, BUBBLE.r - 1, BUBBLE.fill);
-  ctx.globalAlpha = 1;
-  strokeDisk(ctx, cx, cy, BUBBLE.r, BUBBLE.rim);
-  rect(ctx, cx - 4, cy - 6, 2, 1, BUBBLE.hi);
+  /* 64-px bubble: drawn in art space at scale(0.5), opaque 2-art-px rim, no fill. */
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(cx, cy);
+  ctx.scale(0.5, 0.5);
+  var R = 28, dx, dy, d, col;
+  for (dy = -R; dy <= R; dy++) {
+    for (dx = -R; dx <= R; dx++) {
+      d = Math.sqrt(dx * dx + dy * dy);
+      col = null;
+      if (d >= 27 && d < 28.5) col = "#140c1c";
+      else if (d >= 25 && d < 27) col = (dx + dy < 0) ? "#e4f0f8" : "#8aa8c8";
+      if (d >= 24 && d < 26 && dx >= -18 && dx <= -6 && dy >= -18 && dy <= -8) col = "#ffffff";
+      if (col) rect(ctx, dx, dy, 1, 1, col);
+    }
+  }
+  ctx.restore();
 }
 function drawBubblePop(ctx: Ctx, cx: number, cy: number, t: number) {
   var max = BUBBLE.popTicks;
@@ -744,9 +756,6 @@ function drawBubblePop(ctx: Ctx, cx: number, cy: number, t: number) {
     rect(ctx, cx, cy + r, 1, 2, col);
   } else if (frame === 1) {
     strokeDisk(ctx, cx, cy, r + 1, col);
-    ctx.globalAlpha = 0.12;
-    fillDisk(ctx, cx, cy, r, BUBBLE.fill);
-    ctx.globalAlpha = 1;
   } else {
     var d = frame === 2 ? 4 : 7;
     var pts = [
@@ -768,7 +777,7 @@ function drawItem(ctx: Ctx, it: any, cam: number, tick: number) {
   var cx = x + 5, cy = y + 5;
   if (it.popT > 0) { drawBubblePop(ctx, cx, cy, it.popT); return; }
   drawBubble(ctx, cx, cy);
-  if (drawBonusSprite(ctx, it.kind, cx, cy)) return;
+  if (drawBonusSprite(ctx, it.kind, cx, cy, tick)) return;
   drawItemIcon(ctx, it.kind, x, y);
 }
 
@@ -842,9 +851,9 @@ function buildShieldFrames() {
     { r0: 13.4, r1: 15.2, cHi: "#ffffff", cMid: "#c8f4ff", cLow: "#5ec8ff", sparks: [[0, -16, "#ffffff"], [0, 16, "#a4e8ff"], [-16, 0, "#ffffff"], [16, 0, "#a4e8ff"]] },
     { r0: 12.7, r1: 14.3, cHi: "#a4e8ff", cMid: "#5ec8ff", cLow: "#3ca4ec", sparks: [[-10, -12, "#a4e8ff"], [12, -10, "#a4e8ff"], [-12, 10, "#3ca4ec"], [10, 12, "#3ca4ec"]] }
   ];
-  /* v1.0: 64-px hero is ~32.5 game px tall (head at sy-16.5). Stretch the ring
-     vertically ×1.4 so the aura covers the hat; width and physics stay the same. */
-  var YSC = 1.4, N = 51, H = 25;
+  /* v1.0: procedural ring kept only as a fallback. Sprite A2 is used for drawing.
+     If the math is reused: YSC=1.7, N=61, H=30, cy = round(sy). */
+  var YSC = 1.7, N = 61, H = 30;
   for (var fi = 0; fi < specs.length; fi++) {
     var sp = specs[fi];
     var grid: any[] = [];
@@ -887,19 +896,283 @@ function buildShieldFrames() {
   }
   return frames;
 }
+var shieldA2Cv: any = undefined;
+function shieldA2Sheet() {
+  if (shieldA2Cv !== undefined) return shieldA2Cv;
+  shieldA2Cv = (typeof SHIELD_A2_SRC !== "undefined" && SHIELD_A2_SRC) ? (pngToCanvas(SHIELD_A2_SRC) || null) : null;
+  return shieldA2Cv;
+}
 function drawShieldAura(ctx: Ctx, p: any, sy: number, tick: number) {
   if (!(p.shieldT > 0)) return;
   if (p.shieldT <= SHIELD_BLINK_T) {
     var bt = p.remote ? tick : p.shieldT;
     if (((bt >> 2) % 2) === 0) return;
   }
+  var cx = Math.round(p.x + 6), cy = Math.round(sy);
+  var sheet = shieldA2Sheet();
+  if (sheet) {
+    var fi = Math.floor(tick / 6) % 4;
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(0.5, 0.5);
+    ctx.drawImage(sheet, fi * 64, 0, 64, 106, -32, -53, 64, 106);
+    ctx.restore();
+    return;
+  }
   if (!SHIELD_FRAMES) SHIELD_FRAMES = buildShieldFrames();
   var ph = Math.floor(tick / 6) % SHIELD_FRAMES.length;
   var pts = SHIELD_FRAMES[ph];
-  var cx = Math.round(p.x + 6), cy = Math.round(sy + 5);
   ctx.globalAlpha = 1;
   for (var i = 0; i < pts.length; i++) {
     var pt = pts[i];
     rect(ctx, cx + pt[0], cy + pt[1], 1, 1, pt[2]);
   }
 }
+
+/* Magnet aura: JS port of tools/magnet_aura_cloud.py cloud_aura. Built from the current
+   pose alpha mask (4 frames × 6 ticks), drawn behind the hero. No ring, no coin threads. */
+var MAGNET_CLOUD: any = {};
+function mcMulberry(seed: number) {
+  var s = (seed >>> 0) || 1;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    var t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function mcEdt(mask: Uint8Array, H: number, W: number) {
+  var INF = 1e6, d = new Float64Array(H * W), i, y, x, v;
+  for (i = 0; i < H * W; i++) d[i] = mask[i] ? 0 : INF;
+  for (y = 0; y < H; y++) {
+    for (x = 0; x < W; x++) {
+      i = y * W + x; v = d[i];
+      if (x > 0) v = Math.min(v, d[i - 1] + 3);
+      if (y > 0) v = Math.min(v, d[i - W] + 3);
+      if (x > 0 && y > 0) v = Math.min(v, d[i - W - 1] + 4);
+      if (x + 1 < W && y > 0) v = Math.min(v, d[i - W + 1] + 4);
+      d[i] = v;
+    }
+  }
+  for (y = H - 1; y >= 0; y--) {
+    for (x = W - 1; x >= 0; x--) {
+      i = y * W + x; v = d[i];
+      if (x + 1 < W) v = Math.min(v, d[i + 1] + 3);
+      if (y + 1 < H) v = Math.min(v, d[i + W] + 3);
+      if (x + 1 < W && y + 1 < H) v = Math.min(v, d[i + W + 1] + 4);
+      if (x > 0 && y + 1 < H) v = Math.min(v, d[i + W - 1] + 4);
+      d[i] = v;
+    }
+  }
+  for (i = 0; i < H * W; i++) d[i] /= 3;
+  return d;
+}
+function mcNoise(H: number, W: number, f: number, scale: number, ox: number, oy: number) {
+  var gh = (H / scale | 0) + 4, gw = (W / scale | 0) + 4;
+  var rng = mcMulberry(2000 + f * 17 + ox), g = new Float64Array(gh * gw), i, y, x;
+  for (i = 0; i < g.length; i++) g[i] = rng();
+  var n = new Float64Array(H * W);
+  for (y = 0; y < H; y++) {
+    for (x = 0; x < W; x++) {
+      var fx = (x + ox + f * 1.4) / scale, fy = (y + oy - f * 0.8) / scale;
+      var x0 = Math.floor(fx), y0 = Math.floor(fy);
+      var tx = fx - x0, ty = fy - y0;
+      tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+      if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0;
+      if (x0 >= gw - 1) x0 = gw - 2; if (y0 >= gh - 1) y0 = gh - 2;
+      var a = g[y0 * gw + x0], b = g[y0 * gw + x0 + 1], c = g[(y0 + 1) * gw + x0], ev = g[(y0 + 1) * gw + x0 + 1];
+      n[y * W + x] = a * (1 - tx) * (1 - ty) + b * tx * (1 - ty) + c * (1 - tx) * ty + ev * tx * ty;
+    }
+  }
+  return n;
+}
+function mcHash(x: number, y: number, f: number) {
+  return (((Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(f, 83492791)) >>> 0) % 1000) / 1000;
+}
+function mcMorph(src: Uint8Array, H: number, W: number, mode: string, four: boolean) {
+  var o = new Uint8Array(H * W), y, x, dy, dx, yy, xx, i;
+  for (y = 0; y < H; y++) {
+    for (x = 0; x < W; x++) {
+      i = y * W + x;
+      if (mode === "dilate") {
+        if (!src[i]) continue;
+        for (dy = -1; dy <= 1; dy++) for (dx = -1; dx <= 1; dx++) {
+          if (four && dy && dx) continue;
+          yy = y + dy; xx = x + dx;
+          if (yy >= 0 && yy < H && xx >= 0 && xx < W) o[yy * W + xx] = 1;
+        }
+      } else {
+        var ok = 1;
+        for (dy = -1; dy <= 1 && ok; dy++) for (dx = -1; dx <= 1; dx++) {
+          if (four && dy && dx) continue;
+          yy = y + dy; xx = x + dx;
+          if (yy < 0 || yy >= H || xx < 0 || xx >= W || !src[yy * W + xx]) { ok = 0; break; }
+        }
+        o[i] = ok;
+      }
+    }
+  }
+  return o;
+}
+function mcDropFlecks(pix: Uint8ClampedArray, H: number, W: number) {
+  var seen = new Uint8Array(H * W), y, x, i, q;
+  for (y = 0; y < H; y++) {
+    for (x = 0; x < W; x++) {
+      i = y * W + x;
+      if (seen[i] || pix[i * 4 + 3] === 0) continue;
+      var cells = [i];
+      seen[i] = 1;
+      for (var p = 0; p < cells.length; p++) {
+        var ci = cells[p], cx = ci % W, cy = (ci / W) | 0;
+        var nbs = [cy * W + cx - 1, cy * W + cx + 1, (cy - 1) * W + cx, (cy + 1) * W + cx];
+        for (var ni = 0; ni < 4; ni++) {
+          var n = nbs[ni], nx = n % W, ny = (n / W) | 0;
+          if (n < 0 || n >= H * W) continue;
+          if (ni < 2 && ny !== cy) continue;
+          if (!seen[n] && pix[n * 4 + 3] > 0) { seen[n] = 1; cells.push(n); }
+        }
+      }
+      if (cells.length <= 2) {
+        for (q = 0; q < cells.length; q++) {
+          var o = cells[q] * 4;
+          pix[o] = pix[o + 1] = pix[o + 2] = pix[o + 3] = 0;
+        }
+      }
+    }
+  }
+}
+function magnetCloudCv(id: string, pose: string, fi: number) {
+  var key = id + ":" + pose + ":" + fi;
+  if (MAGNET_CLOUD[key] !== undefined) return MAGNET_CLOUD[key];
+  var spr = heroSprite(id);
+  if (!spr) return MAGNET_CLOUD[key] = null;
+  var PL = posesFor(id);
+  var pn = pose || "idle";
+  var idx = PL.indexOf(pn);
+  if (idx < 0) idx = 0;
+  var fw = (spr.naturalWidth || spr.width) / PL.length, fh = spr.naturalHeight || spr.height;
+  var PAD = 16, H = fh + 2 * PAD, W = fw + 2 * PAD;
+  var g = spr.getContext("2d");
+  if (!g) return MAGNET_CLOUD[key] = null;
+  var src = g.getImageData(idx * fw, 0, fw, fh).data;
+  var mask = new Uint8Array(H * W), xs = 0, ys = 0, nmask = 0, y, x, i;
+  for (y = 0; y < fh; y++) for (x = 0; x < fw; x++) {
+    if (src[(y * fw + x) * 4 + 3] > 0) {
+      i = (y + PAD) * W + (x + PAD);
+      mask[i] = 1; xs += x + PAD; ys += y + PAD; nmask++;
+    }
+  }
+  var core = mcMorph(mask, H, W, "dilate", false);
+  core = mcMorph(core, H, W, "erode", false);
+  core = mcMorph(core, H, W, "dilate", true);
+  core = mcMorph(core, H, W, "dilate", true);
+  var d = mcEdt(core, H, W), dh = mcEdt(mask, H, W);
+  var pulse = [0.0, 1.4, 0.2, -1.1][fi & 3];
+  var noise = mcNoise(H, W, fi, 6, 0, 0);
+  var noise2 = mcNoise(H, W, fi + 3, 11, 4, 0);
+  var cxm = nmask ? xs / nmask : W / 2, cym = nmask ? ys / nmask : H / 2;
+  var lobes = [
+    [-0.4, 3.2, 14], [1.2, 2.6, 11], [2.5, 3.0, 13], [3.8, 2.2, 10]
+  ];
+  var cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  var cg = cv.getContext("2d");
+  if (!cg) return MAGNET_CLOUD[key] = null;
+  var img = cg.createImageData(W, H), pix = img.data;
+  var C0 = [0x8c, 0x24, 0x30], C1 = [0xc8, 0x3c, 0x3c], C2 = [0xe8, 0x60, 0x60], OK = [0x14, 0x0c, 0x1c];
+  function put(ii: number, c: number[]) { pix[ii] = c[0]; pix[ii + 1] = c[1]; pix[ii + 2] = c[2]; pix[ii + 3] = 255; }
+  for (y = 0; y < H; y++) {
+    for (x = 0; x < W; x++) {
+      i = y * W + x;
+      if (mask[i]) continue;
+      if (dh[i] < 1.2) continue;
+      var lobe = 0, k;
+      for (k = 0; k < 4; k++) {
+        var ang = lobes[k][0] + fi * 0.35;
+        var lx = cxm + Math.cos(ang) * 10, ly = cym + Math.sin(ang) * 14;
+        var sig = lobes[k][2];
+        lobe += lobes[k][1] * Math.exp(-((x - lx) * (x - lx) + (y - ly) * (y - ly)) / (2 * sig * sig));
+      }
+      var deff = d[i] - pulse - 3.2 * (noise[i] - 0.5) - 1.6 * (noise2[i] - 0.5) - lobe;
+      var chk = ((x + y + fi) % 2) === 0;
+      var r = mcHash(x, y, fi);
+      var o = i * 4;
+      if (deff <= 3.0) {
+        put(o, C0);
+        if (deff > 1.8 && !chk) put(o, C1);
+      } else if (deff <= 6.0) {
+        if (chk) put(o, C1);
+        else if (r < 0.20) put(o, C0);
+      } else if (deff <= 9.0) {
+        if ((((x >> 1) + (y >> 1) + fi) % 2) === 0 && r < 0.35) put(o, C2);
+      }
+    }
+  }
+  mcDropFlecks(pix, H, W);
+  for (y = 0; y < H; y++) {
+    for (x = 0; x < W; x++) {
+      i = y * W + x;
+      if (pix[i * 4 + 3] === 0) continue;
+      var edge = false;
+      if (x === 0 || y === 0 || x === W - 1 || y === H - 1) edge = true;
+      else if (pix[(i - 1) * 4 + 3] === 0 || pix[(i + 1) * 4 + 3] === 0 || pix[(i - W) * 4 + 3] === 0 || pix[(i + W) * 4 + 3] === 0) edge = true;
+      if (edge && dh[i] <= 3.5 && dh[i] >= 1.2 && mcHash(x, y, fi) < 0.08) put(i * 4, OK);
+    }
+  }
+  if (nmask) {
+    var xmin = W, xmax = 0, ymin = H;
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (mask[y * W + x]) {
+      if (x < xmin) xmin = x; if (x > xmax) xmax = x; if (y < ymin) ymin = y;
+    }
+    var sparks = [
+      [xmin - 3, Math.round(cym - 8 - fi * 3)],
+      [xmax + 2, Math.round(cym - 16 - fi * 3)],
+      [Math.round(cxm + 6), Math.round(ymin - 2 - fi * 2)]
+    ];
+    for (var si = 0; si < 3; si++) {
+      if (si === 2 && (fi % 2)) continue;
+      var sx = sparks[si][0], sy0 = sparks[si][1];
+      var cols = [C2, C1];
+      for (var sd = 0; sd < 2; sd++) {
+        var Y = sy0 + sd;
+        if (sx >= 0 && sx < W && Y >= 0 && Y < H && !mask[Y * W + sx]) put((Y * W + sx) * 4, cols[sd]);
+      }
+    }
+  }
+  for (i = 0; i < H * W; i++) if (mask[i]) {
+    var o2 = i * 4;
+    pix[o2] = pix[o2 + 1] = pix[o2 + 2] = pix[o2 + 3] = 0;
+  }
+  cg.putImageData(img, 0, 0);
+  MAGNET_CLOUD[key] = cv;
+  return cv;
+}
+function drawMagnetCloud(ctx: Ctx, p: any, sy: number, pose: string, face: number, tick: number) {
+  if (!(p.magnetT > 0) || !p.alive) return;
+  var id = (p.look && p.look.id) || "pilot";
+  var fi = Math.floor(tick / 6) % 4;
+  var cv = magnetCloudCv(id, pose || "idle", fi);
+  if (!cv) return;
+  var spr = heroSprite(id);
+  if (!spr) return;
+  var PL = posesFor(id);
+  var fw = (spr.naturalWidth || spr.width) / PL.length, fh = spr.naturalHeight || spr.height;
+  var s = 1, PAD = 16;
+  var hcx = p.x + 6, by = sy + 16 * s;
+  var dh = fh * 0.5 * s;
+  var dx = hcx - SPR_AX * s - PAD * 0.5 * s;
+  var dy = by - dh - PAD * 0.5 * s;
+  var dw = cv.width * 0.5 * s, dhh = cv.height * 0.5 * s;
+  ctx.imageSmoothingEnabled = false;
+  ctx.save();
+  if (face < 0) {
+    ctx.translate(hcx, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(cv, dx - hcx, dy, dw, dhh);
+  } else {
+    ctx.drawImage(cv, dx, dy, dw, dhh);
+  }
+  ctx.restore();
+}
+

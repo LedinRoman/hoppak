@@ -1736,7 +1736,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         var ox = p.x; p.x = xx;
         /* Render-only: while clinging, face into the field. p.face is used by dash/kick/net, so sim stays as-is. */
         var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
-        drawFxBack(p, sy, cam, pose, faceDraw);
+        drawFxBack(p, sy, cam, pose, faceDraw, w.tick);
         ctx.save();
         ctx.globalAlpha = p.id !== 0 ? remoteAlpha() : 1; /* own hero always opaque */
         drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
@@ -1849,7 +1849,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       });
     }
   }
-  function drawFxBack(p: any, sy: number, cam: number, pose?: string, faceDraw?: number) {
+  function drawFxBack(p: any, sy: number, cam: number, pose?: string, faceDraw?: number, tick?: number) {
     var cx = Math.round(p.x + 6), cy = Math.round(sy + 8), k;
     if (p.hookN > 0) {
       var hx = Math.round(p.htx + 6), hy = Math.round(p.hty - cam);
@@ -1876,7 +1876,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     if (p.grabT > 0 && p.grabMob) { for (k = 0; k < 4; k++) rect(ctx, cx - 5 + k * 3, cy - 2 + (k % 2) * 3, 3, 2, "#3a9a2a"); }
-    if (p.magnetT > 0 && (ui >> 2) % 2) { ctx.globalAlpha = 0.35; for (k = 0; k < 8; k++) { var a = k * 0.785 + ui * 0.05; rect(ctx, cx + Math.cos(a) * 15, cy + Math.sin(a) * 15, 1, 1, "#ff5a62"); } ctx.globalAlpha = 1; }
+    if (p.magnetT > 0) drawMagnetCloud(ctx, p, sy, pose || "idle", faceDraw || 1, tick || 0);
     if (p.teleFx > 0) { ctx.globalAlpha = p.teleFx / 18; for (k = 0; k < 10; k++) { var a2 = k * 0.63 + ui * 0.2, r2 = 18 - p.teleFx * 0.6; rect(ctx, cx + Math.cos(a2) * r2, cy + Math.sin(a2) * r2, 2, 2, k % 2 ? "#e8c8ff" : "#a060ff"); } ctx.globalAlpha = 1; }
   }
   /* Robot shield: a solid violet band from the first tick. Render only; domeT is unchanged. */
@@ -1902,7 +1902,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (p.shieldT > 0) drawShieldAura(ctx, p, sy, tick);
     drawDome(p, cx, cy, tick);
     if (p.freezeT > 0) { ctx.globalAlpha = 0.45; rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff"); ctx.globalAlpha = 1; }
-    if (p.rocketT > 0) { rect(ctx, cx - 2, sy + PH, 4, 3 + (ui % 3), "#ffd046"); rect(ctx, cx - 1, sy + PH + 3, 2, 3, "#ff7830"); }
+    if (p.rocketT > 0) {
+      var flick = (ui % 3);
+      rect(ctx, cx - 1, sy + PH, 2, 2, "#fff2c0");
+      rect(ctx, cx - 2, sy + PH + 1, 4, 2 + flick, "#ffd040");
+      rect(ctx, cx - 2, sy + PH + 3 + flick, 4, 2, "#ff9a3a");
+      rect(ctx, cx - 1, sy + PH + 5 + flick, 2, 2, "#e0602c");
+      rect(ctx, cx + 3 + (ui % 2), sy + PH + 6 + flick, 2, 2, "#6a6a78");
+      rect(ctx, cx - 4, sy + PH + 8 + (ui % 3), 2, 2, "#8a8a98");
+      rect(ctx, cx + 2, sy + PH + 10 + flick, 1, 1, "#5a5a68");
+    }
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
