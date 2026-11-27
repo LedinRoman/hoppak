@@ -571,52 +571,53 @@ function drawSnakeSprite(ctx: Ctx, m: any, cam: number) {
   var neckY = retracted ? top : y;
   var vineH = retracted ? 0 : Math.max(0, y - top);
   var fi = snakeFrame(m);
-  ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  if (vine && vineH > 0) {
-    ctx.save();
-    ctx.translate(x + 5, top);
-    ctx.scale(0.5, 0.5);
-    var artH = vineH * 2, tw = 10, th = 20, drawn = 0;
-    while (drawn < artH) {
-      var sl = Math.min(th, artH - drawn);
-      ctx.drawImage(vine, 0, 0, tw, sl, -5, drawn, tw, sl);
-      drawn += sl;
-    }
-    ctx.restore();
-    var leaf = snakePartCanvas("leaf", SNAKE_LEAF_SRC);
-    if (leaf && vineH >= 10) {
-      /* One leaf at ~1/3, stem (left of the 26×21 art) on the vine; flip side every 16 game px if the vine is long. */
-      var step = 16, nLeaf = Math.max(1, Math.floor(vineH / step));
-      for (var li = 0; li < nLeaf; li++) {
-        var ly = top + Math.round(vineH * (li + 1) / (nLeaf + 1));
-        var flipL = (li % 2) === 1;
+  var sc = SNAKE_DRAW_SCALE;
+  var ax = x + (m.w || 10 * 0.92) / 2;
+  applyContrast(ctx, SNAKE_CONTRAST, function () {
+    ctx.imageSmoothingEnabled = false;
+    if (vine && vineH > 0) {
+      ctx.save();
+      ctx.translate(ax, top);
+      ctx.scale(sc, sc);
+      var artH = vineH / sc, tw = 10, th = 20, drawn = 0;
+      while (drawn < artH) {
+        var sl = Math.min(th, artH - drawn);
+        ctx.drawImage(vine, 0, 0, tw, sl, -5, drawn, tw, sl);
+        drawn += sl;
+      }
+      ctx.restore();
+      var leaf = snakePartCanvas("leaf", SNAKE_LEAF_SRC);
+      if (leaf && vineH >= 10) {
+        var step = 16, nLeaf = Math.max(1, Math.floor(vineH / step));
+        for (var li = 0; li < nLeaf; li++) {
+          var ly = top + Math.round(vineH * (li + 1) / (nLeaf + 1));
+          var flipL = (li % 2) === 1;
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.translate(ax, ly);
+          ctx.scale(flipL ? -sc : sc, sc);
+          ctx.drawImage(leaf, 0, 0, 26, 21, 4, -16, 26, 21);
+          ctx.restore();
+        }
+      }
+      var join = snakePartCanvas("neck", SNAKE_NECK_SRC);
+      if (join && vineH >= 8) {
         ctx.save();
-        ctx.imageSmoothingEnabled = false;
-        ctx.translate(x + 5, ly);
-        ctx.scale(flipL ? -0.5 : 0.5, 0.5);
-        ctx.drawImage(leaf, 0, 0, 26, 21, 4, -16, 26, 21);
+        ctx.translate(ax, neckY);
+        ctx.scale(sc, sc);
+        ctx.drawImage(join, 0, 0, 11, 35, -5, -30, 11, 35);
         ctx.restore();
       }
     }
-    var join = snakePartCanvas("neck", SNAKE_NECK_SRC);
-    if (join && vineH >= 8) {
-      ctx.save();
-      ctx.translate(x + 5, neckY);
-      ctx.scale(0.5, 0.5);
-      /* 11×35 art, ~5 art-px overlap onto the neck. */
-      ctx.drawImage(join, 0, 0, 11, 35, -5, -30, 11, 35);
-      ctx.restore();
-    }
-  }
-  ctx.save();
-  ctx.translate(x + 5, neckY);
-  ctx.scale(0.5, 0.5);
-  ctx.drawImage(head, fi * 64, 0, 64, 64, -32, 0, 64, 64);
-  ctx.restore();
-  ctx.restore();
+    ctx.save();
+    ctx.translate(ax, neckY);
+    ctx.scale(sc, sc);
+    ctx.drawImage(head, fi * 64, 0, 64, 64, -32, 0, 64, 64);
+    ctx.restore();
+  });
   return true;
 }
+
 function holeDarkenCanvas(cv: any, mul: number) {
   var c = cv.getContext("2d");
   if (!c) return;
@@ -896,6 +897,9 @@ function drawBullet(ctx: Ctx, b: any, cam: number) {
       ctx.save();
       ctx.imageSmoothingEnabled = false;
       ctx.translate(x, y);
+      /* 90° steps every 6 ticks; life counts down from 260. No smooth rotation. */
+      var nrot = Math.floor(((b.life != null ? (260 - b.life) : 0) / 6)) % 4;
+      if (nrot) ctx.rotate(nrot * Math.PI / 2);
       ctx.scale(0.5, 0.5);
       ctx.drawImage(nv, 0, 0, 16, 15, -8, -8, 16, 15);
       ctx.restore();
