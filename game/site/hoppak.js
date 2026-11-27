@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("1b21506") return String("1b21506");
+      if ("9b063b0") return String("9b063b0");
     } catch (_e) {
     }
     return "";
@@ -10227,9 +10227,26 @@
       if (ready) encyArtCache[key] = out;
       return out;
     }
+    function encyIntegerFit(sw, sh, maxW, maxH) {
+      var mul, div, dw, dh;
+      if (sw <= maxW && sh <= maxH) {
+        mul = 1;
+        while (sw * (mul + 1) <= maxW && sh * (mul + 1) <= maxH) mul++;
+        return { dw: sw * mul, dh: sh * mul };
+      }
+      for (div = 2; div <= 8; div++) {
+        dw = Math.floor(sw / div);
+        dh = Math.floor(sh / div);
+        if (dw >= 1 && dh >= 1 && dw <= maxW && dh <= maxH) return { dw, dh };
+      }
+      dw = Math.max(1, Math.min(maxW, sw));
+      dh = Math.max(1, Math.min(maxH, sh));
+      return { dw, dh };
+    }
     function encyDrawArt(cv, x, y, w, h, pad) {
       if (!cv) return;
       if (pad == null) pad = 2;
+      var innerW = Math.max(1, w - pad * 2), innerH = Math.max(1, h - pad * 2);
       ctx.save();
       ctx.beginPath();
       ctx.rect(x, y, w, h);
@@ -10238,10 +10255,10 @@
       var bb = encyBBox(cv, 0);
       var sw = bb ? bb.w : cv.width, sh = bb ? bb.h : cv.height;
       var sx = bb ? bb.x : 0, sy = bb ? bb.y : 0;
-      var innerW = w - pad * 2, innerH = h - pad * 2;
-      var dx = x + pad + Math.round((innerW - sw) / 2);
-      var dy = y + pad + Math.round((innerH - sh) / 2);
-      ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, sw, sh);
+      var fit = encyIntegerFit(sw, sh, innerW, innerH);
+      var dx = x + pad + Math.round((innerW - fit.dw) / 2);
+      var dy = y + pad + Math.round((innerH - fit.dh) / 2);
+      ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, fit.dw, fit.dh);
       ctx.restore();
     }
     function encyBtn(id, x, y, w, h, label) {
@@ -10316,11 +10333,15 @@
       var innerX = x + ENCY_PAD, innerY = y + ENCY_PAD;
       var innerW = w - ENCY_PAD * 2, innerArt = Math.max(8, artH - ENCY_PAD);
       if (it.type === "map") {
-        drawMapThumb(x + 2, y + 2, w - 4, Math.max(8, artH - 2), it.M.id, !open);
+        var tw = 20, th = 29;
+        var tx = x + Math.round((w - tw) / 2);
+        var ty = y + Math.round((artH - th) / 2);
+        if (ty < y + 2) ty = y + 2;
+        drawMapThumb(tx, ty, tw, th, it.M.id, !open);
       } else {
         var scale = 1;
         var cv = it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
-        encyDrawArt(cv, innerX, innerY, innerW, innerArt, 0);
+        encyDrawArt(cv, innerX, innerY, innerW, innerArt);
       }
       var name = open ? it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name : t("map.locked");
       var lines = hudLines(name, "S", w - ENCY_PAD * 2);
@@ -10335,7 +10356,7 @@
       }
       ctx.restore();
     }
-    function drawEncyGrid(x, top, bot) {
+    function drawEncyGrid(x, top, bot, clipBot) {
       var items = encyItems();
       var cols = ENCY_COLS, gap = 4;
       var cw = Math.floor((152 - gap) / 2);
@@ -10362,8 +10383,9 @@
       var nudge = encyNudgePx();
       var scroll = encyScroll + nudge;
       ctx.save();
+      var clipTo = clipBot != null ? clipBot : bot;
       ctx.beginPath();
-      ctx.rect(x, top, 152, Math.max(viewH, LH - top));
+      ctx.rect(x, top, 152, Math.max(0, clipTo - top));
       ctx.clip();
       var i, col, row, cx, cy;
       var visA = -1, visB = -1;
@@ -10463,7 +10485,8 @@
       var artBoxW = 152 - pad * 2;
       var artY = top + pad;
       if (it.type === "map") {
-        drawMapThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
+        var dtw = 20, dth = 29;
+        drawMapThumb(x + pad + Math.round((artBoxW - dtw) / 2), artY + Math.round((artBoxH - dth) / 2), dtw, dth, it.M.id, !open);
       } else {
         var want = open ? 2 : 1;
         var probe = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
@@ -10472,9 +10495,7 @@
         var scale = want;
         while (scale > 1 && (bw * scale + 0 > artBoxW || bh * scale + 0 > artBoxH)) scale--;
         var artCv = scale === 1 ? probe : it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
-        var aw = Math.min(artBoxW, bb ? bb.w * scale : artBoxW);
-        var ah = Math.min(artBoxH, bb ? bb.h * scale : artBoxH);
-        encyDrawArt(artCv, x + pad + Math.round((artBoxW - aw) / 2), artY + Math.round((artBoxH - ah) / 2), aw, ah, 0);
+        encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH);
       }
       var ty = artY + artBoxH + gap, li;
       for (li = 0; li < nameLines.length; li++) {
@@ -10543,11 +10564,14 @@
       }
       var btnH = 22;
       var barLip = 3;
-      var barY = LH - btnH - 6 - barLip;
-      var barH = LH - barY;
+      var barH = btnH + barLip * 2;
+      var sidePad = x;
+      var botSafe = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
+      var botPad = sidePad + botSafe;
+      var barY = LH - botPad - barH;
       var bot = barY;
       if (encyCard >= 0) drawEncyDetail(x, top, bot);
-      else drawEncyGrid(x, top, bot);
+      else drawEncyGrid(x, top, bot, barY + barH);
       encyBtn("back", x, barY, 152, barH, t("common.back"));
       drawFlash();
     }
