@@ -627,7 +627,7 @@ def main():
         for f in files:
             heights.append(rgba(os.path.join(ANIM, hid, f)).height)
     ch = max(heights)
-    out = {'hero': {}, 'plat': {}, 'bg': {'city': {}, 'jungle': {}, 'ice': {}, 'lava': {}, 'aqua': {}}, 'cell': {'w': CW, 'h': ch, 'ax': AX}}
+    out = {'hero': {}, 'plat': {}, 'bg': {}, 'cell': {'w': CW, 'h': ch, 'ax': AX}}
     report = {'cellH': ch, 'heroes': {}, 'cleanup': {'changed': [], 'kept_platform_white': [], 'kept_hero_lights': []}}
     all_changes = []
 
@@ -699,45 +699,35 @@ def main():
     out['coin'] = {'src': uri(coin), 'n': 8, 'cw': coin.width // 8, 'ch': coin.height}
 
     B = A64 + '/bg/'
-    city = out['bg']['city']
-    add(city, 'far', rgba(B + 'city/_far_sprite_1x.png'))
-    add(city, 'near', rgba(B + 'city/_near_sprite_1x.png'))
-    add(city, 'floor', rgba(B + 'city/_floor_sprite_1x.png')); city['floorRow'] = 23
-    add(city, 'moon', rgba(B + 'city/_moon_sprite_1x.png'))
-    city['cs'] = [uri(rgba(B + 'city/_cloud_small_sprite_1x.png'))]
-    city['cb'] = [uri(rgba(B + 'city/_cloud_big_sprite_1x.png'))]
-    city['cloudAlpha'] = 0
-    jg = out['bg']['jungle']
-    add(jg, 'far', rgba(B + 'jungle/_far_sprite_1x.png'))
-    add(jg, 'near', rgba(B + 'jungle/_near_sprite_1x.png'))
-    fl = rgba(B + 'jungle/15_floor_1x.png'); bb = fl.getbbox()
-    add(jg, 'floor', fl.crop((0, bb[1], 160, 346))); jg['floorRow'] = 0
-    add(jg, 'sun', rgba(B + 'jungle/_sun_sprite_1x.png'))
-    jg['cs'] = [uri(rgba(p)) for p in sorted(glob.glob(B + 'jungle/_cloud_small*_sprite_1x.png'))]
-    jg['cb'] = [uri(rgba(p)) for p in sorted(glob.glob(B + 'jungle/_cloud_big*_sprite_1x.png'))]
-    jg['cloudAlpha'] = 1
-
-    def pack_horizon(dst, folder, sun=None, floor_row=0, floor_src=None, clouds=True):
-        add(dst, 'far', rgba(B + folder + '/_far_sprite_1x.png'))
-        add(dst, 'near', rgba(B + folder + '/_near_sprite_1x.png'))
-        flp = floor_src or (B + folder + '/15_floor_1x.png')
-        fl = rgba(flp)
-        bb = fl.getbbox()
-        if bb:
-            fl = fl.crop((0, bb[1], min(160, fl.width), fl.height))
-        add(dst, 'floor', fl)
-        dst['floorRow'] = floor_row
-        if sun:
-            add(dst, 'sun', rgba(B + folder + '/' + sun))
-        if clouds:
-            dst['cs'] = [uri(rgba(p)) for p in sorted(glob.glob(B + folder + '/_cloud_small*_sprite_1x.png'))]
-            dst['cb'] = [uri(rgba(p)) for p in sorted(glob.glob(B + folder + '/_cloud_big*_sprite_1x.png'))]
-            dst['cloudAlpha'] = 1
-
-    # aqua: plants stick above the sand; crest is y=279 in the 346 layer (bbox top 265) → floorRow 14
-    pack_horizon(out['bg']['aqua'], 'aqua', sun=None, floor_row=14, clouds=False)
-    pack_horizon(out['bg']['ice'], 'ice', sun=None, floor_row=0)
-    pack_horizon(out['bg']['lava'], 'lava', sun='_sun_sprite_1x.png', floor_row=0)
+    # v1.0 final backgrounds (Design, approved 27.11): every layer is a 160x346 PNG placed as it looks at the
+    # layer's "shown" height (refs/bg/layers_meta.json). Strips (far/near/floor) keep everything from their top
+    # row down; objects (sun/moon, planet, aurora, sunbeams) are cropped to their box with the box position;
+    # moving fields (stars, clouds, snow, embers, bubbles, nebulae, asteroids) stay full 160x346 tiles.
+    meta = json.load(open(A64 + '/refs/bg/layers_meta.json'))
+    # space was rebuilt from the GPT sheet at its m=0 frame (README: moon centre y=36 at m=0, planet centre ~30)
+    for _k in ('sun_moon', 'planet', 'nebulae', 'asteroids', 'stars'):
+        meta['space'][_k] = 0
+    TILES = ('stars', 'nebulae', 'asteroids', 'bubbles', 'snow', 'embers', 'clouds_small', 'clouds_big')
+    SPRITES = ('sun_moon', 'planet', 'aurora', 'sunbeams')
+    out['bg'] = {}
+    for wld in ('city', 'jungle', 'ice', 'lava', 'aqua', 'space'):
+        d = out['bg'][wld] = {'L': {}}
+        files = {os.path.basename(f)[3:-7]: f for f in glob.glob(B + wld + '/[0-9][0-9]_*_1x.png')}
+        def strip(name):
+            im = rgba(files[name]); bb = im.getbbox()
+            return im.crop((0, bb[1], 160, 346)), bb[1]
+        im, top = strip('horizon_far'); add(d, 'far', im); d['farY0'] = top
+        im, top = strip('horizon_near'); add(d, 'near', im); d['nearY0'] = top
+        im, top = strip('floor_props' if 'floor_props' in files else 'floor'); add(d, 'floor', im); d['floorRow'] = 279 - top
+        for name, f in sorted(files.items()):
+            if name in TILES:
+                im = rgba(f)
+                d['L'][name] = {'src': uri(im), 'x': 0, 'y': 0, 'w': im.width, 'h': im.height, 'm': meta[wld].get(name, 700)}
+            elif name in SPRITES:
+                im = rgba(f); bb = im.getbbox()
+                c = im.crop(bb)
+                d['L'][name] = {'src': uri(c), 'x': bb[0], 'y': bb[1], 'w': c.width, 'h': c.height, 'm': meta[wld].get(name, 700)}
+        report.setdefault('bg', {})[wld] = {'farY0': d['farY0'], 'nearY0': d['nearY0'], 'floorRow': d['floorRow'], 'layers': {k: [v['x'], v['y'], v['w'], v['h'], v['m']] for k, v in d['L'].items()}}
 
     # summarise cleanup
     by = {}
@@ -757,8 +747,6 @@ def main():
         f.write('var HERO64: any = { ' + ', '.join('%s: 1' % h for h in HEROES) + ' };\n')
         f.write('var HERO64_POSES = ' + json.dumps(POSE_NAMES) + ';\n')
     print(json.dumps({'cellH': ch, 'changed': report['cleanup']['changed'], 'bytes': len(js),
-                      'jungleClouds': [len(jg['cs']), len(jg['cb'])],
-                      'bg': {k: list(out['bg'][k].keys()) for k in out['bg']},
-                      'sun': [jg['sunW'], jg['sunH']]}))
+                      'bg': report.get('bg')}))
 
 main()

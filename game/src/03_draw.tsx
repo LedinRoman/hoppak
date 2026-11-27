@@ -82,8 +82,14 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   skyG.addColorStop(0, sky[0]); skyG.addColorStop(0.5, sky[1]); skyG.addColorStop(1, sky[2]);
   ctx.fillStyle = skyG;
   ctx.fillRect(Math.floor(viewX0()) - 1, skyTop, Math.ceil(viewW()) + 2, skyH);
+  /* v1.0 final layers: s(name, speed) = scroll at this height relative to the layer's shown height */
+  var LS = function (name: string, speed: number) { var l = bgL(map, name); return l ? speed * (alt - l.m * PX_PER_M) : 0; };
   /* stars / plankton / embers */
-  if (map === "city" || map === "space" || map === "ice" || (map === "jungle" && m > 500)) {
+  if (bgL(map, "stars")) {
+    ctx.globalAlpha = clamp(0.55 + m / 2200, 0.55, 1);
+    drawBgTile64(ctx, map, "stars", LS("stars", 0.065), LH, 0);
+    ctx.globalAlpha = 1;
+  } else if (map === "city" || map === "space" || map === "ice" || (map === "jungle" && m > 500)) {
     var starA = map === "space" ? 0.9 : clamp(0.55 + m / 2200, 0.55, 1);
     var nStars = map === "space" ? 68 : Math.round(lerp(28, 72, clamp(m / 2500, 0, 1)));
     for (i = 0; i < nStars; i++) {
@@ -99,7 +105,19 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     ctx.globalAlpha = 1;
   }
   /* sun / moon */
-  if (map === "city" || map === "space") {
+  if (bgL(map, "sun_moon")) {
+    /* same height rule as before (README): moon 6 + alt*0.015, sun 14 + alt*0.01, never above 28 (70 in menus) */
+    var smY = function (a: number) {
+      var y = map === "city" || map === "space" ? Math.max(28, Math.round(6 + a * 0.015)) : Math.max(28, Math.round(14 + a * 0.01));
+      return menu ? Math.max(70, y) : y;
+    };
+    var smA = map === "city" ? 1 - clamp((m - 1200) / 600, 0, 1) : 1;
+    if (smA > 0) {
+      ctx.globalAlpha = smA;
+      drawBgObj64(ctx, map, "sun_moon", smY(alt) - smY(bgL(map, "sun_moon").m * PX_PER_M));
+      ctx.globalAlpha = 1;
+    }
+  } else if (map === "city" || map === "space") {
     var moonA = map === "space" ? 0.95 : 1 - clamp((m - 1200) / 600, 0, 1);
     if (moonA > 0) {
       var mx = LW - 21, my = Math.max(28, Math.round(6 + alt * 0.015)); if (menu) my = Math.max(70, my);
@@ -124,7 +142,11 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   }
   /* aurora (city high & ice) */
   var aur = map === "ice" ? 0.85 : map === "city" ? band(m, 900, 1400, 3200, 4200) : 0;
-  if (aur > 0) {
+  if (aur > 0 && bgL(map, "aurora")) {
+    ctx.globalAlpha = map === "ice" ? 0.6 : 0.55 * aur;
+    drawBgBand64(ctx, map, "aurora", 0);
+    ctx.globalAlpha = 1;
+  } else if (aur > 0) {
     var acs = map === "ice" ? ["#72ffdc", "#7cd8ff", "#f288ff"] : ["#6af8c0", "#6ed4ff", "#f080e8"];
     for (k = 0; k < 3; k++) {
       ctx.globalAlpha = 0.42 * aur;
@@ -137,7 +159,18 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   }
   /* vibrant nebulae & planet (space always, city high) */
   var sp = map === "space" ? 1 : map === "city" ? clamp((m - 2000) / 800, 0, 1) : 0;
-  if (sp > 0) {
+  if (sp > 0 && map === "space" && bgL(map, "nebulae")) {
+    drawBgTile64(ctx, map, "nebulae", LS("nebulae", 0.03), LH + 120, 0);
+    var plY = function (a: number) { return mod(70 + a * 0.02, LH + 80) - 40; };
+    var plL = bgL(map, "planet");
+    if (plL) {
+      var pdy = plY(alt) - plY(plL.m * PX_PER_M);
+      /* the cycle wraps at LH+80: keep the drawn box inside the old -40..LH+40 window */
+      if (plL.y + pdy > LH + 40) pdy -= LH + 80;
+      drawBgObj64(ctx, map, "planet", pdy);
+    }
+    drawBgTile64(ctx, map, "asteroids", LS("asteroids", 0.35), LH, tick * 0.06);
+  } else if (sp > 0) {
     var nebs = [[32, 0.2, "#b44ee0"], [120, 0.7, "#3e8ce8"], [72, 1.3, "#e84ea0"]];
     for (k = 0; k < nebs.length; k++) {
       var nx = nebs[k][0] as number, ny = mod(Math.floor((nebs[k][1] as number) * 200) + alt * 0.03, LH + 120) - 60;
@@ -164,7 +197,10 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     ctx.globalAlpha = 1;
   }
   /* aqua sunbeams + bubbles + floating corals */
-  if (map === "aqua") {
+  if (map === "aqua" && bgL(map, "sunbeams")) {
+    drawBgBand64(ctx, map, "sunbeams", 0); /* static; the PNG carries its own alpha */
+    drawBgTile64(ctx, map, "bubbles", LS("bubbles", 0.25) - tick * 0.45, LH, 0);
+  } else if (map === "aqua") {
     ctx.globalAlpha = 0.18;
     for (k = 0; k < 4; k++) {
       var bx = 18 + k * 38;
@@ -181,7 +217,11 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     ctx.globalAlpha = 1;
   }
   /* ice falling snowflakes */
-  if (map === "ice") {
+  if (map === "ice" && bgL(map, "snow")) {
+    ctx.globalAlpha = 0.8;
+    drawBgTile64(ctx, map, "snow", LS("snow", 0.28) + tick * 0.4, LH, Math.sin(tick * 0.03) * 2);
+    ctx.globalAlpha = 1;
+  } else if (map === "ice") {
     ctx.globalAlpha = 0.8;
     for (k = 0; k < 24; k++) {
       var fx = mod(Math.floor(hash(k + 700) * LW) + Math.sin(tick * 0.03 + k) * 5, LW);
@@ -191,7 +231,11 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     ctx.globalAlpha = 1;
   }
   /* lava rising embers */
-  if (map === "lava") {
+  if (map === "lava" && bgL(map, "embers")) {
+    ctx.globalAlpha = 0.9;
+    drawBgTile64(ctx, map, "embers", LS("embers", 0.3) - tick * 0.6, LH, Math.sin(tick * 0.04) * 2);
+    ctx.globalAlpha = 1;
+  } else if (map === "lava") {
     for (k = 0; k < 20; k++) {
       var ex = mod(Math.floor(hash(k + 900) * LW) + Math.sin(tick * 0.06 + k) * 6, LW);
       var ey = mod(Math.floor(hash(k + 950) * LH) - tick * (0.45 + (k % 3) * 0.15) + alt * 0.3, LH);
@@ -201,7 +245,14 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   /* clouds (city, jungle, ice, lava) */
   if (map === "city" || map === "jungle" || map === "ice" || map === "lava") {
     var cl = map === "city" ? band(m, 120, 450, 1700, 2400) : 0.85;
-    if (cl > 0) {
+    if (cl > 0 && bgL(map, "clouds_small")) {
+      /* README: small 0.18 / cycle LH+60, big 0.42 / cycle LH+80; city keeps its 0.72 / 0.9 band alpha */
+      ctx.globalAlpha = map === "city" ? 0.72 * cl : 1;
+      drawBgTile64(ctx, map, "clouds_small", LS("clouds_small", 0.18), LH + 60, tick * 0.035);
+      ctx.globalAlpha = map === "city" ? 0.9 * cl : 1;
+      drawBgTile64(ctx, map, "clouds_big", LS("clouds_big", 0.42), LH + 80, -tick * 0.07);
+      ctx.globalAlpha = 1;
+    } else if (cl > 0) {
       ctx.globalAlpha = 0.72 * cl;
       var cf = mixHex(sky[2], "#ffffff", 0.35), ch = mixHex(sky[2], "#ffffff", 0.65), cs = mixHex(sky[1], "#201840", 0.18);
       for (k = 0; k < 7; k++) {
@@ -232,7 +283,8 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
        bottom used to come apart from the faster one in front and its flat fill colour showed as a hard band.
        Keep them stacked: a layer is pushed down just enough that its bottom stays behind the solid part of
        the layer in front (floor -> near -> far). Parallax is unchanged while they overlap anyway. */
-    var nearTop = nearBase - b64h.nearH;
+    /* final strips run from their top row to the layer bottom (346): top = layer top + parallax */
+    var nearTop = b64h.nearY0 + alt * 0.3;
     var roofY0 = Math.round(-camY);
     /* pushes are capped at "bottom edge = screen bottom", so a layer is carried by the one in front only
        until it rests on the screen edge, then waits there for its own parallax; continuous at every step */
@@ -241,7 +293,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
       var floorTop = roofY0 + 3 - b64h.floorRow;
       nearTop = Math.max(nearTop, Math.min(floorTop + stripSolidRow64(b64h, "floor") - b64h.nearH, yBot - b64h.nearH));
     }
-    var farTop = Math.max(farBase - b64h.farH, Math.min(nearTop + stripSolidRow64(b64h, "near") - b64h.farH, yBot - b64h.farH));
+    var farTop = Math.max(b64h.farY0 + alt * 0.1, Math.min(nearTop + stripSolidRow64(b64h, "near") - b64h.farH, yBot - b64h.farH));
     drawBgStrip64(ctx, b64h, "far", farTop);
     drawBgStrip64(ctx, b64h, "near", nearTop);
   } else if (map === "city") {

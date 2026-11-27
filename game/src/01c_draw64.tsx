@@ -106,3 +106,39 @@ function drawBgSprite64(ctx: Ctx, b: any, k: string, src: string, x: number, y: 
   ctx.drawImage(cv, Math.round(x), Math.round(y));
 }
 if (typeof ART64 !== "undefined" && ART64.bg) { for (var _bgk in ART64.bg) if (ART64.bg[_bgk]) ART64.bg[_bgk].__id = _bgk; }
+/* v1.0 final backgrounds: Design's layers (160x346, 1 px = 1 game px), placed as they look at their "shown"
+   height (L[name].m). Pure drawing; positions follow the old procedural formulas (README anchors). */
+function bgL(map: string, name: string) { var b = bg64(map); return b && b.L ? b.L[name] || null : null; }
+function bgLCv(map: string, name: string) { var l = bgL(map, name); return l ? art64Cv("bgL:" + map + name, l.src) : null; }
+/** Object layer (sun, moon, planet) at its box position moved by dy. */
+function drawBgObj64(ctx: Ctx, map: string, name: string, dy: number) {
+  var l = bgL(map, name), cv = bgLCv(map, name);
+  if (!l || !cv) return;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(cv, l.x, Math.round(l.y + dy));
+}
+/** Full-width band (aurora, sunbeams): centred on the field, neighbours mirrored over the side margins. */
+function drawBgBand64(ctx: Ctx, map: string, name: string, dy: number) {
+  var l = bgL(map, name), cv = bgLCv(map, name);
+  if (!l || !cv) return;
+  ctx.imageSmoothingEnabled = false;
+  var W = 160, xc = Math.round((LW - W) / 2), y = Math.round(l.y + dy);
+  for (var n = Math.floor((viewX0() - xc) / W); xc + n * W < LW + VIEW_PAD; n++) {
+    var tx = xc + n * W;
+    if ((n & 1) === 0) ctx.drawImage(cv, tx + l.x, y);
+    else { ctx.save(); ctx.translate(tx + W, y); ctx.scale(-1, 1); ctx.drawImage(cv, l.x, 0); ctx.restore(); }
+  }
+}
+/** Moving field (stars, clouds, snow, embers, bubbles, nebulae, asteroids): a 160x346 tile repeated every
+   `cycle` rows and every 160 columns; `off` is the vertical scroll and `xo` the horizontal drift. */
+function drawBgTile64(ctx: Ctx, map: string, name: string, off: number, cycle: number, xo: number) {
+  var l = bgL(map, name), cv = bgLCv(map, name);
+  if (!l || !cv) return;
+  ctx.imageSmoothingEnabled = false;
+  var W = l.w, H = l.h, y0 = Math.round(mod(off, cycle)), x0 = Math.round(mod(xo, W));
+  var top = viewY0() - VIEW_TOPPAD, bot = viewY1();
+  for (var y = y0 - cycle * Math.ceil((y0 + H - top) / cycle); y < bot; y += cycle) {
+    if (y + H <= top) continue;
+    for (var x = x0 - W * Math.ceil((x0 - viewX0()) / W); x < LW + VIEW_PAD; x += W) ctx.drawImage(cv, x, y);
+  }
+}
