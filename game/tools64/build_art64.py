@@ -563,18 +563,13 @@ def hero_sheet(hid, files, ch):
     for i, f in enumerate(files):
         raw = rgba(os.path.join(ANIM, hid, f))
         raw0 = raw
-        hi = os.path.join(ANIM, hid, os.path.basename(f).replace('_64.png', '.png'))
-        if hid in REPIX and os.path.exists(hi):
-            raw = hires_to_64(hi, raw.size)
-        if hid in ROBUST_HEAD:
-            holes = 0  # wave 2: native frames have no keying holes; closing would fill dust / speed lines
-        else:
-            raw, holes = fill_key_holes(raw)
-        q, st = hero_dewhite(raw)
-        if hid in ROBUST_HEAD:
-            q = keep_fx(raw, q)
-            q = keep_special(hid, os.path.basename(f), raw, q)
-        st['holes'] = holes
+        # Advisor 2026-11-27: all 6 hero sheets are already dust-cleaned and
+        # dewhited in the studio sources (eye whites #b8c4d0, binary alpha).
+        # Do not recolour lights, fill key holes, or rebuild from hi-res here.
+        a = np.asarray(raw).copy()
+        a[..., 3] = np.where(a[..., 3] < 128, 0, 255).astype(np.uint8)
+        q = Image.fromarray(a, 'RGBA')
+        st = {'n': 0, 'eyes': 0, 'removed': 0, 'outline': 0, 'speck': 0, 'blob': 0, 'map': [], 'holes': 0}
         if i == 5:
             raw = ko(raw); q = ko(q); raw0 = ko(raw0)
         if q.height > ch:
