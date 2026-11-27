@@ -1,4 +1,4 @@
-/* Хоппак v1.0-w10 site — HOP_SERVER baked in, do not edit */
+/* Хоппак v1.0-w11 site — HOP_SERVER baked in, do not edit */
 (() => {
   var LW = 160;
   var LH = 346;
@@ -8548,41 +8548,71 @@
       var y0 = heroY + rows * pw + (rows - 1) * gap + 4, ch = Math.max(90, backY - 6 - y0);
       markBox("card", x, y0, 152, ch);
       box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
-      var btnH = 22, btnPad = 6, platH = 8;
-      var textH = 69;
+      var btnH = 22, btnPad = 6, platH = 6;
       var chrome = 4 + btnH + btnPad + platH + 2;
-      var minBand = 16 + heroFitHop(40).h + 2;
-      if (ch - textH - chrome < minBand) textH = Math.max(52, ch - chrome - minBand);
+      var minTextH = 48;
+      var aShop = menuScaleA();
+      if (pScale && pScale > aShop) aShop = pScale;
+      if (!(aShop > 0)) aShop = 1;
+      var fhShop = heroCellH();
+      var avail = Math.max(16, ch - minTextH - chrome);
+      var minHop = 10, targetHop = 26;
+      var maxH = Math.min(avail - minHop, Math.max(8, Math.round(ch * 0.4)));
+      var wantH = Math.round(ch * 0.35);
+      if (wantH > maxH) wantH = maxH;
+      var ingameH = fhShop * 0.5;
+      if (ingameH <= maxH && wantH < ingameH) wantH = ingameH;
+      var kCap = Math.max(1, Math.round(aShop * 0.5 * 2));
+      function shopHh(kShop2) {
+        return fhShop * kShop2 / aShop;
+      }
+      var kShop = kCap;
+      while (kShop > 1 && shopHh(kShop) > maxH) kShop--;
+      while (kShop < kCap && shopHh(kShop + 1) <= maxH && shopHh(kShop + 1) + minHop <= avail) kShop++;
+      var hopRoom = Math.min(targetHop, Math.max(minHop, avail - shopHh(kShop)));
+      if (shopHh(kShop) + hopRoom > avail) hopRoom = Math.max(8, avail - shopHh(kShop));
+      var fit = { sc: 2 * kShop / aShop, k: kShop, h: shopHh(kShop), hop: hopRoom };
+      var band2 = fit.h + hopRoom + 2;
+      var textH = Math.min(69, Math.max(minTextH, ch - chrome - band2));
       var byb = y0 + ch - btnH - btnPad;
       var textTop = byb - 4 - textH;
       var platTop = textTop - platH;
       var budget = platTop - (y0 + 1);
-      if (budget < 24) {
-        textH = Math.max(52, textH - (24 - Math.max(0, budget)));
-        textTop = byb - 4 - textH;
-        platTop = textTop - platH;
-        budget = platTop - (y0 + 1);
-      }
-      var fit = heroFitHop(Math.max(16, budget));
-      var hopRoom = fit.hop;
-      if (fit.h + hopRoom > budget && budget > 0) hopRoom = Math.max(8, budget - fit.h);
-      rect(ctx, x + 40, platTop, 72, 4, C.wood);
-      rect(ctx, x + 40, platTop, 72, 1, C.edge);
+      if (budget > fit.h + hopRoom) hopRoom = Math.min(targetHop, budget - fit.h);
+      if (hopRoom < 8 && budget > fit.h) hopRoom = Math.max(8, budget - fit.h);
+      var cellW = typeof ART64 !== "undefined" && ART64.cell && ART64.cell.w ? ART64.cell.w : 72;
+      var heroW = cellW * 0.5 * fit.sc;
+      var platW = Math.round(Math.min(152 - 16, Math.max(20, heroW + 8)));
+      var platX = Math.round(LW / 2 - platW / 2);
+      rect(ctx, platX, platTop, platW, 4, C.wood);
+      rect(ctx, platX, platTop, platW, 1, C.edge);
       var mh = demoHop(makeLook(i, save.color, save.hat), hopRoom), pose = mh.pose, hop = mh.hop;
       if (hop > hopRoom) hop = hopRoom;
       drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, fit.sc), platTop - 16 * fit.sc - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, fit.sc, true);
-      lastHop = { where: "shop", hop, room: hopRoom, sc: fit.sc, k: fit.k, h: fit.h, platY: platTop, budget };
+      lastHop = { where: "shop", hop, room: hopRoom, sc: fit.sc, k: fit.k, h: fit.h, platY: platTop, budget, platW };
       var mid = textTop - 16;
       var nameSc = textH < 62 ? 1 : 2;
-      var ny = textTop + (nameSc === 2 ? 0 : 2);
+      var ny, by0, desc1, desc2, chgY;
+      if (nameSc === 2 && textH >= 66) {
+        ny = textTop;
+        by0 = ny + 18;
+        desc1 = by0 + 16;
+        desc2 = by0 + 26;
+        chgY = by0 + 40;
+      } else {
+        ny = textTop + 1;
+        by0 = ny + 9;
+        desc1 = by0 + 13;
+        desc2 = by0 + 22;
+        chgY = Math.min(textTop + textH - 9, by0 + 33);
+      }
       drawText(ctx, H2.name, LW / 2, ny, C.cream, nameSc, "center");
       var tw = textWidth(H2.abName, 1) + 10;
-      var by0 = ny + (nameSc === 2 ? 18 : 12);
       box(ctx, Math.round(LW / 2 - tw / 2), by0, tw, 12, "#3a4ac8", C.cream);
       drawText(ctx, H2.abName, LW / 2, by0 + 3, C.cream, 1, "center");
-      drawText(ctx, H2.abDesc[0], LW / 2, by0 + 16, C.cream, 1, "center");
-      drawText(ctx, H2.abDesc[1], LW / 2, by0 + 26, C.cream, 1, "center");
-      drawChargeLine(LW / 2, by0 + 40, H2, "#9a8ab8");
+      drawText(ctx, H2.abDesc[0], LW / 2, desc1, C.cream, 1, "center");
+      drawText(ctx, H2.abDesc[1], LW / 2, desc2, C.cream, 1, "center");
+      drawChargeLine(LW / 2, chgY, H2, "#9a8ab8");
       markBox("cardText", x + 4, textTop, 144, textH);
       markBox("cardBtn", x + 10, byb, 132, btnH);
       if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "\u0412\u042B\u0411\u0420\u0410\u041D", C.gold, 1, C.gold);
