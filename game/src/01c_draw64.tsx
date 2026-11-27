@@ -60,6 +60,22 @@ function drawCoin64(ctx: Ctx, x: number, y: number, t: number): boolean {
   ctx.restore();
   return true;
 }
+/** UI coin: front face of the 64 px sprite at 0.5 (14×14 game px), never the edge-on frame that looks like "!". */
+function drawCoin64Ui(ctx: Ctx, x: number, y: number): boolean {
+  var m = ART64.coin, cv = art64Cv("coin", m.src);
+  if (!cv) return false;
+  var dw = m.cw * 0.5, dh = m.ch * 0.5;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
+  ctx.drawImage(cv, 0, 0, m.cw, m.ch, Math.round(x), Math.round(y), dw, dh);
+  ctx.restore();
+  return true;
+}
+function coinUiSize() {
+  var m = ART64 && ART64.coin;
+  return m && m.cw ? m.cw * 0.5 : 6;
+}
 function bg64(map: string) { return (ART64 && ART64.bg && ART64.bg[map]) ? ART64.bg[map] : null; }
 /** A full-width background strip (160 px tile), tiled over the side padding; below it, the bottom colour. */
 function drawBgStrip64(ctx: Ctx, b: any, k: string, top: number) {
