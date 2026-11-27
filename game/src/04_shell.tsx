@@ -1125,6 +1125,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var ly = y + Math.round((h - block) / 2);
     for (var i = 0; i < lines.length; i++) drawTiny(ctx, lines[i], tx, ly + i * 6, col, "left");
   }
+  /* Visible height of the menu/shop hero at scale `sc` (1 art px = 0.5 game px for 64-px sheets). */
+  function heroArtH(id: string, sc: number) {
+    var spr = heroSprite(id);
+    if (spr && typeof HERO64 !== "undefined" && HERO64[id]) return (spr.naturalHeight || spr.height) * 0.5 * sc;
+    return SPR_CH * sc;
+  }
   function menuFrame() {
     var top = menuTop();
     var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
@@ -1140,7 +1146,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var tagY = logoY + 7 * logoSc + 4;
       var tagBot = tagY + 9;
       var platY = pickY - 8;
-      var heroTop = platY - 42;
+      var heroVis = heroArtH((CHARS[save.char] || CHARS[0]).id, 2);
+      var heroTop = platY - heroVis - 10;
       return { tabY: tabY, gridY: gridY, playY: playY, pickY: pickY, logoY: logoY, tagY: tagY, tagBot: tagBot, platY: platY, heroTop: heroTop };
     }
     var L = stack();
@@ -1177,11 +1184,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var pose = ph < 0.08 || ph > 0.95 ? "squash" : ph < 0.5 ? "up" : "fall";
     var platY = L.platY;
     rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood); rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
-    var heroY = platY - 32 - hop;
-    if (heroY < L.tagBot + 2) { heroY = L.tagBot + 2; hop = 0; }
     var heroId = (CHARS[save.char] || CHARS[0]).id;
+    var heroVis = heroArtH(heroId, 2);
+    var heroY = platY - 32 - hop;
+    if (platY - heroVis - hop < L.tagBot + 2) { hop = Math.max(0, platY - heroVis - (L.tagBot + 2)); heroY = platY - 32 - hop; }
     drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, 2), heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2);
-    markBox("hero", LW / 2 - 16, heroY, 32, 32);
+    markBox("hero", LW / 2 - 18, platY - hop - heroVis, 36, heroVis);
     markBox("plat", LW / 2 - 28, platY, 56, 7);
     var pickW = 120;
     btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", "ВЫБРАТЬ ГЕРОЯ", C.cream, 1, C.gold);
@@ -1287,18 +1295,24 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
-    var y0 = heroY + rows * pw + (rows - 1) * gap + 6, ch = LH - y0 - 42;
+    var y0 = heroY + rows * pw + (rows - 1) * gap + 4, ch = LH - y0 - 38;
     markBox("card", x, y0, 152, ch);
     box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
     /* Text block (name → charge line) is mid+16 … mid+85; the act button needs 22 px + 4 px air above it.
        If the card is short (TG safe-area, 360 wide), drop the bouncing hero first: the portrait above shows it. */
     var btnH = 22, btnPad = 6;
-    var textBot = 85, roomFull = 52 + textBot + 4 + btnH + btnPad, showHero = ch >= roomFull;
-    var mid = showHero ? y0 + 52 : y0 - 10;
+    var textBot = 85;
+    var shopVis = heroArtH(H2.id, 2);
+    var reserved = textBot + 4 + btnH + btnPad;
+    var heroRoom = ch - reserved;
+    var showHero = heroRoom >= 48;
+    var mid = showHero ? y0 + heroRoom - 8 : y0 - 10;
     if (showHero) {
       rect(ctx, x + 40, mid + 8, 72, 4, C.wood); rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
       var ph = (ui % 70) / 70, pose = ui % 280 > 230 ? "ability" : ph < 0.08 ? "squash" : ph < 0.5 ? "up" : "fall";
       var hop = pose === "ability" ? 6 : Math.round(Math.sin(ph * Math.PI) * 10);
+      var hopMax = Math.max(0, mid + 8 - shopVis - (y0 + 1));
+      if (hop > hopMax) hop = hopMax;
       drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2);
     }
     drawText(ctx, H2.name, LW / 2, mid + 16, C.cream, 2, "center");
@@ -1897,14 +1911,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var nh: any = null;
     var y0 = hdRes.bottom + 4;
     var btnY = LH - 64 - bot;
-    var full = list.length * (squad ? 28 : 36) + (why ? 18 : 0) + (hasGoal ? (met ? 26 : 32) : 0) + (note ? 72 : 60) + (evN ? (13 + evN * 11 + 6) : 0) + 16 + (nh ? 26 : 0);
+    var resVis = 0;
+    for (var ri = 0; ri < list.length; ri++) { var rv = heroArtH((list[ri].look && list[ri].look.id) || "pilot", 1); if (rv > resVis) resVis = rv; }
+    var resRow = Math.max(33, Math.ceil(resVis + 4)), resStep = resRow + 3;
+    var full = list.length * (squad ? Math.max(28, resStep) : resStep) + (why ? 18 : 0) + (hasGoal ? (met ? 26 : 32) : 0) + (note ? 72 : 60) + (evN ? (13 + evN * 11 + 6) : 0) + 16 + (nh ? 26 : 0);
     var compact = full > btnY - 4 - y0;
     var y = y0;
     var limitY = btnY - 4;
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
-      var rowH = compact ? 13 : (squad ? 25 : 33);
-      var step = compact ? 14 : (squad ? 28 : 36);
+      var rowH = compact ? 13 : (squad ? Math.max(25, resRow) : resRow);
+      var step = compact ? 14 : (squad ? Math.max(28, resStep) : resStep);
       if (y + step > limitY) break;
       var fill = p.place === 1 ? "#6a4a10" : p.place === 2 ? "#3a4050" : p.place === 3 ? "#4a3020" : C.navy;
       box(ctx, x, y, 152, rowH, fill, p.id === 0 ? C.gold : C.cream);
@@ -1915,7 +1932,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         drawText(ctx, String(p.name || "").slice(0, 8) + " " + metersOf(p) + " М", x + 30, y + 3, C.cream, 1, "left");
       } else {
         drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
-        drawJumper(ctx, x + 22, y + Math.round(rowH / 2 - 8), p.look, 1, "idle", false, true);
+        drawJumper(ctx, x + 22, y + rowH - 16, p.look, 1, "idle", false, true);
         drawText(ctx, p.name + (p.id === 0 && squad ? " (ТЫ)" : ""), x + 42, y + 4, C.cream, 1, "left");
         drawText(ctx, metersOf(p) + " М", x + 42, y + 14, C.cream, 1, "left");
       }

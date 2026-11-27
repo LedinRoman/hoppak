@@ -903,7 +903,9 @@ function drawJumper(ctx: Ctx, x: number, y: number, lk: any, face: number, pose:
     var fi = SPRITE_POSES.indexOf(pn);
     if (fi < 0) fi = 0;
     var fw = (spr.naturalWidth || spr.width) / SPRITE_POSES.length, fh = spr.naturalHeight || spr.height;
-    var dw = SPR_CW * s, dh = SPR_CH * s, cx = x + 6 * s, by = y + 16 * s;
+    var is64 = typeof HERO64 !== "undefined" && HERO64[lk.id];
+    /* 64-px sheets: 1 art px = 0.5 game px, no stretch (cell may be 65 art tall). Feet at the hitbox bottom. */
+    var dw = is64 ? fw * 0.5 * s : SPR_CW * s, dh = is64 ? fh * 0.5 * s : SPR_CH * s, cx = x + 6 * s, by = y + 16 * s;
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     if (flip) { ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.drawImage(spr, fi * fw, 0, fw, fh, -SPR_AX * s, by - dh, dw, dh); }
