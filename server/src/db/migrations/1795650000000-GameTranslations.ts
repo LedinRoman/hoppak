@@ -544,7 +544,7 @@ const seed = [
 // Pixel fonts have a fixed pitch. Size shared labels for their narrowest use.
 const labelWidths = new Map<string, [number, number]>([
   ['common.on', [36, 6]], ['common.off', [36, 6]],
-  ['common.menu', [72, 6]], ['shop.title', [72, 6]],
+  ['common.menu', [72, 6]], ['shop.title', [32, 4]],
   ['common.back', [100, 6]], ['common.close', [100, 6]], ['common.retry', [100, 6]],
   ['menu.choose_hero', [120, 6]], ['menu.play', [152, 12]],
   ['results.again', [152, 12]], ['results.rematch', [152, 12]],
@@ -552,7 +552,7 @@ const labelWidths = new Map<string, [number, number]>([
   ['menu.options', [32, 4]], ['menu.maps', [47, 4]], ['menu.multiplayer', [47, 4]],
   ['menu.encyclopedia', [47, 4]],
   ['lobby.map', [108, 6]], ['lobby.hero', [152, 6]], ['lobby.name', [152, 6]],
-  ['lobby.create', [152, 6]], ['lobby.enter_code', [152, 6]],
+  ['lobby.join', [48, 6]], ['lobby.create', [152, 6]], ['lobby.enter_code', [152, 6]],
   ['lobby.start', [152, 6]], ['lobby.start_solo', [152, 6]],
   ['lobby.waiting_ready', [152, 6]], ['lobby.ready', [152, 6]],
   ['lobby.set_ready', [152, 6]], ['lobby.leave', [152, 6]],
