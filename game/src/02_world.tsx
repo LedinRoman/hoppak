@@ -183,6 +183,62 @@ function unsupportedMobs(w: any) {
   }
   return bad;
 }
+/* Trash (24 wide) must leave a landable strip (PW+4) beside it, or the row must
+   have another reachable solid so the can is not the only way up. Spawn height stays 400 m. */
+var TRASH_SIDE = PW + 4;
+function canWalkPastTrash(pl: any, M: any) { return pl.w >= (M.w + TRASH_SIDE); }
+function platReachableFromPrev(w: any, pl: any) {
+  if (pl.type === "move") return true;
+  var prev = w.reachFrom && w.reachFrom.length ? w.reachFrom : [{ x: 8, w: LW - 16 }];
+  var g = w.reachGap > 0 ? w.reachGap : ROW_SEP;
+  var reach = horizReachPx(g);
+  for (var i = 0; i < prev.length; i++) {
+    if (edgeGap(prev[i].x, prev[i].w, pl.x, pl.w) <= reach + 0.01) return true;
+  }
+  return false;
+}
+function trashStandCands(row: any[]) {
+  return row.filter(function (p: any) {
+    return isPerm(p.type) && p.type !== "bounce" && !p.spring && !p.broken;
+  });
+}
+function trashHomes(w: any, row: any[], M: any) {
+  var cands = trashStandCands(row);
+  var reachable: any[] = [];
+  for (var i = 0; i < cands.length; i++) if (platReachableFromPrev(w, cands[i])) reachable.push(cands[i]);
+  var hasAlt = reachable.length >= 2;
+  var homes: any[] = [];
+  for (var j = 0; j < reachable.length; j++) {
+    if (hasAlt || canWalkPastTrash(reachable[j], M)) homes.push(reachable[j]);
+  }
+  return homes;
+}
+/* Vine-snake: only static green `normal` platforms, never move/bounce/break. Clearance below
+   must cover hangLen + the drawn head so the extended pose never rests on a lower platform. */
+function isSnakeHost(pl: any, M: any) {
+  return !!(pl && pl.type === "normal" && !pl.broken && !pl.spring && pl.w >= M.w + 4);
+}
+function snakeNeedBelow(M: any) { return (M.gap || 32) + SNAKE_HEAD_DRAW_H; }
+function snakeSlots(w: any, pl: any, M: any) {
+  var need = snakeNeedBelow(M), slots: number[] = [];
+  var minX = pl.x + 1, maxX = pl.x + pl.w - M.w - 1;
+  if (maxX < minX) maxX = minX;
+  for (var sx = minX; sx <= maxX; sx += 4) {
+    if (spaceBelow(w, pl, sx, M.w) >= need) slots.push(sx);
+  }
+  if (spaceBelow(w, pl, maxX, M.w) >= need && slots.indexOf(maxX) < 0) slots.push(maxX);
+  return slots;
+}
+function snakeHangs(w: any, row: any[], M: any) {
+  var hangs: any[] = [];
+  for (var i = 0; i < row.length; i++) {
+    var pl = row[i];
+    if (!isSnakeHost(pl, M)) continue;
+    if (snakeSlots(w, pl, M).length) hangs.push(pl);
+  }
+  return hangs;
+}
+
 function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: number, isMove: boolean) {
   var r = w.rng;
   var normals = row.filter(function (p: any) { return isPerm(p.type) && p.type !== "move" && p.type !== "bounce" && !p.spring && p.w >= 26; });
@@ -193,17 +249,15 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
     var k = roster[ri][0], from = roster[ri][1], M = MOBS[k];
     if (m < from) continue;
     if (M.b === "snake") {
-      var canHang = false;
-      for (var hi = 0; hi < row.length; hi++) {
-        var hp = row[hi];
-        if (!isPerm(hp.type) || hp.broken || hp.spring || hp.type === "bounce" || hp.w < M.w + 4) continue;
-        if (spaceBelow(w, hp, hp.x + 2, M.w) >= 22) { canHang = true; break; }
-      }
-      if (!canHang) continue;
+      if (!snakeHangs(w, row, M).length) continue;
     } else {
       if (M.plat) {
-        var homes0 = row.filter(function (p: any) { return isPerm(p.type) && p.type !== "bounce" && !p.spring && p.w >= 26 && !p.broken; });
-        if (!homes0.length || (!isMove && solids.length < 2)) continue;
+        if (k === "trash") {
+          if (!trashHomes(w, row, M).length) continue;
+        } else {
+          var homes0 = row.filter(function (p: any) { return isPerm(p.type) && p.type !== "bounce" && !p.spring && p.w >= 26 && !p.broken; });
+          if (!homes0.length || (!isMove && solids.length < 2)) continue;
+        }
       }
       if (gap < M.gap) continue;
     }
@@ -224,12 +278,15 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
   var M2 = MOBS[kind];
   w.lastMobRow[kind] = w.rowN;
   if (M2.b === "snake") {
-    var hangs = row.filter(function (p: any) { return isPerm(p.type) && !p.broken && !p.spring && p.type !== "bounce" && p.w >= M2.w + 4 && spaceBelow(w, p, p.x + 2, M2.w) >= 22; });
+    var hangs = snakeHangs(w, row, M2);
     if (!hangs.length) return false;
     var hs = hangs[Math.floor(r() * hangs.length)];
-    var sx = hs.x + randInt(r, 1, Math.max(1, hs.w - M2.w - 1));
+    var slots = snakeSlots(w, hs, M2);
+    if (!slots.length) return false;
+    var sx = slots[Math.floor(r() * slots.length)];
     var room = spaceBelow(w, hs, sx, M2.w);
     var hangLen = Math.min(M2.gap || 32, Math.max(16, room - M2.h - 6));
+    if (room < hangLen + SNAKE_HEAD_DRAW_H) return false;
     var ty = hangTop(hs);
     w.monsters.push(mkMob(kind, sx, ty + 2, d, {
       home: hs, hangLen: hangLen, topY: ty, botY: ty + hangLen,
@@ -238,6 +295,22 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
     return true;
   }
   if (M2.plat) {
+    if (kind === "trash") {
+      var homesT = trashHomes(w, row, M2);
+      if (!homesT.length) return false;
+      var tp = homesT[Math.floor(r() * homesT.length)];
+      var tx: number;
+      if (canWalkPastTrash(tp, M2)) {
+        /* Park the can at one end so the other side stays a landable strip. */
+        tx = r() < 0.5 ? tp.x + 1 : tp.x + tp.w - M2.w - 1;
+        tx = clamp(tx, tp.x, tp.x + tp.w - M2.w);
+      } else tx = tp.x + randInt(r, 1, Math.max(1, tp.w - M2.w - 1));
+      w.monsters.push(mkMob(kind, tx, tp.y - M2.h, d, {
+        home: tp, minX: tp.x, maxX: tp.x + tp.w - M2.w, vx: 0,
+        jT: randInt(r, 30, 100), shootT: randInt(r, 50, 150), dir: 1, t: randInt(r, 0, 100)
+      }));
+      return true;
+    }
     var homes = row.filter(function (p: any) { return isPerm(p.type) && p.type !== "bounce" && !p.spring && p.w >= 26 && !p.broken; });
     if (!homes.length) return false;
     var pl = homes[Math.floor(r() * homes.length)];
@@ -640,7 +713,8 @@ function killMob(w: any, mo: any, p: any, noBounce?: boolean) {
   mo.squish = 10;
   if (!noBounce) { p.vy = STOMP_V; p.y = mo.y - PH; }
   p.kills++;
-  addCharge(p, "kills", 1);
+  /* Knight charge is "1 kill". A mid-slam/dash kill must not refund the ability. */
+  if (!(p.poundT > 0 || p.dashT > 0)) addCharge(p, "kills", 1);
   var pal = MOBPAL[mo.kind] || ["#ffd070"];
   spawnParts(w, mo.x + mo.w / 2, mo.y + 4, 12, pal[0], 2.6, 0.15);
   if (p.id === 0) { w.shake = 5; hopSfx("hit"); }

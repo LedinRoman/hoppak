@@ -35,6 +35,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var campCard = -1;
   var encyTab = "heroes";
   var encyCard = -1;
+  var encyScroll = 0;
+  var encyScrollMax = 0;
+  var encyDrag: any = null;
   var showSet = false;
   var menuLay: any = null;
   var screenLay: any[] = [];
@@ -436,10 +439,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return out;
   }
   function coinsLabel(x: number, y: number, n: number, align?: string, _showTg?: boolean) {
-    var s = String(n), w = textWidth(s, TYPE.M) + 9;
-    var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
-    drawCoin(ctx, x0, y, ui);
-    drawText(ctx, s, x0 + 9, y - 0.5, TYPECOL.accent, TYPE.M, "left");
+    var s = String(n);
+    var cw = 14, gap = 2;
+    try { if (typeof coinUiSize === "function") cw = coinUiSize(); } catch (_e) {}
+    var tw = textWidth(s, TYPE.M);
+    var w = tw + cw + gap;
+    var x0 = Math.round(align === "right" ? x - w : align === "center" ? x - w / 2 : x);
+    var cy = Math.round(y + 3.5 - cw / 2);
+    if (!(typeof drawCoin64Ui === "function" && drawCoin64Ui(ctx, x0, cy))) {
+      drawCoin(ctx, x0 + Math.round((cw - 6) / 2), y, 0);
+    }
+    drawText(ctx, s, x0 + cw + gap, y - 0.5, TYPECOL.accent, TYPE.M, "left");
   }
   function menuTop() {
     return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) + (testInsetTop || 0);
@@ -827,8 +837,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       lobbyMap = om[mod(li + (id === "lmap:next" ? 1 : -1), om.length)]; return;
     }
     if (id === "shop" || id === "hero:menu") { showSet = false; showProf = false; phase = "shop"; return; }
-    if (id === "ency") { showSet = false; showProf = false; phase = "ency"; encyCard = -1; return; }
-    if (id.indexOf("ency:tab:") === 0) { encyTab = id.slice(9); encyCard = -1; return; }
+    if (id === "ency") { showSet = false; showProf = false; phase = "ency"; encyCard = -1; encyScroll = 0; return; }
+    if (id.indexOf("ency:tab:") === 0) { encyTab = id.slice(9); encyCard = -1; encyScroll = 0; return; }
     if (id.indexOf("ency:card:") === 0) { var ei = parseInt(id.slice(10), 10); if (!isNaN(ei)) encyCard = ei; return; }
     if (id === "soon" || id === "tab:shop") { say(t('common.soon')); return; }
     if (id === "tab:leagues") { say(t('menu.leagues_soon')); return; }
@@ -956,6 +966,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     pressId = id;
     if (id === "vol") { setSlider(id, loc.x); return; }
     if (phase === "results") coinSkip = true;
+    if (phase === "ency" && encyCard < 0) {
+      encyDrag = { y: loc.y, s0: encyScroll, moved: false };
+    }
     if (phase !== "play") return;
     if (paused) return;
     if (id === "ab" || id === "pause") return;
@@ -965,6 +978,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function onPtrMove(e: any) {
     var loc = toLogic(e.clientX, e.clientY);
     if (pressId === "vol") { setSlider(pressId, loc.x); return; }
+    if (phase === "ency" && encyDrag && encyCard < 0) {
+      var ddy = encyDrag.y - loc.y;
+      if (Math.abs(ddy) > 3) encyDrag.moved = true;
+      encyScroll = Math.max(0, Math.min(encyScrollMax, encyDrag.s0 + ddy));
+    }
     if (phase !== "play" || paused) return;
     var pid = e.pointerId != null ? e.pointerId : 1;
     var p = pointers[pid];
@@ -998,7 +1016,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       recomputeHold();
     } else if (pressId === "vol") {
       if (id === pressId) setSlider(pressId, loc.x);
+    } else if (phase === "ency" && encyDrag && encyDrag.moved) {
+      /* Drag was a scroll, not a tap. */
     } else if (id && id === pressId) activate(id);
+    encyDrag = null;
     pressId = null;
   }
   function onKey(e: any, down: boolean) {
@@ -1417,24 +1438,25 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     drawFlash();
   }
-  function drawBgSwatch(x: number, y: number, w: number, h: number, id: string) {
+  function drawBgSwatch(x: number, y: number, w: number, h: number, id: string, c?: Ctx) {
+    c = c || ctx;
     var sk = skyAt(id, 0);
-    for (var i = 0; i < h; i += 2) rect(ctx, x, y + i, w, 2, i < h / 2 ? mixHex(sk[0], sk[1], i / (h / 2)) : mixHex(sk[1], sk[2], (i - h / 2) / (h / 2)));
+    for (var i = 0; i < h; i += 2) rect(c, x, y + i, w, 2, i < h / 2 ? mixHex(sk[0], sk[1], i / (h / 2)) : mixHex(sk[1], sk[2], (i - h / 2) / (h / 2)));
     var pt = MAP_PLAT[id] || MAP_PLAT.city;
-    rect(ctx, x + 4, y + 18, 16, 3, pt.n); rect(ctx, x + 4, y + 18, 16, 1, pt.edge);
+    rect(c, x + 4, y + 18, 16, 3, pt.n); rect(c, x + 4, y + 18, 16, 1, pt.edge);
     if (id === "city") {
-      rect(ctx, x + 2, y + h - 9, 5, 9, "#221852"); rect(ctx, x + 8, y + h - 13, 6, 13, "#1c1444"); rect(ctx, x + 15, y + h - 8, 6, 8, "#221852");
-      rect(ctx, x + 10, y + h - 10, 1, 1, "#ffd060");
+      rect(c, x + 2, y + h - 9, 5, 9, "#221852"); rect(c, x + 8, y + h - 13, 6, 13, "#1c1444"); rect(c, x + 15, y + h - 8, 6, 8, "#221852");
+      rect(c, x + 10, y + h - 10, 1, 1, "#ffd060");
     } else if (id === "jungle") {
-      rect(ctx, x, y + h - 6, w, 6, "#2a4e36"); rect(ctx, x + 5, y + 11, 14, 3, "#ff6848");
+      rect(c, x, y + h - 6, w, 6, "#2a4e36"); rect(c, x + 5, y + 11, 14, 3, "#ff6848");
     } else if (id === "ice") {
-      rect(ctx, x, y + h - 7, w, 7, "#6eb8e8"); rect(ctx, x, y + h - 7, w, 2, "#ffffff");
+      rect(c, x, y + h - 7, w, 7, "#6eb8e8"); rect(c, x, y + h - 7, w, 2, "#ffffff");
     } else if (id === "lava") {
-      rect(ctx, x, y + h - 6, w, 6, "#4a1830"); rect(ctx, x + 3, y + h - 6, w - 6, 2, "#ff7828");
+      rect(c, x, y + h - 6, w, 6, "#4a1830"); rect(c, x + 3, y + h - 6, w - 6, 2, "#ff7828");
     } else if (id === "aqua") {
-      rect(ctx, x, y + h - 5, w, 5, "#d8b46c"); rect(ctx, x + 6, y + 10, 5, 5, "#ff6ec8");
+      rect(c, x, y + h - 5, w, 5, "#d8b46c"); rect(c, x + 6, y + 10, 5, 5, "#ff6ec8");
     } else {
-      rect(ctx, x + 5, y + 7, 6, 6, "#e88a62"); rect(ctx, x + 3, y + 10, 10, 1, "#fff0b4");
+      rect(c, x + 5, y + 7, 6, 6, "#e88a62"); rect(c, x + 3, y + 10, 10, 1, "#fff0b4");
     }
   }
   function drawMapThumb(x: number, y: number, w: number, h: number, id: string, locked: boolean) {
@@ -1454,16 +1476,32 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.restore();
       return;
     }
-    if (locked) {
-      /* Dark square until Advisor's sketch (_locked) arrives. */
-      rect(ctx, x, y, w, h, "#0a0814");
-      ctx.globalAlpha = 0.35;
-      rect(ctx, x + 2, y + 3, w - 4, h - 6, "#1a1430");
-      ctx.globalAlpha = 1;
-      box(ctx, x, y, w, h, "transparent", "#2a2040");
-      return;
+    var off = document.createElement("canvas");
+    off.width = Math.max(1, Math.round(w));
+    off.height = Math.max(1, Math.round(h));
+    var g = off.getContext("2d");
+    if (g) {
+      g.imageSmoothingEnabled = false;
+      if ((g as any).webkitImageSmoothingEnabled !== undefined) (g as any).webkitImageSmoothingEnabled = false;
+      drawBgSwatch(0, 0, off.width, off.height, id, g);
+      if (locked) {
+        var img = g.getImageData(0, 0, off.width, off.height), d = img.data, pi, r, gv, b, lum;
+        for (pi = 0; pi < d.length; pi += 4) {
+          r = d[pi]; gv = d[pi + 1]; b = d[pi + 2];
+          lum = 0.3 * r + 0.59 * gv + 0.11 * b;
+          d[pi] = Math.max(32, Math.round(lum * 0.48 + 28));
+          d[pi + 1] = Math.max(28, Math.round(lum * 0.42 + 24));
+          d[pi + 2] = Math.max(48, Math.round(lum * 0.58 + 40));
+        }
+        g.putImageData(img, 0, 0);
+      }
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
+      ctx.drawImage(off, x, y);
+      ctx.restore();
     }
-    drawBgSwatch(x, y, w, h, id);
+    box(ctx, x, y, w, h, "transparent", locked ? "#3a3058" : C.cream);
   }
   function drawShop() {
     applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
@@ -1661,6 +1699,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawFlash();
   }
   var ENCY_MOBS = ["blob", "trash", "bat", "hole", "ufo", "frog", "parrot", "snake", "monkey"];
+  /* Neutral preview frames (parrot = wings mid, bat = base, snake = idle sway, monkey = idle). */
+  var ENCY_MOB_FRAME: any = { blob: 0, trash: 0, bat: 1, hole: 0, ufo: 0, frog: 0, parrot: 1, snake: 1, monkey: 1 };
+  var ENCY_ART = 64;
   var encyArtCache: any = {};
   function encyEnsure() {
     if (!save.ency || typeof save.ency !== "object") save.ency = {};
@@ -1736,246 +1777,301 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     if (changed) writeSave(save);
   }
-  function tintSilhouette(cv: any) {
+  function encyNoSmooth(g: any) {
+    g.imageSmoothingEnabled = false;
+    if (g.webkitImageSmoothingEnabled !== undefined) g.webkitImageSmoothingEnabled = false;
+  }
+  function encyTint(cv: any) {
     var g = cv.getContext("2d");
     if (!g) return cv;
-    var img = g.getImageData(0, 0, cv.width, cv.height), d = img.data;
-    for (var i = 0; i < d.length; i += 4) {
-      if (d[i + 3] > 0) { d[i] = 106; d[i + 1] = 96; d[i + 2] = 148; if (d[i + 3] > 40) d[i + 3] = 255; }
+    var img = g.getImageData(0, 0, cv.width, cv.height), d = img.data, i;
+    for (i = 0; i < d.length; i += 4) {
+      if (d[i + 3] > 0) { d[i] = 106; d[i + 1] = 96; d[i + 2] = 148; d[i + 3] = 255; }
     }
     g.putImageData(img, 0, 0);
     return cv;
   }
-  function encyPaintTo(w: number, h: number, locked: boolean, ready: boolean, paint: any) {
-    var off = document.createElement("canvas");
-    off.width = w; off.height = h;
-    var g = off.getContext("2d");
+  function encyBBox(cv: any, aMin?: number) {
+    var g = cv.getContext("2d");
     if (!g) return null;
-    g.imageSmoothingEnabled = false;
-    if ((g as any).webkitImageSmoothingEnabled !== undefined) (g as any).webkitImageSmoothingEnabled = false;
-    paint(g);
-    if (locked) tintSilhouette(off);
-    return ready ? off : off;
-  }
-  function drawEncyMobArt(kind: string, x: number, y: number, w: number, h: number, locked: boolean) {
-    ctx.save();
-    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-    ctx.imageSmoothingEnabled = false;
-    var key = "m:" + kind + ":" + w + "x" + h + (locked ? ":L" : ":O");
-    var cached = encyArtCache[key];
-    if (!cached) {
-      cached = encyPaintTo(w, h, locked, true, function (g: any) {
-        var sheet = typeof MOB_SPRITES !== "undefined" ? MOB_SPRITES[kind] : null;
-        var cv: any = null;
-        if (sheet && sheet.src) {
-          cv = mobSprCache[kind];
-          if (cv === undefined) {
-            cv = pngToCanvas(sheet.src) || null;
-            if (cv && kind === "hole") holeDarkenCanvas(cv, HOLE_DARKEN);
-            mobSprCache[kind] = cv;
-          }
-        }
-        if (cv && sheet) {
-          var fi = kind === "bat" ? 1 : 0;
-          if (fi > (sheet.n || 1) - 1) fi = 0;
-          /* 64 px art is drawn at 0.5, never stretched to the card or the hitbox. */
-          var sc = sheet.scale != null ? sheet.scale : (sheet.fw === 64 ? 0.5 : 1);
-          var dw = sheet.fw * sc, dh = sheet.fh * sc;
-          var dx = Math.round((w - dw) / 2), dy = Math.round((h - dh) / 2);
-          g.drawImage(cv, fi * sheet.fw, 0, sheet.fw, sheet.fh, dx, dy, dw, dh);
-        } else {
-          var M = MOBS[kind] || { w: 12, h: 8, b: "walk" };
-          /* Procedural (no 64 px sheet yet): integer 2× preview, not a stretch of 64 px art. */
-          var ps = 2;
-          var mx = Math.round((w / ps - M.w) / 2);
-          var my = Math.round((h / ps - M.h) / 2);
-          if (M.b === "snake") my = Math.round((h / ps) * 0.62);
-          var dummy: any = { kind: kind, x: mx, y: my, w: M.w, h: M.h, b: M.b, t: 24, alive: true, vx: 1, dir: 1, fx: 0, hy: 0, topY: 2, warnT: 0, shootT: 99, big: false };
-          var mapId = (kind === "frog" || kind === "parrot" || kind === "snake" || kind === "monkey") ? "jungle" : "city";
-          g.save();
-          g.imageSmoothingEnabled = false;
-          g.scale(ps, ps);
-          drawMob(g, dummy, 0, mapId);
-          g.restore();
-        }
-      });
-      if (cached) encyArtCache[key] = cached;
+    var img = g.getImageData(0, 0, cv.width, cv.height).data;
+    var minX = cv.width, minY = cv.height, maxX = -1, maxY = -1, x, y, a, cut = aMin || 0;
+    for (y = 0; y < cv.height; y++) for (x = 0; x < cv.width; x++) {
+      a = img[(y * cv.width + x) * 4 + 3];
+      if (a > cut) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
     }
-    if (cached) ctx.drawImage(cached, x, y);
-    ctx.restore();
+    if (maxX < 0) return null;
+    return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
   }
-  function drawEncyHeroArt(kind: number, x: number, y: number, w: number, h: number, locked: boolean) {
-    ctx.save();
-    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-    ctx.imageSmoothingEnabled = false;
+  function encyMobCanvas(kind: string, scale: number, locked: boolean) {
+    var key = "m:" + kind + ":" + scale + (locked ? ":L" : ":O");
+    if (encyArtCache[key]) return encyArtCache[key];
+    var sheet = typeof MOB_SPRITES !== "undefined" ? MOB_SPRITES[kind] : null;
+    var cv: any = null;
+    if (sheet && sheet.src) {
+      cv = mobSprCache[kind];
+      if (cv === undefined) {
+        cv = pngToCanvas(sheet.src) || null;
+        if (cv && kind === "hole") holeDarkenCanvas(cv, HOLE_DARKEN);
+        mobSprCache[kind] = cv;
+      }
+    }
+    if (!cv || !sheet) return null;
+    var fi = ENCY_MOB_FRAME[kind] != null ? ENCY_MOB_FRAME[kind] : 0;
+    if (fi > (sheet.n || 1) - 1) fi = 0;
+    var fw = sheet.fw, fh = sheet.fh;
+    var out = document.createElement("canvas");
+    out.width = fw * scale;
+    out.height = fh * scale;
+    var g = out.getContext("2d");
+    if (!g) return null;
+    encyNoSmooth(g);
+    g.drawImage(cv, fi * fw, 0, fw, fh, 0, 0, fw * scale, fh * scale);
+    if (locked) encyTint(out);
+    encyArtCache[key] = out;
+    return out;
+  }
+  function encyHeroCanvas(kind: number, scale: number, locked: boolean) {
     var id = (CHARS[kind] || CHARS[0]).id;
     var spr = heroSprite(id);
     var ready = !!(spr && spr.complete && (spr.naturalWidth || spr.width));
-    var key = "h:" + id + ":" + w + "x" + h + (locked ? ":L" : ":O");
-    var cached = ready ? encyArtCache[key] : null;
-    if (!cached) {
-      var tw = Math.max(w, 96), th = Math.max(h, 96);
-      var tmp = document.createElement("canvas");
-      tmp.width = tw; tmp.height = th;
-      var g = tmp.getContext("2d");
-      if (g) {
-        g.imageSmoothingEnabled = false;
-        if ((g as any).webkitImageSmoothingEnabled !== undefined) (g as any).webkitImageSmoothingEnabled = false;
-        var sc = 1, pose = "idle";
-        var jx = jumperXForCenter(tw / 2, id, pose, sc);
-        var artH = heroArtH(id, sc) || 40;
-        var jy = Math.round((th - artH) / 2);
-        drawJumper(g, jx, jy, makeLook(kind, "base", "none"), 1, pose, false, true, sc, true);
-        var img = g.getImageData(0, 0, tw, th).data;
-        var minX = tw, minY = th, maxX = -1, maxY = -1, xx, yy;
-        for (yy = 0; yy < th; yy++) for (xx = 0; xx < tw; xx++) {
-          if (img[(yy * tw + xx) * 4 + 3] > 16) {
-            if (xx < minX) minX = xx; if (xx > maxX) maxX = xx;
-            if (yy < minY) minY = yy; if (yy > maxY) maxY = yy;
-          }
-        }
-        cached = document.createElement("canvas");
-        cached.width = w; cached.height = h;
-        var d = cached.getContext("2d");
-        if (d) {
-          d.imageSmoothingEnabled = false;
-          if (maxX >= 0) {
-            var bw = maxX - minX + 1, bh = maxY - minY + 1;
-            var dx = Math.round((w - bw) / 2), dy = Math.round((h - bh) / 2);
-            d.drawImage(tmp, minX, minY, bw, bh, dx, dy, bw, bh);
-          }
-          if (locked) tintSilhouette(cached);
-        }
-        if (cached && ready) encyArtCache[key] = cached;
-      }
-    }
-    if (cached) ctx.drawImage(cached, x, y);
+    var key = "h:" + id + ":" + scale + (locked ? ":L" : ":O");
+    if (ready && encyArtCache[key]) return encyArtCache[key];
+    if (!spr || !(spr.naturalWidth || spr.width)) return ready ? encyArtCache[key] : null;
+    var PL = posesFor(id);
+    var fi = PL.indexOf("idle");
+    if (fi < 0) fi = 0;
+    var fw = (spr.naturalWidth || spr.width) / PL.length;
+    var fh = spr.naturalHeight || spr.height;
+    var out = document.createElement("canvas");
+    out.width = Math.round(fw * scale);
+    out.height = Math.round(fh * scale);
+    var g = out.getContext("2d");
+    if (!g) return null;
+    encyNoSmooth(g);
+    g.drawImage(spr, fi * fw, 0, fw, fh, 0, 0, out.width, out.height);
+    if (locked) encyTint(out);
+    if (ready) encyArtCache[key] = out;
+    return out;
+  }
+  function encyDrawArt(cv: any, x: number, y: number, w: number, h: number, pad?: number) {
+    if (!cv) return;
+    if (pad == null) pad = 2;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    encyNoSmooth(ctx);
+    var bb = encyBBox(cv, 0);
+    var sw = bb ? bb.w : cv.width, sh = bb ? bb.h : cv.height;
+    var sx = bb ? bb.x : 0, sy = bb ? bb.y : 0;
+    var innerW = w - pad * 2, innerH = h - pad * 2;
+    var dx = x + pad + Math.round((innerW - sw) / 2);
+    var dy = y + pad + Math.round((innerH - sh) / 2);
+    ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, sw, sh);
     ctx.restore();
   }
-  function drawEncyCard(it: any, i: number, x: number, y: number, w: number, h: number) {
+  function encyBtn(id: string, x: number, y: number, w: number, h: number, label: string) {
+    addHit(id, x, y, w, h);
+    markBox(id, x, y, w, h);
+    var on = pressId === id;
+    box(ctx, x, y, w, h, on ? mixHex(C.navy, "#ffffff", 0.2) : C.navy, C.cream);
+    var ty = y + Math.round((h - HUD_M.height) / 2) + (on ? 1 : 0);
+    hudText(ctx, label, x + w / 2, ty, HUDCOL.main, "M", "center");
+  }
+  function encyOpenCount(items: any[]) {
+    var n = 0, i;
+    for (i = 0; i < items.length; i++) if (items[i].open) n++;
+    return n;
+  }
+  function drawEncyCard(it: any, i: number, x: number, y: number, w: number, h: number, nameBand: number) {
     var open = !!it.open;
     var hid = "ency:card:" + i;
     addHit(hid, x, y, w, h);
     markBox(hid, x, y, w, h);
     box(ctx, x, y, w, h, open ? C.navy : "#120c1c", open ? C.cream : "#4a3a6a");
-    var artH = Math.max(20, h - 14);
-    if (it.type === "hero") drawEncyHeroArt(it.i, x + 2, y + 2, w - 4, artH, !open);
-    else drawEncyMobArt(it.kind, x + 2, y + 2, w - 4, artH, !open);
+    var artH = Math.max(20, h - nameBand);
+    var scale = 1;
+    if (it.type === "hero") encyDrawArt(encyHeroCanvas(it.i, scale, !open), x + 2, y + 2, w - 4, artH - 2, 2);
+    else encyDrawArt(encyMobCanvas(it.kind, scale, !open), x + 2, y + 2, w - 4, artH - 2, 2);
     var name = open ? (it.type === "hero" ? CHARS[it.i].name : MOBS[it.kind].name) : t('map.locked');
-    var nw = textWidth(name, TYPE.M);
-    if (nw > w - 4) {
-      /* Long names stay TYPE.M: shrink by clipping, never a different size. */
-      ctx.save();
-      ctx.beginPath(); ctx.rect(x + 2, y + h - 12, w - 4, 10); ctx.clip();
-      drawText(ctx, name, x + w / 2, y + h - 10, open ? TYPECOL.primary : TYPECOL.muted, TYPE.M, "center");
-      ctx.restore();
-    } else drawText(ctx, name, x + w / 2, y + h - 10, open ? TYPECOL.primary : TYPECOL.muted, TYPE.M, "center");
+    var lines = hudLines(name, "S", w - 4);
+    var ny = y + artH + 1;
+    var li, col = open ? HUDCOL.main : HUDCOL.secondary;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x + 2, ny, w - 4, nameBand - 1); ctx.clip();
+    for (li = 0; li < lines.length && li < 2; li++) {
+      hudText(ctx, lines[li], x + w / 2, ny + li * HUD_S.line, col, "S", "center");
+    }
+    ctx.restore();
   }
   function drawEncyGrid(x: number, top: number, bot: number) {
     var items = encyItems();
     var cols = 2, gap = 4;
     var cw = Math.floor((152 - gap) / 2);
+    var twoLine = encyTab === "mobs";
+    var nameBand = twoLine ? HUD_S.line * 2 + 2 : HUD_S.line + 3;
+    var ch = 2 + ENCY_ART + 2 + nameBand;
     var rows = Math.max(1, Math.ceil(items.length / cols));
-    var ch = Math.floor((bot - top - (rows - 1) * gap) / rows);
-    if (ch > 70) ch = 70;
-    if (ch < 38) ch = 38;
+    var viewH = bot - top;
+    var fit = Math.floor((viewH - (rows - 1) * gap) / rows);
+    if (fit >= ENCY_ART + HUD_S.line + 2 && fit < ch) ch = fit;
+    var contentH = rows * ch + Math.max(0, rows - 1) * gap;
+    encyScrollMax = Math.max(0, contentH - viewH);
+    if (encyScroll > encyScrollMax) encyScroll = encyScrollMax;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, top, 152, viewH); ctx.clip();
+    var lastRow = rows - 1, lastCount = items.length - lastRow * cols;
+    var more = false;
     for (var i = 0; i < items.length; i++) {
       var col = i % cols, row = (i / cols) | 0;
       var cx = x + col * (cw + gap);
-      var cy = top + row * (ch + gap);
-      if (cy + 20 > bot) break;
-      drawEncyCard(items[i], i, cx, cy, cw, Math.min(ch, bot - cy));
+      if (row === lastRow && lastCount === 1) cx = x + Math.round((152 - cw) / 2);
+      var cy = top + row * (ch + gap) - encyScroll;
+      if (cy + ch > bot + 0.5) { more = true; continue; }
+      if (cy < top - 0.5) continue;
+      drawEncyCard(items[i], i, cx, cy, cw, ch, nameBand);
+    }
+    ctx.restore();
+    if (encyScrollMax > 0 && (more || encyScroll < encyScrollMax)) {
+      hudText(ctx, t('ency.more'), LW / 2, bot - HUD_S.height, HUDCOL.secondary, "S", "center");
     }
   }
   function drawEncyMaps(x: number, top: number, bot: number) {
     var items = encyMapItems();
-    var rh = Math.min(42, Math.floor((bot - top) / items.length));
+    var gap = 3, th = 24;
+    var rh = Math.max(HUD_M.height + HUD_S.line * 2 + 8, th + 8);
+    var contentH = items.length * (rh + gap) - gap;
+    var viewH = bot - top;
+    encyScrollMax = Math.max(0, contentH - viewH);
+    if (encyScroll > encyScrollMax) encyScroll = encyScrollMax;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, top, 152, viewH); ctx.clip();
+    var more = false;
     for (var i = 0; i < items.length; i++) {
-      var it = items[i], M = it.M, y = top + i * rh, open = !!it.open, soon = !!it.soon;
-      addHit("ency:card:" + i, x, y, 152, rh - 3);
-      markBox("ency:map" + i, x, y, 152, rh - 3);
-      box(ctx, x, y, 152, rh - 3, open ? C.navy : "#120c1c", open ? C.cream : "#4a3a6a");
-      drawMapThumb(x + 3, y + 3, 20, rh - 9, M.id, !open);
+      var it = items[i], M = it.M, open = !!it.open, soon = !!it.soon;
+      var y = top + i * (rh + gap) - encyScroll;
+      if (y + rh > bot + 0.5) { more = true; continue; }
+      if (y < top - 0.5) continue;
+      addHit("ency:card:" + i, x, y, 152, rh);
+      markBox("ency:map" + i, x, y, 152, rh);
+      box(ctx, x, y, 152, rh, open ? C.navy : "#120c1c", open ? C.cream : "#4a3a6a");
+      drawMapThumb(x + 3, y + Math.round((rh - th) / 2), 20, th, M.id, !open);
+      var tx = x + 28, tw = 152 - 32;
       if (open) {
-        drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, TYPECOL.primary, TYPE.M, "left");
+        hudText(ctx, (i + 1) + ". " + M.name, tx, y + 3, HUDCOL.main, "M", "left");
         var desc = encyMapDesc(M.id);
-        var dLines = typeLines(desc, "S", 118);
-        if (dLines[0]) uiText(ctx, dLines[0], x + 28, y + 14, TYPECOL.accent, "S", "left");
+        var dLines = hudLines(desc, "S", tw);
+        for (var di = 0; di < dLines.length && di < 2; di++) {
+          hudText(ctx, dLines[di], tx, y + 3 + HUD_M.line + di * HUD_S.line, HUDCOL.accent, "S", "left");
+        }
       } else {
-        drawText(ctx, (i + 1) + ". " + t('map.locked'), x + 28, y + 3, TYPECOL.muted, TYPE.M, "left");
-        if (soon) drawText(ctx, t('common.soon'), x + 28, y + 13, TYPECOL.muted, TYPE.M, "left");
+        hudText(ctx, (i + 1) + ". " + t('map.locked'), tx, y + 3, HUDCOL.secondary, "M", "left");
+        if (soon) hudText(ctx, t('common.soon'), tx, y + 3 + HUD_M.line, HUDCOL.secondary, "S", "left");
         else if (i > 0) {
-          var gLines = typeLines(t('map.goal_prev', { n: MAPS[i - 1].goal }), "M", 118);
-          for (var gi = 0; gi < gLines.length && gi < 2; gi++) {
-            drawText(ctx, gLines[gi], x + 28, y + 13 + gi * 9, TYPECOL.muted, TYPE.M, "left");
+          var need = hudLines(t('ency.map.need_m', { n: MAPS[i - 1].goal }), "S", tw);
+          need = need.concat(hudLines(t('ency.map.need_prev'), "S", tw));
+          for (var ni = 0; ni < need.length && ni < 2; ni++) {
+            hudText(ctx, need[ni], tx, y + 3 + HUD_M.line + ni * HUD_S.line, HUDCOL.secondary, "S", "left");
           }
         }
       }
+    }
+    ctx.restore();
+    if (encyScrollMax > 0 && (more || encyScroll < encyScrollMax)) {
+      hudText(ctx, t('ency.more'), LW / 2, bot - HUD_S.height, HUDCOL.secondary, "S", "center");
     }
   }
   function drawEncyDetail(x: number, top: number, bot: number) {
     var items = encyItems();
     var it = items[encyCard];
     if (!it) { encyCard = -1; return; }
-    var h = bot - top;
     var open = !!it.open;
-    box(ctx, x, top, 152, h, open ? "#1a1430" : "#120c1c", open ? C.cream : "#4a3a6a");
-    markBox("encyDetail", x, top, 152, h);
-    var artY = top + 8, artS = 80;
-    if (it.type === "hero") drawEncyHeroArt(it.i, x + 36, artY, artS, artS, !open);
-    else if (it.type === "mob") drawEncyMobArt(it.kind, x + 36, artY, artS, artS, !open);
-    else drawMapThumb(x + 56, artY + 12, 40, 40, it.M.id, !open);
-    var ty = artY + artS + 6;
-    if (!open) {
-      drawText(ctx, t('map.locked'), LW / 2, ty, TYPECOL.muted, TYPE.L, "center");
-      if (it.soon) drawText(ctx, t('common.soon'), LW / 2, ty + 16, TYPECOL.muted, TYPE.M, "center");
-      return;
+    var scale = (open && it.type !== "map") ? 2 : 1;
+    var artCv: any = null;
+    if (it.type === "hero") artCv = encyHeroCanvas(it.i, scale, !open);
+    else if (it.type === "mob") artCv = encyMobCanvas(it.kind, scale, !open);
+    var artW = 40, artH = 40;
+    if (it.type !== "map" && artCv) {
+      var bb = encyBBox(artCv, 0);
+      var ap = 4;
+      artW = Math.min(144, (bb ? bb.w : artCv.width) + ap * 2);
+      artH = Math.min(bot - top - 60, (bb ? bb.h : artCv.height) + ap * 2);
     }
-    var name = it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name;
-    drawText(ctx, name, LW / 2, ty, TYPECOL.primary, TYPE.L, "center");
-    ty += 16;
-    if (it.type === "hero") {
+    var name = !open ? t('map.locked') : (it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name);
+    var nameLines = hudLines(name, "M", 144);
+    var body: string[] = [], extra: string[] = [], bi;
+    if (!open) {
+      if (it.type === "map") {
+        if (it.soon) body = hudLines(t('common.soon'), "S", 144);
+        else if (it.i > 0) {
+          body = hudLines(t('ency.map.need_m', { n: MAPS[it.i - 1].goal }), "S", 144);
+          extra = hudLines(t('ency.map.need_prev'), "S", 144);
+        }
+      } else if (it.type === "mob") {
+        body = hudLines(t('ency.meet'), "S", 144);
+      }
+    } else if (it.type === "hero") {
       var H = CHARS[it.i];
-      drawText(ctx, H.type + " · " + H.abName, LW / 2, ty, TYPECOL.accent, TYPE.M, "center");
-      ty += 12;
+      body = hudLines(H.type + " · " + H.abName, "S", 144);
       var blob = (H.abDesc[0] || "") + " " + (H.abDesc[1] || "");
-      var lines = typeLines(blob, "M", 144);
-      for (var li = 0; li < lines.length && li < 4; li++) {
-        drawText(ctx, lines[li], LW / 2, ty + li * 10, TYPECOL.primary, TYPE.M, "center");
-      }
+      extra = hudLines(blob, "S", 144);
     } else if (it.type === "mob") {
-      var mLines = typeLines(encyMobDesc(it.kind), "M", 144);
-      for (var mi = 0; mi < mLines.length && mi < 3; mi++) {
-        drawText(ctx, mLines[mi], LW / 2, ty + mi * 10, TYPECOL.primary, TYPE.M, "center");
-      }
-      ty += mLines.length * 10 + 4;
+      body = hudLines(encyMobDesc(it.kind), "S", 144);
       var apps = encyAppearances(it.kind);
-      for (var ai = 0; ai < apps.length; ai++) {
-        uiText(ctx, t('ency.appears', { name: apps[ai].name, n: apps[ai].h }), LW / 2, ty + ai * 7, TYPECOL.accent, "S", "center");
-      }
+      for (bi = 0; bi < apps.length; bi++) extra.push(t('ency.appears', { name: apps[bi].name, n: apps[bi].h }));
     } else {
       var md = encyMapDesc(it.M.id);
-      var mdLines = typeLines(md, "M", 144);
-      for (var di = 0; di < mdLines.length && di < 3; di++) {
-        drawText(ctx, mdLines[di], LW / 2, ty + di * 10, TYPECOL.primary, TYPE.M, "center");
+      if (md) body = hudLines(md, "S", 144);
+      if (it.M.goal) extra.push(t('score.goal', { n: it.M.goal }));
+      extra.push(t('score.record', { n: mapBest(it.i) }));
+      if (it.i > 0 && !it.soon) {
+        extra = extra.concat(hudLines(t('ency.map.need_m', { n: MAPS[it.i - 1].goal }) + " " + t('ency.map.need_prev'), "S", 144));
       }
-      ty += mdLines.length * 10 + 4;
-      var b = mapBest(it.i);
-      if (it.M.goal) drawText(ctx, t('score.record', { n: b }) + " · " + t('score.goal', { n: it.M.goal }), LW / 2, ty, TYPECOL.accent, TYPE.M, "center");
-      else drawText(ctx, t('score.record', { n: b }), LW / 2, ty, TYPECOL.accent, TYPE.M, "center");
+    }
+    var pad = 6, gap = 4;
+    var h = pad + artH + gap + nameLines.length * HUD_M.line + body.length * HUD_S.line + extra.length * HUD_S.line + pad;
+    if (extra.length) h += 2;
+    if (h > bot - top) h = bot - top;
+    var py = top;
+    box(ctx, x, py, 152, h, open ? "#1a1430" : "#120c1c", open ? C.cream : "#4a3a6a");
+    markBox("encyDetail", x, py, 152, h);
+    var artY = py + pad;
+    if (it.type === "hero") encyDrawArt(artCv, x + Math.round((152 - artW) / 2), artY, artW, artH, 2);
+    else if (it.type === "mob") encyDrawArt(artCv, x + Math.round((152 - artW) / 2), artY, artW, artH, 2);
+    else drawMapThumb(x + Math.round((152 - 40) / 2), artY, 40, 40, it.M.id, !open);
+    var ty = artY + artH + gap, li;
+    for (li = 0; li < nameLines.length; li++) {
+      hudText(ctx, nameLines[li], LW / 2, ty + li * HUD_M.line, open ? HUDCOL.main : HUDCOL.secondary, "M", "center");
+    }
+    ty += nameLines.length * HUD_M.line;
+    for (li = 0; li < body.length; li++) {
+      hudText(ctx, body[li], LW / 2, ty + li * HUD_S.line, open ? HUDCOL.main : HUDCOL.secondary, "S", "center");
+    }
+    ty += body.length * HUD_S.line + (extra.length ? 2 : 0);
+    for (li = 0; li < extra.length; li++) {
+      hudText(ctx, extra[li], LW / 2, ty + li * HUD_S.line, HUDCOL.accent, "S", "center");
     }
   }
   function drawEncy() {
     applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
     dimView(ctx, "rgba(18,14,44,0.34)");
     var x = colX();
-    var hd = header(t('ency.title'), TYPE.L);
+    var ty = belowBand();
+    var title = t('ency.title');
+    var tw = hudWidth(title, "M") + 12;
+    var th = HUD_M.height + 6;
+    var hx = Math.round(LW / 2 - tw / 2);
+    box(ctx, hx, ty, tw, th, C.navy, C.cream);
+    hudText(ctx, title, LW / 2, ty + 3, HUDCOL.main, "M", "center");
+    markBox("header", hx, ty, tw, th);
     var tabs = [
       { id: "heroes", label: t('ency.heroes') },
       { id: "mobs", label: t('ency.mobs') },
       { id: "maps", label: t('ency.maps') }
     ];
-    var gap = 4, tabY = hd.bottom + 4, tabH = 16;
+    var gap = 4, tabY = ty + th + 4, tabH = HUD_S.height + 4;
     var tabW = Math.floor((152 - gap * 2) / 3);
     for (var ti = 0; ti < tabs.length; ti++) {
       var tb = tabs[ti];
@@ -1985,13 +2081,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       addHit(hid, tx, tabY, tabW, tabH);
       markBox(hid, tx, tabY, tabW, tabH);
       box(ctx, tx, tabY, tabW, tabH, on ? "#2a2050" : "#1a1430", on ? C.gold : C.cream);
-      drawText(ctx, tb.label, tx + tabW / 2, tabY + 4, on ? TYPECOL.accent : TYPECOL.primary, TYPE.M, "center");
+      hudText(ctx, tb.label, tx + tabW / 2, tabY + Math.round((tabH - HUD_S.height) / 2), on ? HUDCOL.accent : HUDCOL.main, "S", "center");
     }
-    var top = tabY + tabH + 4, bot = LH - 40;
-    if (encyCard >= 0) drawEncyDetail(x, top, bot);
+    var items = encyItems();
+    var top = tabY + tabH + 4;
+    if (encyCard < 0) {
+      hudText(ctx, t('ency.opened', { n: encyOpenCount(items), total: items.length }), LW / 2, top, HUDCOL.secondary, "S", "center");
+      top += HUD_S.line + 2;
+    }
+    var btnH = 22;
+    var btnY = LH - btnH - 6;
+    var bot = btnY - 4;
+    if (encyCard >= 0) { encyScrollMax = 0; encyScroll = 0; drawEncyDetail(x, top, bot); }
     else if (encyTab === "maps") drawEncyMaps(x, top, bot);
     else drawEncyGrid(x, top, bot);
-    btn("back", x + 26, LH - 34, 100, 22, C.navy, t('common.back'));
+    encyBtn("back", x + 26, btnY, 100, btnH, t('common.back'));
     drawFlash();
   }
 
@@ -2563,12 +2667,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       : ic === "coins" ? t('unit.coins', { n: H.need })
       : ic === "height" ? t('unit.meters', { n: H.need })
       : t('unit.mobs', { n: H.need });
-    var pre = t('shop.charge'), iw = 8, gap = 2, tw = textWidth(pre, TYPE.M) + iw + gap + textWidth(chg, TYPE.M);
+    var pre = t('shop.charge'), iw = ic === "coins" ? 14 : 8, gap = 2, tw = textWidth(pre, TYPE.M) + iw + gap + textWidth(chg, TYPE.M);
     var x0 = Math.round(cx - tw / 2);
     drawText(ctx, pre, x0, y, col, TYPE.M, "left");
     var ix = x0 + textWidth(pre, TYPE.M);
     if (ic === "time") icoClock(ix, y, col);
-    else if (ic === "coins") drawCoin(ctx, ix, y + 1, ui);
+    else if (ic === "coins") { if (!(typeof drawCoin64Ui === "function" && drawCoin64Ui(ctx, ix, Math.round(y + 3.5 - 7)))) drawCoin(ctx, ix + 4, y + 1, 0); }
     else if (ic === "height") drawText(ctx, "↑", ix, y, TYPECOL.mint, TYPE.M, "left");
     else icoSkull(ix, y, col);
     drawText(ctx, chg, ix + iw + gap, y, col, TYPE.M, "left");
@@ -3102,10 +3206,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var onKD = function (e: any) { onKey(e, true); };
   var onKU = function (e: any) { onKey(e, false); };
   var noScroll = function (e: any) { e.preventDefault(); };
+  function onEncyWheel(e: any) {
+    if (phase !== "ency" || encyCard >= 0 || encyScrollMax <= 0) return;
+    e.preventDefault();
+    encyScroll = Math.max(0, Math.min(encyScrollMax, encyScroll + e.deltaY * 0.25));
+  }
   ptrRoot.addEventListener("pointerdown", onPtrDown);
   ptrRoot.addEventListener("pointermove", onPtrMove);
   ptrRoot.addEventListener("pointerup", onPtrUp);
   ptrRoot.addEventListener("pointercancel", onPtrUp);
+  ptrRoot.addEventListener("wheel", onEncyWheel, { passive: false } as any);
   canvas.addEventListener("contextmenu", onCtx);
   window.addEventListener("keydown", onKD);
   window.addEventListener("keyup", onKU);
@@ -3137,6 +3247,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ptrRoot.removeEventListener("pointermove", onPtrMove);
       ptrRoot.removeEventListener("pointerup", onPtrUp);
       ptrRoot.removeEventListener("pointercancel", onPtrUp);
+      ptrRoot.removeEventListener("wheel", onEncyWheel);
       if (ptrRoot !== canvas) ptrRoot.removeEventListener("touchstart", noScroll);
       canvas.removeEventListener("contextmenu", onCtx);
       window.removeEventListener("keydown", onKD);
