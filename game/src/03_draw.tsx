@@ -783,8 +783,19 @@ function drawBubble(ctx: Ctx, cx: number, cy: number) {
   ctx.restore();
 }
 function drawBubblePop(ctx: Ctx, cx: number, cy: number, t: number) {
+  /* v1.0 w13: hand-drawn 80×80 pop at the same scale(0.5) as the rest bubble. popTicks=10. */
   var max = BUBBLE.popTicks;
+  var sheet = typeof fx64Sheet === "function" ? fx64Sheet("bubblePop") : null;
   var frame = Math.max(0, Math.min(3, Math.floor((max - t) * 4 / max)));
+  if (sheet) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.translate(cx, cy);
+    ctx.scale(0.5, 0.5);
+    ctx.drawImage(sheet, frame * 80, 0, 80, 80, -40, -40, 80, 80);
+    ctx.restore();
+    return;
+  }
   var col = BUBBLE.rim, r = BUBBLE.r, i, ox, oy;
   if (frame === 0) {
     strokeDisk(ctx, cx, cy, r, col);

@@ -1975,27 +1975,53 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawDome(p, cx, cy, tick);
     if (p.freezeT > 0) { ctx.globalAlpha = 0.45; rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff"); ctx.globalAlpha = 1; }
     if (p.rocketT > 0) {
-      var flick = (ui % 3);
-      rect(ctx, cx - 1, sy + PH, 2, 2, "#fff2c0");
-      rect(ctx, cx - 2, sy + PH + 1, 4, 2 + flick, "#ffd040");
-      rect(ctx, cx - 2, sy + PH + 3 + flick, 4, 2, "#ff9a3a");
-      rect(ctx, cx - 1, sy + PH + 5 + flick, 2, 2, "#e0602c");
-      rect(ctx, cx + 3 + (ui % 2), sy + PH + 6 + flick, 2, 2, "#6a6a78");
-      rect(ctx, cx - 4, sy + PH + 8 + (ui % 3), 2, 2, "#8a8a98");
-      rect(ctx, cx + 2, sy + PH + 10 + flick, 1, 1, "#5a5a68");
+      /* v1.0 w13: flame + baked smoke, anchored at the feet. -1 closes a 1 px boot gap. */
+      var flame = typeof fx64Sheet === "function" ? fx64Sheet("rocketFlame") : null;
+      if (flame) {
+        var fi = Math.floor(tick / 6) % 4;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.translate(Math.round(p.x + PW / 2), Math.round(sy + PH - 1));
+        ctx.scale(0.5, 0.5);
+        ctx.drawImage(flame, fi * 24, 0, 24, 36, -12, 0, 24, 36);
+        ctx.restore();
+      } else {
+        var flick = (ui % 3);
+        rect(ctx, cx - 1, sy + PH, 2, 2, "#fff2c0");
+        rect(ctx, cx - 2, sy + PH + 1, 4, 2 + flick, "#ffd040");
+        rect(ctx, cx - 2, sy + PH + 3 + flick, 4, 2, "#ff9a3a");
+        rect(ctx, cx - 1, sy + PH + 5 + flick, 2, 2, "#e0602c");
+        rect(ctx, cx + 3 + (ui % 2), sy + PH + 6 + flick, 2, 2, "#6a6a78");
+        rect(ctx, cx - 4, sy + PH + 8 + (ui % 3), 2, 2, "#8a8a98");
+        rect(ctx, cx + 2, sy + PH + 10 + flick, 1, 1, "#5a5a68");
+      }
     }
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
+    /* v1.0 w13: 16×18 game (32×36 art) plates, hand-drawn 20×20 icons, timer bar 20×4.
+       Slot size unchanged. Bar blinks for the last 1.8 s (90 ticks). */
     var x = 3, y = hudY(36);
+    var icons = typeof fx64Sheet === "function" ? fx64Sheet("hudIcons") : null;
+    var BAR: any = { shield: "#3e6eb4", magnet: "#c03a3a", rocket: "#e0602a" };
+    var IDX: any = { shield: 0, magnet: 1, rocket: 2 };
     for (var i = 0; i < BON_HUD.length; i++) {
       var b = BON_HUD[i], t = me[b[0]];
       if (!(t > 0)) continue;
       if (b[0] === "domeT" || b[0] === "wallT") continue;
-      rect(ctx, x, y, 16, 18, INK); rect(ctx, x + 1, y + 1, 14, 16, "#1a1430");
-      drawHudIcon(ctx, b[1], x + 3, y + 2);
       var f = clamp(t / b[2], 0, 1);
-      rect(ctx, x + 3, y + 14, 10, 2, "#2c2a52"); rect(ctx, x + 3, y + 14, Math.max(1, Math.round(10 * f)), 2, ITEM_COL[b[1]] || C.cream);
+      var blink = t <= 90 && (((t >> 2) % 2) === 0);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(x, y);
+      ctx.scale(0.5, 0.5);
+      rect(ctx, 0, 0, 32, 36, "#140c1c");
+      rect(ctx, 2, 2, 28, 32, "#1a1430");
+      if (icons && IDX[b[1]] != null) ctx.drawImage(icons, IDX[b[1]] * 20, 0, 20, 20, 6, 3, 20, 20);
+      rect(ctx, 6, 28, 20, 4, "#2c2a52");
+      if (!blink) rect(ctx, 6, 28, Math.max(1, Math.round(20 * f)), 4, BAR[b[1]] || "#f6ecd0");
+      ctx.restore();
+      if (!icons) drawHudIcon(ctx, b[1], x + 3, y + 2);
       y += 20;
     }
   }
@@ -2010,7 +2036,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col);
     }
   }
+  var AB_FI: any = { dash: 0, hook: 1, wall: 2, dome: 3, tele: 4, pound: 5 };
   function drawAbIcon(ab: string, x: number, y: number) {
+    /* v1.0 w13: brighter v1 glyphs only. Disc, rings and states stay in drawAbRing. */
+    var sheet = typeof fx64Sheet === "function" ? fx64Sheet("abIcons") : null;
+    var fi = AB_FI[ab];
+    if (sheet && fi != null) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(x + 6, y + 6);
+      ctx.scale(0.5, 0.5);
+      ctx.drawImage(sheet, fi * 24, 0, 24, 24, -12, -12, 24, 24);
+      ctx.restore();
+      return;
+    }
     if (ab === "dash") {
       rect(ctx, x + 5, y + 1, 2, 1, "#7ad8ff"); rect(ctx, x + 4, y + 2, 4, 2, "#7ad8ff"); rect(ctx, x + 5, y + 4, 2, 3, "#c8f4ff");
       rect(ctx, x + 4, y + 7, 4, 2, "#ffd046"); rect(ctx, x + 5, y + 9, 2, 2, "#ff7830"); rect(ctx, x + 3, y + 8, 1, 2, "#ff7830"); rect(ctx, x + 8, y + 8, 1, 2, "#ff7830");
