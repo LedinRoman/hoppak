@@ -308,7 +308,7 @@ function createServer() {
       if (urlPath === '/api/profile/seen' && req.method === 'POST') {
         if (!p) return unauth(res, tok);
         const sb = await readBody(req);
-        seenLog.push({ exit: !!(sb && sb.exit === true), v: sb && sb.v, p: sb && sb.p });
+        seenLog.push({ playerId: p.id, exit: !!(sb && sb.exit === true), v: sb && sb.v, p: sb && sb.p });
         return json(res, 201, { ok: true });
       }
 
