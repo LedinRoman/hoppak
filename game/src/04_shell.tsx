@@ -398,8 +398,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var fill2 = on ? mixHex(fill, "#ffffff", 0.2) : fill;
     box(ctx, x, y, w, h, fill2, border || C.cream);
     if (on) rect(ctx, x + 1, y + h - 2, w - 2, 1, "rgba(0,0,0,0.35)");
-    var s = sc || 1;
-    drawText(ctx, label, x + w / 2, y + Math.round((h - 7 * s) / 2) + (on ? 1 : 0), tcol || C.cream, s, "center");
+    var s = sc == null ? TYPE.M : sc;
+    drawText(ctx, label, x + w / 2, y + Math.round((h - 7 * s) / 2) + (on ? 1 : 0), tcol || TYPECOL.primary, s, "center");
   }
   function telegramLinked(): boolean {
     try {
@@ -424,15 +424,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return out;
   }
   function coinsLabel(x: number, y: number, n: number, align?: string, _showTg?: boolean) {
-    var s = String(n), w = textWidth(s, 1) + 9;
+    var s = String(n), w = textWidth(s, TYPE.M) + 9;
     var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
     drawCoin(ctx, x0, y, ui);
-    drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
+    drawText(ctx, s, x0 + 9, y - 0.5, TYPECOL.accent, TYPE.M, "left");
   }
   function menuTop() {
     return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) + (testInsetTop || 0);
   }
-  /* Nick uses the same 5×7 font as the rest of the UI, at scale 1. */
+  /* Nick uses the same 5×7 font as the rest of the UI, at TYPE.M. */
   function nickWidth(n: number) { return n ? n * 6 - 1 + 2 : 0; }
   function fitNick(raw: string, maxW: number) {
     var s = drawableChars(String(raw || ""));
@@ -444,7 +444,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawNick(raw: string, x: number, y: number, maxW: number) {
     var fit = fitNick(raw, maxW);
-    if (fit.text) drawTextO(ctx, fit.text, x, y, "#b8ae9a", "left", "#1a1030");
+    if (fit.text) drawTextO(ctx, fit.text, x, y, TYPECOL.muted, "left", "#1a1030");
     var pen = x + (fit.text ? fit.text.length * 6 : 0);
     if (fit.dots) {
       var dy = y + 6;
@@ -634,7 +634,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawWallet() {
     var top = menuTop();
     var s = String(save.coins);
-    var w = textWidth(s, 1) + 9;
+    var w = textWidth(s, TYPE.M) + 9;
     var x = LW - 4 - w;
     var coinX = x - 3;
     var rowY = 1 + top;
@@ -668,7 +668,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     box(ctx, x, y, w, h, fill, lack ? "#8a8498" : C.cream);
     if (on) rect(ctx, x + 1, y + h - 2, w - 2, 1, "rgba(0,0,0,0.35)");
     var lab = lack ? ("НУЖНО ЕЩЁ ● " + (price - save.coins)) : wait ? ("ТОЧНО? ● " + price) : ("КУПИТЬ ● " + price);
-    drawText(ctx, lab, x + w / 2, y + Math.round((h - 7) / 2) + (on ? 1 : 0), lack ? "#d8d0e0" : INK, 1, "center");
+    drawText(ctx, lab, x + w / 2, y + Math.round((h - 7 * TYPE.M) / 2) + (on ? 1 : 0), lack ? TYPECOL.muted : TYPECOL.ink, TYPE.M, "center");
   }
   function tryBuy(id: string, price: number, apply: any) {
     if (save.coins < price) return;
@@ -677,7 +677,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function abBar() {
     var coinW = 28;
-    try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19; } catch (_e) {}
+    try { if (world) coinW = textWidth(String(world.runCoins || 0), TYPE.M) + 19; } catch (_e) {}
     return { x: 4 + coinW, y: hudY(5), w: 16, h: 16 };
   }
   function startSquad(seed?: number) {
@@ -899,8 +899,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     writeSave(save);
   }
   function volRow(id: string, x: number, y: number, w: number, label: string, vol: number, on: boolean) {
-    drawText(ctx, label, x, y, on ? C.cream : "#9a8ab8", 1, "left");
-    btn(id + ":mute", x + w - 36, y - 2, 36, 12, on ? C.mint : "#1a1430", on ? "ВКЛ" : "ВЫКЛ", on ? INK : C.cream);
+    drawText(ctx, label, x, y, on ? TYPECOL.primary : TYPECOL.muted, TYPE.M, "left");
+    btn(id + ":mute", x + w - 36, y - 2, 36, 12, on ? C.mint : "#1a1430", on ? "ВКЛ" : "ВЫКЛ", on ? TYPECOL.ink : TYPECOL.primary);
     var bx = x, bw = w, by = y + 12;
     addHit(id, bx, by, bw, 8);
     volGeom = { x: bx, w: bw };
@@ -1028,7 +1028,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var w = textWidth(title, sc) + 16;
     var x = Math.round(LW / 2 - w / 2);
     box(ctx, x, y, w, h, C.navy, C.cream);
-    drawText(ctx, title, LW / 2, y + 5, C.cream, sc, "center");
+    drawText(ctx, title, LW / 2, y + 5, TYPECOL.primary, sc, "center");
     markBox("header", x, y, w, h);
     if (phase === "results") pushRes("header", x, y, w, h);
     return { x: x, y: y, w: w, h: h, bottom: y + h };
@@ -1036,15 +1036,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawSessionNote() {
     var y = belowBand();
     box(ctx, colX(), y, 152, 26, C.navy, C.gold);
-    drawText(ctx, "АККАУНТ ОТКРЫТ", LW / 2, y + 3, C.gold, 1, "center");
-    drawText(ctx, "НА ДРУГОМ УСТРОЙСТВЕ", LW / 2, y + 14, C.gold, 1, "center");
+    drawText(ctx, "АККАУНТ ОТКРЫТ", LW / 2, y + 3, TYPECOL.accent, TYPE.M, "center");
+    drawText(ctx, "НА ДРУГОМ УСТРОЙСТВЕ", LW / 2, y + 14, TYPECOL.accent, TYPE.M, "center");
     markBox("session", colX(), y, 152, 26);
   }
   function drawFlash() {
     if (flashT <= 0) return;
     if (phase !== flashPh) { flashT = 0; return; }
     var unlock = flash.indexOf("ОТКРЫТ") >= 0;
-    var sc = 1, fy = LH - 64, fh = 13;
+    var sc = TYPE.M, fy = LH - 64, fh = 13;
     if (unlock && phase === "camp") {
       if (campCard >= 0) { fy = Math.round(LH / 2 - 70) + 84; fh = 16; }
       else { fy = 36; fh = 22; } /* under the title, in the tip-plaque row */
@@ -1052,14 +1052,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var w = Math.min(LW - 8, textWidth(flash, sc) + 16);
     ctx.globalAlpha = Math.min(1, flashT / 20);
     box(ctx, Math.round(LW / 2 - w / 2), fy, w, fh, C.navy, C.gold);
-    drawText(ctx, flash, LW / 2, fy + 4, C.gold, sc, "center");
+    drawText(ctx, flash, LW / 2, fy + 4, TYPECOL.accent, sc, "center");
     ctx.globalAlpha = 1;
   }
   function plaque() {
     var x = colX();
     box(ctx, x, 48, 152, 14, C.navy, C.gold);
     coinsLabel(x + 4, 51, save.coins, undefined, true);
-    drawText(ctx, "РЕКОРД " + (save.best || 0) + " М", x + 148, 51, C.cream, 1, "right");
+    drawText(ctx, "РЕКОРД " + (save.best || 0) + " М", x + 148, 51, TYPECOL.primary, TYPE.M, "right");
   }
   function drawProfileCard() {
     hits = [];
@@ -1074,7 +1074,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     addHit("prof:card", x, y, 152, h);
     box(ctx, x, y, 152, h, C.navy, C.cream);
     markBox("profile", x, y, 152, h);
-    drawText(ctx, "ПРОФИЛЬ", LW / 2, y + 6, C.gold, 1, "center");
+    drawText(ctx, "ПРОФИЛЬ", LW / 2, y + 6, TYPECOL.accent, TYPE.M, "center");
     var photo = linked ? accountPhoto() : null;
     var av = 28;
     if (photo) {
@@ -1091,16 +1091,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x + 8, y + 22, 1, av, "#1a1030");
     rect(ctx, x + 8 + av - 1, y + 22, 1, av, "#1a1030");
     var name = accountName(true);
-    drawText(ctx, name, x + 40, y + 24, C.cream, 1, "left");
+    drawText(ctx, name, x + 40, y + 24, TYPECOL.primary, TYPE.M, "left");
     var lineY = y + 36;
     if (linked && u.username) {
-      drawText(ctx, glyphsOf(String(u.username), 14), x + 40, lineY, "#b8ae9a", 1, "left");
+      drawText(ctx, glyphsOf(String(u.username), 14), x + 40, lineY, TYPECOL.muted, TYPE.M, "left");
       lineY += 12;
     }
     var entryY = y + 54;
-    drawText(ctx, linked ? "ВХОД: TELEGRAM" : "ВХОД: ГОСТЕВОЙ", x + 8, entryY, C.cream, 1, "left");
-    if (!linked) drawText(ctx, "ПРОГРЕСС НА УСТРОЙСТВЕ", x + 8, entryY + 12, "#b8ae9a", 1, "left");
-    drawText(ctx, "РЕКОРД " + (save.best || 0) + " М", x + 8, y + h - 36, C.gold, 1, "left");
+    drawText(ctx, linked ? "ВХОД: TELEGRAM" : "ВХОД: ГОСТЕВОЙ", x + 8, entryY, TYPECOL.primary, TYPE.M, "left");
+    if (!linked) drawText(ctx, "ПРОГРЕСС НА УСТРОЙСТВЕ", x + 8, entryY + 12, TYPECOL.muted, TYPE.M, "left");
+    drawText(ctx, "РЕКОРД " + (save.best || 0) + " М", x + 8, y + h - 36, TYPECOL.accent, TYPE.M, "left");
     btn("prof:close", x + 26, y + h - 22, 100, 16, C.navy, "ЗАКРЫТЬ");
   }
   function drawTabIcon(key: string, x: number, y: number, dim?: boolean) {
@@ -1128,7 +1128,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (dim) ctx.globalAlpha = 1;
     /* Text runs from 1 px after the icon to the inner edge of the frame: ЭНЦИКЛОПЕДИЯ (47 px) fits one line. */
     var tx = ix + 24 + 1, tw = x + w - 1 - tx;
-    var col = dim ? "#9a8ab8" : C.cream;
+    var col = dim ? TYPECOL.muted : TYPECOL.primary;
     var lines = tinyLines(label, tw);
     var block = lines.length * 6 - 1;
     var ly = y + Math.round((h - block) / 2);
@@ -1185,7 +1185,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
     /* ИГРАТЬ keeps the prod 34px button and at least 10px of air. Squeeze the logo and the grid, not these gaps. */
     var playGap = 10, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
-    var logoSc = 3;
+    var logoSc = TYPE.XL;
     function stack() {
       var tabY = LH - bot - tabH;
       var gridY = tabY - playGap - (gridH * 2 + gridGap);
@@ -1204,7 +1204,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
        shrink the hero to a smaller whole device-px size rather than killing the hop. */
     function gap() { return L.platY - (L.tagBot + 2); }
     function need() { var f = heroFitHop(1000); return f.h + 26; }
-    if (gap() < need()) { logoSc = 2; L = stack(); }
+    if (gap() < need()) { logoSc = TYPE.L; L = stack(); }
     if (gap() < need()) { gridGap = 2; pickH = 16; L = stack(); }
     var g = Math.max(16, gap());
     var fit = heroFitHop(g);
@@ -1223,12 +1223,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var L = menuFrame();
     var logoW = bigWidth("ХОППАК", L.logoSc);
     drawBig(ctx, "ХОППАК", LW / 2, L.logoY, TITLE.face, L.logoSc, "center", TITLE.outline, TITLE.shadow);
-    drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, L.tagY, C.cream, "center");
+    drawTextO(ctx, "ПРЫГАЙ ВЫШЕ ВСЕХ", LW / 2, L.tagY, TYPECOL.primary, "center");
     menuLay = {
       chip: { x: 3, y: 1 + L.top, w: CHIP, h: CHIP },
       coins: { x: 0, y: 1 + L.top, w: 0, h: CHIP },
       logo: { x: Math.round(LW / 2 - logoW / 2) - 1, y: L.logoY - 1, w: logoW + 2, h: 7 * L.logoSc + 2 },
-      tag: { x: Math.round(LW / 2 - textWidth("ПРЫГАЙ ВЫШЕ ВСЕХ", 1) / 2) - 1, y: L.tagY - 1, w: textWidth("ПРЫГАЙ ВЫШЕ ВСЕХ", 1) + 2, h: 9 },
+      tag: { x: Math.round(LW / 2 - textWidth("ПРЫГАЙ ВЫШЕ ВСЕХ", TYPE.M) / 2) - 1, y: L.tagY - 1, w: textWidth("ПРЫГАЙ ВЫШЕ ВСЕХ", TYPE.M) + 2, h: 9 },
       logoSc: L.logoSc,
       safeTop: L.top,
       safeBottom: L.bot
@@ -1245,11 +1245,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     markBox("hero", LW / 2 - 18, platY - hop - L.heroH, 36, L.heroH);
     markBox("plat", LW / 2 - 28, platY, 56, 7);
     var pickW = 120;
-    btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", "ВЫБРАТЬ ГЕРОЯ", C.cream, 1, C.gold);
-    btn("start", x, L.playY, 152, L.playH, C.mint, "", INK, 2);
+    btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", "ВЫБРАТЬ ГЕРОЯ", TYPECOL.primary, TYPE.M, C.gold);
+    btn("start", x, L.playY, 152, L.playH, C.mint, "", TYPECOL.ink, TYPE.L);
     /* Same face as prod b683155: BIGF scale 2, ink, no outline, 4px under the button top. */
-    drawBig(ctx, "ИГРАТЬ ▶", LW / 2, L.playY + 4, INK, 2, "center");
-    drawText(ctx, sub, LW / 2, L.playY + 23, INK, 1, "center");
+    drawBig(ctx, "ИГРАТЬ ▶", LW / 2, L.playY + 4, TYPECOL.ink, TYPE.L, "center");
+    drawText(ctx, sub, LW / 2, L.playY + 23, TYPECOL.ink, TYPE.M, "center");
     var hgap = 2;
     var gw = Math.floor((152 - hgap) / 2);
     var gx2 = x + gw + hgap;
@@ -1282,7 +1282,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var ix = tx + Math.floor((tw - 16) / 2);
       var iy = L.tabY + 3;
       drawTabIcon(tb.key, ix, iy, !!tb.lock);
-      var tc = tb.lock ? "#6a6080" : (on ? C.cream : "#9a8ab8");
+      var tc = tb.lock ? "#6a6080" : (on ? TYPECOL.primary : TYPECOL.muted);
       drawTiny(ctx, tb.label, tx + tw / 2, L.tabY + 22, tc, "center");
       if (tb.lock) drawTabLock(ix + 11, iy - 1);
     }
@@ -1294,11 +1294,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var py0 = belowBand();
       box(ctx, x, py0, 152, 142, C.navy, C.cream);
       markBox("settings", x, py0, 152, 142);
-      drawText(ctx, "НАСТРОЙКИ", LW / 2, py0 + 6, C.gold, 1, "center");
-      btn("tilt", x + 8, py0 + 20, 136, 20, tiltOn ? C.mint : "#1a1430", "НАКЛОН: " + (tiltOn ? "ВКЛ" : "ВЫКЛ"), tiltOn ? INK : C.cream);
+      drawText(ctx, "НАСТРОЙКИ", LW / 2, py0 + 6, TYPECOL.accent, TYPE.M, "center");
+      btn("tilt", x + 8, py0 + 20, 136, 20, tiltOn ? C.mint : "#1a1430", "НАКЛОН: " + (tiltOn ? "ВКЛ" : "ВЫКЛ"), tiltOn ? TYPECOL.ink : TYPECOL.primary);
       volRow("vol", x + 8, py0 + 44, 136, "ГРОМКОСТЬ", masterVol, audioOn);
-      btn("vib", x + 8, py0 + 70, 136, 20, vibOn ? C.mint : "#1a1430", "ВИБРО: " + (vibOn ? "ВКЛ" : "ВЫКЛ"), vibOn ? INK : C.cream);
-      btn("set:prof", x + 8, py0 + 94, 136, 20, "#1a1430", "ПРОФИЛЬ", C.cream);
+      btn("vib", x + 8, py0 + 70, 136, 20, vibOn ? C.mint : "#1a1430", "ВИБРО: " + (vibOn ? "ВКЛ" : "ВЫКЛ"), vibOn ? TYPECOL.ink : TYPECOL.primary);
+      btn("set:prof", x + 8, py0 + 94, 136, 20, "#1a1430", "ПРОФИЛЬ", TYPECOL.primary);
       btn("set", x + 26, py0 + 118, 100, 16, C.navy, "ЗАКРЫТЬ");
     }
     drawFlash();
@@ -1330,9 +1330,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     /* If the card would be too short for a readable jumping hero, tighten the title and grid first. */
     var shopBotPeek = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
     var backPeek = LH - 34 - shopBotPeek;
-    var y0est = belowBand() + (7 * 2 + 10) + 4 + (34 * 2 + 4) + 4;
+    var y0est = belowBand() + (7 * TYPE.L + 10) + 4 + (34 * 2 + 4) + 4;
     var tightShop = backPeek - 6 - y0est < 140;
-    var hdShop = header("МАГАЗИН", tightShop ? 1 : 2);
+    var hdShop = header("МАГАЗИН", tightShop ? TYPE.M : TYPE.L);
     var pw = 34, gap = tightShop ? 2 : 4, cols = 3, rows = 2;
     var sx = Math.round(LW / 2 - (cols * pw + (cols - 1) * gap) / 2);
     var heroY = hdShop.bottom + 4;
@@ -1365,7 +1365,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
        integer device-px per art-px, and a platform just wider than the sprite. */
     var btnH = 22, btnPad = 6, platH = 6;
     var chrome = 4 + btnH + btnPad + platH + 2;
-    var minTextH = 48;
+    var minTextH = 38;
     var aShop = menuScaleA();
     if (pScale && pScale > aShop) aShop = pScale;
     if (!(aShop > 0)) aShop = 1;
@@ -1388,7 +1388,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (shopHh(kShop) + hopRoom > avail) hopRoom = Math.max(8, avail - shopHh(kShop));
     var fit = { sc: (2 * kShop) / aShop, k: kShop, h: shopHh(kShop), hop: hopRoom };
     var band = fit.h + hopRoom + 2;
-    var textH = Math.min(69, Math.max(minTextH, ch - chrome - band));
+    var textH = Math.min(42, Math.max(minTextH, ch - chrome - band));
     var byb = y0 + ch - btnH - btnPad;
     var textTop = byb - 4 - textH;
     var platTop = textTop - platH;
@@ -1397,33 +1397,32 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (hopRoom < 8 && budget > fit.h) hopRoom = Math.max(8, budget - fit.h);
     var cellW = (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.w) ? ART64.cell.w : 72;
     var heroW = cellW * 0.5 * fit.sc;
-    var platW = Math.round(Math.min(152 - 16, Math.max(20, heroW + 8)));
+    var platW = Math.round(Math.min(152 - 16, Math.max(20, heroW + 6)));
     var platX = Math.round(LW / 2 - platW / 2);
     rect(ctx, platX, platTop, platW, 4, C.wood); rect(ctx, platX, platTop, platW, 1, C.edge);
     var mh = demoHop(makeLook(i, save.color, save.hat), hopRoom), pose = mh.pose, hop = mh.hop;
     if (hop > hopRoom) hop = hopRoom;
     drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, fit.sc), platTop - 16 * fit.sc - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, fit.sc, true);
     lastHop = { where: "shop", hop: hop, room: hopRoom, sc: fit.sc, k: fit.k, h: fit.h, platY: platTop, budget: budget, platW: platW };
-    var mid = textTop - 16;
-    var nameSc = textH < 62 ? 1 : 2;
-    var ny, by0, desc1, desc2, chgY;
-    if (nameSc === 2 && textH >= 66) {
-      ny = textTop; by0 = ny + 18; desc1 = by0 + 16; desc2 = by0 + 26; chgY = by0 + 40;
-    } else {
-      ny = textTop + 1; by0 = ny + 9; desc1 = by0 + 13; desc2 = by0 + 22;
-      chgY = Math.min(textTop + textH - 9, by0 + 33);
-    }
-    drawText(ctx, H2.name, LW / 2, ny, C.cream, nameSc, "center");
-    var tw = textWidth(H2.abName, 1) + 10;
-    box(ctx, Math.round(LW / 2 - tw / 2), by0, tw, 12, "#3a4ac8", C.cream);
-    drawText(ctx, H2.abName, LW / 2, by0 + 3, C.cream, 1, "center");
-    drawText(ctx, H2.abDesc[0], LW / 2, desc1, C.cream, 1, "center");
-    drawText(ctx, H2.abDesc[1], LW / 2, desc2, C.cream, 1, "center");
-    drawChargeLine(LW / 2, chgY, H2, "#9a8ab8");
+    /* Card type is fixed: name TYPE.M, ability + description TYPE.S (tiny), charge TYPE.M muted.
+       No larger title on wide screens — the hero keeps the leftover space. */
+    var ny = textTop + 1;
+    var by0 = ny + typeH("M") + 1;
+    var badgeH = typeH("S") + 4;
+    var tw = uiWidth(H2.abName, "S") + 10;
+    box(ctx, Math.round(LW / 2 - tw / 2), by0, tw, badgeH, "#3a4ac8", C.cream);
+    uiText(ctx, H2.name, LW / 2, ny, TYPECOL.primary, "M", "center");
+    uiText(ctx, H2.abName, LW / 2, by0 + 2, TYPECOL.primary, "S", "center");
+    var desc1 = by0 + badgeH + 1;
+    var desc2 = desc1 + typeH("S") + 1;
+    uiText(ctx, H2.abDesc[0], LW / 2, desc1, TYPECOL.primary, "S", "center");
+    uiText(ctx, H2.abDesc[1], LW / 2, desc2, TYPECOL.primary, "S", "center");
+    var chgY = Math.min(textTop + textH - typeH("M") - 1, desc2 + typeH("S") + 2);
+    drawChargeLine(LW / 2, chgY, H2, TYPECOL.muted);
     markBox("cardText", x + 4, textTop, 144, textH);
     markBox("cardBtn", x + 10, byb, 132, btnH);
-    if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "ВЫБРАН", C.gold, 1, C.gold);
-    else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "ВЫБРАТЬ", INK);
+    if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "ВЫБРАН", TYPECOL.accent, TYPE.M, TYPECOL.accent);
+    else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "ВЫБРАТЬ", TYPECOL.ink);
     else drawBuy("hero:act", x + 10, byb, 132, 22, H2.price);
     btn("back", x + 26, backY, 100, 22, C.navy, "НАЗАД");
     drawFlash();
@@ -1436,12 +1435,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
     dimView(ctx, "rgba(18,14,44,0.34)");
     var x = colX();
-    var hdCamp = header("КАМПАНИЯ", 2);
+    var hdCamp = header("КАМПАНИЯ", TYPE.L);
     var tipY = hdCamp.bottom + 4;
     box(ctx, x, tipY, 152, 22, "#1a1430", C.mint);
     markBox("tip", x, tipY, 152, 22);
-    drawText(ctx, "ДОЙДИ ДО ЦЕЛИ →", LW / 2, tipY + 3, C.cream, 1, "center");
-    drawText(ctx, "ОТКРОЙ ЗА МОНЕТЫ", LW / 2, tipY + 13, C.mint, 1, "center");
+    drawText(ctx, "ДОЙДИ ДО ЦЕЛИ →", LW / 2, tipY + 3, TYPECOL.primary, TYPE.M, "center");
+    drawText(ctx, "ОТКРОЙ ЗА МОНЕТЫ", LW / 2, tipY + 13, TYPECOL.mint, TYPE.M, "center");
     var top = tipY + 26, bot = LH - 40, rh = Math.min(42, Math.floor((bot - top) / MAPS.length));
     for (var i = 0; i < MAPS.length; i++) {
       var M = MAPS[i], y = top + i * rh, open = mapOpen(i), can = !open && mapGoalMet(i), locked = !open && !can;
@@ -1451,19 +1450,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       box(ctx, x, y, 152, rh - 3, open ? (save.bg === M.id ? "#2a2050" : C.navy) : "#1a1430", bd);
       drawBgSwatch(x + 3, y + 3, 20, rh - 9, M.id);
       if (!open) { ctx.globalAlpha = 0.55; rect(ctx, x + 3, y + 3, 20, rh - 9, "#0c0818"); ctx.globalAlpha = 1; }
-      drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, open || can ? C.cream : "#9a8ab8", 1, "left");
+      drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, open || can ? TYPECOL.primary : TYPECOL.muted, TYPE.M, "left");
       if (open) {
         var b = mapBest(i);
         if (M.goal) {
-          drawText(ctx, (b >= M.goal ? "✓ " : "") + "ЦЕЛЬ " + M.goal + " М", x + 28, y + 13, b >= M.goal ? C.mint : C.gold, 1, "left");
-          drawText(ctx, b + "/" + M.goal, x + 148, y + 3, C.cream, 1, "right");
+          drawText(ctx, (b >= M.goal ? "✓ " : "") + "ЦЕЛЬ " + M.goal + " М", x + 28, y + 13, b >= M.goal ? TYPECOL.mint : TYPECOL.accent, TYPE.M, "left");
+          drawText(ctx, b + "/" + M.goal, x + 148, y + 3, TYPECOL.primary, TYPE.M, "right");
           bar(x + 28, y + rh - 11, 107, 5, b / M.goal, b >= M.goal ? C.mint : C.gold);
-        } else drawText(ctx, "РЕКОРД " + b + " М", x + 28, y + 15, C.gold, 1, "left");
+        } else drawText(ctx, "РЕКОРД " + b + " М", x + 28, y + 15, TYPECOL.accent, TYPE.M, "left");
       } else if (can) {
         drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
       } else {
-        drawText(ctx, MAPS[i - 1].goal + " М " + WHERE[i - 1], x + 28, y + 13, "#9a8ab8", 1, "left");
-        drawText(ctx, "● " + M.price, x + 28, y + 23, C.gold, 1, "left");
+        drawText(ctx, MAPS[i - 1].goal + " М " + WHERE[i - 1], x + 28, y + 13, TYPECOL.muted, TYPE.M, "left");
+        drawText(ctx, "● " + M.price, x + 28, y + 23, TYPECOL.accent, TYPE.M, "left");
       }
     }
     btn("back", x + 26, LH - 34, 100, 22, C.navy, "НАЗАД");
@@ -1473,7 +1472,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
-    var hdLobby = header("ЗАБЕГ С БОТАМИ", 1);
+    var hdLobby = header("ЗАБЕГ С БОТАМИ", TYPE.M);
     var ps = lobbyNames();
     var row0 = hdLobby.bottom + 4;
     var slotH = 36, slotGap = 2;
@@ -1483,16 +1482,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       box(ctx, x, y, 152, slotH, i === 0 ? "#2a2050" : C.navy, i === 0 ? C.gold : C.cream);
       ctx.imageSmoothingEnabled = false;
       drawPortrait(ctx, ps[i].kind, x + 2, y + 2, 1);
-      drawText(ctx, ps[i].name, x + 40, y + 6, C.cream, 1, "left");
-      drawText(ctx, ps[i].tag, x + 40, y + 18, i === 0 ? C.gold : "#9a8ab8", 1, "left");
-      drawText(ctx, CHARS[ps[i].kind].abName, x + 148, y + 14, "#9a8ab8", 1, "right");
+      drawText(ctx, ps[i].name, x + 40, y + 6, TYPECOL.primary, TYPE.M, "left");
+      drawText(ctx, ps[i].tag, x + 40, y + 18, i === 0 ? TYPECOL.accent : TYPECOL.muted, TYPE.M, "left");
+      drawText(ctx, CHARS[ps[i].kind].abName, x + 148, y + 14, TYPECOL.muted, TYPE.M, "right");
     }
     var my = row0 + 4 * (slotH + slotGap) + 6;
-    btn("lmap:prev", x, my, 20, 18, "#1a1430", "<", C.cream);
-    btn("lmap:next", x + 132, my, 20, 18, "#1a1430", ">", C.cream);
+    btn("lmap:prev", x, my, 20, 18, "#1a1430", "<", TYPECOL.primary);
+    btn("lmap:next", x + 132, my, 20, 18, "#1a1430", ">", TYPECOL.primary);
     box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
-    drawText(ctx, "КАРТА: " + mapInfo(lobbyMap).name, LW / 2, my + 6, C.gold, 1, "center");
-    btn("go", x, Math.max(my + 28, LH - 66), 152, 26, C.mint, "НАЧАТЬ", INK, 2);
+    drawText(ctx, "КАРТА: " + mapInfo(lobbyMap).name, LW / 2, my + 6, TYPECOL.accent, TYPE.M, "center");
+    btn("go", x, Math.max(my + 28, LH - 66), 152, 26, C.mint, "НАЧАТЬ", TYPECOL.ink, TYPE.L);
     btn("back", x + 26, LH - 34, 100, 22, C.navy, "НАЗАД");
   }
   function lobbyNames() {
@@ -1603,9 +1602,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (y < -8 || y > LH + 8) return;
     var yy = Math.round(y);
     for (var x = viewX0(); x < LW + VIEW_PAD; x += 4) { var on = ((x - viewX0()) >> 2) % 2 === 0; rect(ctx, x, yy, 4, 1, on ? C.cream : "#162040"); rect(ctx, x, yy + 1, 4, 1, on ? "#162040" : C.cream); }
-    var tw = textWidth(label, 1) + 6;
+    var tw = textWidth(label, TYPE.M) + 6;
     rect(ctx, 3, yy - 11, tw + 2, 11, INK); rect(ctx, 4, yy - 10, tw, 9, "#162040");
-    drawText(ctx, label, 4 + tw / 2, yy - 9, C.gold, 1, "center");
+    drawText(ctx, label, 4 + tw / 2, yy - 9, TYPECOL.accent, TYPE.M, "center");
   }
   function recLine(y: number, label: string) {
     if (y < -8 || y > LH + 8) return;
@@ -1613,9 +1612,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.globalAlpha = 0.7;
     for (var x = viewX0(); x < LW + VIEW_PAD; x += 2) rect(ctx, x, yy, 1, 1, C.cream);
     ctx.globalAlpha = 1;
-    var tw = textWidth(label, 1) + 6, lx = LW - tw - 5;
+    var tw = textWidth(label, TYPE.M) + 6, lx = LW - tw - 5;
     rect(ctx, lx - 1, yy - 11, tw + 2, 11, INK); rect(ctx, lx, yy - 10, tw, 9, "#162040");
-    drawText(ctx, label, lx + tw / 2, yy - 9, C.cream, 1, "center");
+    drawText(ctx, label, lx + tw / 2, yy - 9, TYPECOL.primary, TYPE.M, "center");
   }
   function drawReadyPip(me: any, sy: number) {
     var dbg: any = (window as any).__dbg || {}; var pp = dbg.ring && dbg.ring.pop != null ? dbg.ring.pop : popT;
@@ -1777,7 +1776,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var isMe = tg.p.id === 0;
       var tgNm = String(tg.p.name || "БОТ");
       var label = !tg.p.alive ? "ВЫБЫЛ" : isMe ? "▼" : /^БОТ \d$/.test(tgNm) ? tgNm : tgNm.slice(0, 3);
-      tg.w = textWidth(label, 1) + 4;
+      tg.w = textWidth(label, TYPE.M) + 4;
       for (var j = 0; j < i; j++) {
         var o = tags[j];
         if (Math.abs(o.x - tg.x) < (o.w + tg.w) / 2 + 1 && Math.abs(o.y - tg.y) < 10) tg.y = o.y - 10;
@@ -1785,7 +1784,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var lx = clamp(tg.x, tg.w / 2 + 1, LW - 12 - tg.w / 2);
       ctx.globalAlpha = isMe ? 0.85 : 0.5;
       if (!isMe) rect(ctx, Math.round(lx - tg.w / 2), tg.y, tg.w, 9, tg.p.alive ? C.navy : "#4a1020");
-      drawText(ctx, label, lx, tg.y + (isMe ? 2 : 1), tg.p.alive ? (isMe ? C.gold : C.cream) : C.red, 1, "center");
+      drawText(ctx, label, lx, tg.y + (isMe ? 2 : 1), tg.p.alive ? (isMe ? TYPECOL.accent : TYPECOL.primary) : TYPECOL.danger, TYPE.M, "center");
       ctx.globalAlpha = 1;
     }
     ctx.restore();
@@ -1796,7 +1795,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var meter = metersOf(me) + " М";
     var pb = pauseBox();
     coinsLabel(5, hudY(6), w.runCoins);
-    drawTextO(ctx, meter, wantPause ? pb.x - 4 : LW - edgePad("right"), hudY(6), C.cream, "right");
+    drawTextO(ctx, meter, wantPause ? pb.x - 4 : LW - edgePad("right"), hudY(6), TYPECOL.primary, "right");
     drawRankColumn(w);
     if (wantPause) {
       addHit("pause", pb.x, pb.y, pb.w, pb.h);
@@ -1808,10 +1807,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBonusHud(me);
     drawAbRing(me);
     if (w.toastT > 0) {
-      var tw2 = textWidth(w.toast, 1) + 12;
+      var tw2 = textWidth(w.toast, TYPE.M) + 12;
       ctx.globalAlpha = Math.min(1, w.toastT / 15);
       box(ctx, Math.round(LW / 2 - tw2 / 2), hudY(38), tw2, 13, C.navy, C.gold);
-      drawText(ctx, w.toast, LW / 2, hudY(41), C.gold, 1, "center");
+      drawText(ctx, w.toast, LW / 2, hudY(41), TYPECOL.accent, TYPE.M, "center");
       ctx.globalAlpha = 1;
     }
     if (w.tick < 170 && !(w.toastT > 0) && !paused) {
@@ -1819,12 +1818,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var Hn = CHARS[me.kind];
       var line1 = !isPhone ? "← → ХОД" : "ТАП СЛЕВА / СПРАВА";
       var line2 = abHintRun ? (!isPhone ? ("↑ " + Hn.abName) : ("СВАЙП ↑ " + Hn.abName)) : "";
-      var htw = textWidth(line1, 1);
-      if (line2) htw = Math.max(htw, textWidth(line2, 1));
+      var htw = textWidth(line1, TYPE.M);
+      if (line2) htw = Math.max(htw, textWidth(line2, TYPE.M));
       var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
       box(ctx, hx, hudY(56), hw, hh, C.navy, C.cream);
-      drawText(ctx, line1, LW / 2, hudY(58), C.cream, 1, "center");
-      if (line2) drawText(ctx, line2, LW / 2, hudY(68), C.cream, 1, "center");
+      drawText(ctx, line1, LW / 2, hudY(58), TYPECOL.primary, TYPE.M, "center");
+      if (line2) drawText(ctx, line2, LW / 2, hudY(68), TYPECOL.primary, TYPE.M, "center");
       ctx.globalAlpha = 1;
     }
     if ((w.fallWarn || w.liftWarn) && !paused) {
@@ -1839,9 +1838,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
       if (w.liftWarn) {
         var liftLab = "ЛЕЗЬ ВВЕРХ!";
-        var ltw = textWidth(liftLab, 1) + 10;
+        var ltw = textWidth(liftLab, TYPE.M) + 10;
         box(ctx, Math.round(LW / 2 - ltw / 2), viewBottom() - 24, ltw, 13, C.navy, C.gold);
-        drawText(ctx, liftLab, LW / 2, viewBottom() - 21, C.gold, 1, "center");
+        drawText(ctx, liftLab, LW / 2, viewBottom() - 21, TYPECOL.accent, TYPE.M, "center");
       }
     }
     if (paused) {
@@ -1854,17 +1853,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       drawBig(ctx, "ПАУЗА", LW / 2, top + 8, C.gold, 2, "center", INK);
       var py = top + 28;
       if (resumeCd > 0) {
-        drawText(ctx, String(resumeCd), LW / 2, py, C.gold, 3, "center");
+        drawText(ctx, String(resumeCd), LW / 2, py, TYPECOL.accent, TYPE.XL, "center");
         py += 26;
       } else if (land) {
-        drawText(ctx, "ПОВЕРНИ ТЕЛЕФОН", LW / 2, py, C.cream, 1, "center");
+        drawText(ctx, "ПОВЕРНИ ТЕЛЕФОН", LW / 2, py, TYPECOL.primary, TYPE.M, "center");
         py += 14;
       }
       volRow("vol", px + 8, py, 136, "ГРОМКОСТЬ", masterVol, audioOn);
       py += 28;
       if (resumeCd > 0) btn("menu", px + 10, py, 132, 22, C.navy, "МЕНЮ");
       else {
-        btn("resume", px + 10, py, 132, 22, C.mint, "ПРОДОЛЖИТЬ", INK);
+        btn("resume", px + 10, py, 132, 22, C.mint, "ПРОДОЛЖИТЬ", TYPECOL.ink);
         btn("menu", px + 10, py + 26, 132, 22, C.navy, "МЕНЮ");
       }
       pauseLay = hits.filter(function (h: any) {
@@ -2002,15 +2001,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       : ic === "coins" ? ruCount(H.need, "МОНЕТА", "МОНЕТЫ", "МОНЕТ")
       : ic === "height" ? H.need + " М"
       : ruCount(H.need, "МОБ", "МОБА", "МОБОВ");
-    var pre = "ЗАРЯД: ", iw = 8, gap = 2, tw = textWidth(pre, 1) + iw + gap + textWidth(chg, 1);
+    var pre = "ЗАРЯД: ", iw = 8, gap = 2, tw = textWidth(pre, TYPE.M) + iw + gap + textWidth(chg, TYPE.M);
     var x0 = Math.round(cx - tw / 2);
-    drawText(ctx, pre, x0, y, col, 1, "left");
-    var ix = x0 + textWidth(pre, 1);
+    drawText(ctx, pre, x0, y, col, TYPE.M, "left");
+    var ix = x0 + textWidth(pre, TYPE.M);
     if (ic === "time") icoClock(ix, y, col);
     else if (ic === "coins") drawCoin(ctx, ix, y + 1, ui);
-    else if (ic === "height") drawText(ctx, "↑", ix, y, C.mint, 1, "left");
+    else if (ic === "height") drawText(ctx, "↑", ix, y, TYPECOL.mint, TYPE.M, "left");
     else icoSkull(ix, y, col);
-    drawText(ctx, chg, ix + iw + gap, y, col, 1, "left");
+    drawText(ctx, chg, ix + iw + gap, y, col, TYPE.M, "left");
   }
   function icoSkull(x: number, y: number, col: string) {
     rect(ctx, x + 1, y, 5, 4, col); rect(ctx, x + 2, y + 4, 3, 2, col); rect(ctx, x + 2, y + 1, 1, 1, "#0c0818"); rect(ctx, x + 4, y + 1, 1, 1, "#0c0818");
@@ -2094,12 +2093,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var roundNo = 0;
     for (var ri = 0; ri < S.rounds.length; ri++) roundNo = Math.max(roundNo, Number(S.rounds[ri] && S.rounds[ri].round) || 0);
     if (!roundNo) roundNo = S.rounds.length;
-    drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
+    drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, TYPECOL.accent, TYPE.M, "center");
     for (var i = 0; i < pids.length; i++) {
       var pid = pids[i];
       var lineY = y + 11 + i * 9;
-      drawText(ctx, String(S.names[pid] || "ИГРОК").slice(0, 8), x + 6, lineY, C.cream, 1, "left");
-      drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, C.cream, 1, "right");
+      drawText(ctx, String(S.names[pid] || "ИГРОК").slice(0, 8), x + 6, lineY, TYPECOL.primary, TYPE.M, "left");
+      drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, TYPECOL.primary, TYPE.M, "right");
     }
     return y + h + 3;
   }
@@ -2110,7 +2109,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dimView(ctx, "rgba(18,14,44,0.36)");
     var x = colX();
     var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
-    var hdRes = header("ИТОГИ", 2);
+    var hdRes = header("ИТОГИ", TYPE.L);
     var list = world.players.slice().sort(function (a: any, b: any) { return a.place - b.place; });
     var squad = world.mode === "squad";
     var me = world.players[0], mtr = metersOf(me), why = whyText(me);
@@ -2141,14 +2140,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       box(ctx, x, y, 152, rowH, fill, p.id === 0 ? C.gold : C.cream);
       pushRes("place" + p.place, x, y, 152, rowH);
       if (compact) {
-        drawText(ctx, String(p.place), x + 8, y + 3, p.place === 1 ? C.gold : C.cream, 1, "center");
+        drawText(ctx, String(p.place), x + 8, y + 3, p.place === 1 ? TYPECOL.accent : TYPECOL.primary, TYPE.M, "center");
         drawFaceMark(x + 16, y + 1, p.look, !!p.alive);
-        drawText(ctx, String(p.name || "").slice(0, 8) + " " + metersOf(p) + " М", x + 30, y + 3, C.cream, 1, "left");
+        drawText(ctx, String(p.name || "").slice(0, 8) + " " + metersOf(p) + " М", x + 30, y + 3, TYPECOL.primary, TYPE.M, "left");
       } else {
-        drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
+        drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? TYPECOL.accent : TYPECOL.primary, TYPE.L, "center");
         drawJumper(ctx, x + 22, y + rowH - 16, p.look, 1, "idle", false, true, 1, true);
-        drawText(ctx, p.name + (p.id === 0 && squad ? " (ТЫ)" : ""), x + 42, y + 4, C.cream, 1, "left");
-        drawText(ctx, metersOf(p) + " М", x + 42, y + 14, C.cream, 1, "left");
+        drawText(ctx, p.name + (p.id === 0 && squad ? " (ТЫ)" : ""), x + 42, y + 4, TYPECOL.primary, TYPE.M, "left");
+        drawText(ctx, metersOf(p) + " М", x + 42, y + 14, TYPECOL.primary, TYPE.M, "left");
       }
       y += step;
     }
@@ -2156,7 +2155,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var wh = compact ? 12 : 14;
       box(ctx, x, y, 152, wh, "#201838", "#8a7ab8");
       pushRes("why", x, y, 152, wh);
-      drawText(ctx, why, LW / 2, y + (compact ? 3 : 4), "#d8c8f0", 1, "center");
+      drawText(ctx, why, LW / 2, y + (compact ? 3 : 4), TYPECOL.muted, TYPE.M, "center");
       y += compact ? 13 : 18;
     }
     if (hasGoal && y + (compact ? 16 : (met ? 26 : 32)) <= limitY) {
@@ -2166,19 +2165,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         addHit("camp", x, y, 152, gh);
         box(ctx, x, y, 152, gh, C.navy, C.mint);
         pushRes("goal", x, y, 152, gh);
-        drawText(ctx, nxt.name + ": МОЖНО ОТКРЫТЬ", LW / 2, y + (compact ? 4 : 7), C.mint, 1, "center");
+        drawText(ctx, nxt.name + ": МОЖНО ОТКРЫТЬ", LW / 2, y + (compact ? 4 : 7), TYPECOL.mint, TYPE.M, "center");
         y += compact ? 16 : 26;
       } else if (!compact) {
         box(ctx, x, y, 152, 28, C.navy, C.gold);
         pushRes("goal", x, y, 152, 28);
-        drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 3, C.cream, 1, "left");
-        drawText(ctx, b + "/" + M2.goal + " М", x + 146, y + 3, C.cream, 1, "right");
+        drawText(ctx, "ДО " + TO[mi2 + 1], x + 6, y + 3, TYPECOL.primary, TYPE.M, "left");
+        drawText(ctx, b + "/" + M2.goal + " М", x + 146, y + 3, TYPECOL.primary, TYPE.M, "right");
         bar(x + 6, y + 16, 140, 6, b / M2.goal, C.gold);
         y += 32;
       } else {
         box(ctx, x, y, 152, 14, C.navy, C.gold);
         pushRes("goal", x, y, 152, 14);
-        drawText(ctx, "ДО " + TO[mi2 + 1] + " " + b + "/" + M2.goal, LW / 2, y + 4, C.cream, 1, "center");
+        drawText(ctx, "ДО " + TO[mi2 + 1] + " " + b + "/" + M2.goal, LW / 2, y + 4, TYPECOL.primary, TYPE.M, "center");
         y += 16;
       }
     }
@@ -2187,9 +2186,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (y + ah + 4 <= limitY) {
       box(ctx, x, y, 152, ah, C.navy, C.gold);
       pushRes("award", x, y, 152, ah);
-      drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 3, C.cream, 1, "left"); coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
-      drawText(ctx, "СОБРАНО", x + 6, y + (compact ? 12 : 15), C.cream, 1, "left"); coinsLabel(x + 146, y + (compact ? 12 : 15), world.earnC || 0, "right");
-      drawText(ctx, "КЛАДЫ", x + 6, y + (compact ? 21 : 27), C.cream, 1, "left"); coinsLabel(x + 146, y + (compact ? 21 : 27), world.earnB || 0, "right");
+      drawText(ctx, "ВЫСОТА " + mtr + " М", x + 6, y + 3, TYPECOL.primary, TYPE.M, "left"); coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
+      drawText(ctx, "СОБРАНО", x + 6, y + (compact ? 12 : 15), TYPECOL.primary, TYPE.M, "left"); coinsLabel(x + 146, y + (compact ? 12 : 15), world.earnC || 0, "right");
+      drawText(ctx, "КЛАДЫ", x + 6, y + (compact ? 21 : 27), TYPECOL.primary, TYPE.M, "left"); coinsLabel(x + 146, y + (compact ? 21 : 27), world.earnB || 0, "right");
       var dur = 700, nowA = (typeof performance !== "undefined" ? performance.now() : Date.now());
       if (coinT0 < 0) coinT0 = nowA;
       var kk = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
@@ -2198,12 +2197,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var shownTot = (world.coinFrom != null ? world.coinFrom : (save.coins - (world.earned || 0))) + shownEarn;
       if (kk < 1 && (ui % 4 === 0)) hopSfx("tick");
       if (compact) {
-        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 1, "center");
-        if (note) drawText(ctx, note, LW / 2, y + 39, C.cream, 1, "center");
+        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, TYPECOL.accent, TYPE.M, "center");
+        if (note) drawText(ctx, note, LW / 2, y + 39, TYPECOL.primary, TYPE.M, "center");
       } else {
         rect(ctx, x + 6, y + 37, 140, 1, "#5a4a7a");
-        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 42, C.gold, 2, "center");
-        if (note) drawText(ctx, note, LW / 2, y + 62, C.cream, 1, "center");
+        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 42, TYPECOL.accent, TYPE.L, "center");
+        if (note) drawText(ctx, note, LW / 2, y + 62, TYPECOL.primary, TYPE.M, "center");
       }
       y += compact ? ah + 3 : (note ? 72 : 60);
     }
@@ -2217,11 +2216,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (world.newBest) {
         box(ctx, x, y, 152, 13, C.navy, C.gold);
         pushRes("record", x, y, 152, 13);
-        drawText(ctx, "НОВЫЙ РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 3, C.gold, 1, "center");
+        drawText(ctx, "НОВЫЙ РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 3, TYPECOL.accent, TYPE.M, "center");
         y += 15;
       } else {
         pushRes("record", x, y, 152, 9);
-        drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 1, C.cream, 1, "center");
+        drawText(ctx, "РЕКОРД КАРТЫ " + rec + " М", LW / 2, y + 1, TYPECOL.primary, TYPE.M, "center");
         y += 12;
       }
     }
@@ -2231,21 +2230,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         addHit("shop", x, y, 152, 22);
         box(ctx, x, y, 152, 22, C.navy, C.mint);
         pushRes("need", x, y, 152, 22);
-        drawText(ctx, "ХВАТАЕТ НА " + HTO[nh.i] + "!", LW / 2, y + 7, C.mint, 1, "center");
+        drawText(ctx, "ХВАТАЕТ НА " + HTO[nh.i] + "!", LW / 2, y + 7, TYPECOL.mint, TYPE.M, "center");
       } else if (!compact) {
         box(ctx, x, y, 152, 22, C.navy, C.coral);
         pushRes("need", x, y, 152, 22);
-        drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
+        drawText(ctx, "ДО " + HTO[nh.i] + " ОСТАЛОСЬ ● " + nh.left, LW / 2, y + 3, TYPECOL.primary, TYPE.M, "center");
         var runsLeft = Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8)));
-        drawText(ctx, "ЕЩЁ " + ruCount(runsLeft, "ЗАБЕГ", "ЗАБЕГА", "ЗАБЕГОВ"), LW / 2, y + 12, C.gold, 1, "center");
+        drawText(ctx, "ЕЩЁ " + ruCount(runsLeft, "ЗАБЕГ", "ЗАБЕГА", "ЗАБЕГОВ"), LW / 2, y + 12, TYPECOL.accent, TYPE.M, "center");
       } else {
         box(ctx, x, y, 152, nhH, C.navy, C.coral);
         pushRes("need", x, y, 152, nhH);
-        drawText(ctx, "ДО " + HTO[nh.i] + " ● " + nh.left, LW / 2, y + 3, C.cream, 1, "center");
+        drawText(ctx, "ДО " + HTO[nh.i] + " ● " + nh.left, LW / 2, y + 3, TYPECOL.primary, TYPE.M, "center");
       }
     }
     var lab = squad ? "РЕВАНШ ▶" : "ЕЩЁ РАЗ ▶";
-    btn("rematch", x, btnY, 152, 28, C.mint, lab, INK, 2);
+    btn("rematch", x, btnY, 152, 28, C.mint, lab, TYPECOL.ink, TYPE.L);
     btn("menu", x, btnY + 32, 72, 22, C.navy, "МЕНЮ");
     btn("shop", x + 80, btnY + 32, 72, 22, C.navy, "МАГАЗИН");
     pushRes("rematch", x, btnY, 152, 28);
@@ -2255,12 +2254,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawFontSheet() {
     hits = [];
     dimView(ctx, "#120c28");
-    drawText(ctx, "ШРИФТ", LW / 2, 6, C.gold, 2, "center");
+    drawText(ctx, "ШРИФТ", LW / 2, 6, TYPECOL.accent, TYPE.L, "center");
     var words = ["НИНДЗЯ", "МЕНЮ", "КОСМОЩИТ", "ЗАРЯД 40%", "КУПИТЬ ● 80", "ДОЙДИ ДО ЦЕЛИ →", "ИГРАТЬ ▶", "ЕЩЁ РАЗ ▶", "С БОТАМИ", "✓ ЦЕЛЬ 500 М"];
-    for (var i = 0; i < words.length; i++) drawText(ctx, words[i], 6, 28 + i * 12, C.cream, 1, "left");
+    for (var i = 0; i < words.length; i++) drawText(ctx, words[i], 6, 28 + i * 12, TYPECOL.primary, TYPE.M, "left");
     var keys = Object.keys(FONT), x = 6, y = 28 + words.length * 12 + 8;
     for (var k = 0; k < keys.length; k++) {
-      drawText(ctx, keys[k], x, y, C.mint, 1, "left");
+      drawText(ctx, keys[k], x, y, TYPECOL.mint, TYPE.M, "left");
       x += 12; if (x > LW - 12) { x = 6; y += 12; }
     }
     btn("back", colX() + 26, LH - 28, 100, 20, C.navy, "НАЗАД");
@@ -2326,7 +2325,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (phoneLand && phase !== "play") {
       dimView(ctx, "rgba(8,6,20,0.55)");
       box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
-      drawText(ctx, "ПОВЕРНИ ТЕЛЕФОН", LW / 2, LH / 2 - 14, C.cream, 1, "center");
+      drawText(ctx, "ПОВЕРНИ ТЕЛЕФОН", LW / 2, LH / 2 - 14, TYPECOL.primary, TYPE.M, "center");
       hits = [];
     }
     if (PHONE_INT && FIELD_OY > 0) {

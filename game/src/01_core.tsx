@@ -66,6 +66,21 @@ var C: any = {
   brick: "#463a64", brickL: "#5a4c82", roof: "#342a4e"
 };
 
+
+/* Fixed UI type scale. Sizes are integer multipliers of the 5×7 pixel-font step
+   (S uses the 3×5 TINY face at 1×). Same at any window width / dpr — the canvas
+   scale maps these game pixels to the screen. */
+var TYPE: any = { XL: 3, L: 2, M: 1, S: 1 };
+var TYPEFACE: any = { XL: "pixel", L: "pixel", M: "pixel", S: "tiny" };
+var TYPECOL: any = {
+  primary: C.cream,
+  accent: C.gold,
+  muted: "#9a8ab8",
+  ink: INK,
+  mint: C.mint,
+  danger: C.red
+};
+
 /* Heroes: look + ability. Each ability has its own TYPE (no repeats) and its own CHARGE:
    charge: time (ticks, 50/s) | coins (coins picked) | height (metres climbed) | kills (mobs stomped) */
 var CHARS: any[] = [
@@ -834,6 +849,16 @@ function drawTiny(ctx: Ctx, s: string, x: number, y: number, color: string, alig
   }
   return w;
 }
+
+function typeH(role: string) { return role === "S" ? 5 : 7 * (TYPE[role] || 1); }
+function uiWidth(s: string, role: string) {
+  return role === "S" ? tinyWidth(s) : textWidth(s, TYPE[role] || 1);
+}
+function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: string, align?: string) {
+  if (role === "S") return drawTiny(ctx, s, x, y, color, align);
+  return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
+}
+
 function tinyLines(s: string, maxW: number) {
   s = tinyChars(s);
   if (tinyWidth(s) <= maxW) return [s];
@@ -1096,9 +1121,9 @@ function drawBig(ctx: Ctx, s: string, x: number, y: number, face: string, k: num
 }
 function drawTextO(ctx: Ctx, s: string, x: number, y: number, col: string, align?: string, oc?: string) {
   var o = oc || "#1a1030";
-  drawText(ctx, s, x - 1, y, o, 1, align); drawText(ctx, s, x + 1, y, o, 1, align);
-  drawText(ctx, s, x, y - 1, o, 1, align); drawText(ctx, s, x, y + 1, o, 1, align);
-  drawText(ctx, s, x, y, col, 1, align);
+  drawText(ctx, s, x - 1, y, o, TYPE.M, align); drawText(ctx, s, x + 1, y, o, TYPE.M, align);
+  drawText(ctx, s, x, y - 1, o, TYPE.M, align); drawText(ctx, s, x, y + 1, o, TYPE.M, align);
+  drawText(ctx, s, x, y, col, TYPE.M, align);
 }
 var BRK = { base: "#d46c98", dark: "#8a2e5e", light: "#f6b4d0", crack: "#4a1438" };
 function brkSegs(w: number) {
