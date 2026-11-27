@@ -1506,6 +1506,47 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     box(ctx, x, y, w, h, "transparent", locked ? "#3a3058" : C.cream);
   }
+  /* Encyclopedia detail only. 80×116 Advisor previews, ×4 the 20×29 grid thumbs.
+     Largest integer scale (or exact 1/2, 1/4) that fits; nearest; no smoothing.
+     The grid keeps drawing the 20×29 thumbs via drawMapThumb. */
+  function drawMapDetailThumb(x: number, y: number, maxW: number, maxH: number, id: string, locked: boolean) {
+    x = Math.round(x); y = Math.round(y);
+    maxW = Math.round(maxW); maxH = Math.round(maxH);
+    var im = UI_IMGS["mapdetail_" + id + (locked ? "_locked" : "_open")] || null;
+    if (!(im && im.complete && im.naturalWidth)) {
+      /* Image not warm yet: fall back to the grid thumb, still integer-scaled. */
+      var tw = 20, th = 29;
+      var kfb = Math.max(1, Math.floor(Math.min(maxW / tw, maxH / th) + 1e-6));
+      drawMapThumb(x + Math.floor((maxW - tw * kfb) / 2), y + Math.floor((maxH - th * kfb) / 2), tw * kfb, th * kfb, id, locked);
+      return;
+    }
+    var sw = im.naturalWidth, sh = im.naturalHeight;
+    var dw, dh, k = Math.floor(Math.min(maxW / sw, maxH / sh) + 1e-6);
+    if (k >= 1) { dw = sw * k; dh = sh * k; }
+    else {
+      var div = 2;
+      while (div <= 8) {
+        if (sw % div === 0 && sh % div === 0) {
+          dw = sw / div; dh = sh / div;
+          if (dw >= 1 && dh >= 1 && dw <= maxW && dh <= maxH) break;
+        }
+        div++;
+        dw = 0; dh = 0;
+      }
+      if (!dw) {
+        var tw2 = 20, th2 = 29;
+        var k2 = Math.max(1, Math.floor(Math.min(maxW / tw2, maxH / th2) + 1e-6));
+        drawMapThumb(x + Math.floor((maxW - tw2 * k2) / 2), y + Math.floor((maxH - th2 * k2) / 2), tw2 * k2, th2 * k2, id, locked);
+        return;
+      }
+    }
+    var dx = x + Math.floor((maxW - dw) / 2), dy = y + Math.floor((maxH - dh) / 2);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
+    ctx.drawImage(im, 0, 0, sw, sh, dx, dy, dw, dh);
+    ctx.restore();
+  }
   function drawShop() {
     applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
     dimView(ctx, "rgba(18,14,44,0.32)");
@@ -2097,8 +2138,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var artBoxW = 152 - pad * 2;
     var artY = top + pad;
     if (it.type === "map") {
-      var dtw = 20, dth = 29;
-      drawMapThumb(x + pad + Math.round((artBoxW - dtw) / 2), artY + Math.round((artBoxH - dth) / 2), dtw, dth, it.M.id, !open);
+      drawMapDetailThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
     } else {
       var want = open ? 2 : 1;
       var probe = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);

@@ -276,7 +276,7 @@ async function admin(base, body) {
       // Buy map:jungle (price 80) under mode=2284797 (server returns 404 on /buy)
       await pg.evaluate(() => {
         const s = window.__hoppak.getSave();
-        s.mapBest.city = 600;
+        s.mapBest.city = 2000;
         window.__hoppak.tap('camp');
         window.__hoppak.tap('camp:1');
         window.__hoppak.tap('camp:open');
@@ -345,8 +345,8 @@ async function admin(base, body) {
       assert.strictEqual(finalState.st.queueLen, 0);
       assert.strictEqual(finalState.st.pendingBuysLen, 0);
       assert.strictEqual(finalState.save.coins, 70);
-      assert.strictEqual(finalState.st.profile.best, 600);
-      assert.strictEqual(finalState.save.best, 600);
+      assert.strictEqual(finalState.st.profile.best, 2000);
+      assert.strictEqual(finalState.save.best, 2000);
 
       await pg.evaluate(async () => {
         const g = window.__hoppak;
@@ -359,7 +359,7 @@ async function admin(base, body) {
       });
       const bestState = await pg.evaluate(() => window.__hoppak.profile.getState());
       assert.strictEqual(bestState.queueLen, 0);
-      assert.strictEqual(bestState.profile.best, 600);
+      assert.strictEqual(bestState.profile.best, 2000);
       assert.strictEqual(bestState.profile.coins, 85);
 
       await ctx.close();

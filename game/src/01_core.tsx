@@ -1078,6 +1078,8 @@ function warmUiImages() {
   for (i = 0; i < mapIds.length; i++) {
     loadUiImage("mapthumb_" + mapIds[i] + "_locked", "ui/map_thumbs/" + mapIds[i] + "_locked.png");
     loadUiImage("mapthumb_" + mapIds[i] + "_open", "ui/map_thumbs/" + mapIds[i] + "_open.png");
+    loadUiImage("mapdetail_" + mapIds[i] + "_locked", "ui/map_detail/" + mapIds[i] + "_locked.png");
+    loadUiImage("mapdetail_" + mapIds[i] + "_open", "ui/map_detail/" + mapIds[i] + "_open.png");
   }
 }
 warmUiImages();
