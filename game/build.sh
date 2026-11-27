@@ -32,7 +32,7 @@ parts = [header, "var GAME_I18N_BUILTIN = " + json.dumps(catalog, ensure_ascii=F
          Path("src/00_i18n.tsx").read_text(encoding="utf-8").replace(
              "declare const GAME_I18N_BUILTIN: Record<GameLanguage, GameDictionary>;\n", ""), core]
 parts.extend(Path(f"src/{name}.tsx").read_text(encoding="utf-8")
-             for name in ("01b_art64", "01c_draw64", "01d_hudfont", "02_world", "03_draw", "net", "profile", "04_shell"))
+             for name in ("01b_art64", "01c_draw64", "01d_hudfont", "01e_ency_text", "02_world", "03_draw", "net", "profile", "04_shell"))
 Path("hoppak.page.tsx").write_text("\n".join(parts), encoding="utf-8")
 I18N
 python3 - << 'PY'
