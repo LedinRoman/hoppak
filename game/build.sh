@@ -13,7 +13,7 @@
 set -e
 cd "$(dirname "$0")"
 ESB=/tmp/esb/node_modules/.bin/esbuild
-cat src/01_core.tsx src/02_world.tsx src/03_draw.tsx src/net.tsx src/profile.tsx src/04_shell.tsx > hoppak.page.tsx
+cat src/01_core.tsx src/01b_art64.tsx src/01c_draw64.tsx src/02_world.tsx src/03_draw.tsx src/net.tsx src/profile.tsx src/04_shell.tsx > hoppak.page.tsx
 python3 - << 'PY'
 src = open("hoppak.page.tsx").read()
 game = src.split("/* @@APP */")[0]
@@ -64,7 +64,7 @@ if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
   if [ "${1:-}" = "staging" ]; then
     DEFS="${DEFS} --define:HOP_STAGING=true"
     HTML_SRC="index.staging.html"
-    VER_LABEL="v0.6rc"
+    VER_LABEL="${HOP_VER_LABEL:-v0.6rc}"
   fi
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
     ${DEFS} \

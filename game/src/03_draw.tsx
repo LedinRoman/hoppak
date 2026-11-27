@@ -103,17 +103,23 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     if (moonA > 0) {
       var mx = LW - 21, my = Math.max(28, Math.round(6 + alt * 0.015)); if (menu) my = Math.max(70, my);
       ctx.globalAlpha = moonA;
+      var b64m = bg64(map);
+      if (b64m) { drawBgSprite64(ctx, b64m, "moon", b64m.moon, mx, my); ctx.globalAlpha = 1; } else {
       var mc = map === "space" ? "#a8d8ff" : "#f8e4a8", md = map === "space" ? "#78a8e0" : "#e0c078";
       rect(ctx, mx + 3, my, 10, 16, mc); rect(ctx, mx, my + 3, 16, 10, mc); rect(ctx, mx + 1, my + 1, 14, 14, mc);
       rect(ctx, mx + 4, my + 4, 3, 3, md); rect(ctx, mx + 10, my + 8, 3, 2, md); rect(ctx, mx + 6, my + 11, 2, 2, md);
       rect(ctx, mx + 3, my + 2, 4, 1, "#ffffff");
       ctx.globalAlpha = 1;
+      }
     }
   } else if (map === "jungle" || map === "lava") {
     var sunC = map === "lava" ? "#ffdc60" : "#fff4a8", sunR = map === "lava" ? "#ff9440" : "#ffd868";
     var sx0 = LW - 24, sy0 = Math.max(28, Math.round(14 + alt * 0.01)); if (menu) sy0 = Math.max(70, sy0);
+    var b64s = bg64(map);
+    if (b64s) drawBgSprite64(ctx, b64s, "sun", b64s.sun, LW - 42, sy0 + 30) /* studio layer: 40x40 at (118,58) when sy0=28 */; else {
     ctx.globalAlpha = 0.25; rect(ctx, sx0 - 3, sy0 - 3, 22, 22, sunR); ctx.globalAlpha = 1;
     rect(ctx, sx0 + 3, sy0, 10, 16, sunC); rect(ctx, sx0, sy0 + 3, 16, 10, sunC); rect(ctx, sx0 + 1, sy0 + 1, 14, 14, sunC);
+    }
   }
   /* aurora (city high & ice) */
   var aur = map === "ice" ? 0.85 : map === "city" ? band(m, 900, 1400, 3200, 4200) : 0;
@@ -200,14 +206,18 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
       for (k = 0; k < 7; k++) {
         var cx = mod(Math.floor(hash(k + 10) * 200) + tick * (k % 2 ? 0.04 : -0.03), LW + 60) - 30;
         var cy = mod(k * 61 + alt * 0.18, LH + 60) - 30;
-        drawCloud(ctx, cx, cy, 1, cf, ch, cs);
+        var b64c = bg64(map);
+        if (b64c) { if (b64c.cloudAlpha) ctx.globalAlpha = b64c.cloudAlpha; drawBgSprite64(ctx, b64c, "cs" + (k % b64c.cs.length), b64c.cs[k % b64c.cs.length], cx, cy); }
+        else drawCloud(ctx, cx, cy, 1, cf, ch, cs);
       }
       ctx.globalAlpha = 0.9 * cl;
       var nf = mixHex(sky[2], "#ffffff", 0.58), nh = "#ffffff", ns = mixHex(sky[2], "#201840", 0.12);
       for (k = 0; k < 4; k++) {
         var ncx = mod(Math.floor(hash(k + 20) * 220) + tick * (k % 2 ? 0.09 : -0.07), LW + 80) - 60;
         var ncy = mod(k * 109 + 40 + alt * 0.42, LH + 80) - 40;
-        drawCloud(ctx, ncx, ncy, 2, nf, nh, ns);
+        var b64n = bg64(map);
+        if (b64n) { if (b64n.cloudAlpha) ctx.globalAlpha = b64n.cloudAlpha; drawBgSprite64(ctx, b64n, "cb" + (k % b64n.cb.length), b64n.cb[k % b64n.cb.length], ncx, ncy); }
+        else drawCloud(ctx, ncx, ncy, 2, nf, nh, ns);
       }
       ctx.globalAlpha = 1;
     }
@@ -215,7 +225,11 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   /* map horizon silhouettes */
   var farBase = LH - 64 + alt * 0.1;
   var nearBase = LH - 40 + alt * 0.3;
-  if (map === "city") {
+  var b64h = bg64(map);
+  if (b64h) {
+    drawBgStrip64(ctx, b64h, "far", farBase - b64h.farH);
+    drawBgStrip64(ctx, b64h, "near", nearBase - b64h.nearH);
+  } else if (map === "city") {
     if (farBase - 60 < LH) drawBuildings(ctx, farBase, 3, true, tick);
     if (nearBase - 70 < LH) drawBuildings(ctx, nearBase, 17, false, tick);
   } else if (map === "ice") {
@@ -237,7 +251,10 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   /* start floor */
   var roofY = Math.round(-camY);
   if (roofY < LH && roofY > -40) {
-    if (map === "jungle") {
+    var b64f = bg64(map);
+    if (b64f) {
+      drawBgStrip64(ctx, b64f, "floor", roofY + 3 - b64f.floorRow);
+    } else if (map === "jungle") {
       rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#2a4e36"); rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#62d458");
       for (var tx = 6; tx < LW; tx += 22) { rect(ctx, tx, roofY + 8, 12, 8, "#3a6848"); rect(ctx, tx + 2, roofY + 10, 4, 2, "#80e870"); }
     } else if (map === "ice") {
@@ -278,6 +295,7 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
   if (p.type === "cloud") {
     if (p.broken) return;
     ctx.globalAlpha = p.lifeT < 60 && (p.lifeT >> 3) % 2 ? 0.5 : 1;
+    if (drawPlat64(ctx, p, x, y, w, map, 0)) { ctx.globalAlpha = 1; return; }
     rect(ctx, x + 2, y - 2, w - 4, 6, INK); rect(ctx, x, y, w, 4, INK);
     rect(ctx, x + 3, y - 1, w - 6, 4, "#ffffff"); rect(ctx, x + 1, y + 1, w - 2, 2, "#ffffff");
     rect(ctx, x + 6, y - 3, 6, 2, "#ffffff"); rect(ctx, x + w - 13, y - 3, 7, 2, "#ffffff");
@@ -316,6 +334,9 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
     }
     return;
   }
+  if (drawPlat64(ctx, p, x, y, w, map, p.type === "bounce" && p.springT > 0 ? 1 : 0)) {
+    if (p.spring && drawSpring64(ctx, p, x, y, w)) return;
+  } else {
   if (p.type !== "break") rect(ctx, x + 1, y + 6, w - 1, 1, "rgba(0,0,0,0.28)");
   var i;
   if (p.type === "break") {
@@ -376,6 +397,7 @@ function drawPlatform(ctx: Ctx, p: any, cam: number, mapId?: string, tick?: numb
     ctx.fillStyle = th.nD;
     for (i = 5; i < w - 4; i += 7) ctx.fillRect(x + i, y + 3, 3, 1);
     rect(ctx, x + 2, y + 2, 1, 1, "#ffffff"); rect(ctx, x + w - 3, y + 2, 1, 1, "#ffffff");
+  }
   }
   if (p.spring) {
     var sx = x + Math.floor(w / 2) - 3, h = p.springT > 0 ? 3 : 6;

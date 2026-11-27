@@ -1513,7 +1513,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (i = 0; i < w.coins.length; i++) {
       var cn = w.coins[i];
       if (!cn.taken && cn.y - cam > -8 && cn.y - cam < LH + 4) {
-        withWrapX(cn.x, 6, function (xx: number) { drawCoin(ctx, xx, Math.round(cn.y - cam), w.tick + i * 3); });
+        withWrapX(cn.x, 14, function (xx: number) { if (!drawCoin64(ctx, xx, Math.round(cn.y - cam), w.tick + i * 3)) drawCoin(ctx, xx, Math.round(cn.y - cam), w.tick + i * 3); });
       }
     }
     for (i = 0; i < w.items.length; i++) {
