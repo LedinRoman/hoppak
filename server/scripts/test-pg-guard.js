@@ -188,25 +188,14 @@ function openWs(port) {
 
     const visual = await fetch(`http://127.0.0.1:${PROFILE_PORT}/api/config/visual`);
     assert.strictEqual(visual.headers.get('cache-control'), 'public, max-age=60');
-    assert.deepStrictEqual(await visual.json(), { bg: 80, platforms: 92, hero: 92, mobs: 88, coins: 85 });
+    assert.deepStrictEqual(await visual.json(), { bg: 73, platforms: 85, hero: 87, mobs: 83, coins: 78, shield: 89 });
     const settingsPath = '/api/admin/config/visual';
-    const values = { bg: 65, platforms: 92, hero: 110, mobs: 50, coins: 85 };
-    assert.strictEqual((await api(PROFILE_PORT, 'PUT', settingsPath, values, tok)).status, 401);
-    assert.strictEqual((await api(PROFILE_PORT, 'PUT', settingsPath, { ...values, hero: 110.1 }, ADMIN)).status, 400);
-    assert.strictEqual((await api(PROFILE_PORT, 'PUT', settingsPath, { ...values, hero: 111 }, ADMIN)).status, 400);
-    assert.strictEqual((await api(PROFILE_PORT, 'PUT', settingsPath, { ...values, mobs: undefined }, ADMIN)).status, 400);
-    const changed = await api(PROFILE_PORT, 'PUT', settingsPath, values, ADMIN);
-    assert.strictEqual(changed.status, 200);
-    assert.deepStrictEqual(changed.data, values);
-    const synced = await api(GAME_PORT, 'GET', '/api/config/visual');
-    assert.deepStrictEqual(synced.data, values, 'the second process reads the saved setting');
-    const audit = await sql("SELECT updated_by, updated_at FROM game_settings WHERE key = 'visual_contrast'");
-    assert.strictEqual(audit.rows[0].updated_by, 'admin');
-    assert.ok(audit.rows[0].updated_at instanceof Date);
+    const values = { bg: 65, platforms: 85, hero: 87, mobs: 83, coins: 78 };
+    assert.strictEqual((await api(PROFILE_PORT, 'PUT', settingsPath, values, tok)).status, 404);
+    assert.strictEqual((await api(PROFILE_PORT, 'PUT', settingsPath, values, ADMIN)).status, 404);
     const adminPage = await fetch(`http://127.0.0.1:${PROFILE_PORT}/api/admin`);
-    assert.strictEqual(adminPage.status, 200);
-    assert.ok((await adminPage.text()).includes('id="contrast"'));
-    console.log('PASS visual settings auth, validation, persistence, cache header and admin page');
+    assert.strictEqual(adminPage.status, 404);
+    console.log('PASS visual defaults from code, contrast PUT and admin page removed');
 
     const ws = await openWs(GAME_PORT);
     const msgs = [];

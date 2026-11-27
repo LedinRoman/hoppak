@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
-export const DEFAULT_VISUAL_CONTRAST = { bg: 80, platforms: 92, hero: 92, mobs: 88, coins: 85 };
+export const DEFAULT_VISUAL_CONTRAST = { bg: 73, platforms: 85, hero: 87, mobs: 83, coins: 78, shield: 89 };
 
 @Entity({ name: 'game_settings' })
 export class GameSetting {

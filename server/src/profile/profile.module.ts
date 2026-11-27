@@ -16,7 +16,6 @@ import { TelemetryController } from './telemetry.controller';
 import { ProfileService } from './profile.service';
 import { GameSetting } from '../db/game-setting.entity';
 import { VisualConfigController } from '../admin/visual-config.controller';
-import { AdminPageController } from '../admin/admin-page.controller';
 import { OnlineService } from '../online.service';
 
 const ENTITIES = [Player, PlayerRun, PlayerTelegram, PlayerGeo, RunStart, RulesPlausibility, SuspiciousRun, PlayerAuth, PlayerStats, PlayerPresence, OnlineSnapshot, GameSetting];
@@ -24,7 +23,7 @@ const ENTITIES = [Player, PlayerRun, PlayerTelegram, PlayerGeo, RunStart, RulesP
 @Module({})
 export class ProfileModule {
   static forRoot(): DynamicModule {
-    const controllers = [ProfileController, TelemetryController, VisualConfigController, AdminPageController];
+    const controllers = [ProfileController, TelemetryController, VisualConfigController];
     if (!process.env.DATABASE_URL) {
       return {
         module: ProfileModule,

@@ -941,9 +941,9 @@ function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: 
 }
 
 /* Percent of the original colors. These defaults also apply to offline play.
-   shield is local (95 = -5 from 100). Admin payload uses platforms/mobs/coins;
+   shield is local (89). The /api/config/visual payload uses platforms/mobs/coins;
    the original five keys must all be valid to apply it, shield is optional. */
-var VISUAL_CONTRAST: any = { bg: 80, platforms: 92, hero: 92, mobs: 88, coins: 85, shield: 95 };
+var VISUAL_CONTRAST: any = { bg: 73, platforms: 85, hero: 87, mobs: 83, coins: 78, shield: 89 };
 
 function loadVisualContrast(origin: string): Promise<void> {
   if (typeof fetch === "undefined") return Promise.resolve();
@@ -968,9 +968,9 @@ function loadVisualContrast(origin: string): Promise<void> {
     }).then(finish, function () { finish(); });
   });
 }
-/* Jungle snake only: render at 92% of the usual 0.5 scale, contrast 83. Shared by draw + spawn clearance. */
+/* Jungle snake only: render at 92% of the usual 0.5 scale, contrast 77. Shared by draw + spawn clearance. */
 var SNAKE_DRAW_SCALE = 0.5 * 0.92;
-var SNAKE_CONTRAST = 83;
+var SNAKE_CONTRAST = 77;
 var SNAKE_HEAD_DRAW_H = 64 * SNAKE_DRAW_SCALE;
 /* Skull in the 64×64 head frame (leaf/neck tuft is y 0..15, not damaging).
    Tight box from the idle/strike sheets; scale 0.46. Vine is never in this box. */

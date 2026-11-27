@@ -37,7 +37,7 @@
 	}
 
 	# Profile API (hs-profile). Must stay before handle /api/*.
-	@profile_api path /api/profile /api/profile/* /api/run/* /api/auth/* /api/translations /api/config/visual /api/admin /api/admin/*
+	@profile_api path /api/profile /api/profile/* /api/run/* /api/auth/* /api/translations /api/config/visual /api/admin/*
 	handle @profile_api {
 		reverse_proxy profile:8787
 	}
