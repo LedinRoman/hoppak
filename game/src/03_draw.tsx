@@ -320,7 +320,16 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   if (roofY < viewY1() && roofY > viewY0() - 40) {
     var b64f = bg64(map);
     if (b64f) {
-      drawBgStrip64(ctx, b64f, "floor", roofY + 3 - b64f.floorRow);
+      var floorTop = roofY + 3 - b64f.floorRow;
+      drawBgStrip64(ctx, b64f, "floor", floorTop);
+      /* Menu/lobby: on tall phones the gap between mid-screen buttons and the start floor
+         showed the mid-trunk band of the near layer as dark vertical streaks. Tile the
+         floor's top bush rows upward at native size (no stretch) so that gap stays foliage. */
+      if (menu && b64f.floor) {
+        var bushH = Math.min(14, b64f.floorH || 14);
+        var cover = 20;
+        tileBgStripBand64(ctx, b64f, "floor", floorTop - cover, cover, 0, bushH);
+      }
     } else if (map === "jungle") {
       rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#2a4e36"); rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#62d458");
       for (var tx = 6; tx < LW; tx += 22) { rect(ctx, tx, roofY + 8, 12, 8, "#3a6848"); rect(ctx, tx + 2, roofY + 10, 4, 2, "#80e870"); }

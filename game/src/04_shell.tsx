@@ -289,7 +289,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         VIEW_PAD = 0; VIEW_TOPPAD = 0;
         VIEW_CROP = 0; VIEW_BOT = 0;
         cssWpx = availW;
-        cssHpx = availH;
+        /* Keep a uniform scale (pScale === pScaleY). Leftover CSS pixels below 1 game px stay letterboxed
+           instead of stretching the 346-tall art into the extra height. */
+        cssHpx = lh * cssScale;
       } else {
         cssScale = Math.min(availW / lw, availH / lh);
         VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2); VIEW_TOPPAD = 0;
@@ -659,6 +661,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   /* Wallet row on every screen except the run. Coins stay top-right. Account is the quieter chip and 3×5 nick. */
   function drawWallet() {
+    if (phase === "play") return;
+    if (!showWalletChip() && !showWalletCoins()) return;
     var top = menuTop();
     var s = String(save.coins);
     var w = textWidth(s, TYPE.M) + 9;
@@ -666,7 +670,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var coinX = x - 3;
     var rowY = 1 + top;
     /* No plate behind the wallet count: icon + outlined number only. */
-    coinsLabel(LW - 4, rowY + 3, save.coins, "right");
+    if (showWalletCoins()) coinsLabel(LW - 4, rowY + 3, save.coins, "right");
+    menuLay = menuLay || {};
+    if (showWalletCoins()) menuLay.coins = { x: coinX, y: rowY, w: w + 6, h: CHIP };
+    if (!showWalletChip()) return;
     var linked = telegramLinked();
     var photo = accountPhoto();
     drawChip(3, rowY, linked ? photo : null, !linked);
@@ -678,9 +685,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var logoTop = phase === "menu" && menuLay && menuLay.logo ? menuLay.logo.y : belowBand();
     var hitH = Math.max(24, Math.min(minSide, logoTop - top));
     addHit("acct", 0, top, Math.max(hitH, hitW), hitH);
-    menuLay = menuLay || {};
     menuLay.chip = { x: 3, y: rowY, w: CHIP, h: CHIP };
-    menuLay.coins = { x: coinX, y: rowY, w: w + 6, h: CHIP };
     menuLay.hit = { x: 0, y: top, w: Math.max(hitH, hitW), h: hitH };
   }
   function drawBuy(id: string, x: number, y: number, w: number, h: number, price: number) {
@@ -1092,11 +1097,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   /* Chip row is y = 1+menuTop, height CHIP. Plaques start 4 px under that, same gap as the logo. */
   function bandBottom() { return menuTop() + 1 + CHIP; }
   function belowBand() { return bandBottom() + 4; }
+  /* Coins + account only on the main menu; coins also on the shop. Other screens hide the bar so titles can move up. */
+  function showWalletChip() { return phase === "menu"; }
+  function showWalletCoins() { return phase === "menu" || phase === "shop"; }
+  function contentTop() {
+    if (showWalletChip() || showWalletCoins()) return belowBand();
+    return menuTop() + 4;
+  }
   function markBox(id: string, x: number, y: number, w: number, h: number) {
     screenLay.push({ id: id, x: x, y: y, w: w, h: h });
   }
   function header(title: string, sc: number) {
-    var y = belowBand();
+    var y = contentTop();
     var h = 7 * sc + 10;
     var w = textWidth(title, sc) + 16;
     var x = Math.round(LW / 2 - w / 2);
@@ -1453,7 +1465,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       hits = [];
       screenLay = [];
       dimView(ctx, "rgba(8,6,20,0.62)");
-      var py0 = belowBand();
+      var py0 = contentTop();
       var setH = 178;
       box(ctx, x, py0, 152, setH, C.navy, C.cream);
       markBox("settings", x, py0, 152, setH);
@@ -1499,9 +1511,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.save();
       ctx.imageSmoothingEnabled = false;
       if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
+      ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
       var sw = im.naturalWidth, sh = im.naturalHeight;
-      var k = Math.max(1, Math.floor(Math.min(w / sw, h / sh) + 1e-6));
-      var dw = sw * k, dh = sh * k;
+      /* Integer scale that fits inside the frame; never force 1x if that would overflow. */
+      var k = Math.floor(Math.min(w / sw, h / sh) + 1e-6);
+      var dw, dh;
+      if (k >= 1) { dw = sw * k; dh = sh * k; }
+      else { dw = sw; dh = sh; } /* clip handles overflow; no fractional scale */
       var dx = x + Math.floor((w - dw) / 2), dy = y + Math.floor((h - dh) / 2);
       ctx.drawImage(im, 0, 0, sw, sh, dx, dy, dw, dh);
       ctx.restore();
@@ -1529,6 +1545,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       ctx.save();
       ctx.imageSmoothingEnabled = false;
       if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
+      ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
       ctx.drawImage(off, x, y);
       ctx.restore();
     }
@@ -1728,7 +1745,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawCamp() {
     applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
-    dimView(ctx, "rgba(18,14,44,0.34)");
+    /* Keep the current map background; a stronger dim/desaturate overlay lowers contrast without a new solid fill. */
+    dimView(ctx, "rgba(18,14,44,0.56)");
     var x = colX();
     var hdCamp = header(t('campaign.title'), TYPE.L);
     var tipY = hdCamp.bottom + 4;
@@ -1744,8 +1762,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       markBox("map" + i, x, y, 152, rh - 3);
       box(ctx, x, y, 152, rh - 3, open ? (save.bg === M.id ? "#2a2050" : C.navy) : "#120c1c", bd);
       if (open) {
-        var thumbY = y + Math.round(((rh - 3) - 29) / 2);
-        drawMapThumb(x + 3, thumbY, 20, 29, M.id, false);
+        var thumbH = Math.min(29, Math.max(1, rh - 3));
+        var thumbY = y + Math.round(((rh - 3) - thumbH) / 2);
+        drawMapThumb(x + 3, thumbY, 20, thumbH, M.id, false);
         drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, TYPECOL.primary, TYPE.M, "left");
         var b = mapBest(i);
         if (M.goal) {
@@ -1755,8 +1774,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         } else drawText(ctx, t('score.record', { n: b }), x + 28, y + 15, TYPECOL.accent, TYPE.M, "left");
       } else {
         /* Locked / unbought maps stay unnamed; sketch thumb when Advisor files arrive. */
-        var thumbYl = y + Math.round(((rh - 3) - 29) / 2);
-        drawMapThumb(x + 3, thumbYl, 20, 29, M.id, true);
+        var thumbHl = Math.min(29, Math.max(1, rh - 3));
+        var thumbYl = y + Math.round(((rh - 3) - thumbHl) / 2);
+        drawMapThumb(x + 3, thumbYl, 20, thumbHl, M.id, true);
         drawText(ctx, (i + 1) + ". " + t('map.locked'), x + 28, y + 3, TYPECOL.muted, TYPE.M, "left");
         if (can) {
           drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
@@ -1866,8 +1886,31 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (maxX < 0) return null;
     return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
   }
+  function encyUiSprite(kind: string, locked: boolean) {
+    var key = "ency:" + kind + (locked ? ":L" : ":O");
+    if (encyArtCache[key]) return encyArtCache[key];
+    var im = UI_IMGS["ency_" + kind];
+    if (!(im && im.complete && im.naturalWidth)) return null;
+    var out = document.createElement("canvas");
+    out.width = im.naturalWidth;
+    out.height = im.naturalHeight;
+    var g = out.getContext("2d");
+    if (!g) return null;
+    encyNoSmooth(g);
+    g.drawImage(im, 0, 0);
+    if (locked) encyTint(out);
+    encyArtCache[key] = out;
+    return out;
+  }
+  function encyArtAlign(kind: string) {
+    if (kind === "parrot" || kind === "bat" || kind === "ufo") return "center";
+    return "bottom";
+  }
   function encyMobCanvas(kind: string, scale: number, locked: boolean) {
-    var key = "m:" + kind + ":" + scale + (locked ? ":L" : ":O");
+    var ui = encyUiSprite(kind, locked);
+    if (ui) return ui;
+    /* Leftover mobs (trash, hole, ufo, snake, monkey): 64 art px at 1/2 = 1 game / UI pixel. No upscale. */
+    var key = "m:" + kind + ":g1" + (locked ? ":L" : ":O");
     if (encyArtCache[key]) return encyArtCache[key];
     var sheet = typeof MOB_SPRITES !== "undefined" ? MOB_SPRITES[kind] : null;
     var cv: any = null;
@@ -1883,19 +1926,22 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var fi = ENCY_MOB_FRAME[kind] != null ? ENCY_MOB_FRAME[kind] : 0;
     if (fi > (sheet.n || 1) - 1) fi = 0;
     var fw = sheet.fw, fh = sheet.fh;
+    var dw = Math.max(1, Math.round(fw * 0.5)), dh = Math.max(1, Math.round(fh * 0.5));
     var out = document.createElement("canvas");
-    out.width = fw * scale;
-    out.height = fh * scale;
+    out.width = dw;
+    out.height = dh;
     var g = out.getContext("2d");
     if (!g) return null;
     encyNoSmooth(g);
-    g.drawImage(cv, fi * fw, 0, fw, fh, 0, 0, fw * scale, fh * scale);
+    g.drawImage(cv, fi * fw, 0, fw, fh, 0, 0, dw, dh);
     if (locked) encyTint(out);
     encyArtCache[key] = out;
     return out;
   }
   function encyHeroCanvas(kind: number, scale: number, locked: boolean) {
     var id = (CHARS[kind] || CHARS[0]).id;
+    var ui = encyUiSprite(id, locked);
+    if (ui) return ui;
     var spr = heroSprite(id);
     var ready = !!(spr && spr.complete && (spr.naturalWidth || spr.width));
     var key = "h:" + id + ":" + scale + (locked ? ":L" : ":O");
@@ -1935,20 +1981,32 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dh = Math.max(1, Math.min(maxH, sh));
     return { dw: dw, dh: dh };
   }
-  function encyDrawArt(cv: any, x: number, y: number, w: number, h: number, pad?: number) {
+  /* 1× only — never upscale encyclopedia art. Integer downsample only if the sprite cannot fit. */
+  function encyDrawArt(cv: any, x: number, y: number, w: number, h: number, pad?: number, align?: string) {
     if (!cv) return;
-    if (pad == null) pad = 2;
+    if (pad == null) pad = 0;
+    if (!align) align = "center";
     var innerW = Math.max(1, w - pad * 2), innerH = Math.max(1, h - pad * 2);
     ctx.save();
     ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
     encyNoSmooth(ctx);
-    var bb = encyBBox(cv, 0);
-    var sw = bb ? bb.w : cv.width, sh = bb ? bb.h : cv.height;
-    var sx = bb ? bb.x : 0, sy = bb ? bb.y : 0;
-    var fit = encyIntegerFit(sw, sh, innerW, innerH);
-    var dx = x + pad + Math.round((innerW - fit.dw) / 2);
-    var dy = y + pad + Math.round((innerH - fit.dh) / 2);
-    ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, fit.dw, fit.dh);
+    var sw = cv.width, sh = cv.height;
+    var dw = sw, dh = sh;
+    if (sw > innerW || sh > innerH) {
+      var div = 2;
+      dw = 0; dh = 0;
+      while (div <= 8) {
+        if (sw % div === 0 && sh % div === 0) {
+          var tw = sw / div, th = sh / div;
+          if (tw >= 1 && th >= 1 && tw <= innerW && th <= innerH) { dw = tw; dh = th; break; }
+        }
+        div++;
+      }
+      if (!dw) { dw = Math.min(innerW, sw); dh = Math.min(innerH, sh); }
+    }
+    var dx = x + pad + Math.floor((innerW - dw) / 2);
+    var dy = align === "bottom" ? (y + pad + (innerH - dh)) : (y + pad + Math.floor((innerH - dh) / 2));
+    ctx.drawImage(cv, 0, 0, sw, sh, dx, dy, dw, dh);
     ctx.restore();
   }
   function encyBtn(id: string, x: number, y: number, w: number, h: number, label: string) {
@@ -2029,7 +2087,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     } else {
       var scale = 1;
       var cv = it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
-      encyDrawArt(cv, innerX, innerY, innerW, innerArt);
+      var slotW = 58, slotH = it.type === "hero" ? 44 : 37;
+      var slotX = innerX + Math.max(0, Math.floor((innerW - slotW) / 2));
+      var slotY = innerY + Math.max(0, Math.floor((innerArt - slotH) / 2));
+      if (slotW > innerW) { slotW = innerW; slotX = innerX; }
+      if (slotH > innerArt) { slotH = innerArt; slotY = innerY; }
+      var kind = it.type === "hero" ? (CHARS[it.i] || CHARS[0]).id : it.kind;
+      encyDrawArt(cv, slotX, slotY, slotW, slotH, 0, encyArtAlign(kind));
     }
     var name = open ? (it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name) : t('map.locked');
     var lines = hudLines(name, "S", w - ENCY_PAD * 2);
@@ -2168,14 +2232,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (it.type === "map") {
       drawMapDetailThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
     } else {
-      var want = open ? 2 : 1;
-      var probe = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
-      var bb = probe ? encyBBox(probe, 0) : null;
-      var bw = bb ? bb.w : 64, bh = bb ? bb.h : 64;
-      var scale = want;
-      while (scale > 1 && (bw * scale + 0 > artBoxW || bh * scale + 0 > artBoxH)) scale--;
-      var artCv = scale === 1 ? probe : (it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open));
-      encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH);
+      var artCv = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
+      var kind = it.type === "hero" ? (CHARS[it.i] || CHARS[0]).id : it.kind;
+      encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, encyArtAlign(kind));
     }
     var ty = artY + artBoxH + gap, li;
     for (li = 0; li < nameLines.length; li++) {
@@ -2195,7 +2254,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
     dimView(ctx, "rgba(18,14,44,0.34)");
     var x = colX();
-    var ty = belowBand();
+    var ty = contentTop();
     var title = t('ency.title');
     var tw = hudWidth(title, "M") + 12;
     var th = HUD_M.height + 6;
@@ -3189,7 +3248,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
   /* net: what the online module may use from the shell */
   var netApi: any = {
-    ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned, accountName: accountName, relayout: function () { resize(); },
+    ctx: ctx, btn: btn, header: header, belowBand: contentTop, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned, accountName: accountName, relayout: function () { resize(); },
     sessionReplaced: onSessionReplaced,
     sessionOk: onSessionOk,
     bg: function () { applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); }); dimView(ctx, "rgba(18,14,44,0.32)"); },

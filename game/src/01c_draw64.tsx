@@ -90,11 +90,40 @@ function drawBgStrip64(ctx: Ctx, b: any, k: string, top: number) {
   var xc = Math.round((LW - w) / 2);
   var n0 = Math.floor((viewX0() - xc) / w);
   var y1v = viewY1();
-  if (top + h < y1v) rect(ctx, viewX0(), top + h, viewW(), y1v - top - h, b[k + "Fill"]);
+  /* Tile the strip's own bottom rows to the view edge (integer, no stretch). A solid fill
+     used to show as a hard band on tall menu views; a 1-px sample stretched to fill would
+     look like dark vertical streaks. */
+  if (top + h < y1v) tileBgStripBand64(ctx, b, k, top + h, y1v - top - h, Math.max(0, h - 8), Math.min(8, h));
   for (var n = n0; xc + n * w < LW + VIEW_PAD; n++) {
     var tx = xc + n * w;
     if ((n & 1) === 0) ctx.drawImage(cv, tx, top);
     else { ctx.save(); ctx.translate(tx + w, top); ctx.scale(-1, 1); ctx.drawImage(cv, 0, 0); ctx.restore(); }
+  }
+}
+/** Repeat a source band of a 160-wide background strip at native size, mirrored like the strip itself. */
+function tileBgStripBand64(ctx: Ctx, b: any, k: string, destTop: number, destH: number, srcY: number, srcH: number) {
+  var cv = art64Cv("bg:" + b.__id + k, b[k]);
+  if (!cv || destH <= 0 || srcH <= 0) return;
+  destTop = Math.round(destTop);
+  destH = Math.round(destH);
+  srcY = Math.max(0, Math.round(srcY));
+  srcH = Math.max(1, Math.round(srcH));
+  var w = b[k + "W"], maxH = b[k + "H"] || cv.height;
+  if (srcY >= maxH) return;
+  if (srcY + srcH > maxH) srcH = maxH - srcY;
+  if (srcH <= 0) return;
+  var xc = Math.round((LW - w) / 2);
+  var n0 = Math.floor((viewX0() - xc) / w);
+  ctx.imageSmoothingEnabled = false;
+  if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
+  var y, n, tx, dh;
+  for (y = destTop; y < destTop + destH; y += srcH) {
+    dh = Math.min(srcH, destTop + destH - y);
+    for (n = n0; xc + n * w < LW + VIEW_PAD; n++) {
+      tx = xc + n * w;
+      if ((n & 1) === 0) ctx.drawImage(cv, 0, srcY, w, dh, tx, y, w, dh);
+      else { ctx.save(); ctx.translate(tx + w, y); ctx.scale(-1, 1); ctx.drawImage(cv, 0, srcY, w, dh, 0, 0, w, dh); ctx.restore(); }
+    }
   }
 }
 /* First strip row (from the top) that is opaque across the whole width: anything stacked behind may end
