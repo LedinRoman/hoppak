@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "grok/canvas";
-var GAME_I18N_BUILTIN = {"ru": {"campaign.reach": "ДОЙДИ ДО ЦЕЛИ →", "campaign.title": "КАМПАНИЯ", "campaign.unlock": "ОТКРОЙ ЗА МОНЕТЫ", "common.back": "НАЗАД", "common.close": "ЗАКРЫТЬ", "common.menu": "МЕНЮ", "common.off": "ВЫКЛ", "common.on": "ВКЛ", "common.retry": "ЕЩЁ РАЗ", "common.soon": "СКОРО", "common.soon_lower": "Скоро", "death.black_hole": "ДЫРА", "death.detail": "{name} · {n} М", "death.fall": "СОРВАЛСЯ · {n} М", "death.hole": "ЗАТЯНУЛА ДЫРА · {n} М", "death.left": "ВЫШЕЛ · {n} М", "death.mob": "МОБ", "death.mob_f": "СБИЛА {name} · {n} М", "death.mob_m": "СБИЛ {name} · {n} М", "death.shot": "СБИЛ ВЫСТРЕЛ · {n} М", "death.spirit": "ДУХ", "death.vine": "ЛИАНА", "debug.font": "ШРИФТ", "err.bad_map": "НЕТ ТАКОЙ КАРТЫ", "err.bad_pid": "НЕКОГО ВЫГНАТЬ", "err.busy": "СЕРВЕР ЗАНЯТ", "err.connection": "НЕТ СВЯЗИ", "err.connection_lost": "СВЯЗЬ ПОТЕРЯНА", "err.full": "КОМНАТА ЗАПОЛНЕНА", "err.generic": "ОШИБКА", "err.in_game": "ЗАБЕГ УЖЕ ИДЁТ", "err.internal": "ОШИБКА СЕРВЕРА", "err.invalid_name": "ТАКИЕ БУКВЫ НЕ ПОДХОДЯТ", "err.kicked": "ТЕБЯ ВЫГНАЛИ", "err.no_connection": "НЕТ СЕТИ", "err.no_room": "ТЫ НЕ В КОМНАТЕ", "err.not_found": "КОМНАТА НЕ НАЙДЕНА", "err.not_host": "ТОЛЬКО ХОСТ", "err.not_ready": "НЕ ВСЕ ГОТОВЫ", "err.reload": "ОБНОВИ СТРАНИЦУ", "err.reload_line1": "ОБНОВИ", "err.reload_line2": "СТРАНИЦУ", "err.room_closed": "КОМНАТА ЗАКРЫТА", "err.unsupported": "МУЛЬТИПЛЕЕР НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ", "err.unsupported_line1": "МУЛЬТИПЛЕЕР НЕДОСТУПЕН", "err.unsupported_line2": "В ЭТОЙ ВЕРСИИ", "floor.break": "ЛОМАЕТСЯ ПОСЛЕ ПРЫЖКА", "floor.goal": "ДОПРЫГНИ ДО ЦЕЛИ", "floor.record": "ТВОЙ РЕКОРД - ПОБЕЙ!", "hero.knight.ability": "ТАРАН", "hero.knight.description1": "ПИКЕ ЩИТОМ ВНИЗ,", "hero.knight.description2": "С ПЛАТФОРМЫ СУПЕРПРЫЖОК", "hero.knight.destination": "РЫЦАРЯ", "hero.knight.name": "Рыцарь", "hero.knight.type": "АТАКА", "hero.mage.ability": "ТЕЛЕПОРТ", "hero.mage.description1": "МИГОМ НА НАДЁЖНУЮ", "hero.mage.description2": "ПЛАТФОРМУ ВЫШЕ", "hero.mage.destination": "МАГА", "hero.mage.name": "Маг", "hero.mage.type": "ТЕЛЕПОРТ", "hero.ninja.ability": "СТЕНЫ", "hero.ninja.description1": "6 СЕК ЦЕПЛЯЕТСЯ ЗА КРАЙ,", "hero.ninja.description2": "ТАП - ПРЫЖОК ОТ СТЕНЫ", "hero.ninja.destination": "НИНДЗЯ", "hero.ninja.name": "Ниндзя", "hero.ninja.type": "ПАРКУР", "hero.pilot.ability": "РЫВОК", "hero.pilot.description1": "КОРОТКИЙ БЫСТРЫЙ", "hero.pilot.description2": "ВЗЛЁТ НА РАНЦЕ", "hero.pilot.destination": "КАПИТАНА", "hero.pilot.name": "Капитан", "hero.pilot.type": "БАЗОВЫЙ", "hero.pirate.ability": "КРЮК", "hero.pirate.description1": "КРЮК К ПЛАТФОРМЕ", "hero.pirate.description2": "ИЛИ МОНЕТЕ, БЬЁТ МОБОВ", "hero.pirate.destination": "ПИРАТА", "hero.pirate.name": "Пират", "hero.pirate.type": "МАНЁВР", "hero.robot.ability": "КОСМОЩИТ", "hero.robot.description1": "ЩИТ 4 СЕК, СПАСЁТ", "hero.robot.description2": "ОТ ПАДЕНИЯ", "hero.robot.destination": "РОБОТА", "hero.robot.name": "Робот", "hero.robot.type": "ЗАЩИТА", "kick.line1": "АККАУНТ ОТКРЫТ", "kick.line2": "НА ДРУГОМ УСТРОЙСТВЕ", "lobby.add_bot": "БОТ +", "lobby.bot": "БОТ", "lobby.bot_number": "БОТ {n}", "lobby.create": "СОЗДАТЬ КОМНАТУ", "lobby.empty": "СВОБОДНО", "lobby.enter_code": "ВОЙТИ ПО КОДУ", "lobby.hero": "ГЕРОЙ: {name} ▶", "lobby.join": "ВОЙТИ", "lobby.leave": "ВЫЙТИ", "lobby.map": "КАРТА: {name}", "lobby.max_players": "ДО 4 ИГРОКОВ НА КАРТЕ", "lobby.name": "ИМЯ: {name}", "lobby.name_prompt": "Имя для друзей (до 10 букв)", "lobby.player": "ИГРОК", "lobby.ready": "ГОТОВ ✓", "lobby.room": "КОМНАТА", "lobby.room_code": "КОД КОМНАТЫ", "lobby.round": "РАУНД {n}", "lobby.set_ready": "Я ГОТОВ", "lobby.share_code": "СКАЖИ КОД ДРУЗЬЯМ", "lobby.start": "НАЧАТЬ", "lobby.start_solo": "НАЧАТЬ ОДНОМУ", "lobby.waiting_ready": "ЖДЁМ ГОТОВНОСТИ", "lobby.with_bots": "ЗАБЕГ С БОТАМИ", "lobby.you": "ТЫ", "map.aqua.destination": "ОКЕАНА", "map.aqua.location": "В ОКЕАНЕ", "map.aqua.name": "ОКЕАН", "map.city.destination": "ГОРОДА", "map.city.location": "В ГОРОДЕ", "map.city.name": "ГОРОД", "map.effect_bounce": "ПРУЖИНЫ ЧАЩЕ", "map.effect_bubble": "ПУЗЫРИ", "map.effect_gravity": "СЛАБАЯ ГРАВИТАЦИЯ", "map.effect_ice": "ЛЁД: СКОЛЬЗКО", "map.effect_lava": "ЖАРКИЕ ПЛАТФОРМЫ", "map.goal_at": "{n} М {name}", "map.ice.destination": "ЛЕДНИКА", "map.ice.location": "В ЛЕДНИКЕ", "map.ice.name": "ЛЕДНИК", "map.jungle.destination": "ДЖУНГЛЕЙ", "map.jungle.location": "В ДЖУНГЛЯХ", "map.jungle.name": "ДЖУНГЛИ", "map.jungle.opened": "ДЖУНГЛИ ОТКРЫТЫ!", "map.lava.destination": "ВУЛКАНА", "map.lava.location": "НА ВУЛКАНЕ", "map.lava.name": "ВУЛКАН", "map.locked": "???", "map.opened": "{name} ОТКРЫТ!", "map.reach_at": "ДОЙДИ ДО {n} М {name}", "map.space.destination": "КОСМОСА", "map.space.location": "В КОСМОСЕ", "map.space.name": "КОСМОС", "map.unlock_first": "СНАЧАЛА ОТКРОЙ {name}", "menu.choose_hero": "ВЫБРАТЬ ГЕРОЯ", "menu.encyclopedia": "СПРАВОЧНИК", "menu.friends": "ДРУЗЬЯ", "menu.friends_soon": "Скоро в 0.9", "menu.home": "ГЛАВНАЯ", "menu.leagues": "ЛИГИ", "menu.leagues_soon": "Скоро в 0.8", "menu.map_best": "{name} · {n} М", "menu.map_progress": "{name} · {n}/{goal} М", "menu.maps": "КАРТЫ", "menu.multiplayer": "МУЛЬТИПЛЕЕР", "menu.options": "ОПЦИИ", "menu.play": "ИГРАТЬ ▶", "menu.quests_soon": "ЗАДАНИЯ · СКОРО", "menu.tagline": "ПРЫГАЙ ВЫШЕ ВСЕХ", "menu.title": "ХОППАК", "mob.alien": "ПРИШЕЛЕЦ", "mob.bat": "МЫШЬ", "mob.blob": "СЛИЗЕНЬ", "mob.bob": "МЕДУЗА", "mob.comet": "КОМЕТА", "mob.crab": "КРАБ", "mob.ember": "ОГНЕШАР", "mob.firebat": "ОГНЕМЫШЬ", "mob.frog": "ЛЯГУШКА", "mob.frost": "ЛЕДЯНОЙ ДУХ", "mob.hole": "ЧЁРНАЯ ДЫРА", "mob.magma": "ЛАВОСЛИЗЬ", "mob.monkey": "ОБЕЗЬЯНА", "mob.owl": "СОВА", "mob.parrot": "ПОПУГАЙ", "mob.penguin": "ПИНГВИН", "mob.puffer": "РЫБА-ЁЖ", "mob.ray": "СКАТ", "mob.snake": "ЗМЕЯ-ЛИАНА", "mob.spitter": "ПЛЕВУН", "mob.ufo": "НЛО", "mob.whirl": "ВОДОВОРОТ", "mob.wind": "ВЬЮГА", "net.connecting": "ПОДКЛЮЧАЕМСЯ...", "net.online": "СЕРВЕР НА СВЯЗИ", "net.host": "ХОСТ", "net.ready": "ГОТОВ", "net.wait": "ЖДЁМ", "net.reconnecting": "ПЕРЕПОДКЛЮЧАЕМСЯ...", "pickup.collected": "{name}!", "pickup.magnet": "МАГНИТ", "pickup.rocket": "РАКЕТА", "pickup.shield": "ЩИТ", "pickup.treasure": "КЛАД +{n}", "play.climb": "ЛЕЗЬ ВВЕРХ!", "play.desktop_ability_hint": "← → / A D — движение · ↑ / Пробел — способность · F — кино · Esc — пауза", "play.desktop_hint": "← → / A D — движение · F — кино · Esc — пауза", "play.dome_saved": "КОСМОЩИТ СПАС!", "play.eliminated": "ВЫБЫЛ", "play.frozen": "ЗАМОРОЗКА!", "play.go": "ВПЕРЁД", "play.no_platform": "НЕТ ПЛАТФОРМЫ", "play.no_target": "НЕТ ЦЕЛИ", "play.pause": "ПАУЗА", "play.player_eliminated": "{name} ВЫБЫЛ", "play.resume": "ПРОДОЛЖИТЬ", "play.rotate": "ПОВЕРНИ ТЕЛЕФОН", "play.shield_saved": "ЩИТ СПАС!", "play.snake_caught": "ЗМЕЯ СХВАТИЛА!", "play.spectating": "СМОТРИМ {name}", "play.swipe": "СВАЙП ↑ {name}", "play.tap": "ТАП СЛЕВА / СПРАВА", "play.waiting": "ЖДЁМ ОСТАЛЬНЫХ", "play.walk": "← → ХОД", "profile.guest": "ВХОД: ГОСТЕВОЙ", "profile.local_progress": "ПРОГРЕСС НА УСТРОЙСТВЕ", "profile.merged": "ПРОГРЕСС ОБЪЕДИНЁН", "profile.telegram": "ВХОД: TELEGRAM", "profile.title": "ПРОФИЛЬ", "results.again": "ЕЩЁ РАЗ ▶", "results.collected": "СОБРАНО", "results.height": "ВЫСОТА {n} М", "results.hero_available": "ХВАТАЕТ НА {name}!", "results.hero_progress": "ДО {name} ● {n}", "results.hero_remaining": "ДО {name} ОСТАЛОСЬ ● {n}", "results.map_available": "{name}: МОЖНО ОТКРЫТЬ", "results.map_progress": "ДО {name} {n}/{goal}", "results.map_record": "РЕКОРД КАРТЫ {n} М", "results.new_record": "НОВЫЙ РЕКОРД КАРТЫ {n} М", "results.next_map": "ДО {name}", "results.rematch": "РЕВАНШ ▶", "results.round": "СЧЁТ ВЕЧЕРА · РАУНД {n}", "results.round_short": "СЧЁТ · РАУНД {n}", "results.runs_left": {"one": "ЕЩЁ {n} ЗАБЕГ", "few": "ЕЩЁ {n} ЗАБЕГА", "many": "ЕЩЁ {n} ЗАБЕГОВ", "other": "ЕЩЁ {n} ЗАБЕГОВ"}, "results.summary": "{wins}П  {best}М", "results.title": "ИТОГИ", "results.treasures": "КЛАДЫ", "results.you": " (ТЫ)", "reward.bonus_cap": "БОНУС СРЕЗАН", "reward.coins_cap": "МОНЕТЫ СРЕЗАНЫ", "reward.duplicate": "УЖЕ ЗАСЧИТАН", "reward.fast": "СЛИШКОМ БЫСТРО", "reward.height_cap": "ВЫСОТА СРЕЗАНА", "reward.height_min": "ЗА ВЫСОТУ · С 100 М", "reward.rejected": "НЕ ПРИНЯТО", "score.goal": "ЦЕЛЬ {n} М", "score.record": "РЕКОРД {n} М", "score.record_line": "РЕКОРД {n}", "settings.cinema": "Кино", "settings.en": "EN", "settings.language": "ЯЗЫК: {mode}", "settings.ru": "RU", "settings.tilt": "НАКЛОН: {state}", "settings.tilt_unavailable": "НАКЛОН НЕДОСТУПЕН", "settings.title": "НАСТРОЙКИ", "settings.vibration": "ВИБРО: {state}", "settings.volume": "ГРОМКОСТЬ", "shop.buy": "КУПИТЬ ● {n}", "shop.charge": "ЗАРЯД: ", "shop.confirm": "ТОЧНО? ● {n}", "shop.need": "НУЖНО ЕЩЁ ● {n}", "shop.purchased": "КУПЛЕНО!", "shop.select": "ВЫБРАТЬ", "shop.selected": "ВЫБРАН", "shop.title": "МАГАЗИН", "unit.coins": {"one": "{n} МОНЕТА", "few": "{n} МОНЕТЫ", "many": "{n} МОНЕТ", "other": "{n} МОНЕТ"}, "unit.meter_progress": "{n}/{goal} М", "unit.meters": "{n} М", "unit.mobs": {"one": "{n} МОБ", "few": "{n} МОБА", "many": "{n} МОБОВ", "other": "{n} МОБОВ"}, "unit.seconds": "{n} СЕК", "menu.play_label": "ИГРАТЬ", "mob.trash": "БАЧОК"}, "en": {"campaign.reach": "REACH THE GOAL →", "campaign.title": "CAMPAIGN", "campaign.unlock": "UNLOCK WITH COINS", "common.back": "BACK", "common.close": "CLOSE", "common.menu": "MENU", "common.off": "OFF", "common.on": "ON", "common.retry": "RETRY", "common.soon": "SOON", "common.soon_lower": "Soon", "death.black_hole": "HOLE", "death.detail": "{name} · {n} M", "death.fall": "FELL · {n} M", "death.hole": "BLACK HOLE · {n} M", "death.left": "LEFT · {n} M", "death.mob": "MOB", "death.mob_f": "HIT BY {name} · {n} M", "death.mob_m": "HIT BY {name} · {n} M", "death.shot": "SHOT · {n} M", "death.spirit": "SPIRIT", "death.vine": "VINE", "debug.font": "FONT", "err.bad_map": "UNKNOWN MAP", "err.bad_pid": "NO PLAYER TO KICK", "err.busy": "SERVER BUSY", "err.connection": "NO CONNECTION", "err.connection_lost": "CONNECTION LOST", "err.full": "ROOM FULL", "err.generic": "ERROR", "err.in_game": "RACE IN PROGRESS", "err.internal": "SERVER ERROR", "err.invalid_name": "INVALID LETTERS", "err.kicked": "YOU WERE KICKED", "err.no_connection": "OFFLINE", "err.no_room": "NOT IN A ROOM", "err.not_found": "ROOM NOT FOUND", "err.not_host": "HOST ONLY", "err.not_ready": "PLAYERS NOT READY", "err.reload": "RELOAD THE PAGE", "err.reload_line1": "RELOAD", "err.reload_line2": "THE PAGE", "err.room_closed": "ROOM CLOSED", "err.unsupported": "MULTIPLAYER UNAVAILABLE IN THIS VERSION", "err.unsupported_line1": "MULTIPLAYER UNAVAILABLE", "err.unsupported_line2": "IN THIS VERSION", "floor.break": "BREAKS AFTER A JUMP", "floor.goal": "REACH THE GOAL", "floor.record": "BEAT YOUR RECORD!", "hero.knight.ability": "SLAM", "hero.knight.description1": "DIVE WITH SHIELD", "hero.knight.description2": "THEN SUPER JUMP", "hero.knight.destination": "KNIGHT", "hero.knight.name": "Knight", "hero.knight.type": "ATTACK", "hero.mage.ability": "TELEPORT", "hero.mage.description1": "WARP TO A SAFE", "hero.mage.description2": "PLATFORM ABOVE", "hero.mage.destination": "MAGE", "hero.mage.name": "Mage", "hero.mage.type": "TELEPORT", "hero.ninja.ability": "WALLS", "hero.ninja.description1": "GRAB LEDGES FOR 6S", "hero.ninja.description2": "TAP TO WALL JUMP", "hero.ninja.destination": "NINJA", "hero.ninja.name": "Ninja", "hero.ninja.type": "PARKOUR", "hero.pilot.ability": "DASH", "hero.pilot.description1": "SHORT FAST BOOST", "hero.pilot.description2": "WITH A JETPACK", "hero.pilot.destination": "CAPTAIN", "hero.pilot.name": "Captain", "hero.pilot.type": "BASIC", "hero.pirate.ability": "HOOK", "hero.pirate.description1": "HOOK A PLATFORM", "hero.pirate.description2": "OR COIN, HITS MOBS", "hero.pirate.destination": "PIRATE", "hero.pirate.name": "Pirate", "hero.pirate.type": "MOBILITY", "hero.robot.ability": "SPACE SHIELD", "hero.robot.description1": "4S SHIELD SAVES", "hero.robot.description2": "YOU FROM FALLS", "hero.robot.destination": "ROBOT", "hero.robot.name": "Robot", "hero.robot.type": "DEFENSE", "kick.line1": "ACCOUNT OPEN", "kick.line2": "ON ANOTHER DEVICE", "lobby.add_bot": "BOT +", "lobby.bot": "BOT", "lobby.bot_number": "BOT {n}", "lobby.create": "CREATE ROOM", "lobby.empty": "EMPTY", "lobby.enter_code": "JOIN WITH CODE", "lobby.hero": "HERO: {name} ▶", "lobby.join": "JOIN", "lobby.leave": "LEAVE", "lobby.map": "MAP: {name}", "lobby.max_players": "UP TO 4 PLAYERS", "lobby.name": "NAME: {name}", "lobby.name_prompt": "Name for friends (up to 10 letters)", "lobby.player": "PLAYER", "lobby.ready": "READY ✓", "lobby.room": "ROOM", "lobby.room_code": "ROOM CODE", "lobby.round": "ROUND {n}", "lobby.set_ready": "I AM READY", "lobby.share_code": "SHARE CODE WITH FRIENDS", "lobby.start": "START", "lobby.start_solo": "START SOLO", "lobby.waiting_ready": "WAITING FOR READY", "lobby.with_bots": "BOT RACE", "lobby.you": "YOU", "map.aqua.destination": "OCEAN", "map.aqua.location": "IN OCEAN", "map.aqua.name": "OCEAN", "map.city.destination": "CITY", "map.city.location": "IN CITY", "map.city.name": "CITY", "map.effect_bounce": "MORE SPRINGS", "map.effect_bubble": "BUBBLES", "map.effect_gravity": "LOW GRAVITY", "map.effect_ice": "SLIPPERY ICE", "map.effect_lava": "HOT PLATFORMS", "map.goal_at": "{n} M {name}", "map.ice.destination": "GLACIER", "map.ice.location": "IN GLACIER", "map.ice.name": "GLACIER", "map.jungle.destination": "JUNGLE", "map.jungle.location": "IN JUNGLE", "map.jungle.name": "JUNGLE", "map.jungle.opened": "JUNGLE UNLOCKED!", "map.lava.destination": "VOLCANO", "map.lava.location": "ON VOLCANO", "map.lava.name": "VOLCANO", "map.locked": "???", "map.opened": "{name} UNLOCKED!", "map.reach_at": "REACH {n} M {name}", "map.space.destination": "SPACE", "map.space.location": "IN SPACE", "map.space.name": "SPACE", "map.unlock_first": "UNLOCK {name} FIRST", "menu.choose_hero": "CHOOSE HERO", "menu.encyclopedia": "GUIDE", "menu.friends": "FRIENDS", "menu.friends_soon": "Soon in 0.9", "menu.home": "HOME", "menu.leagues": "LEAGUES", "menu.leagues_soon": "Soon in 0.8", "menu.map_best": "{name} · {n} M", "menu.map_progress": "{name} · {n}/{goal} M", "menu.maps": "MAPS", "menu.multiplayer": "MULTIPLAYER", "menu.options": "OPTIONS", "menu.play": "PLAY ▶", "menu.quests_soon": "QUESTS · SOON", "menu.tagline": "JUMP THE HIGHEST", "menu.title": "HOPPAK", "mob.alien": "ALIEN", "mob.bat": "BAT", "mob.blob": "SLIME", "mob.bob": "JELLYFISH", "mob.comet": "COMET", "mob.crab": "CRAB", "mob.ember": "FIREBALL", "mob.firebat": "FIREBAT", "mob.frog": "FROG", "mob.frost": "ICE SPIRIT", "mob.hole": "BLACK HOLE", "mob.magma": "LAVA SLIME", "mob.monkey": "MONKEY", "mob.owl": "OWL", "mob.parrot": "PARROT", "mob.penguin": "PENGUIN", "mob.puffer": "PUFFER", "mob.ray": "RAY", "mob.snake": "VINE SNAKE", "mob.spitter": "SPITTER", "mob.ufo": "UFO", "mob.whirl": "WHIRLPOOL", "mob.wind": "BLIZZARD", "net.connecting": "CONNECTING...", "net.online": "SERVER ONLINE", "net.host": "HOST", "net.ready": "READY", "net.wait": "WAIT", "net.reconnecting": "RECONNECTING...", "pickup.collected": "{name}!", "pickup.magnet": "MAGNET", "pickup.rocket": "ROCKET", "pickup.shield": "SHIELD", "pickup.treasure": "TREASURE +{n}", "play.climb": "CLIMB!", "play.desktop_ability_hint": "← → / A D — move · ↑ / Space — ability · F — cinema · Esc — pause", "play.desktop_hint": "← → / A D — move · F — cinema · Esc — pause", "play.dome_saved": "SHIELD SAVED YOU!", "play.eliminated": "OUT", "play.frozen": "FROZEN!", "play.go": "GO", "play.no_platform": "NO PLATFORM", "play.no_target": "NO TARGET", "play.pause": "PAUSE", "play.player_eliminated": "{name} IS OUT", "play.resume": "RESUME", "play.rotate": "ROTATE PHONE", "play.shield_saved": "SHIELD SAVED YOU!", "play.snake_caught": "SNAKE CAUGHT YOU!", "play.spectating": "WATCHING {name}", "play.swipe": "SWIPE ↑ {name}", "play.tap": "TAP LEFT / RIGHT", "play.waiting": "WAITING FOR OTHERS", "play.walk": "← → MOVE", "profile.guest": "LOGIN: GUEST", "profile.local_progress": "PROGRESS ON DEVICE", "profile.merged": "PROGRESS MERGED", "profile.telegram": "LOGIN: TELEGRAM", "profile.title": "PROFILE", "results.again": "AGAIN ▶", "results.collected": "COLLECTED", "results.height": "HEIGHT {n} M", "results.hero_available": "CAN BUY {name}!", "results.hero_progress": "TO {name} ● {n}", "results.hero_remaining": "{name}: ● {n} LEFT", "results.map_available": "{name}: CAN UNLOCK", "results.map_progress": "TO {name} {n}/{goal}", "results.map_record": "MAP BEST {n} M", "results.new_record": "MAP BEST: {n} M", "results.next_map": "TO {name}", "results.rematch": "REMATCH ▶", "results.round": "SCORES · ROUND {n}", "results.round_short": "SCORES · ROUND {n}", "results.runs_left": {"one": "{n} RUN LEFT", "other": "{n} RUNS LEFT"}, "results.summary": "{wins}W  {best}M", "results.title": "RESULTS", "results.treasures": "TREASURES", "results.you": " (YOU)", "reward.bonus_cap": "BONUS CAPPED", "reward.coins_cap": "COINS CAPPED", "reward.duplicate": "ALREADY COUNTED", "reward.fast": "TOO FAST", "reward.height_cap": "HEIGHT CAPPED", "reward.height_min": "HEIGHT BONUS AT 100 M", "reward.rejected": "REJECTED", "score.goal": "GOAL {n} M", "score.record": "BEST {n} M", "score.record_line": "BEST {n}", "settings.cinema": "Cinema", "settings.en": "EN", "settings.language": "LANGUAGE: {mode}", "settings.ru": "RU", "settings.tilt": "TILT: {state}", "settings.tilt_unavailable": "TILT UNAVAILABLE", "settings.title": "SETTINGS", "settings.vibration": "VIBRATE: {state}", "settings.volume": "VOLUME", "shop.buy": "BUY ● {n}", "shop.charge": "CHARGE: ", "shop.confirm": "SURE? ● {n}", "shop.need": "NEED ● {n} MORE", "shop.purchased": "BOUGHT!", "shop.select": "SELECT", "shop.selected": "SELECTED", "shop.title": "SHOP", "unit.coins": {"one": "{n} COIN", "other": "{n} COINS"}, "unit.meter_progress": "{n}/{goal} M", "unit.meters": "{n} M", "unit.mobs": {"one": "{n} MOB", "other": "{n} MOBS"}, "unit.seconds": "{n} SEC", "menu.play_label": "PLAY", "mob.trash": "TRASH CAN"}};
+var GAME_I18N_BUILTIN = {"ru": {"campaign.reach": "ДОЙДИ ДО ЦЕЛИ →", "campaign.title": "КАМПАНИЯ", "campaign.unlock": "ОТКРОЙ ЗА МОНЕТЫ", "common.back": "НАЗАД", "common.close": "ЗАКРЫТЬ", "common.menu": "МЕНЮ", "common.off": "ВЫКЛ", "common.on": "ВКЛ", "common.retry": "ЕЩЁ РАЗ", "common.soon": "СКОРО", "death.black_hole": "ДЫРА", "death.detail": "{name} · {n} М", "death.fall": "СОРВАЛСЯ · {n} М", "death.hole": "ЗАТЯНУЛА ДЫРА · {n} М", "death.left": "ВЫШЕЛ · {n} М", "death.mob": "МОБ", "death.mob_f": "СБИЛА {name} · {n} М", "death.mob_m": "СБИЛ {name} · {n} М", "death.shot": "СБИЛ ВЫСТРЕЛ · {n} М", "death.spirit": "ДУХ", "death.vine": "ЛИАНА", "debug.font": "ШРИФТ", "err.bad_map": "НЕТ ТАКОЙ КАРТЫ", "err.bad_pid": "НЕКОГО ВЫГНАТЬ", "err.busy": "СЕРВЕР ЗАНЯТ", "err.connection": "НЕТ СВЯЗИ", "err.connection_lost": "СВЯЗЬ ПОТЕРЯНА", "err.full": "КОМНАТА ЗАПОЛНЕНА", "err.generic": "ОШИБКА", "err.in_game": "ЗАБЕГ УЖЕ ИДЁТ", "err.internal": "ОШИБКА СЕРВЕРА", "err.invalid_name": "ТАКИЕ БУКВЫ НЕ ПОДХОДЯТ", "err.kicked": "ТЕБЯ ВЫГНАЛИ", "err.no_connection": "НЕТ СЕТИ", "err.no_room": "ТЫ НЕ В КОМНАТЕ", "err.not_found": "КОМНАТА НЕ НАЙДЕНА", "err.not_host": "ТОЛЬКО ХОСТ", "err.not_ready": "НЕ ВСЕ ГОТОВЫ", "err.reload": "ОБНОВИ СТРАНИЦУ", "err.reload_line1": "ОБНОВИ", "err.reload_line2": "СТРАНИЦУ", "err.room_closed": "КОМНАТА ЗАКРЫТА", "err.unsupported": "МУЛЬТИПЛЕЕР НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ", "err.unsupported_line1": "МУЛЬТИПЛЕЕР НЕДОСТУПЕН", "err.unsupported_line2": "В ЭТОЙ ВЕРСИИ", "floor.break": "ЛОМАЕТСЯ ПОСЛЕ ПРЫЖКА", "floor.goal": "ДОПРЫГНИ ДО ЦЕЛИ", "floor.record": "ТВОЙ РЕКОРД - ПОБЕЙ!", "hero.knight.ability": "ТАРАН", "hero.knight.description1": "ПИКЕ ЩИТОМ ВНИЗ,", "hero.knight.description2": "С ПЛАТФОРМЫ СУПЕРПРЫЖОК", "hero.knight.destination": "РЫЦАРЯ", "hero.knight.name": "Рыцарь", "hero.knight.type": "АТАКА", "hero.mage.ability": "ТЕЛЕПОРТ", "hero.mage.description1": "МИГОМ НА НАДЁЖНУЮ", "hero.mage.description2": "ПЛАТФОРМУ ВЫШЕ", "hero.mage.destination": "МАГА", "hero.mage.name": "Маг", "hero.mage.type": "ТЕЛЕПОРТ", "hero.ninja.ability": "СТЕНЫ", "hero.ninja.description1": "6 СЕК ЦЕПЛЯЕТСЯ ЗА КРАЙ,", "hero.ninja.description2": "ТАП - ПРЫЖОК ОТ СТЕНЫ", "hero.ninja.destination": "НИНДЗЯ", "hero.ninja.name": "Ниндзя", "hero.ninja.type": "ПАРКУР", "hero.pilot.ability": "РЫВОК", "hero.pilot.description1": "КОРОТКИЙ БЫСТРЫЙ", "hero.pilot.description2": "ВЗЛЁТ НА РАНЦЕ", "hero.pilot.destination": "КАПИТАНА", "hero.pilot.name": "Капитан", "hero.pilot.type": "БАЗОВЫЙ", "hero.pirate.ability": "КРЮК", "hero.pirate.description1": "КРЮК К ПЛАТФОРМЕ", "hero.pirate.description2": "ИЛИ МОНЕТЕ, БЬЁТ МОБОВ", "hero.pirate.destination": "ПИРАТА", "hero.pirate.name": "Пират", "hero.pirate.type": "МАНЁВР", "hero.robot.ability": "КОСМОЩИТ", "hero.robot.description1": "ЩИТ 4 СЕК, СПАСЁТ", "hero.robot.description2": "ОТ ПАДЕНИЯ", "hero.robot.destination": "РОБОТА", "hero.robot.name": "Робот", "hero.robot.type": "ЗАЩИТА", "kick.line1": "АККАУНТ ОТКРЫТ", "kick.line2": "НА ДРУГОМ УСТРОЙСТВЕ", "lobby.add_bot": "БОТ +", "lobby.bot": "БОТ", "lobby.bot_number": "БОТ {n}", "lobby.create": "СОЗДАТЬ КОМНАТУ", "lobby.empty": "СВОБОДНО", "lobby.enter_code": "ВОЙТИ ПО КОДУ", "lobby.hero": "ГЕРОЙ: {name} ▶", "lobby.join": "ВОЙТИ", "lobby.leave": "ВЫЙТИ", "lobby.map": "КАРТА: {name}", "lobby.max_players": "ДО 4 ИГРОКОВ НА КАРТЕ", "lobby.name": "ИМЯ: {name}", "lobby.name_prompt": "Имя для друзей (до 10 букв)", "lobby.player": "ИГРОК", "lobby.ready": "ГОТОВ ✓", "lobby.room": "КОМНАТА", "lobby.room_code": "КОД КОМНАТЫ", "lobby.round": "РАУНД {n}", "lobby.set_ready": "Я ГОТОВ", "lobby.share_code": "СКАЖИ КОД ДРУЗЬЯМ", "lobby.start": "НАЧАТЬ", "lobby.start_solo": "НАЧАТЬ ОДНОМУ", "lobby.waiting_ready": "ЖДЁМ ГОТОВНОСТИ", "lobby.with_bots": "ЗАБЕГ С БОТАМИ", "lobby.you": "ТЫ", "map.aqua.destination": "ОКЕАНА", "map.aqua.location": "В ОКЕАНЕ", "map.aqua.name": "ОКЕАН", "map.city.destination": "ГОРОДА", "map.city.location": "В ГОРОДЕ", "map.city.name": "ГОРОД", "map.effect_bounce": "ПРУЖИНЫ ЧАЩЕ", "map.effect_bubble": "ПУЗЫРИ", "map.effect_gravity": "СЛАБАЯ ГРАВИТАЦИЯ", "map.effect_ice": "ЛЁД: СКОЛЬЗКО", "map.effect_lava": "ЖАРКИЕ ПЛАТФОРМЫ", "map.goal_prev": "{n} М НА ПРЕДЫДУЩЕЙ КАРТЕ", "map.ice.destination": "ЛЕДНИКА", "map.ice.location": "В ЛЕДНИКЕ", "map.ice.name": "ЛЕДНИК", "map.jungle.destination": "ДЖУНГЛЕЙ", "map.jungle.location": "В ДЖУНГЛЯХ", "map.jungle.name": "ДЖУНГЛИ", "map.jungle.opened": "ДЖУНГЛИ ОТКРЫТЫ!", "map.lava.destination": "ВУЛКАНА", "map.lava.location": "НА ВУЛКАНЕ", "map.lava.name": "ВУЛКАН", "map.locked": "???", "map.opened": "{name} ОТКРЫТ!", "map.space.destination": "КОСМОСА", "map.space.location": "В КОСМОСЕ", "map.space.name": "КОСМОС", "map.unlock_first": "СНАЧАЛА ОТКРОЙ ПРЕДЫДУЩУЮ КАРТУ", "menu.choose_hero": "ВЫБРАТЬ ГЕРОЯ", "menu.encyclopedia_soon": "СПРАВОЧНИК · СКОРО", "menu.friends": "ДРУЗЬЯ", "menu.friends_soon": "Скоро в 0.9", "menu.home": "ГЛАВНАЯ", "menu.leagues": "ЛИГИ", "menu.leagues_soon": "Скоро в 0.8", "menu.map_best": "{name} · {n} М", "menu.map_progress": "{name} · {n}/{goal} М", "menu.maps": "КАРТЫ", "menu.multiplayer": "МУЛЬТИПЛЕЕР", "menu.options": "ОПЦИИ", "menu.play": "ИГРАТЬ ▶", "menu.quests_soon": "ЗАДАНИЯ · СКОРО", "menu.tagline": "ПРЫГАЙ ВЫШЕ ВСЕХ", "menu.title": "ХОППАК", "mob.alien": "ПРИШЕЛЕЦ", "mob.bat": "МЫШЬ", "mob.blob": "СЛИЗЕНЬ", "mob.bob": "МЕДУЗА", "mob.comet": "КОМЕТА", "mob.crab": "КРАБ", "mob.ember": "ОГНЕШАР", "mob.firebat": "ОГНЕМЫШЬ", "mob.frog": "ЛЯГУШКА", "mob.frost": "ЛЕДЯНОЙ ДУХ", "mob.hole": "ЧЁРНАЯ ДЫРА", "mob.magma": "ЛАВОСЛИЗЬ", "mob.monkey": "ОБЕЗЬЯНА", "mob.owl": "СОВА", "mob.parrot": "ПОПУГАЙ", "mob.penguin": "ПИНГВИН", "mob.puffer": "РЫБА-ЁЖ", "mob.ray": "СКАТ", "mob.snake": "ЗМЕЯ-ЛИАНА", "mob.spitter": "ПЛЕВУН", "mob.ufo": "НЛО", "mob.whirl": "ВОДОВОРОТ", "mob.wind": "ВЬЮГА", "net.connecting": "ПОДКЛЮЧАЕМСЯ...", "net.online": "СЕРВЕР НА СВЯЗИ", "net.host": "ХОСТ", "net.ready": "ГОТОВ", "net.wait": "ЖДЁМ", "net.reconnecting": "ПЕРЕПОДКЛЮЧАЕМСЯ...", "pickup.collected": "{name}!", "pickup.magnet": "МАГНИТ", "pickup.rocket": "РАКЕТА", "pickup.shield": "ЩИТ", "pickup.treasure": "КЛАД +{n}", "play.desktop_ability_hint": "← → / A D — движение · ↑ / Пробел — способность · F — кино · Esc — пауза", "play.desktop_hint": "← → / A D — движение · F — кино · Esc — пауза", "play.dome_saved": "КОСМОЩИТ СПАС!", "play.eliminated": "ВЫБЫЛ", "play.frozen": "ЗАМОРОЗКА!", "play.go": "ВПЕРЁД", "play.no_platform": "НЕТ ПЛАТФОРМЫ", "play.no_target": "НЕТ ЦЕЛИ", "play.pause": "ПАУЗА", "play.player_eliminated": "{name} ВЫБЫЛ", "play.resume": "ПРОДОЛЖИТЬ", "play.rotate": "ПОВЕРНИ ТЕЛЕФОН", "play.shield_saved": "ЩИТ СПАС!", "play.snake_caught": "ЗМЕЯ СХВАТИЛА!", "play.spectating": "СМОТРИМ {name}", "play.waiting": "ЖДЁМ ОСТАЛЬНЫХ", "profile.guest": "ВХОД: ГОСТЕВОЙ", "profile.local_progress": "ПРОГРЕСС НА УСТРОЙСТВЕ", "profile.merged": "ПРОГРЕСС ОБЪЕДИНЁН", "profile.telegram": "ВХОД: TELEGRAM", "profile.title": "ПРОФИЛЬ", "results.again": "ЕЩЁ РАЗ ▶", "results.collected": "СОБРАНО", "results.height": "ВЫСОТА {n} М", "results.hero_available": "ХВАТАЕТ НА {name}!", "results.hero_progress": "ДО {name} ● {n}", "results.hero_remaining": "ДО {name} ОСТАЛОСЬ ● {n}", "results.map_available": "МОЖНО ОТКРЫТЬ СЛЕДУЮЩУЮ", "results.map_progress": "СЛЕДУЮЩАЯ {n}/{goal}", "results.map_record": "РЕКОРД КАРТЫ {n} М", "results.new_record": "НОВЫЙ РЕКОРД КАРТЫ {n} М", "results.next_map": "ДО СЛЕДУЮЩЕЙ КАРТЫ", "results.rematch": "РЕВАНШ ▶", "results.round": "СЧЁТ ВЕЧЕРА · РАУНД {n}", "results.round_short": "СЧЁТ · РАУНД {n}", "results.runs_left": {"one": "ЕЩЁ {n} ЗАБЕГ", "few": "ЕЩЁ {n} ЗАБЕГА", "many": "ЕЩЁ {n} ЗАБЕГОВ", "other": "ЕЩЁ {n} ЗАБЕГОВ"}, "results.summary": "{wins}П  {best}М", "results.title": "ИТОГИ", "results.treasures": "КЛАДЫ", "results.you": " (ТЫ)", "reward.bonus_cap": "БОНУС СРЕЗАН", "reward.coins_cap": "МОНЕТЫ СРЕЗАНЫ", "reward.duplicate": "УЖЕ ЗАСЧИТАН", "reward.fast": "СЛИШКОМ БЫСТРО", "reward.height_cap": "ВЫСОТА СРЕЗАНА", "reward.height_min": "ЗА ВЫСОТУ · С 100 М", "reward.rejected": "НЕ ПРИНЯТО", "score.goal": "ЦЕЛЬ {n} М", "score.record": "РЕКОРД {n} М", "score.record_line": "РЕКОРД {n}", "settings.cinema": "Кино", "settings.en": "EN", "settings.language": "ЯЗЫК: {mode}", "settings.ru": "RU", "settings.tilt": "НАКЛОН: {state}", "settings.tilt_unavailable": "НАКЛОН НЕДОСТУПЕН", "settings.title": "НАСТРОЙКИ", "settings.vibration": "ВИБРО: {state}", "settings.volume": "ГРОМКОСТЬ", "shop.buy": "КУПИТЬ ● {n}", "shop.charge": "ЗАРЯД: ", "shop.confirm": "ТОЧНО? ● {n}", "shop.need": "НУЖНО ЕЩЁ ● {n}", "shop.purchased": "КУПЛЕНО!", "shop.select": "ВЫБРАТЬ", "shop.selected": "ВЫБРАН", "shop.title": "МАГАЗИН", "unit.coins": {"one": "{n} МОНЕТА", "few": "{n} МОНЕТЫ", "many": "{n} МОНЕТ", "other": "{n} МОНЕТ"}, "unit.meter_progress": "{n}/{goal} М", "unit.meters": "{n} М", "unit.mobs": {"one": "{n} МОБ", "few": "{n} МОБА", "many": "{n} МОБОВ", "other": "{n} МОБОВ"}, "unit.seconds": "{n} СЕК", "menu.play_label": "ИГРАТЬ", "mob.trash": "БАЧОК"}, "en": {"campaign.reach": "REACH THE GOAL →", "campaign.title": "CAMPAIGN", "campaign.unlock": "UNLOCK WITH COINS", "common.back": "BACK", "common.close": "CLOSE", "common.menu": "MENU", "common.off": "OFF", "common.on": "ON", "common.retry": "RETRY", "common.soon": "SOON", "death.black_hole": "HOLE", "death.detail": "{name} · {n} M", "death.fall": "FELL · {n} M", "death.hole": "BLACK HOLE · {n} M", "death.left": "LEFT · {n} M", "death.mob": "MOB", "death.mob_f": "HIT BY {name} · {n} M", "death.mob_m": "HIT BY {name} · {n} M", "death.shot": "SHOT · {n} M", "death.spirit": "SPIRIT", "death.vine": "VINE", "debug.font": "FONT", "err.bad_map": "UNKNOWN MAP", "err.bad_pid": "NO PLAYER TO KICK", "err.busy": "SERVER BUSY", "err.connection": "NO CONNECTION", "err.connection_lost": "CONNECTION LOST", "err.full": "ROOM FULL", "err.generic": "ERROR", "err.in_game": "RACE IN PROGRESS", "err.internal": "SERVER ERROR", "err.invalid_name": "INVALID LETTERS", "err.kicked": "YOU WERE KICKED", "err.no_connection": "OFFLINE", "err.no_room": "NOT IN A ROOM", "err.not_found": "ROOM NOT FOUND", "err.not_host": "HOST ONLY", "err.not_ready": "PLAYERS NOT READY", "err.reload": "RELOAD THE PAGE", "err.reload_line1": "RELOAD", "err.reload_line2": "THE PAGE", "err.room_closed": "ROOM CLOSED", "err.unsupported": "MULTIPLAYER UNAVAILABLE IN THIS VERSION", "err.unsupported_line1": "MULTIPLAYER UNAVAILABLE", "err.unsupported_line2": "IN THIS VERSION", "floor.break": "BREAKS AFTER A JUMP", "floor.goal": "REACH THE GOAL", "floor.record": "BEAT YOUR RECORD!", "hero.knight.ability": "SLAM", "hero.knight.description1": "DIVE WITH SHIELD", "hero.knight.description2": "THEN SUPER JUMP", "hero.knight.destination": "KNIGHT", "hero.knight.name": "Knight", "hero.knight.type": "ATTACK", "hero.mage.ability": "TELEPORT", "hero.mage.description1": "WARP TO A SAFE", "hero.mage.description2": "PLATFORM ABOVE", "hero.mage.destination": "MAGE", "hero.mage.name": "Mage", "hero.mage.type": "TELEPORT", "hero.ninja.ability": "WALLS", "hero.ninja.description1": "GRAB LEDGES FOR 6S", "hero.ninja.description2": "TAP TO WALL JUMP", "hero.ninja.destination": "NINJA", "hero.ninja.name": "Ninja", "hero.ninja.type": "PARKOUR", "hero.pilot.ability": "DASH", "hero.pilot.description1": "SHORT FAST BOOST", "hero.pilot.description2": "WITH A JETPACK", "hero.pilot.destination": "CAPTAIN", "hero.pilot.name": "Captain", "hero.pilot.type": "BASIC", "hero.pirate.ability": "HOOK", "hero.pirate.description1": "HOOK A PLATFORM", "hero.pirate.description2": "OR COIN, HITS MOBS", "hero.pirate.destination": "PIRATE", "hero.pirate.name": "Pirate", "hero.pirate.type": "MOBILITY", "hero.robot.ability": "SPACE SHIELD", "hero.robot.description1": "4S SHIELD SAVES", "hero.robot.description2": "YOU FROM FALLS", "hero.robot.destination": "ROBOT", "hero.robot.name": "Robot", "hero.robot.type": "DEFENSE", "kick.line1": "ACCOUNT OPEN", "kick.line2": "ON ANOTHER DEVICE", "lobby.add_bot": "BOT +", "lobby.bot": "BOT", "lobby.bot_number": "BOT {n}", "lobby.create": "CREATE ROOM", "lobby.empty": "EMPTY", "lobby.enter_code": "JOIN WITH CODE", "lobby.hero": "HERO: {name} ▶", "lobby.join": "JOIN", "lobby.leave": "LEAVE", "lobby.map": "MAP: {name}", "lobby.max_players": "UP TO 4 PLAYERS", "lobby.name": "NAME: {name}", "lobby.name_prompt": "Name for friends (up to 10 letters)", "lobby.player": "PLAYER", "lobby.ready": "READY ✓", "lobby.room": "ROOM", "lobby.room_code": "ROOM CODE", "lobby.round": "ROUND {n}", "lobby.set_ready": "I AM READY", "lobby.share_code": "SHARE CODE WITH FRIENDS", "lobby.start": "START", "lobby.start_solo": "START SOLO", "lobby.waiting_ready": "WAITING FOR READY", "lobby.with_bots": "BOT RACE", "lobby.you": "YOU", "map.aqua.destination": "OCEAN", "map.aqua.location": "IN OCEAN", "map.aqua.name": "OCEAN", "map.city.destination": "CITY", "map.city.location": "IN CITY", "map.city.name": "CITY", "map.effect_bounce": "MORE SPRINGS", "map.effect_bubble": "BUBBLES", "map.effect_gravity": "LOW GRAVITY", "map.effect_ice": "SLIPPERY ICE", "map.effect_lava": "HOT PLATFORMS", "map.goal_prev": "REACH {n} M ON THE PREVIOUS MAP", "map.ice.destination": "GLACIER", "map.ice.location": "IN GLACIER", "map.ice.name": "GLACIER", "map.jungle.destination": "JUNGLE", "map.jungle.location": "IN JUNGLE", "map.jungle.name": "JUNGLE", "map.jungle.opened": "JUNGLE UNLOCKED!", "map.lava.destination": "VOLCANO", "map.lava.location": "ON VOLCANO", "map.lava.name": "VOLCANO", "map.locked": "???", "map.opened": "{name} UNLOCKED!", "map.space.destination": "SPACE", "map.space.location": "IN SPACE", "map.space.name": "SPACE", "map.unlock_first": "UNLOCK THE PREVIOUS MAP FIRST", "menu.choose_hero": "CHOOSE HERO", "menu.encyclopedia_soon": "GUIDE · SOON", "menu.friends": "FRIENDS", "menu.friends_soon": "Soon in 0.9", "menu.home": "HOME", "menu.leagues": "LEAGUES", "menu.leagues_soon": "Soon in 0.8", "menu.map_best": "{name} · {n} M", "menu.map_progress": "{name} · {n}/{goal} M", "menu.maps": "MAPS", "menu.multiplayer": "MULTIPLAYER", "menu.options": "OPTIONS", "menu.play": "PLAY ▶", "menu.quests_soon": "QUESTS · SOON", "menu.tagline": "JUMP THE HIGHEST", "menu.title": "HOPPAK", "mob.alien": "ALIEN", "mob.bat": "BAT", "mob.blob": "SLIME", "mob.bob": "JELLYFISH", "mob.comet": "COMET", "mob.crab": "CRAB", "mob.ember": "FIREBALL", "mob.firebat": "FIREBAT", "mob.frog": "FROG", "mob.frost": "ICE SPIRIT", "mob.hole": "BLACK HOLE", "mob.magma": "LAVA SLIME", "mob.monkey": "MONKEY", "mob.owl": "OWL", "mob.parrot": "PARROT", "mob.penguin": "PENGUIN", "mob.puffer": "PUFFER", "mob.ray": "RAY", "mob.snake": "VINE SNAKE", "mob.spitter": "SPITTER", "mob.ufo": "UFO", "mob.whirl": "WHIRLPOOL", "mob.wind": "BLIZZARD", "net.connecting": "CONNECTING...", "net.online": "SERVER ONLINE", "net.host": "HOST", "net.ready": "READY", "net.wait": "WAIT", "net.reconnecting": "RECONNECTING...", "pickup.collected": "{name}!", "pickup.magnet": "MAGNET", "pickup.rocket": "ROCKET", "pickup.shield": "SHIELD", "pickup.treasure": "TREASURE +{n}", "play.desktop_ability_hint": "← → / A D — move · ↑ / Space — ability · F — cinema · Esc — pause", "play.desktop_hint": "← → / A D — move · F — cinema · Esc — pause", "play.dome_saved": "SHIELD SAVED YOU!", "play.eliminated": "OUT", "play.frozen": "FROZEN!", "play.go": "GO", "play.no_platform": "NO PLATFORM", "play.no_target": "NO TARGET", "play.pause": "PAUSE", "play.player_eliminated": "{name} IS OUT", "play.resume": "RESUME", "play.rotate": "ROTATE PHONE", "play.shield_saved": "SHIELD SAVED YOU!", "play.snake_caught": "SNAKE CAUGHT YOU!", "play.spectating": "WATCHING {name}", "play.waiting": "WAITING FOR OTHERS", "profile.guest": "LOGIN: GUEST", "profile.local_progress": "PROGRESS ON DEVICE", "profile.merged": "PROGRESS MERGED", "profile.telegram": "LOGIN: TELEGRAM", "profile.title": "PROFILE", "results.again": "AGAIN ▶", "results.collected": "COLLECTED", "results.height": "HEIGHT {n} M", "results.hero_available": "CAN BUY {name}!", "results.hero_progress": "TO {name} ● {n}", "results.hero_remaining": "{name}: ● {n} LEFT", "results.map_available": "NEXT MAP CAN UNLOCK", "results.map_progress": "NEXT MAP {n}/{goal}", "results.map_record": "MAP BEST {n} M", "results.new_record": "MAP BEST: {n} M", "results.next_map": "TO THE NEXT MAP", "results.rematch": "REMATCH ▶", "results.round": "SCORES · ROUND {n}", "results.round_short": "SCORES · ROUND {n}", "results.runs_left": {"one": "{n} RUN LEFT", "other": "{n} RUNS LEFT"}, "results.summary": "{wins}W  {best}M", "results.title": "RESULTS", "results.treasures": "TREASURES", "results.you": " (YOU)", "reward.bonus_cap": "BONUS CAPPED", "reward.coins_cap": "COINS CAPPED", "reward.duplicate": "ALREADY COUNTED", "reward.fast": "TOO FAST", "reward.height_cap": "HEIGHT CAPPED", "reward.height_min": "HEIGHT BONUS AT 100 M", "reward.rejected": "REJECTED", "score.goal": "GOAL {n} M", "score.record": "BEST {n} M", "score.record_line": "BEST {n}", "settings.cinema": "Cinema", "settings.en": "EN", "settings.language": "LANGUAGE: {mode}", "settings.ru": "RU", "settings.tilt": "TILT: {state}", "settings.tilt_unavailable": "TILT UNAVAILABLE", "settings.title": "SETTINGS", "settings.vibration": "VIBRATE: {state}", "settings.volume": "VOLUME", "shop.buy": "BUY ● {n}", "shop.charge": "CHARGE: ", "shop.confirm": "SURE? ● {n}", "shop.need": "NEED ● {n} MORE", "shop.purchased": "BOUGHT!", "shop.select": "SELECT", "shop.selected": "SELECTED", "shop.title": "SHOP", "unit.coins": {"one": "{n} COIN", "other": "{n} COINS"}, "unit.meter_progress": "{n}/{goal} M", "unit.meters": "{n} M", "unit.mobs": {"one": "{n} MOB", "other": "{n} MOBS"}, "unit.seconds": "{n} SEC", "menu.play_label": "PLAY", "mob.trash": "TRASH CAN"}};
 /* Built-in dictionaries are inserted here by build.sh. */
 type GameLanguage = "ru" | "en";
 type GameMessage = string | Record<string, string>;
@@ -967,6 +967,21 @@ function typeH(role: string) { return role === "S" ? 5 : 7 * (TYPE[role] || 1); 
 function uiWidth(s: string, role: string) {
   return role === "S" ? tinyWidth(s) : textWidth(s, TYPE[role] || 1);
 }
+function typeLines(s: string, role: string, maxW: number) {
+  s = String(s || "");
+  if (uiWidth(s, role) <= maxW) return [s];
+  if (role === "S") return tinyLines(s, maxW);
+  var parts = s.split(" ");
+  if (parts.length <= 1) return [s];
+  var lines: string[] = [], cur = parts[0];
+  for (var i = 1; i < parts.length; i++) {
+    var try_ = cur + " " + parts[i];
+    if (uiWidth(try_, role) <= maxW) cur = try_;
+    else { lines.push(cur); cur = parts[i]; }
+  }
+  lines.push(cur);
+  return lines;
+}
 function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: string, align?: string) {
   if (role === "S") return drawTiny(ctx, s, x, y, color, align);
   return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
@@ -1037,6 +1052,11 @@ function warmUiImages() {
     "icon_grid_map", "icon_grid_multiplayer", "icon_grid_encyclopedia", "icon_grid_quests"
   ];
   for (i = 0; i < menuFiles.length; i++) loadUiImage("menu_" + menuFiles[i], "ui/menu/" + menuFiles[i] + ".png");
+  var mapIds = ["city", "jungle", "ice", "lava", "aqua", "space"];
+  for (i = 0; i < mapIds.length; i++) {
+    loadUiImage("mapthumb_" + mapIds[i] + "_locked", "ui/map_thumbs/" + mapIds[i] + "_locked.png");
+    loadUiImage("mapthumb_" + mapIds[i] + "_open", "ui/map_thumbs/" + mapIds[i] + "_open.png");
+  }
 }
 warmUiImages();
 /* Nearest-neighbour only, dest size an integer multiple of the source. */
@@ -2089,7 +2109,8 @@ function grabPlayer(w: any, p: any, mo: any) {
   p.grabT = 45; p.grabMob = mo; mo.cool = 160;
   if (p.id === 0) toast(w, t('play.snake_caught'));
 }
-function toast(w: any, s: string) { w.toast = s; w.toastT = 70; }
+/* v1.0: in-game floating/intro hint texts are off (break, ability names, pickups…). */
+function toast(w: any, _s: string) { /* no-op */ }
 function hasLandablePlat(w: any, p: any) {
   var feet = p.y + PH, reach = 28;
   for (var i = 0; i < w.platforms.length; i++) {
@@ -6384,8 +6405,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       lobbyMap = om[mod(li + (id === "lmap:next" ? 1 : -1), om.length)]; return;
     }
     if (id === "shop" || id === "hero:menu") { showSet = false; showProf = false; phase = "shop"; return; }
-    if (id === "ency") { say(t('common.soon')); return; }
-    if (id === "tab:shop") { say(t('common.soon_lower')); return; }
+    if (id === "ency" || id === "soon" || id === "tab:shop") { say(t('common.soon')); return; }
     if (id === "tab:leagues") { say(t('menu.leagues_soon')); return; }
     if (id === "tab:friends") { say(t('menu.friends_soon')); return; }
     if (id === "tab:home") { showSet = false; showProf = false; if (phase !== "menu") goMenu(); return; }
@@ -6433,8 +6453,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     flashT = 0;
     /* A tap only highlights an open map. ИГРАТЬ on the menu starts that map. */
     if (mapOpen(i)) { if (save.bg !== M.id) { save.bg = M.id; writeSave(save); } return; }
-    if (!mapOpen(i - 1)) { say(t('map.unlock_first', { name: MAPS[i - 1].name })); return; }
-    if (!mapGoalMet(i)) { say(t('map.reach_at', { n: MAPS[i - 1].goal, name: where(i - 1) })); return; }
+    if (!mapOpen(i - 1)) { say(t('map.unlock_first')); return; }
+    if (!mapGoalMet(i)) { say(t('map.goal_prev', { n: MAPS[i - 1].goal })); return; }
   }
   function nextClosable() {
     for (var i = 1; i < MAPS.length; i++) if (!mapOpen(i) && mapGoalMet(i)) return i;
@@ -6637,10 +6657,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (campCard >= 0) { fy = Math.round(LH / 2 - 70) + 84; fh = 16; }
       else { fy = 36; fh = 22; } /* under the title, in the tip-plaque row */
     } else if (unlock) { fy = 36; fh = 16; }
-    var w = Math.min(LW - 8, textWidth(flash, sc) + 16);
+    var flines = typeLines(flash, "M", LW - 24);
+    if (flines.length > 1) fh = Math.max(fh, 6 + flines.length * 10);
+    var w = Math.min(LW - 8, 16 + Math.max.apply(null, flines.map(function (ln: string) { return textWidth(ln, sc); })));
     ctx.globalAlpha = Math.min(1, flashT / 20);
     box(ctx, Math.round(LW / 2 - w / 2), fy, w, fh, C.navy, C.gold);
-    drawText(ctx, flash, LW / 2, fy + 4, TYPECOL.accent, sc, "center");
+    for (var fi = 0; fi < flines.length; fi++) {
+      drawText(ctx, flines[fi], LW / 2, fy + 4 + fi * 10, TYPECOL.accent, sc, "center");
+    }
     ctx.globalAlpha = 1;
   }
   function plaque() {
@@ -6716,13 +6740,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!drawNineSlice(ctx, cellKey, x, y, w, h, UI_SLICE.cell)) {
       box(ctx, x, y, w, h, dim ? "#12101c" : C.navy, dim ? "#5a4a72" : C.cream);
     }
-    /* Advisor layout: 16×16 icon at (x+4,y+5), text from x+24, ≥4 px after the icon, right edge ≤ x+w-5. */
-    var ix = x + 4, iy = y + 5;
+    /* Temporary menu layout (Roman is reworking the HUD). Keep icon/text/tab coords in these helpers so a new set of sprites can drop in without touching hero/platform/bg. 16×16 icon, 6 px gap to the label, 4 px cell padding. */
+    var pad = 4, gap = 6, iconS = 16;
+    var ix = x + pad, iy = y + Math.floor((h - iconS) / 2);
     var iconKey = "menu_icon_" + icon;
     if (dim) ctx.globalAlpha = 0.45;
     drawUiPx(ctx, uiImgReady(iconKey) ? iconKey : icon, ix, iy, 1);
     if (dim) ctx.globalAlpha = 1;
-    var tx = x + 24, tw = (x + w - 5) - tx;
+    var tx = ix + iconS + gap, tw = (x + w - pad) - tx;
     var col = dim ? TYPECOL.muted : TYPECOL.primary;
     var lines = tinyLines(label, tw);
     var block = lines.length * 6 - 1;
@@ -6888,14 +6913,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     var playDy = playSt === "pressed" ? 1 : 0;
     drawBig(ctx, t('menu.play_label'), LW / 2, L.playY + 4 + playDy, TYPECOL.ink, TYPE.L, "center");
-    drawText(ctx, sub, LW / 2, L.playY + 22 + playDy, TYPECOL.ink, TYPE.M, "center");
-    var hgap = 2;
-    var gw = 75;
+    drawText(ctx, sub, LW / 2, L.playY + 23 + playDy, TYPECOL.ink, TYPE.M, "center");
+    var hgap = 4;
+    var gw = 74;
     var gx2 = x + gw + hgap;
     var gy2 = L.gridY + L.gridH + L.gridGap;
     drawGridCell("camp", x, L.gridY, gw, L.gridH, "grid_map", t('menu.maps'));
     drawGridCell("net:menu", gx2, L.gridY, gw, L.gridH, "grid_multiplayer", t('menu.multiplayer'));
-    drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", t('menu.encyclopedia'));
+    drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", t('menu.encyclopedia_soon'), true);
     drawGridCell("soon", gx2, gy2, gw, L.gridH, "grid_quests", t('menu.quests_soon'), true);
     var tabs = [
       { id: "tab:shop", key: "shop", label: t('shop.title'), lock: true },
@@ -6923,16 +6948,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         var fill = on ? "#264575" : (tb.lock ? "#140e1e" : "#18172a");
         rect(ctx, tx, L.tabY + L.tabH, tw, LH - L.tabY - L.tabH, fill);
       }
-      var ix = tb.lock ? tx + 3 : tx + 8;
-      var iy = L.tabY + 4;
+      /* Own tab layout: 16×16 icon centred, label 6 px below it, lock in the top-right. */
+      var labY = L.tabY + 26;
+      var iy = labY - 6 - 16;
+      /* Locked tabs slide the icon 4 px left so the 7×8 lock in the corner does not cover it. */
+      var ix = tb.lock ? tx + 4 : tx + Math.floor((tw - 16) / 2);
       drawTabIcon(tb.key, ix, iy, !!tb.lock);
       var tc = tb.lock ? "#6a6080" : (on ? TYPECOL.primary : TYPECOL.muted);
       var labW = tinyWidth(tb.label);
-      var lx = tx + 1 + Math.floor((31 - labW) / 2);
-      drawTiny(ctx, tb.label, lx, L.tabY + 24, tc, "left");
+      var lx = tx + Math.floor((tw - labW) / 2);
+      drawTiny(ctx, tb.label, lx, labY, tc, "left");
       if (tb.lock) {
-        if (uiImgReady("menu_icon_lock")) drawUiPx(ctx, "menu_icon_lock", tx + 22, L.tabY + 8, 1);
-        else drawTabLock(tx + 22, L.tabY + 8);
+        var lockX = tx + tw - 8, lockY = L.tabY + 2;
+        if (uiImgReady("menu_icon_lock")) drawUiPx(ctx, "menu_icon_lock", lockX, lockY, 1);
+        else drawTabLock(lockX, lockY);
       }
     }
     if (showSet) {
@@ -6972,6 +7001,34 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     } else {
       rect(ctx, x + 5, y + 7, 6, 6, "#e88a62"); rect(ctx, x + 3, y + 10, 10, 1, "#fff0b4");
     }
+  }
+  function drawMapThumb(x: number, y: number, w: number, h: number, id: string, locked: boolean) {
+    var key = "mapthumb_" + id + (locked ? "_locked" : "_open");
+    var im = UI_IMGS[key];
+    if (im && im.complete && im.naturalWidth) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      ctx.imageSmoothingEnabled = false;
+      var sw = im.naturalWidth, sh = im.naturalHeight;
+      var k = Math.max(1, Math.floor(Math.min(w / sw, h / sh) + 1e-6));
+      var dw = sw * k, dh = sh * k;
+      var dx = x + Math.floor((w - dw) / 2), dy = y + Math.floor((h - dh) / 2);
+      ctx.drawImage(im, dx, dy, dw, dh);
+      ctx.restore();
+      return;
+    }
+    if (locked) {
+      /* Dark square until Advisor's sketch (_locked) arrives. */
+      rect(ctx, x, y, w, h, "#0a0814");
+      ctx.globalAlpha = 0.35;
+      rect(ctx, x + 2, y + 3, w - 4, h - 6, "#1a1430");
+      ctx.globalAlpha = 1;
+      box(ctx, x, y, w, h, "transparent", "#2a2040");
+      return;
+    }
+    drawBgSwatch(x, y, w, h, id);
   }
   function drawShop() {
     applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
@@ -7142,7 +7199,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       markBox("map" + i, x, y, 152, rh - 3);
       box(ctx, x, y, 152, rh - 3, open ? (save.bg === M.id ? "#2a2050" : C.navy) : "#120c1c", bd);
       if (open) {
-        drawBgSwatch(x + 3, y + 3, 20, rh - 9, M.id);
+        drawMapThumb(x + 3, y + 3, 20, rh - 9, M.id, false);
         drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, TYPECOL.primary, TYPE.M, "left");
         var b = mapBest(i);
         if (M.goal) {
@@ -7151,18 +7208,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
           bar(x + 28, y + rh - 11, 107, 5, b / M.goal, b >= M.goal ? C.mint : C.gold);
         } else drawText(ctx, t('score.record', { n: b }), x + 28, y + 15, TYPECOL.accent, TYPE.M, "left");
       } else {
-        /* Locked / unbought maps stay dark and unnamed — not their real look. */
-        rect(ctx, x + 3, y + 3, 20, rh - 9, "#0a0814");
-        ctx.globalAlpha = 0.35;
-        rect(ctx, x + 5, y + 6, 16, rh - 15, "#1a1430");
-        ctx.globalAlpha = 1;
-        box(ctx, x + 3, y + 3, 20, rh - 9, "transparent", "#2a2040");
+        /* Locked / unbought maps stay unnamed; sketch thumb when Advisor files arrive. */
+        drawMapThumb(x + 3, y + 3, 20, rh - 9, M.id, true);
         drawText(ctx, (i + 1) + ". " + t('map.locked'), x + 28, y + 3, TYPECOL.muted, TYPE.M, "left");
         if (can) {
           drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
         } else {
-          drawText(ctx, t('map.goal_at', { n: MAPS[i - 1].goal, name: where(i - 1) }), x + 28, y + 13, TYPECOL.muted, TYPE.M, "left");
-          drawText(ctx, "● " + M.price, x + 28, y + 23, TYPECOL.accent, TYPE.M, "left");
+          var gLines = typeLines(t('map.goal_prev', { n: MAPS[i - 1].goal }), "M", 118);
+          for (var gi = 0; gi < gLines.length && gi < 2; gi++) {
+            drawText(ctx, gLines[gi], x + 28, y + 13 + gi * 9, TYPECOL.muted, TYPE.M, "left");
+          }
+          drawText(ctx, "● " + M.price, x + 148, y + 3, TYPECOL.accent, TYPE.M, "right");
         }
       }
     }
@@ -7524,26 +7580,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     drawBonusHud(me);
     drawAbRing(me);
-    if (w.toastT > 0) {
-      var tw2 = textWidth(w.toast, TYPE.M) + 12;
-      ctx.globalAlpha = Math.min(1, w.toastT / 15);
-      box(ctx, Math.round(LW / 2 - tw2 / 2), hudY(38), tw2, 13, C.navy, C.gold);
-      drawText(ctx, w.toast, LW / 2, hudY(41), TYPECOL.accent, TYPE.M, "center");
-      ctx.globalAlpha = 1;
-    }
-    if (w.tick < 170 && !(w.toastT > 0) && !paused) {
-      ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
-      var Hn = CHARS[me.kind];
-      var line1 = !isPhone ? t('play.walk') : t('play.tap');
-      var line2 = abHintRun ? (!isPhone ? ("↑ " + Hn.abName) : t('play.swipe', { name: Hn.abName })) : "";
-      var htw = textWidth(line1, TYPE.M);
-      if (line2) htw = Math.max(htw, textWidth(line2, TYPE.M));
-      var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
-      box(ctx, hx, hudY(56), hw, hh, C.navy, C.cream);
-      drawText(ctx, line1, LW / 2, hudY(58), TYPECOL.primary, TYPE.M, "center");
-      if (line2) drawText(ctx, line2, LW / 2, hudY(68), TYPECOL.primary, TYPE.M, "center");
-      ctx.globalAlpha = 1;
-    }
+    /* Floating/intro hint plaques (break, ability names, tap tutorial) are disabled for v1.0. */
     if ((w.fallWarn || w.liftWarn) && !paused) {
       if ((ui >> 2) % 2) {
         ctx.globalAlpha = w.fallWarn ? 0.9 : 0.6;
@@ -7554,12 +7591,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         rect(ctx, cxw - 4, viewBottom() - 8, 10, 2, C.cream);
         ctx.globalAlpha = 1;
       }
-      if (w.liftWarn) {
-        var liftLab = t('play.climb');
-        var ltw = textWidth(liftLab, TYPE.M) + 10;
-        box(ctx, Math.round(LW / 2 - ltw / 2), viewBottom() - 24, ltw, 13, C.navy, C.gold);
-        drawText(ctx, liftLab, LW / 2, viewBottom() - 21, TYPECOL.accent, TYPE.M, "center");
-      }
+      /* liftWarn keeps the edge flash, without the «ЛЕЗЬ ВВЕРХ» text plaque. */
     }
     if (paused) {
       dimView(ctx, "rgba(8,6,20,0.55)");
@@ -7924,19 +7956,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         addHit("camp", x, y, 152, gh);
         box(ctx, x, y, 152, gh, C.navy, C.mint);
         pushRes("goal", x, y, 152, gh);
-        drawText(ctx, t('results.map_available', { name: nxt.name }), LW / 2, y + (compact ? 4 : 7), TYPECOL.mint, TYPE.M, "center");
+        drawText(ctx, t('results.map_available'), LW / 2, y + (compact ? 4 : 7), TYPECOL.mint, TYPE.M, "center");
         y += compact ? 16 : 26;
       } else if (!compact) {
         box(ctx, x, y, 152, 28, C.navy, C.gold);
         pushRes("goal", x, y, 152, 28);
-        drawText(ctx, t('results.next_map', { name: to(mi2 + 1) }), x + 6, y + 3, TYPECOL.primary, TYPE.M, "left");
+        drawText(ctx, t('results.next_map'), x + 6, y + 3, TYPECOL.primary, TYPE.M, "left");
         drawText(ctx, t('unit.meter_progress', { n: b, goal: M2.goal }), x + 146, y + 3, TYPECOL.primary, TYPE.M, "right");
         bar(x + 6, y + 16, 140, 6, b / M2.goal, C.gold);
         y += 32;
       } else {
         box(ctx, x, y, 152, 14, C.navy, C.gold);
         pushRes("goal", x, y, 152, 14);
-        drawText(ctx, t('results.map_progress', { name: to(mi2 + 1), n: b, goal: M2.goal }), LW / 2, y + 4, TYPECOL.primary, TYPE.M, "center");
+        drawText(ctx, t('results.map_progress', { n: b, goal: M2.goal }), LW / 2, y + 4, TYPECOL.primary, TYPE.M, "center");
         y += 16;
       }
     }

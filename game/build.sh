@@ -120,11 +120,12 @@ PY
   rm -rf site/audio
   mkdir -p site/audio
   cp -R audio/. site/audio/
-  mkdir -p site/ui/tab site/ui/grid site/ui/portrait site/ui/menu
+  mkdir -p site/ui/tab site/ui/grid site/ui/portrait site/ui/menu site/ui/map_thumbs
   cp -R ui/tab/. site/ui/tab/
   cp -R ui/grid/. site/ui/grid/
   cp -R ui/portrait/. site/ui/portrait/
   cp -R ui/menu/. site/ui/menu/
+  if [ -d ui/map_thumbs ]; then cp -R ui/map_thumbs/. site/ui/map_thumbs/; fi
   node --check site/hoppak.js && echo "site js ok $(wc -c < site/hoppak.js) bytes"
   # confirm the origin string is baked in
   grep -o "${SITE_ORIGIN}" site/hoppak.js | head -1 | sed "s/^/baked: /"

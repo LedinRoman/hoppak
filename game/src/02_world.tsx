@@ -561,7 +561,8 @@ function grabPlayer(w: any, p: any, mo: any) {
   p.grabT = 45; p.grabMob = mo; mo.cool = 160;
   if (p.id === 0) toast(w, t('play.snake_caught'));
 }
-function toast(w: any, s: string) { w.toast = s; w.toastT = 70; }
+/* v1.0: in-game floating/intro hint texts are off (break, ability names, pickups…). */
+function toast(w: any, _s: string) { /* no-op */ }
 function hasLandablePlat(w: any, p: any) {
   var feet = p.y + PH, reach = 28;
   for (var i = 0; i < w.platforms.length; i++) {

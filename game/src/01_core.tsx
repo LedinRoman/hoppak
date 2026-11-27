@@ -878,6 +878,21 @@ function typeH(role: string) { return role === "S" ? 5 : 7 * (TYPE[role] || 1); 
 function uiWidth(s: string, role: string) {
   return role === "S" ? tinyWidth(s) : textWidth(s, TYPE[role] || 1);
 }
+function typeLines(s: string, role: string, maxW: number) {
+  s = String(s || "");
+  if (uiWidth(s, role) <= maxW) return [s];
+  if (role === "S") return tinyLines(s, maxW);
+  var parts = s.split(" ");
+  if (parts.length <= 1) return [s];
+  var lines: string[] = [], cur = parts[0];
+  for (var i = 1; i < parts.length; i++) {
+    var try_ = cur + " " + parts[i];
+    if (uiWidth(try_, role) <= maxW) cur = try_;
+    else { lines.push(cur); cur = parts[i]; }
+  }
+  lines.push(cur);
+  return lines;
+}
 function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: string, align?: string) {
   if (role === "S") return drawTiny(ctx, s, x, y, color, align);
   return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
@@ -948,6 +963,11 @@ function warmUiImages() {
     "icon_grid_map", "icon_grid_multiplayer", "icon_grid_encyclopedia", "icon_grid_quests"
   ];
   for (i = 0; i < menuFiles.length; i++) loadUiImage("menu_" + menuFiles[i], "ui/menu/" + menuFiles[i] + ".png");
+  var mapIds = ["city", "jungle", "ice", "lava", "aqua", "space"];
+  for (i = 0; i < mapIds.length; i++) {
+    loadUiImage("mapthumb_" + mapIds[i] + "_locked", "ui/map_thumbs/" + mapIds[i] + "_locked.png");
+    loadUiImage("mapthumb_" + mapIds[i] + "_open", "ui/map_thumbs/" + mapIds[i] + "_open.png");
+  }
 }
 warmUiImages();
 /* Nearest-neighbour only, dest size an integer multiple of the source. */
