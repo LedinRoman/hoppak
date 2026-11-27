@@ -413,7 +413,7 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     bias: [0, -14, 14, 6][i], react: [1, 3, 4, 5][i], tgt: null, botDir: 0,
     abCharge: CHARS[kind].need, abFx: 0, hookT: 0, hookN: 0, hx0: 0, hy0: 0, htx: 0, hty: 0, hookPl: null, hookCoin: null,
     teleT: 0, teleN: 0, tx0: 0, ty0: 0, ttx: 0, tty: 0,
-    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, stallT: 0, stallH: 0
+    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, ramFx: 0, stallT: 0, stallH: 0
   };
 }
 function createWorld(seed: number, mode: string, humanKind: number, humanLook: any, mapId?: string) {
@@ -614,6 +614,7 @@ function landOn(w: any, p: any, pl: any) {
   }
   if (p.poundT > 0) {
     p.poundT = 0;
+    p.ramFx = 20; /* render-only: knight impact / launch frames */
     p.vy = Math.min(p.vy, JUMP_V * 1.42); /* risk -> reward: ~2x normal jump height */
     if (p.id === 0) w.shake = 7;
     spawnParts(w, p.x + 6, pl.y, 14, "#ffd046", 3, 0.1, 2);
@@ -893,6 +894,7 @@ function tickWorld(w: any, inputs: any) {
     if (p.dashT > 0) p.dashT--;
     var inp = inputs[p.id] || { dir: 0, ax: 0 };
     if (p.teleFx > 0) p.teleFx--;
+    if (p.ramFx > 0) p.ramFx--;
     if (p.wallT > 0) { p.wallT--; if (p.wallT === 0) p.wall = 0; }
     /* ninja on a wall: tap the ability button or press away from the wall -> kick up and away */
     if (p.wall && (inp.ab || (inp.dir || 0) === -p.wall || (inp.ax && Math.sign(inp.ax) === -p.wall && Math.abs(inp.ax) > 0.3))) {

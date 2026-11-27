@@ -35,7 +35,26 @@ HEROES = {
     'robot': ['64/idle1_64.png', '64/land_64.png', '64/rise_64.png', '64/fall_64.png',
               '64/dome_on_64.png', '64/fall_start_64.png', '64/idle2_64.png',
               '64/crouch_64.png', '64/apex_64.png', '64/fall_start_64.png'],
+    # v1.0 wave 2. cells 10-12 = ab2, ab3, ab4 (ability phases, render-only state in 04_shell animPose)
+    'mage': ['64/idle1_64.png', '64/land_64.png', '64/rise_64.png', '64/fall_64.png',
+             '64/tele_cast_64.png', '64/fall_start_64.png', '64/idle2_64.png',
+             '64/crouch_64.png', '64/apex_64.png', '64/fall_start_64.png',
+             '64/tele_out_64.png', '64/tele_in_64.png', '64/tele_land_64.png'],
+    'knight': ['64/idle1_64.png', '64/land_64.png', '64/rise_64.png', '64/fall_64.png',
+               '64/ram_dive_64.png', '64/fall_start_64.png', '64/idle2_64.png',
+               '64/crouch_64.png', '64/apex_64.png', '64/fall_start_64.png',
+               '64/ram_up_64.png', '64/ram_hit_64.png', '64/ram_jump_64.png'],
+    'pirate': ['64/idle1_64.png', '64/land_64.png', '64/rise_64.png', '64/fall_64.png',
+               '64/hook_throw_64.png', '64/fall_start_64.png', '64/idle2_64.png',
+               '64/crouch_64.png', '64/apex_64.png', '64/fall_start_64.png',
+               '64/hook_grab_64.png', '64/hook_pull_64.png', '64/hook_hit_64.png'],
 }
+# first-wave heroes: ab2..ab4 repeat their single ability frame
+for _h in ('pilot', 'ninja', 'robot'):
+    HEROES[_h] = HEROES[_h] + [HEROES[_h][4]] * 3
+# wave-2 heroes: head centre = median x of the top third (staff tip / hook / rope above the head do not pull it)
+ROBUST_HEAD = {'mage', 'knight', 'pirate'}
+POSE_NAMES = ["idle", "squash", "up", "fall", "ability", "ko", "blink", "crouch", "apex", "fstart", "ab2", "ab3", "ab4"]
 
 # heroes whose studio *_64.png lost armour to background keying: rebuilt from the hi-res frames
 REPIX = {'robot'}
@@ -58,6 +77,59 @@ def head_x(q):
     if not len(xs):
         return q.width / 2.0
     return (xs.min() + xs.max() + 1) / 2.0
+
+def head_x_robust(q):
+    a = np.asarray(q)[..., 3] > 0
+    ys, xs = np.where(a)
+    if not len(xs):
+        return q.width / 2.0
+    top = ys.min()
+    band = (ys < top + max(6, (ys.max() - top) // 3))
+    return float(np.median(xs[band])) + 0.5
+
+def keep_fx(raw, q):
+    """Wave 2: effect pixels (dust, speed lines, sparkles = everything not 8-connected to the body) keep
+    their drawn colours; the light-pixel rule only applies to the hero body."""
+    from scipy import ndimage
+    r = np.asarray(raw.convert('RGBA')).copy()
+    op = r[..., 3] >= 128
+    lab, n = ndimage.label(op, structure=np.ones((3, 3)))
+    if n <= 1:
+        return q
+    sizes = ndimage.sum(op, lab, range(1, n + 1))
+    fx = op & (lab != 1 + int(np.argmax(sizes)))
+    o = np.asarray(q).copy()
+    o[fx, :3] = r[fx, :3]; o[fx, 3] = 255
+    return Image.fromarray(o, 'RGBA')
+
+# light pixels that ARE the object: the pirate's hook / sabre steel stays a light steel (#b8c4d0, the eye-white
+# tone) so the hook never turns ink-dark and disappears; the mage's teleport glow (lilac) keeps its drawn colour.
+STEEL = {('pirate', f) for f in ('hook_throw_64.png', 'hook_grab_64.png', 'hook_pull_64.png', 'hook_hit_64.png')}
+GLOW = {('mage', f) for f in ('tele_cast_64.png', 'tele_out_64.png', 'tele_in_64.png', 'tele_land_64.png')}
+
+def keep_special(hid, fname, raw, q):
+    if (hid, fname) not in STEEL and (hid, fname) not in GLOW:
+        return q
+    r = np.asarray(raw.convert('RGBA')).astype(int)
+    o = np.asarray(q).copy()
+    op = r[..., 3] >= 128
+    for y, x in zip(*np.where(op)):
+        R, G, B = r[y, x, :3]
+        if not is_hero_light(R, G, B):
+            continue
+        if (hid, fname) in GLOW:
+            if B > G + 12 and R > G + 4:
+                o[y, x, :3] = (R, G, B); o[y, x, 3] = 255
+        else:
+            o[y, x, :3] = (0xb8, 0xc4, 0xd0); o[y, x, 3] = 255
+    return Image.fromarray(o.astype(np.uint8), 'RGBA')
+
+def rope_anchor(q):
+    """End of the rope / hook drawn in the sprite: the opaque pixel furthest up-forward (max x - y)."""
+    a = np.asarray(q)[..., 3] > 0
+    ys, xs = np.where(a)
+    k = int(np.argmax(xs - ys))
+    return int(xs[k]), int(ys[k])
 
 def is_sparkle(r, g, b, al):
     if al < 16:
@@ -494,14 +566,20 @@ def hero_sheet(hid, files, ch):
         hi = os.path.join(ANIM, hid, os.path.basename(f).replace('_64.png', '.png'))
         if hid in REPIX and os.path.exists(hi):
             raw = hires_to_64(hi, raw.size)
-        raw, holes = fill_key_holes(raw)
+        if hid in ROBUST_HEAD:
+            holes = 0  # wave 2: native frames have no keying holes; closing would fill dust / speed lines
+        else:
+            raw, holes = fill_key_holes(raw)
         q, st = hero_dewhite(raw)
+        if hid in ROBUST_HEAD:
+            q = keep_fx(raw, q)
+            q = keep_special(hid, os.path.basename(f), raw, q)
         st['holes'] = holes
         if i == 5:
             raw = ko(raw); q = ko(q); raw0 = ko(raw0)
         if q.height > ch:
             q = q.crop((0, q.height - ch, q.width, q.height))
-        hx = head_x(q)
+        hx = head_x_robust(q) if hid in ROBUST_HEAD else head_x(q)
         x = int(round(AX - hx))
         x = max(0, min(CW - q.width, x))
         y = ch - q.height
@@ -510,7 +588,7 @@ def hero_sheet(hid, files, ch):
             # feet, so up -> apex -> fall_start -> fall reads as one motion; tucked legs simply ride higher
             y = max(0, air_top - int(np.where(np.asarray(q)[..., 3] > 0)[0].min()))
         sheet.alpha_composite(q, (i * CW + x, y))
-        info.append({'file': os.path.basename(f), 'size': list(q.size), 'placeX': x, 'headX': round(hx, 1),
+        info.append({'file': os.path.basename(f), 'size': list(q.size), 'placeX': x, 'placeY': y, 'q': q, 'headX': round(hx, 1),
                      'before': raw0, 'after': q, 'dewhite': st})
     return sheet, info
 
@@ -577,6 +655,15 @@ def main():
         slim = [{'file': m['file'], 'size': m['size'], 'placeX': m['placeX'], 'headX': m['headX']} for m in info]
         report['heroes'][hid] = {'cell': slim, 'pixels': total, 'eyes': eyes, 'poses': dewhite}
         out['hero'][hid] = uri(sh)
+        if hid == 'pirate':
+            # rope start for the code-drawn rope, cell art coords: throw = hook in hand, grab/pull = rope end at
+            # the sprite edge, hit = the free hand / hilt (no rope in the art). ability=4, ab2=10, ab3=11, ab4=12
+            anc = {}
+            for ci, nm in ((4, 'ability'), (10, 'ab2'), (11, 'ab3'), (12, 'ab4')):
+                m = info[ci]; ax_, ay_ = rope_anchor(m['q'])
+                anc[nm] = [m['placeX'] + ax_, m['placeY'] + ay_]
+            out.setdefault('anchor', {})['pirate'] = anc
+            report['heroes'][hid]['anchor'] = anc
         sh.resize((sh.width * 4, sh.height * 4), Image.NEAREST).save('/tmp/art64_%s_x4.png' % hid)
 
     WHITE_OK = {'cloud', 'ice', 'normal_ice'}  # body is white
@@ -666,9 +753,9 @@ def main():
     with open(OUT, 'w') as f:
         f.write('/* v1.0 wave 1: 64 px art, generated by game/tools64/build_art64.py from /workspace/studio. Do not edit. */\n')
         f.write('var ART64: any = ' + js + ';\n')
-        f.write('HERO_SPRITES.pilot = ART64.hero.pilot; HERO_SPRITES.ninja = ART64.hero.ninja; HERO_SPRITES.robot = ART64.hero.robot;\n')
-        f.write('var HERO64: any = { pilot: 1, ninja: 1, robot: 1 };\n')
-        f.write('var HERO64_POSES = ["idle", "squash", "up", "fall", "ability", "ko", "blink", "crouch", "apex", "fstart"];\n')
+        f.write(''.join('HERO_SPRITES.%s = ART64.hero.%s; ' % (h, h) for h in HEROES) + '\n')
+        f.write('var HERO64: any = { ' + ', '.join('%s: 1' % h for h in HEROES) + ' };\n')
+        f.write('var HERO64_POSES = ' + json.dumps(POSE_NAMES) + ';\n')
     print(json.dumps({'cellH': ch, 'changed': report['cleanup']['changed'], 'bytes': len(js),
                       'jungleClouds': [len(jg['cs']), len(jg['cb'])],
                       'bg': {k: list(out['bg'][k].keys()) for k in out['bg']},

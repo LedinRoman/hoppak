@@ -21,6 +21,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var autoPlay = false;
   var held: any = { left: false, right: false, kl: false, kr: false };
   var pointers: any = {};
+  var simHold = false; /* test hook: sim frozen (no overlay), stepped with simTicks */
   var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
   var hits: any[] = [];
   var SCALE = 1, pScale = 1, pScaleY = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
@@ -1433,6 +1434,28 @@ function startHoppak(canvas: HTMLCanvasElement): any {
      every non-forced change waits ANIM_HOLD ms; landing and abilities switch at once. */
   var ANIM_HOLD = 70, ANIM_SQ = 35, ANIM_CR = 35, ANIM_FS = 80;
   var animSt: any = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+  /* v1.0 ability phases (render-only, frames ability/ab2/ab3/ab4 of the 64-px sheet):
+     pirate hook: throw -> grab -> pull -> hit (by hookT/hookN); mage tele: cast -> out -> in (teleT) -> land (teleFx);
+     knight pound: ram_up (first ticks) -> ram_dive; on impact ram_hit ~110 ms -> ram_jump while rising (~330 ms). */
+  function abSub(p: any, a: any, now: number) {
+    var id = p.look && p.look.id;
+    if (id === "pirate") {
+      if (p.hookN > 0) { var u = p.hookT / p.hookN; return u < 0.22 ? "ability" : u < 0.45 ? "ab2" : u < 0.85 ? "ab3" : "ab4"; }
+      return "none";
+    }
+    if (id === "mage") {
+      if (p.teleN > 0) return p.teleT <= 3 ? "ability" : p.teleT <= 6 ? "ab2" : "ab3";
+      if (p.teleFx > 0) return "ab4";
+      return "none";
+    }
+    if (id === "knight") {
+      if (p.poundT > 0) return (p.abFx || 0) > 13 ? "ab2" : "ability";
+      if (p.ramFx > 14) return "ab3";
+      if (p.ramFx > 0 && (p.vy || 0) < -1) return "ab4";
+      return "none";
+    }
+    return null;
+  }
   function animPose(p: any) {
     var raw = poseOf(p);
     var id = p.look && p.look.id;
@@ -1445,10 +1468,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     a.sq = p.squash || 0;
     var air = vy < -1.2 ? "up" : vy > 0.9 ? "fstart" : "apex";
     var next = a.pose, forced = false;
-    if (raw === "ability") { next = "ability"; forced = true; }
+    /* "none": a phased-ability hero with nothing running - the generic abFx 'ability' flash is skipped */
+    var sub = abSub(p, a, now);
+    if (sub === "none" && raw === "ability") raw = (p.squash || 0) > 3 ? "squash" : "idle";
+    if (sub && sub !== "none") { next = sub; forced = true; }
+    else if (raw === "ability") { next = "ability"; forced = true; }
     else if (landed) { next = "squash"; forced = true; }
     else switch (a.pose) {
-      case "ability": next = air; forced = true; break;
+      case "ability": case "ab2": case "ab3": case "ab4": next = air; forced = true; break;
       case "squash": if (dt >= ANIM_SQ) { next = "crouch"; forced = true; } break;
       case "crouch": if (dt >= ANIM_CR) { next = air; forced = true; } break;
       case "up": if (vy > -0.6) next = vy > 0.9 ? "fstart" : "apex"; break;
@@ -1618,9 +1645,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var pose = p.alive ? animPose(p) : "fall";
       var drawHeroAt = function (xx: number) {
         var ox = p.x; p.x = xx;
-        drawFxBack(p, sy, cam);
         /* Render-only: while clinging, face into the field. p.face is used by dash/kick/net, so sim stays as-is. */
         var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
+        drawFxBack(p, sy, cam, pose, faceDraw);
         ctx.save();
         ctx.globalAlpha = p.id !== 0 ? remoteAlpha() : 1; /* own hero always opaque */
         drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
@@ -1733,13 +1760,31 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       });
     }
   }
-  function drawFxBack(p: any, sy: number, cam: number) {
+  function drawFxBack(p: any, sy: number, cam: number, pose?: string, faceDraw?: number) {
     var cx = Math.round(p.x + 6), cy = Math.round(sy + 8), k;
     if (p.hookN > 0) {
       var hx = Math.round(p.htx + 6), hy = Math.round(p.hty - cam);
-      var n = Math.max(2, Math.round(Math.abs(hy - sy) / 3));
-      for (k = 0; k <= n; k++) rect(ctx, Math.round(cx + (hx - cx) * k / n), Math.round(sy + 2 + (hy - sy - 2) * k / n), 1, 1, k % 2 ? "#c8a070" : "#7a5030");
-      rect(ctx, hx - 2, hy - 1, 5, 2, "#d8dce8"); rect(ctx, hx - 2, hy - 3, 1, 2, "#d8dce8"); rect(ctx, hx + 2, hy - 3, 1, 2, "#d8dce8");
+      /* Rope start: the 64-px pirate's own rope end (grab / pull: the sprite rope runs to the frame edge, the code
+         rope continues from that exact art pixel, so it is neither doubled nor broken). Throw: the hook is still in
+         the hand in the art, no code rope. Hit (no rope in the art): from the hand. Other sprites: from the body. */
+      var anc = typeof ART64 !== "undefined" && ART64.anchor && ART64.anchor[p.look && p.look.id];
+      var rx = cx, ry = sy + 2, drawRope = true;
+      if (anc && pose === "ability") drawRope = false;
+      else if (anc && (pose === "ab2" || pose === "ab3") && anc[pose]) {
+        var px0 = Math.round(p.x), cell = ART64.cell, fh2 = cell.h * 0.5;
+        var ax2 = anc[pose][0] * 0.5 + 0.25, ay2 = anc[pose][1] * 0.5 + 0.25;
+        rx = (faceDraw || 1) < 0 ? px0 + 6 + SPR_AX - ax2 : px0 + 6 - SPR_AX + ax2;
+        ry = Math.round(sy) + 16 - fh2 + ay2;
+      } else if (anc && pose === "ab4") { rx = cx + (faceDraw || 1) * 3; ry = sy + 5; }
+      if (drawRope) {
+        var ddx = hx + 0.5 - rx, ddy = hy - ry, n = Math.max(2, Math.ceil(Math.max(Math.abs(ddx), Math.abs(ddy)) * 2));
+        for (k = 0; k <= n; k++) {
+          ctx.fillStyle = (k >> 2) % 2 ? "#c8a070" : "#7a5030";
+          ctx.fillRect(Math.floor((rx + ddx * k / n) * 2) / 2 - 0.25, Math.floor((ry + ddy * k / n) * 2) / 2 - 0.25, 1, 1);
+        }
+        rect(ctx, hx - 2, hy - 1, 5, 2, "#b8c4d0"); rect(ctx, hx - 2, hy - 3, 1, 2, "#b8c4d0"); rect(ctx, hx + 2, hy - 3, 1, 2, "#b8c4d0");
+        rect(ctx, hx - 2, hy + 1, 5, 1, INK);
+      }
     }
     if (p.grabT > 0 && p.grabMob) { for (k = 0; k < 4; k++) rect(ctx, cx - 5 + k * 3, cy - 2 + (k % 2) * 3, 3, 2, "#3a9a2a"); }
     if (p.magnetT > 0 && (ui >> 2) % 2) { ctx.globalAlpha = 0.35; for (k = 0; k < 8; k++) { var a = k * 0.785 + ui * 0.05; rect(ctx, cx + Math.cos(a) * 15, cy + Math.sin(a) * 15, 1, 1, "#ff5a62"); } ctx.globalAlpha = 1; }
@@ -2132,7 +2177,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     bindTgInsets();
     HUD_INSET = phase === "play" ? Math.max(0, Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) - VIEW_TOPPAD) : 0;
     syncBackdrop(menuMap());
-    if (phase === "play" && world && world.phase === "play" && !paused) {
+    if (phase === "play" && world && world.phase === "play" && !paused && !simHold) {
       acc += dt;
       var steps = 0;
       if (world.net && NET.waiting && NET.waiting(world)) acc = 0;
@@ -2429,6 +2474,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var cv = pixelizeImage(img);
       return cv ? cv.toDataURL("image/png") : "";
     },
+    hold: function (on: boolean) { simHold = !!on; acc = 0; },
     pause: function (on: boolean) { paused = !!on; manualPause = !!on; acc = 0; uiAcc = 0; lastT = -1; },
     warp: function (m: number) {
       if (!world) return;
