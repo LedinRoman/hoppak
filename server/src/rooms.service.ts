@@ -137,6 +137,7 @@ export class RoomsService implements OnModuleDestroy {
       for (const p of [...r.players]) {
         if (p.accountId !== accountId) continue;
         if (keepSession && p.sessionId === keepSession) continue;
+        this.log.log(`room ${r.code}: account ${accountId.slice(0, 8)} replaced by a new login (session ${String(keepSession || '').slice(0, 6)}), ${p.name} dropped`);
         this.dropReplaced(r, p);
       }
     }

@@ -1244,6 +1244,79 @@ async function admin(base, body) {
       console.log('PASS 16: menu boxes fit 390×844, 390×640 and 360×560; hero centred');
     }
 
+    // 17. «АККАУНТ ОТКРЫТ НА ДРУГОМ УСТРОЙСТВЕ» only for a really different client, never for the same one.
+    {
+      await admin(base2, { mode: 'v06', tgAuth: 'ok', clearLog: true });
+      const seedTg = (tgId, tok) => {
+        window.Telegram = {
+          WebApp: {
+            initData: 'user=' + encodeURIComponent(JSON.stringify({ id: tgId, first_name: 'Roman' })) + '&auth_date=1&hash=00',
+            safeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+            contentSafeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+            onEvent() {}, offEvent() {},
+            BackButton: { isVisible: false, onClick() {} },
+          },
+        };
+        try { if (tok && !localStorage.getItem('hoppak_guest_token')) localStorage.setItem('hoppak_guest_token', tok); } catch (e) {}
+      };
+      const note = (pg) => pg.evaluate(() => !!window.__hoppak.sessionNote());
+      const who = (pg) => pg.evaluate(() => { const p = window.__hoppak.profile.getState(); return { id: p.profile && p.profile.id, tg: p.telegramId || (p.profile && p.profile.telegramId) || null }; });
+      const open = async (ctx, tok) => {
+        const pg = await ctx.newPage();
+        pg.on('pageerror', (e) => errs.push('17 pageerror: ' + e.message));
+        await pg.evaluateOnNewDocument(seedTg, 6101, tok || '');
+        await pg.goto(base2 + '/index.html');
+        await settle(pg);
+        await sleep(300);
+        return pg;
+      };
+      const tokenOf = (pg) => pg.evaluate(() => localStorage.getItem('hoppak_guest_token'));
+      const poke = async (pg) => { await pg.evaluate(async () => { await window.__hoppak.profile.flush(); }); await sleep(300); };
+
+      // a) the same browser, two tabs: nobody is kicked
+      const ctxA = await browser.createBrowserContext();
+      const a1 = await open(ctxA);
+      const idA = (await who(a1)).id;
+      const a2 = await open(ctxA);
+      await poke(a1); await poke(a2);
+      assert.strictEqual(await note(a1), false, '17a tab 1 must not show the banner');
+      assert.strictEqual(await note(a2), false, '17a tab 2 must not show the banner');
+      assert.strictEqual((await who(a2)).id, idA, '17a same account');
+      assert.strictEqual(await tokenOf(a1), await tokenOf(a2), '17a one token per browser');
+
+      // b) a really different client logs in: the first one is told, once
+      const ctxB = await browser.createBrowserContext();
+      const b1 = await open(ctxB);
+      assert.strictEqual((await who(b1)).id, idA, '17b same Telegram account on device B');
+      const tokB = await tokenOf(b1);
+      assert.strictEqual(await note(b1), false, '17b the device that just logged in shows no banner');
+      await poke(a1);
+      assert.strictEqual(await note(a1), true, '17b device A must be told it was replaced');
+
+      // c) device A is opened again: that is a take-over, no banner, B is the one replaced
+      await a1.reload(); await settle(a1); await sleep(300);
+      assert.strictEqual(await note(a1), false, '17c reopened app shows no banner');
+      assert.strictEqual((await who(a1)).id, idA, '17c back on the Telegram account');
+      await poke(b1);
+      assert.strictEqual(await note(b1), true, '17c device B (still running) is told');
+
+      // d) an app opened with an old token (device B was replaced just now): quiet take-over, same account
+      const ctxD = await browser.createBrowserContext();
+      const d1 = await open(ctxD, tokB);
+      assert.strictEqual(await note(d1), false, '17d stale token on open: no banner');
+      assert.strictEqual((await who(d1)).id, idA, '17d logged in as the Telegram account');
+
+      // e) two tabs of one browser open with the same stale token at once: no self-kick
+      const stale = await tokenOf(b1).catch(() => null);
+      const ctxE = await browser.createBrowserContext();
+      const [e1, e2] = await Promise.all([open(ctxE, tokB), open(ctxE, tokB)]);
+      await poke(e1); await poke(e2);
+      assert.strictEqual(await note(e1), false, '17e tab 1 no banner');
+      assert.strictEqual(await note(e2), false, '17e tab 2 no banner');
+      for (const c of [ctxA, ctxB, ctxD, ctxE]) await c.close();
+      console.log('PASS 17: banner only for a different client; same browser, reopen and stale token never self-kick');
+    }
+
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));
     console.log('ALL CLIENT PROFILE E2E TESTS PASS');
   } finally {

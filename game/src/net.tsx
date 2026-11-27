@@ -278,7 +278,11 @@ var NET: any = (function () {
       if (N.api) N.api.say(cleanText(N.err, 24) || "ОШИБКА");
     } else if (ev === "replaced") {
       N.leave();
-      if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
+      /* A newer token in storage = another tab of this same browser logged in again: same client, no banner. */
+      var storedTok = "";
+      try { storedTok = (typeof PROFILE !== "undefined" && PROFILE && PROFILE.getToken) ? (PROFILE.getToken() || "") : ""; } catch (_e) {}
+      if (storedTok && N.sessTok && storedTok !== N.sessTok) { if (N.api) N.api.goMenu(); }
+      else if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
       else if (N.api) N.api.goMenu();
     } else if (ev === "kicked") {
       var code = (d && d.code) || (N.room && N.room.code) || "";
@@ -311,6 +315,7 @@ var NET: any = (function () {
       var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
       if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
     } catch (_e2) {}
+    if (tok) N.sessTok = tok; /* the login this socket belongs to */
     return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
   }
   function screenNow() {

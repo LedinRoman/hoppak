@@ -3260,7 +3260,11 @@ var NET: any = (function () {
       if (N.api) N.api.say(cleanText(N.err, 24) || "ОШИБКА");
     } else if (ev === "replaced") {
       N.leave();
-      if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
+      /* A newer token in storage = another tab of this same browser logged in again: same client, no banner. */
+      var storedTok = "";
+      try { storedTok = (typeof PROFILE !== "undefined" && PROFILE && PROFILE.getToken) ? (PROFILE.getToken() || "") : ""; } catch (_e) {}
+      if (storedTok && N.sessTok && storedTok !== N.sessTok) { if (N.api) N.api.goMenu(); }
+      else if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
       else if (N.api) N.api.goMenu();
     } else if (ev === "kicked") {
       var code = (d && d.code) || (N.room && N.room.code) || "";
@@ -3293,6 +3297,7 @@ var NET: any = (function () {
       var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
       if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
     } catch (_e2) {}
+    if (tok) N.sessTok = tok; /* the login this socket belongs to */
     return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
   }
   function screenNow() {
@@ -6625,6 +6630,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var netApi: any = {
     ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned, accountName: accountName, relayout: function () { resize(); },
     sessionReplaced: function () { sessionNote = true; goMenu(); },
+    sessionOk: function () { sessionNote = false; },
     bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
@@ -6638,6 +6644,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     saveNow: function () { writeSave(save); },
     say: function (s: string) { say(s); },
     sessionReplaced: function () { sessionNote = true; goMenu(); },
+    sessionOk: function () { sessionNote = false; },
     apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number, limited?: string) {
       if (!prof) return;
       if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
@@ -6858,6 +6865,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     },
     tabIconsReady: function () { return uiReady("bar_", 5, 16); },
     resultsBoxes: function () { return resultLay; },
+    sessionNote: function () { return sessionNote; },
     screenLayout: function () {
       var w: any[] = [];
       if (menuLay && menuLay.chip && menuLay.chip.w) w.push({ id: "chip", x: menuLay.chip.x, y: menuLay.chip.y, w: menuLay.chip.w, h: menuLay.chip.h });

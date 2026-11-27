@@ -145,6 +145,13 @@ function serveStatic(reqPath, res) {
   });
 }
 
+/* Tokens rotated by a Telegram login: the old holder gets SESSION_REPLACED (like the real server), not UNAUTHORIZED. */
+const previousByHash = new Map();
+function unauth(res, tok) {
+  const replaced = tok && previousByHash.has(sha256(tok));
+  return json(res, 401, { ok: false, error: replaced ? 'SESSION_REPLACED' : 'UNAUTHORIZED' });
+}
+
 function createServer() {
   return http.createServer(async (req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
@@ -254,6 +261,7 @@ function createServer() {
           }
           const nextToken = crypto.randomBytes(32).toString('hex');
           playersByHash.delete(existing.guestTokenHash);
+          previousByHash.set(existing.guestTokenHash, existing.id);
           existing.guestTokenHash = sha256(nextToken);
           playersByHash.set(existing.guestTokenHash, existing);
           const body = { ok: true, token: nextToken, profile: toPublic(existing), linked: false };
@@ -291,12 +299,12 @@ function createServer() {
       const p = tok ? playersByHash.get(sha256(tok)) : null;
 
       if (urlPath === '/api/profile' && req.method === 'GET') {
-        if (!p) return json(res, 401, { ok: false, error: 'UNAUTHORIZED' });
+        if (!p) return unauth(res, tok);
         return json(res, 200, { ok: true, profile: toPublic(p) });
       }
 
       if (urlPath === '/api/profile/migrate' && req.method === 'POST') {
-        if (!p) return json(res, 401, { ok: false, error: 'UNAUTHORIZED' });
+        if (!p) return unauth(res, tok);
         const b = await readBody(req);
         if (p.migratedAt) return json(res, 201, { ok: true, profile: toPublic(p) });
         const incoming = clamp(Math.floor(Number(b.coins) || 0), 0, 8000);
@@ -312,7 +320,7 @@ function createServer() {
       }
 
       if (urlPath === '/api/run/finish' && req.method === 'POST') {
-        if (!p) return json(res, 401, { ok: false, error: 'UNAUTHORIZED' });
+        if (!p) return unauth(res, tok);
         const b = await readBody(req);
         const runId = typeof b.runId === 'string' && /^[a-zA-Z0-9_.:-]{1,64}$/.test(b.runId.trim()) ? b.runId.trim() : null;
         if (mode === 'v06' && runId) {
@@ -350,7 +358,7 @@ function createServer() {
         if (mode !== 'v06') {
           return json(res, 404, { statusCode: 404, message: 'Cannot POST /api/profile/campaign', error: 'Not Found' });
         }
-        if (!p) return json(res, 401, { ok: false, error: 'UNAUTHORIZED' });
+        if (!p) return unauth(res, tok);
         const b = await readBody(req);
         const before = p.coins;
         p.campaign = mergeCampaign(p.campaign, { best: sanitizeMapBest(b.mapBest) });
@@ -364,7 +372,7 @@ function createServer() {
         if (mode !== 'v06') {
           return json(res, 404, { statusCode: 404, message: 'Cannot POST /api/profile/buy', error: 'Not Found' });
         }
-        if (!p) return json(res, 401, { ok: false, error: 'UNAUTHORIZED' });
+        if (!p) return unauth(res, tok);
         const b = await readBody(req);
         const key = typeof b.key === 'string' ? b.key.trim() : '';
         if (!Object.prototype.hasOwnProperty.call(ITEM_PRICES, key)) {

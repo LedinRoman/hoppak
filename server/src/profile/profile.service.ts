@@ -434,6 +434,8 @@ export class ProfileService {
     const result = await run();
     try { await this.saveTelegram(result.playerId, verified); } catch (err) { console.error('telegram profile write failed'); }
     if (result.kicked) {
+      /* Visible in the logs: which account's older tokens were just invalidated (ids shortened, no tokens). */
+      console.log(`tg login: account ${String(result.playerId).slice(0, 8)} took over by a new session${result.merged ? ' (guest merged)' : ''}; older tokens now SESSION_REPLACED`);
       const sessionId = hashToken(result.token);
       kickAccount(result.playerId, sessionId);
       publishAccountKick(result.playerId, sessionId);

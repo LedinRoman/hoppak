@@ -2114,6 +2114,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var netApi: any = {
     ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned, accountName: accountName, relayout: function () { resize(); },
     sessionReplaced: function () { sessionNote = true; goMenu(); },
+    sessionOk: function () { sessionNote = false; },
     bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
@@ -2127,6 +2128,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     saveNow: function () { writeSave(save); },
     say: function (s: string) { say(s); },
     sessionReplaced: function () { sessionNote = true; goMenu(); },
+    sessionOk: function () { sessionNote = false; },
     apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number, limited?: string) {
       if (!prof) return;
       if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
@@ -2347,6 +2349,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     },
     tabIconsReady: function () { return uiReady("bar_", 5, 16); },
     resultsBoxes: function () { return resultLay; },
+    sessionNote: function () { return sessionNote; },
     screenLayout: function () {
       var w: any[] = [];
       if (menuLay && menuLay.chip && menuLay.chip.w) w.push({ id: "chip", x: menuLay.chip.x, y: menuLay.chip.y, w: menuLay.chip.w, h: menuLay.chip.h });

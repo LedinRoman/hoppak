@@ -4408,7 +4408,14 @@
         if (N.api) N.api.say(cleanText(N.err, 24) || "\u041E\u0428\u0418\u0411\u041A\u0410");
       } else if (ev === "replaced") {
         N.leave();
-        if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
+        var storedTok = "";
+        try {
+          storedTok = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getToken ? PROFILE.getToken() || "" : "";
+        } catch (_e) {
+        }
+        if (storedTok && N.sessTok && storedTok !== N.sessTok) {
+          if (N.api) N.api.goMenu();
+        } else if (N.api && N.api.sessionReplaced) N.api.sessionReplaced();
         else if (N.api) N.api.goMenu();
       } else if (ev === "kicked") {
         var code = d && d.code || N.room && N.room.code || "";
@@ -4459,6 +4466,7 @@
         if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
       } catch (_e2) {
       }
+      if (tok) N.sessTok = tok;
       return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
     }
     function screenNow() {
@@ -8623,6 +8631,9 @@
         sessionNote = true;
         goMenu();
       },
+      sessionOk: function() {
+        sessionNote = false;
+      },
       bg: function() {
         drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
         dimView(ctx, "rgba(18,14,44,0.32)");
@@ -8666,6 +8677,9 @@
       sessionReplaced: function() {
         sessionNote = true;
         goMenu();
+      },
+      sessionOk: function() {
+        sessionNote = false;
       },
       apply: function(prof, wRef, awarded, effectiveCoins, limited) {
         if (!prof) return;
@@ -8989,6 +9003,9 @@
       },
       resultsBoxes: function() {
         return resultLay;
+      },
+      sessionNote: function() {
+        return sessionNote;
       },
       screenLayout: function() {
         var w = [];

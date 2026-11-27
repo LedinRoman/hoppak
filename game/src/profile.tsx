@@ -25,7 +25,8 @@ var PROFILE: any = (function () {
     backoffMs: 5000,
     retryTimer: 0,
     onlineBound: false,
-    tgTried: false
+    tgTried: false,
+    live: false /* a profile was applied in this page load: the session is established */
   };
 
   function lsGet(k: string): string {
@@ -52,6 +53,9 @@ var PROFILE: any = (function () {
 
   function getToken(): string { return lsGet(TOKEN_KEY); }
   function setToken(t: string) { lsSet(TOKEN_KEY, t); }
+  /* Forget a token only if it is still the stored one: another tab of this same browser may already have logged in
+     again and stored a newer token, which must survive (that is the same client, not a second device). */
+  function dropToken(used: string) { if (!used || getToken() === used) setToken(""); }
 
   function getRunQueue(): any[] {
     var q = readJson(QUEUE_KEY, []);
@@ -164,6 +168,7 @@ var PROFILE: any = (function () {
       if (res.data.token) setToken(res.data.token);
       P.st = "ready";
       applyProfile(res.data.profile);
+      if (P.api && P.api.sessionOk) P.api.sessionOk();
       if (res.data.merged && P.api && P.api.say) P.api.say("ПРОГРЕСС ОБЪЕДИНЁН");
       return res.data;
     });
@@ -253,7 +258,7 @@ var PROFILE: any = (function () {
     return fetch(base + path, opts).then(function (r: any) {
       clearTimeout(to);
       return r.json().catch(function () { return null; }).then(function (data: any) {
-        if (r.status === 401 && data && data.error === "SESSION_REPLACED") noteReplaced();
+        if (r.status === 401 && data && data.error === "SESSION_REPLACED") noteReplaced(token || "");
         return { status: r.status, ok: !!r.ok, data: data };
       });
     }).catch(function () {
@@ -262,18 +267,28 @@ var PROFILE: any = (function () {
     });
   }
 
-  function noteReplaced() {
+  /* SESSION_REPLACED = this token was rotated by a login somewhere else.
+     - The stored token is newer than the one used: another tab of this same browser already logged in again.
+       Same client, not a second device: no banner, the next request just uses the stored token.
+     - The page has not established a session yet (the app was just opened with an old token): opening it is an
+       explicit take-over, so log in again quietly (ensureProfile does) and show nothing.
+     - Only a session that was running and then got replaced shows the banner. */
+  function noteReplaced(usedTok: string) {
+    var cur = getToken();
+    if (usedTok && cur && cur !== usedTok) return;
+    if (!P.live) return;
     if (P.replaced) return;
     P.replaced = true;
     var tok = getToken();
     if (P.api && P.api.sessionReplaced) P.api.sessionReplaced();
     var done = tok ? flushRunsStep(tok, true) : Promise.resolve(null);
-    Promise.resolve(done).then(function () { setToken(""); ensureProfile(); });
+    Promise.resolve(done).then(function () { dropToken(tok); ensureProfile(); });
   }
 
   function applyProfile(prof: any, wRef?: any, awarded?: number, limited?: string) {
     if (!prof) return;
     P.profile = prof;
+    P.live = true;
     writeJson(CACHE_KEY, prof);
     pruneConfirmedBuys(prof);
     var effectiveCoins = Math.max(0, (prof.coins || 0) - pendingSpend()) + queuedEst();
@@ -368,7 +383,13 @@ var PROFILE: any = (function () {
     if (tok) {
       return req("GET", "/api/profile", undefined, tok).then(function (res: any) {
         if (res.status === 401) {
-          setToken("");
+          var newer = getToken();
+          if (newer && newer !== tok && !P.adopted) {
+            /* Another tab of this browser logged in again meanwhile: use its token, don't make a second guest. */
+            P.adopted = true;
+            return ensureProfile(deferCoins);
+          }
+          dropToken(tok);
           return createGuest().then(function (made: any) {
             if (!made) return null;
             return finish(made.token, made.profile);
@@ -403,7 +424,7 @@ var PROFILE: any = (function () {
         return;
       }
       if (res.status === 401) {
-        setToken("");
+        dropToken(tok);
         return;
       }
       if (res.status === 400) {
@@ -503,7 +524,7 @@ var PROFILE: any = (function () {
     }).then(function (res: any) {
       if (!res) return null;
       if (res.status === 401) {
-        setToken("");
+        dropToken(tok);
         if (!authRetried) {
           return ensureProfile().then(function () {
             var nt = getToken();
