@@ -545,13 +545,8 @@ function snakePartCanvas(name: string, src: string) {
   return snakePartCache[name];
 }
 function snakeExtend(m: any) {
-  /* Same 170-tick lerp as the sim. 0 = retracted, 1 = fully down. Visual only. */
-  var ph = (m.t || 0) % 170, f = 0;
-  if (ph < 70) f = 0;
-  else if (ph < 84) f = (ph - 70) / 14;
-  else if (ph < 120) f = 1;
-  else f = 1 - (ph - 120) / 50;
-  return f;
+  /* Same 170-tick lerp as the sim (snakePhase). 0 = retracted, 1 = fully down. */
+  return snakePhase(m.t);
 }
 function snakeFrame(m: any) {
   /* fi 0 base, 1 idle_sway, 2 tongue, 3 strike, 4 hit. Eyes are in the sprite. */
@@ -564,15 +559,13 @@ function drawSnakeSprite(ctx: Ctx, m: any, cam: number) {
   var head = (mobSprCache.snake !== undefined ? mobSprCache.snake : (mobSprCache.snake = (MOB_SPRITES.snake && pngToCanvas(MOB_SPRITES.snake.src)) || null));
   if (!head) return false;
   var vine = snakePartCanvas("vine", SNAKE_VINE_SRC);
-  var x = Math.round(m.x), y = Math.round(m.y - cam);
-  var top = Math.round((m.topY != null ? m.topY : m.y) - cam);
-  var retracted = !!m.alive && snakeExtend(m) === 0;
-  /* Retracted: neck at hangTop (m.topY = pl.y+5), no vine, head hugs the platform. Hitbox stays at topY+2. */
-  var neckY = retracted ? top : y;
-  var vineH = retracted ? 0 : Math.max(0, y - top);
-  var fi = snakeFrame(m);
   var sc = SNAKE_DRAW_SCALE;
-  var ax = x + (m.w || 10 * 0.92) / 2;
+  var neck = snakeNeckY(m);
+  var ax = snakeHangX(m);
+  var top = Math.round((m.topY != null ? m.topY : neck) - cam);
+  var neckY = Math.round(neck - cam);
+  var vineH = Math.max(0, neckY - top);
+  var fi = snakeFrame(m);
   applyContrast(ctx, SNAKE_CONTRAST, function () {
     ctx.imageSmoothingEnabled = false;
     if (vine && vineH > 0) {
@@ -682,6 +675,41 @@ function trashFrame(m: any) {
   var u = (m.t || 0) % 131;
   return u >= 125 ? 1 : 0;
 }
+/* Stomp death, code-only, no new art. 16 ticks, integer steps, nearest-neighbour only.
+   0-3: squash onto the feet; then the lid pops up and the body falls, fading in 4 alpha steps. */
+function drawTrashDeath(ctx: Ctx, m: any, cam: number) {
+  var spr = MOB_SPRITES.trash;
+  if (!spr || !spr.src || m.squish <= 0) return false;
+  var cv = mobSprCache.trash;
+  if (cv === undefined) cv = mobSprCache.trash = (pngToCanvas(spr.src) || null);
+  if (!cv) return false;
+  var age = 16 - m.squish;
+  if (age < 0) age = 0;
+  var x = Math.round(m.x), y = Math.round(m.y - cam);
+  var dx = x + (spr.ox || 0), dy = y + (spr.oy || 0);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if (age <= 3) {
+    var sh = [32, 26, 22, 18][age];
+    ctx.drawImage(cv, 0, 0, 64, 64, dx, dy + (32 - sh), 32, sh);
+  } else {
+    var a = 1;
+    if (age >= 8) {
+      var left = 16 - age;
+      a = left <= 0 ? 0 : left <= 2 ? 0.25 : left <= 4 ? 0.5 : left <= 6 ? 0.75 : 1;
+    }
+    if (a > 0) {
+      ctx.globalAlpha = a;
+      var pop = Math.min(18, (age - 3) * 2);
+      var wob = (age >> 1) & 1;
+      ctx.drawImage(cv, 0, 18, 64, 12, dx + wob, dy + 9 - pop, 32, 6);
+      ctx.drawImage(cv, 0, 30, 64, 34, dx, dy + 15 + (age - 3) * 2, 32, 17);
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.restore();
+  return true;
+}
 
 function frogFrame(m: any) {
   /* sit / jump / squish1 / squish2. Hitbox 12×8 and hop behaviour unchanged. */
@@ -719,7 +747,7 @@ function drawMob(ctx: Ctx, m: any, cam: number, mapId?: string, frozen?: boolean
     if (m.kind === "bat" && drawMobSprite(ctx, "bat", x, y, batFrame(m), (m.vx || 0) < 0)) return;
     if (m.kind === "ufo" && drawMobSprite(ctx, "ufo", x, y, ufoFrame(m), (m.vx || 0) < 0)) return;
     if (m.kind === "hole" && drawMobSprite(ctx, "hole", x, y, holeFrame(m), false)) return;
-    if (m.kind === "trash" && drawMobSprite(ctx, "trash", x, y, 0, false)) return;
+    if (m.kind === "trash" && drawTrashDeath(ctx, m, cam)) return;
     if (m.kind === "frog" && drawMobSprite(ctx, "frog", x, y, frogFrame(m), (m.dir || 1) < 0)) return;
     if (m.kind === "parrot" && drawMobSprite(ctx, "parrot", x, y, parrotFrame(m), (m.vx || 0) < 0)) return;
     if (m.kind === "monkey" && drawMobSprite(ctx, "monkey", x, y, monkeyFrame(m), (m.dir || 1) < 0)) return;

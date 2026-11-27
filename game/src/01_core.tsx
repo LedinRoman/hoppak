@@ -455,7 +455,7 @@ var MOBS: any = {
   ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, get name() { return t('mob.ray'); }, g: "m" },
   bob: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.bob'); }, g: "f" },
   ember: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.ember'); }, g: "m" },
-  /* Visual scale 0.5*0.92 (Roman: -8%), contrast 83 (88-5, this mob only). Hitbox scales with the sprite. hangTop stays pl.y+5. */
+  /* Visual scale 0.5*0.92 (Roman: -8%), contrast 83. w/h are overwritten to the head-skull box below. hangTop stays pl.y+5. */
   snake: { b: "snake", w: 10 * 0.92, h: 8 * 0.92, gap: 38, get name() { return t('mob.snake'); }, g: "f" },
 
   puffer: { b: "puff", w: 12, h: 12, gap: 40, get name() { return t('mob.puffer'); }, g: "f" },
@@ -972,6 +972,44 @@ function loadVisualContrast(origin: string): Promise<void> {
 var SNAKE_DRAW_SCALE = 0.5 * 0.92;
 var SNAKE_CONTRAST = 83;
 var SNAKE_HEAD_DRAW_H = 64 * SNAKE_DRAW_SCALE;
+/* Skull in the 64×64 head frame (leaf/neck tuft is y 0..15, not damaging).
+   Tight box from the idle/strike sheets; scale 0.46. Vine is never in this box. */
+var SNAKE_HEAD_ART_X = 10;
+var SNAKE_HEAD_ART_Y = 16;
+var SNAKE_HEAD_ART_W = 42;
+var SNAKE_HEAD_ART_H = 38;
+if (MOBS && MOBS.snake) {
+  MOBS.snake.w = SNAKE_HEAD_ART_W * SNAKE_DRAW_SCALE;
+  MOBS.snake.h = SNAKE_HEAD_ART_H * SNAKE_DRAW_SCALE;
+}
+function snakePhase(t: any) {
+  var ph = (t || 0) % 170, f = 0;
+  if (ph < 70) f = 0;
+  else if (ph < 84) f = (ph - 70) / 14;
+  else if (ph < 120) f = 1;
+  else f = 1 - (ph - 120) / 50;
+  return f;
+}
+function snakeNeckY(mo: any) {
+  var top = mo.topY != null ? mo.topY : mo.y;
+  var bot = mo.botY != null ? mo.botY : top;
+  return top + snakePhase(mo.t) * (bot - top);
+}
+function snakeHangX(mo: any) {
+  if (mo.hangX != null) return mo.hangX;
+  return mo.x - (SNAKE_HEAD_ART_X - 32) * SNAKE_DRAW_SCALE;
+}
+/* Damage box = the drawn skull, same numbers as drawSnakeSprite. */
+function snakeHeadBox(mo: any) {
+  var sc = SNAKE_DRAW_SCALE;
+  var hx = snakeHangX(mo) + (SNAKE_HEAD_ART_X - 32) * sc;
+  var hy = snakeNeckY(mo) + SNAKE_HEAD_ART_Y * sc;
+  return [hx, hy, SNAKE_HEAD_ART_W * sc, SNAKE_HEAD_ART_H * sc];
+}
+function placeSnakeHead(mo: any) {
+  var b = snakeHeadBox(mo);
+  mo.x = b[0]; mo.y = b[1]; mo.w = b[2]; mo.h = b[3];
+}
 
 function applyContrast(ctx: Ctx, pct: number, fn: any) {
   if (pct === 100) { fn(); return; }

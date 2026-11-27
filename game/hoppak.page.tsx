@@ -544,7 +544,7 @@ var MOBS: any = {
   ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, get name() { return t('mob.ray'); }, g: "m" },
   bob: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.bob'); }, g: "f" },
   ember: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.ember'); }, g: "m" },
-  /* Visual scale 0.5*0.92 (Roman: -8%), contrast 83 (88-5, this mob only). Hitbox scales with the sprite. hangTop stays pl.y+5. */
+  /* Visual scale 0.5*0.92 (Roman: -8%), contrast 83. w/h are overwritten to the head-skull box below. hangTop stays pl.y+5. */
   snake: { b: "snake", w: 10 * 0.92, h: 8 * 0.92, gap: 38, get name() { return t('mob.snake'); }, g: "f" },
 
   puffer: { b: "puff", w: 12, h: 12, gap: 40, get name() { return t('mob.puffer'); }, g: "f" },
@@ -1061,6 +1061,44 @@ function loadVisualContrast(origin: string): Promise<void> {
 var SNAKE_DRAW_SCALE = 0.5 * 0.92;
 var SNAKE_CONTRAST = 83;
 var SNAKE_HEAD_DRAW_H = 64 * SNAKE_DRAW_SCALE;
+/* Skull in the 64×64 head frame (leaf/neck tuft is y 0..15, not damaging).
+   Tight box from the idle/strike sheets; scale 0.46. Vine is never in this box. */
+var SNAKE_HEAD_ART_X = 10;
+var SNAKE_HEAD_ART_Y = 16;
+var SNAKE_HEAD_ART_W = 42;
+var SNAKE_HEAD_ART_H = 38;
+if (MOBS && MOBS.snake) {
+  MOBS.snake.w = SNAKE_HEAD_ART_W * SNAKE_DRAW_SCALE;
+  MOBS.snake.h = SNAKE_HEAD_ART_H * SNAKE_DRAW_SCALE;
+}
+function snakePhase(t: any) {
+  var ph = (t || 0) % 170, f = 0;
+  if (ph < 70) f = 0;
+  else if (ph < 84) f = (ph - 70) / 14;
+  else if (ph < 120) f = 1;
+  else f = 1 - (ph - 120) / 50;
+  return f;
+}
+function snakeNeckY(mo: any) {
+  var top = mo.topY != null ? mo.topY : mo.y;
+  var bot = mo.botY != null ? mo.botY : top;
+  return top + snakePhase(mo.t) * (bot - top);
+}
+function snakeHangX(mo: any) {
+  if (mo.hangX != null) return mo.hangX;
+  return mo.x - (SNAKE_HEAD_ART_X - 32) * SNAKE_DRAW_SCALE;
+}
+/* Damage box = the drawn skull, same numbers as drawSnakeSprite. */
+function snakeHeadBox(mo: any) {
+  var sc = SNAKE_DRAW_SCALE;
+  var hx = snakeHangX(mo) + (SNAKE_HEAD_ART_X - 32) * sc;
+  var hy = snakeNeckY(mo) + SNAKE_HEAD_ART_Y * sc;
+  return [hx, hy, SNAKE_HEAD_ART_W * sc, SNAKE_HEAD_ART_H * sc];
+}
+function placeSnakeHead(mo: any) {
+  var b = snakeHeadBox(mo);
+  mo.x = b[0]; mo.y = b[1]; mo.w = b[2]; mo.h = b[3];
+}
 
 function applyContrast(ctx: Ctx, pct: number, fn: any) {
   if (pct === 100) { fn(); return; }
@@ -1897,22 +1935,34 @@ function startFall(mo: any) { mo.falling = true; mo.hvy = 0.25; mo.home = null; 
 function followHome(w: any, mo: any, sf: number, hang: boolean) {
   if (mo.falling) {
     mo.hvy += 0.16 * sf;
-    mo.y += mo.hvy * sf;
-    if (hang) { mo.topY += mo.hvy * sf; mo.botY += mo.hvy * sf; }
+    if (hang) {
+      mo.topY += mo.hvy * sf;
+      mo.botY += mo.hvy * sf;
+      placeSnakeHead(mo);
+    } else mo.y += mo.hvy * sf;
     if (mo.y > w.cameraY + LH + 50) { mo.alive = false; mo.squish = 0; }
     return false;
   }
   var home = mo.home;
   if (!platAlive(w, home)) { startFall(mo); return followHome(w, mo, sf, hang); }
-  if (home.vx) mo.x += home.vx * sf;
-  mo.minX = home.x;
-  mo.maxX = home.x + home.w - mo.w;
-  if (mo.maxX < mo.minX) mo.maxX = mo.minX;
-  mo.x = clamp(mo.x, mo.minX, mo.maxX);
   if (hang) {
+    var sc = SNAKE_DRAW_SCALE;
+    var leftOff = (SNAKE_HEAD_ART_X - 32) * sc;
+    var hw = SNAKE_HEAD_ART_W * sc;
+    if (mo.hangX == null) mo.hangX = mo.x - leftOff;
+    if (home.vx) mo.hangX += home.vx * sf;
+    mo.hangX = clamp(mo.hangX, home.x - leftOff, home.x + home.w - leftOff - hw);
+    mo.minX = home.x;
+    mo.maxX = home.x + home.w - hw;
     mo.topY = hangTop(home);
     mo.botY = mo.topY + (mo.hangLen || 24);
+    placeSnakeHead(mo);
   } else {
+    if (home.vx) mo.x += home.vx * sf;
+    mo.minX = home.x;
+    mo.maxX = home.x + home.w - mo.w;
+    if (mo.maxX < mo.minX) mo.maxX = mo.minX;
+    mo.x = clamp(mo.x, mo.minX, mo.maxX);
     mo.baseY = home.y - mo.h;
     if (mo.b !== "hop") mo.y = mo.baseY;
   }
@@ -2051,10 +2101,13 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
     var hangLen = Math.min(M2.gap || 32, Math.max(16, room - M2.h - 6));
     if (room < hangLen + SNAKE_HEAD_DRAW_H) return false;
     var ty = hangTop(hs);
-    w.monsters.push(mkMob(kind, sx, ty + 2, d, {
-      home: hs, hangLen: hangLen, topY: ty, botY: ty + hangLen,
+    var hangX = sx - (SNAKE_HEAD_ART_X - 32) * SNAKE_DRAW_SCALE;
+    var mo = mkMob(kind, sx, ty + SNAKE_HEAD_ART_Y * SNAKE_DRAW_SCALE, d, {
+      home: hs, hangLen: hangLen, topY: ty, botY: ty + hangLen, hangX: hangX,
       minX: hs.x, maxX: hs.x + hs.w - M2.w
-    }));
+    });
+    placeSnakeHead(mo);
+    w.monsters.push(mo);
     return true;
   }
   if (M2.plat) {
@@ -2473,19 +2526,37 @@ function landOn(w: any, p: any, pl: any) {
 function killMob(w: any, mo: any, p: any, noBounce?: boolean) {
   if (!mo.alive) return;
   mo.alive = false;
-  mo.squish = 10;
+  /* Trash gets a longer death so the lid-pop / fall can play (16 ticks). Others stay at 10. */
+  mo.squish = mo.kind === "trash" ? 16 : 10;
   if (!noBounce) { p.vy = STOMP_V; p.y = mo.y - PH; }
   p.kills++;
   /* Knight charge is "1 kill". A mid-slam/dash kill must not refund the ability. */
   if (!(p.poundT > 0 || p.dashT > 0)) addCharge(p, "kills", 1);
   var pal = MOBPAL[mo.kind] || ["#ffd070"];
-  spawnParts(w, mo.x + mo.w / 2, mo.y + 4, 12, pal[0], 2.6, 0.15);
+  var cx = mo.x + mo.w / 2, cy = mo.y + 4;
+  if (mo.kind === "trash") {
+    spawnParts(w, cx, cy, 8, pal[0], 2.4, 0.18, 2);
+    spawnParts(w, cx, cy, 5, pal[1], 2.0, 0.18, 1);
+    spawnParts(w, cx, cy, 4, pal[2], 2.8, 0.12, 1);
+  } else spawnParts(w, cx, cy, 12, pal[0], 2.6, 0.15);
   if (p.id === 0) { w.shake = 5; hopSfx("hit"); }
 }
+function bumpOffTrash(w: any, p: any, mo: any) {
+  /* Side or below: knock the player away, can stays. Brief cool so the overlap doesn't retrigger. */
+  if (mo.cool > 0) return;
+  var s = wrapDx((p.x + PW / 2) - (mo.x + mo.w / 2)) >= 0 ? 1 : -1;
+  p.vx = s * 2.4;
+  if (p.vy > -2) p.vy = -2.2;
+  p.x += s * 3;
+  mo.cool = 10;
+  if (p.id === 0) w.shake = 2;
+}
 function mobBox(mo: any) {
+  if (mo.b === "snake") return snakeHeadBox(mo);
   if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
-  /* slimes: slightly tighter box so a graze at the edge is not a hit */
-  if (mo.kind === "blob" || mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
+  /* Slimes: sides stay inset so a graze is not a hit. Blob top is +4 px so a stomp is fair. */
+  if (mo.kind === "blob") return [mo.x + 2, mo.y - 3, mo.w - 4, mo.h + 2];
+  if (mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
   return [mo.x, mo.y, mo.w, mo.h];
 }
 /* motion envelope of a mob (for tests: must not cross platforms) */
@@ -2494,7 +2565,12 @@ function mobEnv(mo: any) {
   if (M.plat) return [mo.minX, mo.baseY - (b === "hop" ? 15 : 0), mo.maxX + mo.w, mo.baseY + mo.h];
   if (b === "fly") return [0, mo.baseY - mo.amp - (mo.amp ? 0 : 0), LW, mo.baseY + mo.h + mo.amp + 1];
   if (b === "sway") return [0, mo.baseY - 4, LW, mo.baseY + mo.h + 4];
-  if (b === "snake") return [mo.x, mo.topY, mo.x + mo.w, mo.botY + mo.h];
+  if (b === "snake") {
+    var hb = snakeHeadBox(mo);
+    var hy0 = (mo.topY != null ? mo.topY : mo.y) + SNAKE_HEAD_ART_Y * SNAKE_DRAW_SCALE;
+    var hy1 = (mo.botY != null ? mo.botY : mo.y) + SNAKE_HEAD_ART_Y * SNAKE_DRAW_SCALE + hb[3];
+    return [hb[0], hy0, hb[0] + hb[2], hy1];
+  }
   if (b === "puff") return [0, mo.baseY - 5, LW, mo.baseY + mo.h + 5];
   if (b === "shoot") return [0, mo.baseY - (M.freeze ? 3 : 0), LW, mo.baseY + mo.h + (M.freeze ? 3 : 0)];
   if (b === "comet" || b === "wind") return [0, mo.baseY, LW, mo.baseY + mo.h];
@@ -2689,9 +2765,7 @@ function tickWorld(w: any, inputs: any) {
       mo.y = mo.baseY + Math.round(Math.sin(mo.t * 0.045) * 3.5);
       mo.x = clamp(mo.baseX + Math.sin(mo.t * 0.02) * 14, 2, LW - mo.w - 2);
     } else if (b === "snake") {
-      var ph = mo.t % 170, f = 0;
-      if (ph < 70) f = 0; else if (ph < 84) f = (ph - 70) / 14; else if (ph < 120) f = 1; else f = 1 - (ph - 120) / 50;
-      mo.y = Math.round(mo.topY + 2 + f * (mo.botY - mo.topY - 2));
+      placeSnakeHead(mo);
     } else if (b === "puff") {
       mo.y = mo.baseY + Math.round(Math.sin(mo.t * 0.04) * 1.5);
       mo.x = clamp(mo.baseX + Math.sin(mo.t * 0.015) * 12, 4, LW - mo.w - 4);
@@ -2901,10 +2975,22 @@ function tickWorld(w: any, inputs: any) {
       }
       var bb = mobBox(m2);
       if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bb[0] + 1, bb[2] - 2) && p.y + HURT_PAD_Y < bb[1] + bb[3] && p.y + PH > bb[1]) {
+        var mid = bb[1] + bb[3] / 2;
+        var fromAbove = p.vy > 0 && ((p.y + PH <= mid) || (p.prevY + PH <= mid) || p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5);
+        if (m2.kind === "trash" && !fromAbove) { bumpOffTrash(w, p, m2); continue; }
         if (p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0) { killMob(w, m2, p, true); continue; }
         if (mobFrozen) { if (p.vy > 0 && p.prevY + PH <= bb[1] + 5) killMob(w, m2, p); continue; }
         var stompable = !(m2.b === "puff" && m2.big);
-        if (stompable && p.vy > 0 && (p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5)) killMob(w, m2, p);
+        var stomped = false;
+        if (stompable && p.vy > 0) {
+          if (m2.b === "snake") {
+            /* Falling, feet at or above the head centre: stomp. Side or below: existing grab. */
+            stomped = (p.y + PH <= mid) || (p.prevY + PH <= mid);
+          } else {
+            stomped = (p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5);
+          }
+        }
+        if (stomped) killMob(w, m2, p);
         else if (m2.b === "snake") { grabPlayer(w, p, m2); if (p.grabT > 0) break; }
         else { hurt(w, p, "mob", m2); if (!p.alive) break; }
       }
@@ -3581,13 +3667,8 @@ function snakePartCanvas(name: string, src: string) {
   return snakePartCache[name];
 }
 function snakeExtend(m: any) {
-  /* Same 170-tick lerp as the sim. 0 = retracted, 1 = fully down. Visual only. */
-  var ph = (m.t || 0) % 170, f = 0;
-  if (ph < 70) f = 0;
-  else if (ph < 84) f = (ph - 70) / 14;
-  else if (ph < 120) f = 1;
-  else f = 1 - (ph - 120) / 50;
-  return f;
+  /* Same 170-tick lerp as the sim (snakePhase). 0 = retracted, 1 = fully down. */
+  return snakePhase(m.t);
 }
 function snakeFrame(m: any) {
   /* fi 0 base, 1 idle_sway, 2 tongue, 3 strike, 4 hit. Eyes are in the sprite. */
@@ -3600,15 +3681,13 @@ function drawSnakeSprite(ctx: Ctx, m: any, cam: number) {
   var head = (mobSprCache.snake !== undefined ? mobSprCache.snake : (mobSprCache.snake = (MOB_SPRITES.snake && pngToCanvas(MOB_SPRITES.snake.src)) || null));
   if (!head) return false;
   var vine = snakePartCanvas("vine", SNAKE_VINE_SRC);
-  var x = Math.round(m.x), y = Math.round(m.y - cam);
-  var top = Math.round((m.topY != null ? m.topY : m.y) - cam);
-  var retracted = !!m.alive && snakeExtend(m) === 0;
-  /* Retracted: neck at hangTop (m.topY = pl.y+5), no vine, head hugs the platform. Hitbox stays at topY+2. */
-  var neckY = retracted ? top : y;
-  var vineH = retracted ? 0 : Math.max(0, y - top);
-  var fi = snakeFrame(m);
   var sc = SNAKE_DRAW_SCALE;
-  var ax = x + (m.w || 10 * 0.92) / 2;
+  var neck = snakeNeckY(m);
+  var ax = snakeHangX(m);
+  var top = Math.round((m.topY != null ? m.topY : neck) - cam);
+  var neckY = Math.round(neck - cam);
+  var vineH = Math.max(0, neckY - top);
+  var fi = snakeFrame(m);
   applyContrast(ctx, SNAKE_CONTRAST, function () {
     ctx.imageSmoothingEnabled = false;
     if (vine && vineH > 0) {
@@ -3718,6 +3797,41 @@ function trashFrame(m: any) {
   var u = (m.t || 0) % 131;
   return u >= 125 ? 1 : 0;
 }
+/* Stomp death, code-only, no new art. 16 ticks, integer steps, nearest-neighbour only.
+   0-3: squash onto the feet; then the lid pops up and the body falls, fading in 4 alpha steps. */
+function drawTrashDeath(ctx: Ctx, m: any, cam: number) {
+  var spr = MOB_SPRITES.trash;
+  if (!spr || !spr.src || m.squish <= 0) return false;
+  var cv = mobSprCache.trash;
+  if (cv === undefined) cv = mobSprCache.trash = (pngToCanvas(spr.src) || null);
+  if (!cv) return false;
+  var age = 16 - m.squish;
+  if (age < 0) age = 0;
+  var x = Math.round(m.x), y = Math.round(m.y - cam);
+  var dx = x + (spr.ox || 0), dy = y + (spr.oy || 0);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if (age <= 3) {
+    var sh = [32, 26, 22, 18][age];
+    ctx.drawImage(cv, 0, 0, 64, 64, dx, dy + (32 - sh), 32, sh);
+  } else {
+    var a = 1;
+    if (age >= 8) {
+      var left = 16 - age;
+      a = left <= 0 ? 0 : left <= 2 ? 0.25 : left <= 4 ? 0.5 : left <= 6 ? 0.75 : 1;
+    }
+    if (a > 0) {
+      ctx.globalAlpha = a;
+      var pop = Math.min(18, (age - 3) * 2);
+      var wob = (age >> 1) & 1;
+      ctx.drawImage(cv, 0, 18, 64, 12, dx + wob, dy + 9 - pop, 32, 6);
+      ctx.drawImage(cv, 0, 30, 64, 34, dx, dy + 15 + (age - 3) * 2, 32, 17);
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.restore();
+  return true;
+}
 
 function frogFrame(m: any) {
   /* sit / jump / squish1 / squish2. Hitbox 12×8 and hop behaviour unchanged. */
@@ -3755,7 +3869,7 @@ function drawMob(ctx: Ctx, m: any, cam: number, mapId?: string, frozen?: boolean
     if (m.kind === "bat" && drawMobSprite(ctx, "bat", x, y, batFrame(m), (m.vx || 0) < 0)) return;
     if (m.kind === "ufo" && drawMobSprite(ctx, "ufo", x, y, ufoFrame(m), (m.vx || 0) < 0)) return;
     if (m.kind === "hole" && drawMobSprite(ctx, "hole", x, y, holeFrame(m), false)) return;
-    if (m.kind === "trash" && drawMobSprite(ctx, "trash", x, y, 0, false)) return;
+    if (m.kind === "trash" && drawTrashDeath(ctx, m, cam)) return;
     if (m.kind === "frog" && drawMobSprite(ctx, "frog", x, y, frogFrame(m), (m.dir || 1) < 0)) return;
     if (m.kind === "parrot" && drawMobSprite(ctx, "parrot", x, y, parrotFrame(m), (m.vx || 0) < 0)) return;
     if (m.kind === "monkey" && drawMobSprite(ctx, "monkey", x, y, monkeyFrame(m), (m.dir || 1) < 0)) return;
