@@ -109,6 +109,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return false;
   }
   function cinemaAllowed() {
+    if (sessionNote) return false;
     try {
       var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
       if (tg && tg.initData) return false;
@@ -504,8 +505,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function accountName(full: boolean) {
     if (telegramLinked()) {
+      var state = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState();
+      var profile = state && state.profile;
       var u = tgUser() || {};
-      var raw = u.first_name || u.username || tgName();
+      var raw = (profile && profile.displayName) || u.first_name || u.username || tgName();
       return glyphsOf(raw, full ? 16 : 24);
     }
     var tag = guestTag();
@@ -695,11 +698,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     startRun(seed != null ? seed : (((Date.now() + ((room && room.round) || 0) * 40503) >>> 0)));
   }
   function startNet(info: any) { /* net: synchronized online run, seed + map come from the server */
+    if (sessionNote) return;
     mode = "solo"; resize();
     startRun(info.seed, info.map);
     NET.attachWorld(world, info);
   }
   function startRun(seed?: number, mapId?: string) {
+    if (sessionNote) return;
     /* Menus may be taller than 346 on tall phones; the field is always FIELD_W×346 before the world exists. */
     phase = "play"; fieldLocked = false; resize();
     var s = seed != null ? seed : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
@@ -708,7 +713,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.recM = mapBest(mi);
     world.goalM = MAPS[mi].goal || 0;
     phase = "play";
-    sessionNote = false;
     rankY = {};
     paused = false;
     landPause = false;
@@ -755,19 +759,30 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.best = save.best;
     writeSave(save);
     if (typeof PROFILE !== "undefined" && PROFILE) {
-      if (mtr > 0 || runC > 0 || bonC > 0) {
-        PROFILE.finishRun(mtr, runC, bonC, world, {
-          mode: world.net ? "online" : mode,
-          map: world.map,
-          ver: "0.6rc",
-          awarded: world.earned,
-          runId: world.runId || "",
-          hero: save.char
-        });
-      }
+      PROFILE.finishRun(mtr, runC, bonC, world, {
+        mode: world.net ? "online" : mode,
+        map: world.map,
+        ver: "1.0",
+        awarded: world.earned,
+        runId: world.runId || "",
+        hero: me ? me.kind : save.char,
+        cause: me && me.why ? me.why : (me && me.alive ? "exit" : "fall")
+      });
     }
   }
   var sessionNote = false;
+  function onSessionReplaced() {
+    sessionNote = true;
+    pressId = null;
+    held.kl = held.kr = false;
+    NET.leave();
+    goMenu();
+  }
+  function onSessionOk() {
+    if (!sessionNote) return;
+    sessionNote = false;
+    resize();
+  }
   function goMenu() {
     /* Same payout as a finished run: map record, profile best, and the usual coins. No second pay once world.paid. */
     if (phase === "play" && world && !world.paid) payout();
@@ -787,6 +802,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
   function activate(id: string | null) {
     if (!id) return;
+    if (sessionNote) {
+      if (id === "session:takeover" && typeof PROFILE !== "undefined" && PROFILE) PROFILE.takeOver();
+      return;
+    }
     if (id.indexOf("net:") === 0) { NET.tap(id, netApi); return; }
     if (world && world.netRound && (id === "rematch" || id === "menu")) { if (id === "menu") { NET.leave(); goMenu(); } else NET.tap("net:rematch", netApi); return; }
     if (id === "start") { mode = "solo"; startRun(); return; }
@@ -976,6 +995,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function onKey(e: any, down: boolean) {
     var k = e.key;
+    if (sessionNote) {
+      if (down && !e.repeat && (k === "Enter" || k === " ")) activate("session:takeover");
+      return;
+    }
     if ((k === "f" || k === "F" || k === "а" || k === "А") && !typingTarget(e)) {
       if (down && cinemaAllowed()) { toggleCinema(); e.preventDefault(); }
       return;
@@ -1043,11 +1066,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return { x: x, y: y, w: w, h: h, bottom: y + h };
   }
   function drawSessionNote() {
-    var y = belowBand();
-    box(ctx, colX(), y, 152, 26, C.navy, C.gold);
-    drawText(ctx, t('kick.line1'), LW / 2, y + 3, TYPECOL.accent, TYPE.M, "center");
-    drawText(ctx, t('kick.line2'), LW / 2, y + 14, TYPECOL.accent, TYPE.M, "center");
-    markBox("session", colX(), y, 152, 26);
+    hits = [];
+    dimView(ctx, "rgba(8,6,20,0.78)");
+    var w = Math.min(176, LW - 8);
+    var x = Math.round((LW - w) / 2);
+    var y = Math.round(LH / 2 - 42);
+    box(ctx, x, y, w, 84, C.navy, C.gold);
+    drawText(ctx, t('kick.locked1'), LW / 2, y + 8, TYPECOL.accent, TYPE.M, "center");
+    drawText(ctx, t('kick.locked2'), LW / 2, y + 19, TYPECOL.accent, TYPE.M, "center");
+    drawText(ctx, accountName(true), LW / 2, y + 34, TYPECOL.primary, TYPE.M, "center");
+    btn("session:takeover", x + 8, y + 50, w - 16, 28, C.navy, "");
+    drawText(ctx, t('kick.takeover1'), LW / 2, y + 55, TYPECOL.primary, TYPE.M, "center");
+    drawText(ctx, t('kick.takeover2'), LW / 2, y + 66, TYPECOL.primary, TYPE.M, "center");
+    drawFlash();
   }
   function drawFlash() {
     if (flashT <= 0) return;
@@ -1081,7 +1112,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     addHit("prof:out", -40, -40, LW + 80, LH + 80);
     var x = colX();
     var linked = telegramLinked();
-    var u = tgUser() || {};
     var h = linked ? 118 : 132;
     var y = Math.max(belowBand(), menuTop() + 28, 70);
     addHit("prof:card", x, y, 152, h);
@@ -1105,11 +1135,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x + 8 + av - 1, y + 22, 1, av, "#1a1030");
     var name = accountName(true);
     drawText(ctx, name, x + 40, y + 24, TYPECOL.primary, TYPE.M, "left");
-    var lineY = y + 36;
-    if (linked && u.username) {
-      drawText(ctx, glyphsOf(String(u.username), 14), x + 40, lineY, TYPECOL.muted, TYPE.M, "left");
-      lineY += 12;
-    }
     var entryY = y + 54;
     drawText(ctx, linked ? t('profile.telegram') : t('profile.guest'), x + 8, entryY, TYPECOL.primary, TYPE.M, "left");
     if (!linked) drawText(ctx, t('profile.local_progress'), x + 8, entryY + 12, TYPECOL.muted, TYPE.M, "left");
@@ -2505,7 +2530,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.imageSmoothingEnabled = false;
     hits = [];
     screenLay = [];
-    if (phase === "menu") { drawMenu(); if (sessionNote) drawSessionNote(); }
+    if (phase === "menu") drawMenu();
     else if (phase === "shop") drawShop();
     else if (phase === "camp") drawCamp();
     else if (phase === "lobby") drawLobby();
@@ -2515,7 +2540,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (phase !== "play") drawWallet();
     else { drawPlay(); if (world && world.net) NET.overlay(netApi, world); }
     if (showProf && phase !== "play") drawProfileCard();
-    if (phoneLand && phase !== "play") {
+    if (sessionNote) drawSessionNote();
+    else if (phoneLand && phase !== "play") {
       dimView(ctx, "rgba(8,6,20,0.55)");
       box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
       drawText(ctx, t('play.rotate'), LW / 2, LH / 2 - 14, TYPECOL.primary, TYPE.M, "center");
@@ -2536,22 +2562,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   /* net: what the online module may use from the shell */
   var netApi: any = {
     ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned, accountName: accountName, relayout: function () { resize(); },
-    sessionReplaced: function () { sessionNote = true; goMenu(); },
-    sessionOk: function () { sessionNote = false; },
+    sessionReplaced: onSessionReplaced,
+    sessionOk: onSessionOk,
     bg: function () { applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); }); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
-    setPhase: function (p: string) { phase = p; }, goMenu: goMenu,
+    setPhase: function (p: string) { if (!sessionNote) phase = p; }, goMenu: goMenu,
     bots: function () { activate("mp"); }, startNet: startNet
   };
   NET.bind(netApi);
-  NET.tryResume(netApi);
   var profileApi: any = {
     save: function () { return save; },
     saveNow: function () { writeSave(save); },
     say: function (s: string) { say(s); },
-    sessionReplaced: function () { sessionNote = true; goMenu(); },
-    sessionOk: function () { sessionNote = false; },
+    sessionReplaced: onSessionReplaced,
+    sessionOk: onSessionOk,
     apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number, limited?: string) {
       if (!prof) return;
       if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
@@ -2584,7 +2609,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       writeSave(save);
     }
   };
-  if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.init(profileApi);
+  if (typeof PROFILE !== "undefined" && PROFILE) {
+    PROFILE.init(profileApi).then(function () {
+      if (running && !sessionNote) NET.tryResume(netApi);
+    });
+  } else NET.tryResume(netApi);
   function onVis() {
     acc = 0; uiAcc = 0; lastT = -1;
     if (!document.hidden && audioUnlocked) {
@@ -2736,7 +2765,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var onTouch = function (e: any) { audioUnlock(); noScroll(e); };
   canvas.addEventListener("touchstart", onTouch, { passive: false });
   if (ptrRoot !== canvas) ptrRoot.addEventListener("touchstart", noScroll, { passive: false });
-  raf = requestAnimationFrame(frame);
+  var configOrigin = typeof PROFILE !== "undefined" && PROFILE && PROFILE.apiOrigin();
+  if (configOrigin) {
+    loadVisualContrast(configOrigin).then(function () {
+      if (running && !driving) raf = requestAnimationFrame(frame);
+    });
+  } else raf = requestAnimationFrame(frame);
 
   try { if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.apiOrigin) loadGameTranslations(PROFILE.apiOrigin(), function () { if (running) { updateDesktopLanguage(); resize(); } }); } catch (_e) {}
   return {

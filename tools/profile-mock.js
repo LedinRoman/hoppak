@@ -93,6 +93,7 @@ function toPublic(p) {
     migratedAt: p.migratedAt,
     createdAt: p.createdAt,
     telegramId: p.telegramId,
+    displayName: p.displayName,
   };
   if (mode === 'v06') {
     base.best = p.best || 0;
@@ -147,11 +148,19 @@ function serveStatic(reqPath, res) {
   });
 }
 
-/* Tokens rotated by a Telegram login: the old holder gets SESSION_REPLACED (like the real server), not UNAUTHORIZED. */
 const previousByHash = new Map();
+let replacementStatus = 409;
+let visualContrast = null;
+
+function previousPlayer(tok) {
+  const id = tok && previousByHash.get(sha256(tok));
+  return id ? [...playersByHash.values()].find((p) => p.id === id) : null;
+}
 function unauth(res, tok) {
-  const replaced = tok && previousByHash.has(sha256(tok));
-  return json(res, 401, { ok: false, error: replaced ? 'SESSION_REPLACED' : 'UNAUTHORIZED' });
+  const profile = previousPlayer(tok);
+  if (!profile) return json(res, 401, { ok: false, error: 'UNAUTHORIZED' });
+  if (replacementStatus === 401) return json(res, 401, { ok: false, error: 'SESSION_REPLACED' });
+  return json(res, 409, { ok: false, error: 'DEVICE_REPLACED', profile: toPublic(profile) });
 }
 
 function createServer() {
@@ -170,6 +179,8 @@ function createServer() {
       const b = await readBody(req);
       if (b.mode) mode = b.mode;
       if (b.tgAuth) tgAuth = b.tgAuth;
+      if (b.replacementStatus) replacementStatus = b.replacementStatus;
+      if (Object.hasOwn(b, 'visualContrast')) visualContrast = b.visualContrast;
       if (b.resetCooldown) {
         for (const p of playersByHash.values()) p.lastFinishAt = 0;
       }
@@ -193,6 +204,10 @@ function createServer() {
       requestLog.push({ t: Date.now(), method: req.method, path: urlPath, mode });
       if (mode === '503') {
         return json(res, 503, { ok: false, error: 'PROFILE_UNAVAILABLE' });
+      }
+
+      if (urlPath === '/api/config/visual' && req.method === 'GET' && visualContrast) {
+        return json(res, 200, visualContrast);
       }
 
       if (urlPath === '/api/profile/guest' && req.method === 'POST') {
@@ -229,10 +244,12 @@ function createServer() {
         }
         const b = await readBody(req);
         let telegramId = '10001';
+        let displayName = 'MOCK PLAYER';
         try {
           const params = new URLSearchParams(typeof b.initData === 'string' ? b.initData : '');
           const user = JSON.parse(params.get('user') || 'null');
           if (user && user.id != null) telegramId = String(user.id);
+          if (user && user.first_name) displayName = 'SERVER ' + user.first_name.toUpperCase();
         } catch {}
         const tok = bearer(req);
         const guest = tok ? playersByHash.get(sha256(tok)) : null;
@@ -241,6 +258,7 @@ function createServer() {
         }
         const existing = [...playersByHash.values()].find((pl) => pl.telegramId && String(pl.telegramId) === telegramId && !pl.mergedInto);
         if (existing) {
+          existing.displayName = displayName;
           if (guest && guest.id === existing.id && tok) {
             return json(res, 201, { ok: true, token: tok, profile: toPublic(existing), linked: false });
           }
@@ -263,7 +281,9 @@ function createServer() {
           }
           const nextToken = crypto.randomBytes(32).toString('hex');
           playersByHash.delete(existing.guestTokenHash);
-          previousByHash.set(existing.guestTokenHash, existing.id);
+          if (existing.previousTokenHash) previousByHash.delete(existing.previousTokenHash);
+          existing.previousTokenHash = existing.guestTokenHash;
+          previousByHash.set(existing.previousTokenHash, existing.id);
           existing.guestTokenHash = sha256(nextToken);
           playersByHash.set(existing.guestTokenHash, existing);
           const body = { ok: true, token: nextToken, profile: toPublic(existing), linked: false };
@@ -276,6 +296,7 @@ function createServer() {
           }
           const linked = !guest.telegramId;
           guest.telegramId = telegramId;
+          guest.displayName = displayName;
           return json(res, 201, { ok: true, token: tok, profile: toPublic(guest), linked });
         }
         const token = crypto.randomBytes(32).toString('hex');
@@ -292,6 +313,7 @@ function createServer() {
           windowStartedAt: 0,
           awardedInWindow: 0,
           telegramId,
+          displayName,
         };
         playersByHash.set(pnew.guestTokenHash, pnew);
         return json(res, 201, { ok: true, token, profile: toPublic(pnew), linked: true });
@@ -329,14 +351,15 @@ function createServer() {
       }
 
       if (urlPath === '/api/run/finish' && req.method === 'POST') {
-        if (!p) return unauth(res, tok);
+        const runner = p || previousPlayer(tok);
+        if (!runner) return unauth(res, tok);
         const b = await readBody(req);
         const runId = typeof b.runId === 'string' && /^[a-zA-Z0-9_.:-]{1,64}$/.test(b.runId.trim()) ? b.runId.trim() : null;
         if (mode === 'v06' && runId) {
-          let pr = runsByPlayer.get(p.id);
-          if (!pr) { pr = new Map(); runsByPlayer.set(p.id, pr); }
+          let pr = runsByPlayer.get(runner.id);
+          if (!pr) { pr = new Map(); runsByPlayer.set(runner.id, pr); }
           if (pr.has(runId)) {
-            return json(res, 201, { ok: true, awarded: pr.get(runId), duplicate: true, limited: 'DUPLICATE', profile: toPublic(p) });
+            return json(res, 201, { ok: true, awarded: pr.get(runId), duplicate: true, limited: 'DUPLICATE', profile: toPublic(runner) });
           }
         }
         const rawH = Math.floor(Number(b.height) || 0);
@@ -352,13 +375,13 @@ function createServer() {
         else if (rawC > 15801) limited = 'COINS_CAP';
         else if (rawB > 2500) limited = 'BONUS_CAP';
         else if (h < 100) limited = 'HEIGHT_MIN';
-        p.coins += awarded;
-        if (mode === 'v06') p.best = Math.max(p.best || 0, h);
+        runner.coins += awarded;
+        if (mode === 'v06') runner.best = Math.max(runner.best || 0, h);
         if (mode === 'v06' && MAP_IDS.indexOf(b.map) >= 0 && h > 0) {
-          p.campaign = mergeCampaign(p.campaign, { best: { [b.map]: h } });
+          runner.campaign = mergeCampaign(runner.campaign, { best: { [b.map]: h } });
         }
-        if (mode === 'v06' && runId) runsByPlayer.get(p.id).set(runId, awarded);
-        const out = { ok: true, awarded, profile: toPublic(p) };
+        if (mode === 'v06' && runId) runsByPlayer.get(runner.id).set(runId, awarded);
+        const out = { ok: true, awarded, profile: toPublic(runner) };
         if (limited) out.limited = limited;
         return json(res, 201, out);
       }

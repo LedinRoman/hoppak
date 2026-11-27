@@ -9,8 +9,9 @@ const assert = require('assert');
 const crypto = require('crypto');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
-const pp = require('/tmp/pp/node_modules/puppeteer-core');
+const pp = require(process.env.HOP_PUPPETEER || '/tmp/pp/node_modules/puppeteer-core');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { createServer, seenLog } = require('../../tools/profile-mock');
 
 execFileSync('bash', ['build.sh', 'site'], {
@@ -48,7 +49,7 @@ async function admin(base, body) {
   const base2 = `http://127.0.0.1:${port2}`;
 
   const browser = await pp.launch({
-    executablePath: '/usr/bin/google-chrome',
+    executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome',
     args: ['--no-sandbox', '--allow-file-access-from-files'],
     headless: 'new',
   });
@@ -59,7 +60,7 @@ async function admin(base, body) {
     {
       const pg = await browser.newPage();
       pg.on('pageerror', (e) => errs.push('file pageerror: ' + e.message));
-      const fileUrl = 'file://' + path.resolve(__dirname, '..', 'index.html');
+      const fileUrl = pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
       await pg.goto(fileUrl);
       await pg.evaluate(() => localStorage.clear());
       await pg.reload();
@@ -1244,7 +1245,7 @@ async function admin(base, body) {
       console.log('PASS 16: menu boxes fit 390×844, 390×640 and 360×560; hero centred');
     }
 
-    // 17. «АККАУНТ ОТКРЫТ НА ДРУГОМ УСТРОЙСТВЕ» only for a really different client, never for the same one.
+    // 17. A replaced device keeps its profile and must explicitly switch back.
     {
       await admin(base2, { mode: 'v06', tgAuth: 'ok', clearLog: true });
       const seedTg = (tgId, tok) => {
@@ -1260,7 +1261,10 @@ async function admin(base, body) {
         try { if (tok && !localStorage.getItem('hoppak_guest_token')) localStorage.setItem('hoppak_guest_token', tok); } catch (e) {}
       };
       const note = (pg) => pg.evaluate(() => !!window.__hoppak.sessionNote());
-      const who = (pg) => pg.evaluate(() => { const p = window.__hoppak.profile.getState(); return { id: p.profile && p.profile.id, tg: p.telegramId || (p.profile && p.profile.telegramId) || null }; });
+      const who = (pg) => pg.evaluate(() => {
+        const p = window.__hoppak.profile.getState();
+        return { id: p.profile.id, tg: p.telegramId, name: p.profile.displayName, state: p.st };
+      });
       const open = async (ctx, tok) => {
         const pg = await ctx.newPage();
         pg.on('pageerror', (e) => errs.push('17 pageerror: ' + e.message));
@@ -1293,26 +1297,44 @@ async function admin(base, body) {
       await poke(a1);
       assert.strictEqual(await note(a1), true, '17b device A must be told it was replaced');
 
-      // c) device A is opened again: that is a take-over, no banner, B is the one replaced
-      await a1.reload(); await settle(a1); await sleep(300);
-      assert.strictEqual(await note(a1), false, '17c reopened app shows no banner');
-      assert.strictEqual((await who(a1)).id, idA, '17c back on the Telegram account');
-      await poke(b1);
-      assert.strictEqual(await note(b1), true, '17c device B (still running) is told');
+      const tokA = await tokenOf(a1);
+      assert.deepStrictEqual(await who(a1), { id: idA, tg: '6101', name: 'SERVER ROMAN', state: 'locked' });
+      assert.strictEqual((await who(a2)).id, idA);
 
-      // d) an app opened with an old token (device B was replaced just now): quiet take-over, same account
+      // Opening a replaced token, including on a fresh tab with no cache, never takes over.
+      await admin(base2, { clearLog: true });
       const ctxD = await browser.createBrowserContext();
-      const d1 = await open(ctxD, tokB);
-      assert.strictEqual(await note(d1), false, '17d stale token on open: no banner');
-      assert.strictEqual((await who(d1)).id, idA, '17d logged in as the Telegram account');
+      const d1 = await open(ctxD, tokA);
+      assert.strictEqual(await note(d1), true);
+      assert.strictEqual((await who(d1)).name, 'SERVER ROMAN');
+      await a1.reload(); await settle(a1); await sleep(300);
+      assert.strictEqual(await tokenOf(a1), tokA);
+      assert.strictEqual(await note(a1), true);
+      const blocked = await a1.evaluate(async () => {
+        const game = window.__hoppak;
+        game.tap('start');
+        game.tap('camp');
+        await game.profile.buy('char:1', 100);
+        return { phase: game.getPhase(), buys: game.profile.getState().pendingBuysLen };
+      });
+      assert.deepStrictEqual(blocked, { phase: 'menu', buys: 0 });
+      const noLogin = await (await fetch(base2 + '/__mock/log')).json();
+      assert.ok(!noLogin.log.some((r) => ['/api/profile/guest', '/api/auth/telegram', '/api/profile/buy', '/api/run/start'].includes(r.path)));
 
-      // e) two tabs of one browser open with the same stale token at once: no self-kick
-      const stale = await tokenOf(b1).catch(() => null);
-      const ctxE = await browser.createBrowserContext();
-      const [e1, e2] = await Promise.all([open(ctxE, tokB), open(ctxE, tokB)]);
-      await poke(e1); await poke(e2);
-      assert.strictEqual(await note(e1), false, '17e tab 1 no banner');
-      assert.strictEqual(await note(e2), false, '17e tab 2 no banner');
+      await a1.bringToFront();
+      await a1.evaluate(() => window.__hoppak.tap('session:takeover'));
+      await a1.waitForFunction(() => window.__hoppak.profile.getState().st === 'ready', { polling: 50 });
+      assert.strictEqual(await note(a1), false);
+      assert.notStrictEqual(await tokenOf(a1), tokA);
+      assert.strictEqual((await who(a1)).id, idA);
+
+      // The previous 401 protocol is still accepted by the client during rollout.
+      await admin(base2, { replacementStatus: 401 });
+      await poke(b1);
+      assert.strictEqual(await note(b1), true);
+      assert.strictEqual(await tokenOf(b1), tokB);
+      assert.strictEqual((await who(b1)).name, 'SERVER ROMAN');
+      await admin(base2, { replacementStatus: 409 });
       // f) a suspended app comes back: no takeover = nothing; after a takeover it learns it without any user action
       const ctxF = await browser.createBrowserContext();
       const f1 = await open(ctxF);
@@ -1324,8 +1346,8 @@ async function admin(base, body) {
       await sleep(3200);
       await wake(f1);
       assert.strictEqual(await note(f1), true, '17f returning to a replaced app shows the banner');
-      for (const c of [ctxA, ctxB, ctxD, ctxE, ctxF, ctxG]) await c.close();
-      console.log('PASS 17: banner only for a different client; same browser, reopen and stale token never self-kick');
+      for (const c of [ctxA, ctxB, ctxD, ctxF, ctxG]) await c.close();
+      console.log('PASS 17: two devices, reload stays locked, explicit takeover, legacy 401');
     }
 
     // 18. Presence: heartbeat while visible, exit beacon when the page is hidden/closed, takeover learned from the heartbeat.
@@ -1371,6 +1393,46 @@ async function admin(base, body) {
       assert.strictEqual(await h1.evaluate(() => !!window.__hoppak.sessionNote()), true, '18 first device learns about the takeover from its heartbeat');
       for (const c of [ctxH, ctxI]) await c.close();
       console.log('PASS 18: heartbeat, exit beacon, takeover learned from the heartbeat');
+    }
+
+    // 19. Contrast is applied before the first draw and zero-metre exits are reported.
+    {
+      const contrast = { bg: 70, platforms: 75, hero: 110, mobs: 50, coins: 85 };
+      await admin(base2, { mode: 'v06', visualContrast: contrast });
+      const ctx = await browser.createBrowserContext();
+      const pg = await ctx.newPage();
+      await pg.evaluateOnNewDocument(() => {
+        const proto = CanvasRenderingContext2D.prototype;
+        const filter = Object.getOwnPropertyDescriptor(proto, 'filter');
+        window.__contrast = [];
+        Object.defineProperty(proto, 'filter', {
+          ...filter,
+          set(value) {
+            if (value.startsWith('saturate(')) window.__contrast.push(value);
+            filter.set.call(this, value);
+          },
+        });
+      });
+      await pg.goto(base2 + '/index.html');
+      await pg.waitForFunction(() => window.__contrast.length > 0);
+      assert.strictEqual(await pg.evaluate(() => window.__contrast[0]), 'saturate(70%) contrast(70%)');
+      await settle(pg);
+
+      const finish = pg.waitForRequest((request) => new URL(request.url()).pathname === '/api/run/finish');
+      await pg.evaluate(() => {
+        const game = window.__hoppak;
+        game.start('solo', 7, 'city');
+        game.tap('menu');
+      });
+      const body = JSON.parse((await finish).postData());
+      assert.deepStrictEqual([body.height, body.cause, body.mode, body.ver], [0, 'exit', 'solo', '1.0']);
+
+      await admin(base2, { visualContrast: null });
+      await pg.reload();
+      await pg.waitForFunction(() => window.__contrast.length > 0);
+      assert.strictEqual(await pg.evaluate(() => window.__contrast[0]), 'saturate(80%) contrast(80%)');
+      await ctx.close();
+      console.log('PASS 19: contrast before first draw, unavailable fallback, zero-metre telemetry');
     }
 
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));
