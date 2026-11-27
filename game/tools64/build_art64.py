@@ -6,8 +6,10 @@ with no resize. Cell is 72 art px wide (36 game px, same as the engine SPR_CW) a
 enough for the tallest used frame; feet on the bottom row, head centre at x=32 (SPR_AX*2).
 Poses: idle, squash, up, fall, ability, ko, blink (engine order).
 Stray near-white sparkle on platforms/springs is mapped to the sprite's own palette
-(ice and cloud stay white — they are white objects). Hero frames have no true-white
-sparkle; intentional lights are listed in the cleanup report.
+(ice and cloud stay white — they are white objects).
+Hero light pixels (HSL L>=80% and HSV/HSL sat<=25%, plus near #fff) are remapped to a
+darker colour from that sprite's palette. Eye whites become a readable light non-white
+(#b8c4d0). Alpha is forced binary. Studio originals are not edited.
 Backgrounds city/jungle: 1 px = 1 game px = 2 art px (no 320-grid version yet).
 """
 import base64, glob, io, json, os
@@ -108,20 +110,225 @@ def clean_whites(im, tag, skip=False):
             changes.append(rec)
     return Image.fromarray(a, 'RGBA'), changes, kept
 
+
+EYE_TONE = (0xb8, 0xc4, 0xd0)  # readable light non-white for sclera
+
+def hsl(r, g, b):
+    r, g, b = r / 255.0, g / 255.0, b / 255.0
+    mx, mn = max(r, g, b), min(r, g, b)
+    L = (mx + mn) / 2.0
+    if mx == mn:
+        return 0.0, 0.0, L
+    S = (mx - mn) / (1.0 - abs(2.0 * L - 1.0))
+    if mx == r:
+        H = ((g - b) / (mx - mn)) % 6.0
+    elif mx == g:
+        H = (b - r) / (mx - mn) + 2.0
+    else:
+        H = (r - g) / (mx - mn) + 4.0
+    return H * 60.0, S, L
+
+def hsv_sat(r, g, b):
+    mx = max(r, g, b)
+    return 0.0 if mx == 0 else (mx - min(r, g, b)) / mx
+
+def is_hero_light(r, g, b, al=255):
+    """High lightness, low saturation, or near-white. Catches skin highlights like #e9dace (HSV sat is low)."""
+    if al < 16:
+        return False
+    if min(r, g, b) >= 235:
+        return True
+    _H, S_hsl, L = hsl(r, g, b)
+    S_hsv = hsv_sat(r, g, b)
+    return L >= 0.80 and (S_hsv <= 0.25 or S_hsl <= 0.25)
+
+def hsl_to_rgb(H, S, L):
+    C = (1.0 - abs(2.0 * L - 1.0)) * S
+    Hp = (H % 360) / 60.0
+    X = C * (1.0 - abs(Hp % 2.0 - 1.0))
+    if 0 <= Hp < 1: rp, gp, bp = C, X, 0
+    elif 1 <= Hp < 2: rp, gp, bp = X, C, 0
+    elif 2 <= Hp < 3: rp, gp, bp = 0, C, X
+    elif 3 <= Hp < 4: rp, gp, bp = 0, X, C
+    elif 4 <= Hp < 5: rp, gp, bp = X, 0, C
+    else: rp, gp, bp = C, 0, X
+    m = L - C / 2.0
+    return tuple(max(0, min(255, int(round((v + m) * 255)))) for v in (rp, gp, bp))
+
+def darken_self(src):
+    H, S, L = hsl(*src)
+    return hsl_to_rgb(H, min(S, 0.22), 0.52)
+
+def pick_darker(src, palette):
+    """A mid, darker colour already in the sprite, preferring a similar hue."""
+    Hs, Ss, Ls = hsl(*src)
+    Ss_hsv = hsv_sat(*src)
+    chroma_s = max(src) - min(src)
+    cands = []
+    for (r, g, b), n in palette.items():
+        H, S, L = hsl(r, g, b)
+        if L >= 0.78 or L < 0.25:
+            continue
+        dh = min(abs(H - Hs), 360 - abs(H - Hs))
+        Sd = hsv_sat(r, g, b)
+        chroma_d = max(r, g, b) - min(r, g, b)
+        # grey highlights must not become red cloth; pale ones must not become gold
+        if chroma_s < 18 and chroma_d > 40:
+            continue
+        if Ss_hsv < 0.25 and Sd > 0.75:
+            continue
+        hue_pen = (dh / 180.0) * (0.3 if Ss_hsv < 0.15 else 2.0)
+        warm = (15 <= Hs <= 55) and dh < 30
+        light_pen = abs(L - (0.58 if warm else 0.50))
+        sat_jump = max(0.0, Sd - Ss_hsv - 0.35) * (0.25 if warm else 2.0)
+        rare = 0.25 if n < 3 else 0
+        cands.append((hue_pen + light_pen + sat_jump + rare, r, g, b))
+    if not cands:
+        return darken_self(src)
+    cands.sort()
+    return cands[0][1:]
+
+def connected(flags):
+    h, w = flags.shape
+    seen = np.zeros_like(flags)
+    comps = []
+    for y in range(h):
+        for x in range(w):
+            if not flags[y, x] or seen[y, x]:
+                continue
+            stack = [(y, x)]
+            seen[y, x] = True
+            pts = []
+            while stack:
+                cy, cx = stack.pop()
+                pts.append((cy, cx))
+                for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)):
+                    yy, xx = cy + dy, cx + dx
+                    if 0 <= yy < h and 0 <= xx < w and flags[yy, xx] and not seen[yy, xx]:
+                        seen[yy, xx] = True
+                        stack.append((yy, xx))
+            comps.append(pts)
+    return comps
+
+def hero_dewhite(im):
+    """Remap light desaturated pixels; keep eyes readable; force binary alpha.
+    Returns (image, stats dict)."""
+    a = np.asarray(im.convert('RGBA')).copy()
+    # binary alpha
+    a[..., 3] = np.where(a[..., 3] < 128, 0, 255).astype(np.uint8)
+    h, w = a.shape[:2]
+    hit = np.zeros((h, w), dtype=bool)
+    pal = {}
+    for y in range(h):
+        for x in range(w):
+            r, g, b, al = map(int, a[y, x])
+            if al < 16:
+                continue
+            if is_hero_light(r, g, b, al):
+                hit[y, x] = True
+            else:
+                t = (r, g, b)
+                pal[t] = pal.get(t, 0) + 1
+    # outline 1 px light specks just below the main threshold
+    for y in range(h):
+        for x in range(w):
+            r, g, b, al = map(int, a[y, x])
+            if al < 16 or hit[y, x]:
+                continue
+            _H, S_hsl, L = hsl(r, g, b)
+            S_hsv = hsv_sat(r, g, b)
+            if not (L >= 0.70 and (S_hsv <= 0.35 or S_hsl <= 0.35)):
+                continue
+            trans = 0
+            similar = 0
+            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)):
+                yy, xx = y + dy, x + dx
+                if not (0 <= yy < h and 0 <= xx < w) or a[yy, xx, 3] < 16:
+                    trans += 1
+                elif is_hero_light(*map(int, a[yy, xx, :3]), 255) or hit[yy, xx]:
+                    similar += 1
+            if trans >= 1 and similar <= 2:
+                hit[y, x] = True
+    if not hit.any():
+        return Image.fromarray(a, 'RGBA'), {'n': 0, 'map': {}, 'eyes': 0}
+    # opaque bbox for eye placement. Use the central column as the "core"
+    # (head+torso) so raised-arm cuffs at the sides are not treated as eyes.
+    ys, xs = np.where(a[..., 3] >= 16)
+    y0, y1, x0, x1 = int(ys.min()), int(ys.max()) + 1, int(xs.min()), int(xs.max()) + 1
+    bw, bh = x1 - x0, y1 - y0
+    cx0 = x0 + int(bw * 0.20)
+    cx1 = x0 + int(bw * 0.80)
+    core = (a[..., 3] >= 16) & (np.arange(w)[None, :] >= cx0) & (np.arange(w)[None, :] < cx1)
+    cys, cxs = np.where(core)
+    if cys.size:
+        cy0, cy1 = int(cys.min()), int(cys.max()) + 1
+    else:
+        cy0, cy1 = y0, y1
+    head_y = cy0 + int((cy1 - cy0) * 0.50)
+    eye_x0 = x0 + int(bw * 0.22)
+    eye_x1 = x0 + int(bw * 0.78)
+    eye_mask = np.zeros_like(hit)
+    for pts in connected(hit):
+        if not (2 <= len(pts) <= 8):
+            continue
+        ys_ = [p[0] for p in pts]; xs_ = [p[1] for p in pts]
+        if max(ys_) - min(ys_) > 4 or max(xs_) - min(xs_) > 4:
+            continue
+        cy = sum(ys_) / len(pts)
+        cx = sum(xs_) / len(pts)
+        if cy > head_y or cx < eye_x0 or cx > eye_x1:
+            continue
+        dark_n = False
+        for py, px in pts:
+            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                yy, xx = py + dy, px + dx
+                if 0 <= yy < h and 0 <= xx < w and a[yy, xx, 3] >= 16 and not hit[yy, xx]:
+                    _H, _S, L = hsl(*map(int, a[yy, xx, :3]))
+                    if L < 0.30:
+                        dark_n = True
+        if dark_n:
+            for py, px in pts:
+                eye_mask[py, px] = True
+    # map each source colour once
+    mapping = {}
+    counts = {}
+    eye_n = 0
+    for y in range(h):
+        for x in range(w):
+            if not hit[y, x]:
+                continue
+            src = (int(a[y, x, 0]), int(a[y, x, 1]), int(a[y, x, 2]))
+            if eye_mask[y, x]:
+                dest = EYE_TONE
+                eye_n += 1
+            else:
+                if src not in mapping:
+                    mapping[src] = pick_darker(src, pal)
+                dest = mapping[src]
+            a[y, x, 0], a[y, x, 1], a[y, x, 2] = dest
+            key = (src, dest, 'eye' if eye_mask[y, x] else 'body')
+            counts[key] = counts.get(key, 0) + 1
+    pretty = []
+    for (src, dest, role), n in sorted(counts.items(), key=lambda kv: -kv[1]):
+        pretty.append({'from': '#%02x%02x%02x' % src, 'to': '#%02x%02x%02x' % dest, 'role': role, 'n': n})
+    return Image.fromarray(a, 'RGBA'), {'n': int(hit.sum()), 'eyes': eye_n, 'map': pretty}
+
 def hero_sheet(hid, files, ch):
     sheet = Image.new('RGBA', (CW * 7, ch), (0, 0, 0, 0))
     info = []
     for i, f in enumerate(files):
-        q = rgba(os.path.join(ANIM, hid, f))
+        raw = rgba(os.path.join(ANIM, hid, f))
         if i == 5:
-            q = ko(q)
+            raw = ko(raw)
+        q, st = hero_dewhite(raw)
         if q.height > ch:
             q = q.crop((0, q.height - ch, q.width, q.height))
         hx = head_x(q)
         x = int(round(AX - hx))
         x = max(0, min(CW - q.width, x))
         sheet.alpha_composite(q, (i * CW + x, ch - q.height))
-        info.append({'file': os.path.basename(f), 'size': list(q.size), 'placeX': x, 'headX': round(hx, 1)})
+        info.append({'file': os.path.basename(f), 'size': list(q.size), 'placeX': x, 'headX': round(hx, 1),
+                     'before': raw, 'after': q, 'dewhite': st})
     return sheet, info
 
 def uri(im):
@@ -165,22 +372,27 @@ def main():
 
     for hid, files in HEROES.items():
         sh, info = hero_sheet(hid, files, ch)
-        # heroes: record intentional light pixels, do not rewrite (no true-white sparkle)
-        a = np.asarray(sh)
-        kept_hero = []
-        # eye-ish / blade / shirt: minRGB>=200 clusters — listed, not removed
+        dewhite = []
+        total = 0
+        eyes = 0
+        # before/after face crop of the idle (pose 0) and a mid pose
         for i, meta in enumerate(info):
-            x0 = i * CW
-            cell = a[:, x0:x0 + CW]
-            ys, xs = np.where((cell[..., 3] >= 16) & (cell[..., 0] >= 200) & (cell[..., 1] >= 200) & (cell[..., 2] >= 200))
-            if len(xs):
-                cols = {}
-                for y, x in zip(ys, xs):
-                    t = tuple(int(v) for v in cell[y, x, :3])
-                    cols[t] = cols.get(t, 0) + 1
-                kept_hero.append({'hero': hid, 'pose': meta['file'], 'n': int(len(xs)), 'colors': {str(k): v for k, v in cols.items()}})
-        report['heroes'][hid] = info
-        report['cleanup']['kept_hero_lights'] += kept_hero
+            st = meta['dewhite']
+            total += st['n']; eyes += st['eyes']
+            dewhite.append({'file': meta['file'], 'n': st['n'], 'eyes': st['eyes'], 'map': st['map']})
+        for i, tag in ((0, 'idle'), (2, 'up')):
+            meta = info[i]
+            before, after = meta['before'], meta['after']
+            # face: top ~40 rows of the frame, shared canvas
+            H = 42
+            def face(im):
+                c = Image.new('RGBA', (max(im.width, 44), H), (40, 30, 60, 255))
+                y = 0
+                c.alpha_composite(im, (2, y))
+                return c
+            zoom_pair(face(before), face(after), os.path.join(SHOTS, 'white-hero-%s-%s.png' % (hid, tag)), scale=8)
+        slim = [{'file': m['file'], 'size': m['size'], 'placeX': m['placeX'], 'headX': m['headX']} for m in info]
+        report['heroes'][hid] = {'cell': slim, 'pixels': total, 'eyes': eyes, 'poses': dewhite}
         out['hero'][hid] = uri(sh)
         sh.resize((sh.width * 4, sh.height * 4), Image.NEAREST).save('/tmp/art64_%s_x4.png' % hid)
 
