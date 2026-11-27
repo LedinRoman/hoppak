@@ -1,5 +1,8 @@
 
 /* ---------------- World ---------------- */
+/* Magnet coin-attract radius, game px. Was 70; 70 × 1.7 = 119.
+   The visual aura (drawMagnetCloud) is a pose cloud, not derived from this value. */
+var MAGNET_RADIUS = 119;
 function isPerm(t: string) { return t === "normal" || t === "move" || t === "ice" || t === "bounce" || t === "grav"; }
 /* Stable = does not vanish and does not slide away. Move is permanent but leaves the jump line. */
 function isStableType(t: string) { return t === "normal" || t === "ice" || t === "grav" || t === "bounce"; }
@@ -775,10 +778,12 @@ function mobEnv(mo: any) {
   if (b === "comet" || b === "wind") return [0, mo.baseY, LW, mo.baseY + mo.h];
   return [mo.x, mo.y, mo.x + mo.w, mo.y + mo.h];
 }
+function abCharges(H: any) { return (H && H.charges > 1) ? (H.charges | 0) : 1; }
+function abChargeCap(H: any) { return H.need * abCharges(H); }
 function abReady(p: any) { return p.abCharge >= CHARS[p.kind].need; }
 function addCharge(p: any, kind: string, n: number) {
   var H = CHARS[p.kind];
-  if (H.charge === kind) p.abCharge = Math.min(H.need, p.abCharge + n);
+  if (H.charge === kind) p.abCharge = Math.min(abChargeCap(H), p.abCharge + n);
 }
 /* pirate hook: nearest platform (above feet) or coin in reach, any direction */
 function hookTarget(w: any, p: any) {
@@ -834,11 +839,11 @@ function useAbility(w: any, p: any) {
   }
   else if (H.ab === "wall") { p.wallT = 300; p.wall = 0; spawnParts(w, p.x + 6, p.y + 8, 10, "#d82a2a", 2, 0, 1); }
   else if (H.ab === "dash") { p.vy = Math.min(p.vy, -6.6); p.vx = clamp(p.vx + p.face * 1.6, -MAX_VX * 1.3, MAX_VX * 1.3); p.dashT = 14; p.grabT = 0; spawnParts(w, p.x + 6, p.y + PH, 12, "#7ad8ff", 2.4, 0.08, 2); }
-  else if (H.ab === "dome") { p.domeT = 200; p.domeSave = true; spawnParts(w, p.x + 6, p.y + 8, 14, "#c89bff", 2.6, 0, 1); }
-  else if (H.ab === "shield") { giveBonus(w, p, "shield"); }
+  else if (H.ab === "dome" || H.ab === "shield") { giveBonus(w, p, "shield"); }
   else if (H.ab === "pound") { p.poundT = 1; p.vy = 7.5; p.grabT = 0; spawnParts(w, p.x + 6, p.y, 8, "#ffd046", 2, -0.05, 1); }
-  p.abCharge = 0;
-  p.abFx = 16;
+  p.abCharge = Math.max(0, p.abCharge - H.need);
+  /* Shield ability uses the same bonus visual, so no ability-pose flash. */
+  if (H.ab !== "shield" && H.ab !== "dome") p.abFx = 16;
   if (p.id === 0) toast(w, H.abName + "!");
   return true;
 }
@@ -1214,7 +1219,8 @@ function tickWorld(w: any, inputs: any) {
         if (cn.taken) continue;
         if (p.magnetT > 0) {
           var mdx = wrapDx(pcx - (cn.x + 3)), mdy = pcy - (cn.y + 3), md = Math.sqrt(mdx * mdx + mdy * mdy);
-          if (md < 70 && md > 0.5) { var ms = Math.min(md, 3.4); cn.x += (mdx / md) * ms; cn.y += (mdy / md) * ms; }
+          /* MAGNET_RADIUS was 70. Attract range only; the aura sprite is not derived from this. */
+          if (md < MAGNET_RADIUS && md > 0.5) { var ms = Math.min(md, 3.4); cn.x += (mdx / md) * ms; cn.y += (mdy / md) * ms; }
         }
         if (overlapsX(p.x, PW, cn.x, 6) && cn.y + 6 > p.y && cn.y < p.y + PH) {
           cn.taken = true;
@@ -1268,10 +1274,9 @@ function tickWorld(w: any, inputs: any) {
     }
     /* Below the bottom edge is always death. Platforms below the edge no longer land.
        BUG-14: if already bouncing (vy < 0) at the rim, do not kill. */
+    /* Below the bottom edge is always death. Shield (bonus or robot) does not save a fall. */
     if (w.tick > 80 && ep.vy >= 0 && ep.y > ep.camY + LH) {
-      if (ep.domeT > 0 && ep.domeSave) { ep.domeSave = false; ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; ep.invT = 40; spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2); if (ep.id === 0) toast(w, t('play.dome_saved')); }
-      else if (useShield(w, ep)) { ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; }
-      else killPlayer(w, ep, "fall");
+      killPlayer(w, ep, "fall");
     }
   }
   if (w.warnSfxT > 0) w.warnSfxT--;

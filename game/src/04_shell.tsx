@@ -36,6 +36,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var campCard = -1;
   var encyTab = "heroes";
   var encyCard = -1;
+  var encyPage = 0;
   var encyScroll = 0;
   var encyScrollMax = 0;
   var encyDrag: any = null;
@@ -450,7 +451,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!(typeof drawCoin64Ui === "function" && drawCoin64Ui(ctx, x0, cy))) {
       drawCoin(ctx, x0 + Math.round((cw - 6) / 2), y, 0);
     }
-    drawText(ctx, s, x0 + cw + gap, y - 0.5, TYPECOL.accent, TYPE.M, "left");
+    drawTextO(ctx, s, x0 + cw + gap, Math.round(y), TYPECOL.accent, "left", "#1a1030");
   }
   function menuTop() {
     return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) + (testInsetTop || 0);
@@ -663,8 +664,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var x = LW - 4 - w;
     var coinX = x - 3;
     var rowY = 1 + top;
-    rect(ctx, x - 3, rowY, w + 6, CHIP, INK);
-    rect(ctx, x - 2, rowY + 1, w + 4, CHIP - 2, C.navy);
+    /* No plate behind the wallet count: icon + outlined number only. */
     coinsLabel(LW - 4, rowY + 3, save.coins, "right");
     var linked = telegramLinked();
     var photo = accountPhoto();
@@ -838,8 +838,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       lobbyMap = om[mod(li + (id === "lmap:next" ? 1 : -1), om.length)]; return;
     }
     if (id === "shop" || id === "hero:menu") { showSet = false; showProf = false; phase = "shop"; return; }
-    if (id === "ency") { showSet = false; showProf = false; phase = "ency"; encyCard = -1; encyScroll = 0; return; }
-    if (id.indexOf("ency:tab:") === 0) { encyTab = id.slice(9); encyCard = -1; encyScroll = 0; return; }
+    if (id === "ency") { showSet = false; showProf = false; phase = "ency"; encyCard = -1; encyPage = 0; encyScroll = 0; return; }
+    if (id.indexOf("ency:tab:") === 0) { encyTab = id.slice(9); encyCard = -1; encyPage = 0; encyScroll = 0; return; }
     if (id.indexOf("ency:card:") === 0) { var ei = parseInt(id.slice(10), 10); if (!isNaN(ei)) encyCard = ei; return; }
     if (id === "soon" || id === "tab:shop") { say(t('common.soon')); return; }
     if (id === "tab:leagues") { say(t('menu.leagues_soon')); return; }
@@ -967,7 +967,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     pressId = id;
     if (id === "vol") { setSlider(id, loc.x); return; }
     if (phase === "results") coinSkip = true;
-    if (phase === "ency" && encyCard < 0) {
+    if (phase === "ency" && encyCard < 0 && id !== "back" && !(id && id.indexOf("ency:tab:") === 0)) {
       encyDrag = { y: loc.y, s0: encyScroll, moved: false };
     }
     if (phase !== "play") return;
@@ -1285,7 +1285,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var top = menuTop();
     var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
     /* ИГРАТЬ keeps the prod 34px button and at least 10px of air. Squeeze the logo and the grid, not these gaps. */
-    var playGap = 10, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
+    var playGap = 10, playH = 34, pickH = 22, gridH = 26, tabH = 36, gridGap = 4;
     var logoSc = TYPE.XL;
     function stack() {
       var tabY = LH - bot - tabH;
@@ -1306,7 +1306,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     function gap() { return L.platY - (L.tagBot + 2); }
     function need() { var f = heroFitHop(1000); return f.h + 26; }
     if (gap() < need()) { logoSc = TYPE.L; L = stack(); }
-    if (gap() < need()) { gridGap = 2; pickH = 16; L = stack(); }
+    if (gap() < need()) { gridGap = 2; pickH = 20; L = stack(); }
     var g = Math.max(16, gap());
     var fit = heroFitHop(g);
     var hopRoom = fit.hop;
@@ -1360,7 +1360,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!drawNineSlice(ctx, "menu_btn_sec_" + pickSt, pickX, L.pickY, pickW, L.pickH, UI_SLICE.btn_sec)) {
       btn("hero:menu", pickX, L.pickY, pickW, L.pickH, "#1a1430", "", TYPECOL.primary, TYPE.M, C.gold);
     }
-    drawText(ctx, t('menu.choose_hero'), LW / 2, L.pickY + Math.round((L.pickH - 7) / 2) + (pickSt === "pressed" ? 1 : 0), TYPECOL.primary, TYPE.M, "center");
+    /* Glyph is 7 px; floor so leftover pad sits below and the label is not stuck to the bottom edge. */
+    drawText(ctx, t('menu.choose_hero'), LW / 2, L.pickY + Math.floor((L.pickH - 7) / 2) + (pickSt === "pressed" ? 1 : 0), TYPECOL.primary, TYPE.M, "center");
     var playSt = pressId === "start" ? "pressed" : "idle";
     addHit("start", x, L.playY, 152, L.playH);
     markBox("start", x, L.playY, 152, L.playH);
@@ -1461,19 +1462,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
   }
   function drawMapThumb(x: number, y: number, w: number, h: number, id: string, locked: boolean) {
-    var key = "mapthumb_" + id + (locked ? "_locked" : "_open");
-    var im = UI_IMGS[key];
+    /* Integer scale, centred, never clipped, never smoothed.
+       Lock is already in the _locked art — do not draw a second lock on top. */
+    x = Math.round(x); y = Math.round(y);
+    w = Math.round(w); h = Math.round(h);
+    var im = UI_IMGS["mapthumb_" + id + (locked ? "_locked" : "_open")] || null;
     if (im && im.complete && im.naturalWidth) {
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(x, y, w, h);
-      ctx.clip();
       ctx.imageSmoothingEnabled = false;
+      if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
       var sw = im.naturalWidth, sh = im.naturalHeight;
       var k = Math.max(1, Math.floor(Math.min(w / sw, h / sh) + 1e-6));
       var dw = sw * k, dh = sh * k;
       var dx = x + Math.floor((w - dw) / 2), dy = y + Math.floor((h - dh) / 2);
-      ctx.drawImage(im, dx, dy, dw, dh);
+      ctx.drawImage(im, 0, 0, sw, sh, dx, dy, dw, dh);
       ctx.restore();
       return;
     }
@@ -1673,7 +1675,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       markBox("map" + i, x, y, 152, rh - 3);
       box(ctx, x, y, 152, rh - 3, open ? (save.bg === M.id ? "#2a2050" : C.navy) : "#120c1c", bd);
       if (open) {
-        drawMapThumb(x + 3, y + 3, 20, rh - 9, M.id, false);
+        var thumbY = y + Math.round(((rh - 3) - 29) / 2);
+        drawMapThumb(x + 3, thumbY, 20, 29, M.id, false);
         drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, TYPECOL.primary, TYPE.M, "left");
         var b = mapBest(i);
         if (M.goal) {
@@ -1683,7 +1686,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         } else drawText(ctx, t('score.record', { n: b }), x + 28, y + 15, TYPECOL.accent, TYPE.M, "left");
       } else {
         /* Locked / unbought maps stay unnamed; sketch thumb when Advisor files arrive. */
-        drawMapThumb(x + 3, y + 3, 20, rh - 9, M.id, true);
+        var thumbYl = y + Math.round(((rh - 3) - 29) / 2);
+        drawMapThumb(x + 3, thumbYl, 20, 29, M.id, true);
         drawText(ctx, (i + 1) + ". " + t('map.locked'), x + 28, y + 3, TYPECOL.muted, TYPE.M, "left");
         if (can) {
           drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
@@ -1712,22 +1716,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     encyEnsure();
     return !!save.ency.mobs[kind];
   }
-  function encyMobDesc(kind: string) {
-    if (kind === "blob") return t('ency.mob.blob');
-    if (kind === "trash") return t('ency.mob.trash');
-    if (kind === "bat") return t('ency.mob.bat');
-    if (kind === "hole") return t('ency.mob.hole');
-    if (kind === "ufo") return t('ency.mob.ufo');
-    if (kind === "frog") return t('ency.mob.frog');
-    if (kind === "parrot") return t('ency.mob.parrot');
-    if (kind === "snake") return t('ency.mob.snake');
-    if (kind === "monkey") return t('ency.mob.monkey');
-    return "";
-  }
-  function encyMapDesc(id: string) {
-    if (id === "city") return t('ency.map.city');
-    if (id === "jungle") return t('ency.map.jungle');
-    return "";
+  function encyDesc(kind: string, id: string) {
+    return (typeof encyBlurbText === "function") ? encyBlurbText(kind, id) : "";
   }
   function encyAppearances(kind: string) {
     var out: any[] = [];
@@ -1886,6 +1876,52 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (i = 0; i < items.length; i++) if (items[i].open) n++;
     return n;
   }
+  var ENCY_COLS = 2, ENCY_PAD = 6;
+  function encyHintMode() {
+    try {
+      var m = (window as any).__encyScrollHint;
+      if (m === "A" || m === "B" || m === "C" || m === "D" || m === "BD" || m === "E" || m === "F" || m === "G") return m;
+    } catch (_e) {}
+    return "B";
+  }
+  function encyNudgePx() {
+    try {
+      var n = (window as any).__encyNudge;
+      if (typeof n === "number" && isFinite(n)) return Math.round(n);
+    } catch (_e) {}
+    return 0;
+  }
+  function encyForcedScroll() {
+    try {
+      var n = (window as any).__encyScroll;
+      if (typeof n === "number" && isFinite(n)) return Math.round(n);
+    } catch (_e) {}
+    return null;
+  }
+  function drawEncyScrollBar(x: number, top: number, viewH: number) {
+    var bx = x + 153, bh = viewH, by = top;
+    rect(ctx, bx, by, 2, bh, "#1A1030");
+    var ratio = viewH / (viewH + encyScrollMax);
+    var thumbH = Math.max(8, Math.round(bh * ratio));
+    var thumbY = by;
+    if (encyScrollMax > 0) thumbY = by + Math.round((bh - thumbH) * (encyScroll / encyScrollMax));
+    rect(ctx, bx, thumbY, 2, thumbH, HUDCOL.secondary);
+  }
+  function drawEncyPeekFade(x: number, bot: number, w: number) {
+    var i, bands = 5, band = 2;
+    for (i = 0; i < bands; i++) {
+      ctx.fillStyle = "rgba(18,14,44," + (0.10 + i * 0.11) + ")";
+      ctx.fillRect(x, bot - (bands - i) * band, w, band);
+    }
+  }
+  function drawEncyChevron(cx: number, cy: number) {
+    var col = HUDCOL.secondary, dx, dy, row;
+    var rows = [[-3, -2, -1, 0, 1, 2, 3], [-2, -1, 0, 1, 2], [-1, 0, 1], [0]];
+    for (dy = 0; dy < rows.length; dy++) {
+      row = rows[dy];
+      for (dx = 0; dx < row.length; dx++) rect(ctx, cx + row[dx], cy + dy, 1, 1, col);
+    }
+  }
   function drawEncyCard(it: any, i: number, x: number, y: number, w: number, h: number, nameBand: number) {
     var open = !!it.open;
     var hid = "ency:card:" + i;
@@ -1893,11 +1929,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     markBox(hid, x, y, w, h);
     box(ctx, x, y, w, h, open ? C.navy : "#120c1c", open ? C.cream : "#4a3a6a");
     var artH = Math.max(20, h - nameBand);
-    var scale = 1;
-    if (it.type === "hero") encyDrawArt(encyHeroCanvas(it.i, scale, !open), x + 2, y + 2, w - 4, artH - 2, 2);
-    else encyDrawArt(encyMobCanvas(it.kind, scale, !open), x + 2, y + 2, w - 4, artH - 2, 2);
-    var name = open ? (it.type === "hero" ? CHARS[it.i].name : MOBS[it.kind].name) : t('map.locked');
-    var lines = hudLines(name, "S", w - 4);
+    var innerX = x + ENCY_PAD, innerY = y + ENCY_PAD;
+    var innerW = w - ENCY_PAD * 2, innerArt = Math.max(8, artH - ENCY_PAD);
+    if (it.type === "map") {
+      /* 2px inset from the frame so the largest integer scale (x2 = 40×58) can fit. */
+      drawMapThumb(x + 2, y + 2, w - 4, Math.max(8, artH - 2), it.M.id, !open);
+    } else {
+      var scale = 1;
+      var cv = it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
+      encyDrawArt(cv, innerX, innerY, innerW, innerArt, 0);
+    }
+    var name = open ? (it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name) : t('map.locked');
+    var lines = hudLines(name, "S", w - ENCY_PAD * 2);
     var ny = y + artH + 1;
     var li, col = open ? HUDCOL.main : HUDCOL.secondary;
     ctx.save();
@@ -1909,79 +1952,82 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawEncyGrid(x: number, top: number, bot: number) {
     var items = encyItems();
-    var cols = 2, gap = 4;
+    var cols = ENCY_COLS, gap = 4;
     var cw = Math.floor((152 - gap) / 2);
-    var twoLine = encyTab === "mobs";
-    var nameBand = twoLine ? HUD_S.line * 2 + 2 : HUD_S.line + 3;
-    var ch = 2 + ENCY_ART + 2 + nameBand;
-    var rows = Math.max(1, Math.ceil(items.length / cols));
+    var nameBand = (encyTab === "maps") ? (HUD_S.line + 3) : (HUD_S.line * 2 + 2);
     var viewH = bot - top;
-    var fit = Math.floor((viewH - (rows - 1) * gap) / rows);
-    if (fit >= ENCY_ART + HUD_S.line + 2 && fit < ch) ch = fit;
-    var contentH = rows * ch + Math.max(0, rows - 1) * gap;
+    var totalRows = Math.max(1, Math.ceil(items.length / cols));
+    var hint = encyHintMode();
+    var peek = 0;
+    if (totalRows > 3) {
+      if (hint === "A") peek = 8;
+      else if (hint === "B" || hint === "BD") peek = 22;
+      else if (hint === "C") peek = 12;
+      else if (hint === "D") peek = 16;
+      else peek = 16;
+    }
+    var ch = Math.floor((viewH - peek - 2 * gap) / 3);
+    if (ch < nameBand + 20) ch = nameBand + 20;
+    var contentH = totalRows * ch + Math.max(0, totalRows - 1) * gap;
     encyScrollMax = Math.max(0, contentH - viewH);
+    var forced = encyForcedScroll();
+    if (forced != null) encyScroll = forced;
     if (encyScroll > encyScrollMax) encyScroll = encyScrollMax;
+    if (encyScroll < 0) encyScroll = 0;
+    var nudge = encyNudgePx();
+    var scroll = encyScroll + nudge;
     ctx.save();
-    ctx.beginPath(); ctx.rect(x, top, 152, viewH); ctx.clip();
-    var lastRow = rows - 1, lastCount = items.length - lastRow * cols;
-    var more = false;
-    for (var i = 0; i < items.length; i++) {
-      var col = i % cols, row = (i / cols) | 0;
-      var cx = x + col * (cw + gap);
-      if (row === lastRow && lastCount === 1) cx = x + Math.round((152 - cw) / 2);
-      var cy = top + row * (ch + gap) - encyScroll;
-      if (cy + ch > bot + 0.5) { more = true; continue; }
-      if (cy < top - 0.5) continue;
+    /* Clip to the screen bottom so the peeking row can slide under the back bar, which is painted after. */
+    ctx.beginPath(); ctx.rect(x, top, 152, Math.max(viewH, LH - top)); ctx.clip();
+    var i, col, row, cx, cy;
+    var visA = -1, visB = -1;
+    for (i = 0; i < items.length; i++) {
+      col = i % cols;
+      row = (i / cols) | 0;
+      cx = x + col * (cw + gap);
+      cy = top + row * (ch + gap) - scroll;
+      if (cy + ch <= top || cy >= bot) continue;
+      /* A fully visible card, or at least half of it, counts for the G range. */
+      if (cy >= top - 2 && cy + ch <= bot + 2) {
+        if (visA < 0) visA = i;
+        visB = i;
+      } else if (cy < bot && cy + ch > top) {
+        var shown = Math.min(bot, cy + ch) - Math.max(top, cy);
+        if (shown >= ch * 0.5) {
+          if (visA < 0) visA = i;
+          visB = i;
+        }
+      }
       drawEncyCard(items[i], i, cx, cy, cw, ch, nameBand);
     }
     ctx.restore();
-    if (encyScrollMax > 0 && (more || encyScroll < encyScrollMax)) {
-      hudText(ctx, t('ency.more'), LW / 2, bot - HUD_S.height, HUDCOL.secondary, "S", "center");
+    (window as any).__encyVis = { a: visA, b: visB, n: items.length, rows: totalRows, ch: ch, gap: gap, scroll: scroll };
+    if (encyScrollMax > 0 || hint === "F") {
+      if (hint === "A") drawEncyScrollBar(x, top, viewH);
+      if (hint === "B" || hint === "BD") drawEncyPeekFade(x, bot, 152);
+      if (hint === "C") drawEncyChevron(x + 76, bot - 7);
+      if (hint === "F") drawEncyDots(x, top, viewH, totalRows, ch, gap, scroll);
     }
   }
-  function drawEncyMaps(x: number, top: number, bot: number) {
-    var items = encyMapItems();
-    var gap = 3, th = 24;
-    var rh = Math.max(HUD_M.height + HUD_S.line * 2 + 8, th + 8);
-    var contentH = items.length * (rh + gap) - gap;
-    var viewH = bot - top;
-    encyScrollMax = Math.max(0, contentH - viewH);
-    if (encyScroll > encyScrollMax) encyScroll = encyScrollMax;
-    ctx.save();
-    ctx.beginPath(); ctx.rect(x, top, 152, viewH); ctx.clip();
-    var more = false;
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i], M = it.M, open = !!it.open, soon = !!it.soon;
-      var y = top + i * (rh + gap) - encyScroll;
-      if (y + rh > bot + 0.5) { more = true; continue; }
-      if (y < top - 0.5) continue;
-      addHit("ency:card:" + i, x, y, 152, rh);
-      markBox("ency:map" + i, x, y, 152, rh);
-      box(ctx, x, y, 152, rh, open ? C.navy : "#120c1c", open ? C.cream : "#4a3a6a");
-      drawMapThumb(x + 3, y + Math.round((rh - th) / 2), 20, th, M.id, !open);
-      var tx = x + 28, tw = 152 - 32;
-      if (open) {
-        hudText(ctx, (i + 1) + ". " + M.name, tx, y + 3, HUDCOL.main, "M", "left");
-        var desc = encyMapDesc(M.id);
-        var dLines = hudLines(desc, "S", tw);
-        for (var di = 0; di < dLines.length && di < 2; di++) {
-          hudText(ctx, dLines[di], tx, y + 3 + HUD_M.line + di * HUD_S.line, HUDCOL.accent, "S", "left");
-        }
-      } else {
-        hudText(ctx, (i + 1) + ". " + t('map.locked'), tx, y + 3, HUDCOL.secondary, "M", "left");
-        if (soon) hudText(ctx, t('common.soon'), tx, y + 3 + HUD_M.line, HUDCOL.secondary, "S", "left");
-        else if (i > 0) {
-          var need = hudLines(t('ency.map.need_m', { n: MAPS[i - 1].goal }), "S", tw);
-          need = need.concat(hudLines(t('ency.map.need_prev'), "S", tw));
-          for (var ni = 0; ni < need.length && ni < 2; ni++) {
-            hudText(ctx, need[ni], tx, y + 3 + HUD_M.line + ni * HUD_S.line, HUDCOL.secondary, "S", "left");
-          }
-        }
+  function drawEncyDots(x: number, top: number, viewH: number, totalRows: number, ch: number, gap: number, scroll: number) {
+    var bx = x + 154, i, cur;
+    var step = ch + gap;
+    cur = step > 0 ? Math.round(scroll / step) : 0;
+    if (cur < 0) cur = 0;
+    if (cur > totalRows - 1) cur = totalRows - 1;
+    var dh = 3, sp = 5;
+    var totalH = totalRows * sp - (sp - dh);
+    var y0 = top + Math.round((viewH - totalH) / 2);
+    for (i = 0; i < totalRows; i++) {
+      var dy = y0 + i * sp;
+      var on = i === cur;
+      rect(ctx, bx, dy, dh, dh, on ? HUDCOL.accent : HUDCOL.secondary);
+      if (on) {
+        rect(ctx, bx - 1, dy, 1, dh, HUDCOL.outline);
+        rect(ctx, bx + dh, dy, 1, dh, HUDCOL.outline);
+        rect(ctx, bx, dy - 1, dh, 1, HUDCOL.outline);
+        rect(ctx, bx, dy + dh, dh, 1, HUDCOL.outline);
       }
-    }
-    ctx.restore();
-    if (encyScrollMax > 0 && (more || encyScroll < encyScrollMax)) {
-      hudText(ctx, t('ency.more'), LW / 2, bot - HUD_S.height, HUDCOL.secondary, "S", "center");
     }
   }
   function drawEncyDetail(x: number, top: number, bot: number) {
@@ -1989,60 +2035,58 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var it = items[encyCard];
     if (!it) { encyCard = -1; return; }
     var open = !!it.open;
-    var scale = (open && it.type !== "map") ? 2 : 1;
-    var artCv: any = null;
-    if (it.type === "hero") artCv = encyHeroCanvas(it.i, scale, !open);
-    else if (it.type === "mob") artCv = encyMobCanvas(it.kind, scale, !open);
-    var artW = 40, artH = 40;
-    if (it.type !== "map" && artCv) {
-      var bb = encyBBox(artCv, 0);
-      var ap = 4;
-      artW = Math.min(144, (bb ? bb.w : artCv.width) + ap * 2);
-      artH = Math.min(bot - top - 60, (bb ? bb.h : artCv.height) + ap * 2);
-    }
+    var h = bot - top;
+    box(ctx, x, top, 152, h, open ? "#1a1430" : "#120c1c", open ? C.cream : "#4a3a6a");
+    markBox("encyDetail", x, top, 152, h);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, top, 152, h); ctx.clip();
+    var pad = ENCY_PAD, gap = 4;
     var name = !open ? t('map.locked') : (it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name);
-    var nameLines = hudLines(name, "M", 144);
+    var nameLines = hudLines(name, "M", 152 - pad * 2);
     var body: string[] = [], extra: string[] = [], bi;
     if (!open) {
       if (it.type === "map") {
-        if (it.soon) body = hudLines(t('common.soon'), "S", 144);
+        if (it.soon) body = hudLines(t('common.soon'), "S", 152 - pad * 2);
         else if (it.i > 0) {
-          body = hudLines(t('ency.map.need_m', { n: MAPS[it.i - 1].goal }), "S", 144);
-          extra = hudLines(t('ency.map.need_prev'), "S", 144);
+          body = hudLines(t('ency.map.need_m', { n: MAPS[it.i - 1].goal }), "S", 152 - pad * 2);
+          extra = hudLines(t('ency.map.need_prev'), "S", 152 - pad * 2);
         }
       } else if (it.type === "mob") {
-        body = hudLines(t('ency.meet'), "S", 144);
+        body = hudLines(t('ency.meet'), "S", 152 - pad * 2);
       }
     } else if (it.type === "hero") {
       var H = CHARS[it.i];
-      body = hudLines(H.type + " · " + H.abName, "S", 144);
-      var blob = (H.abDesc[0] || "") + " " + (H.abDesc[1] || "");
-      extra = hudLines(blob, "S", 144);
+      body = hudLines(H.type + " · " + H.abName, "S", 152 - pad * 2);
+      extra = hudLines(encyDesc("hero", H.id), "S", 152 - pad * 2);
     } else if (it.type === "mob") {
-      body = hudLines(encyMobDesc(it.kind), "S", 144);
+      body = hudLines(encyDesc("mob", it.kind), "S", 152 - pad * 2);
       var apps = encyAppearances(it.kind);
       for (bi = 0; bi < apps.length; bi++) extra.push(t('ency.appears', { name: apps[bi].name, n: apps[bi].h }));
     } else {
-      var md = encyMapDesc(it.M.id);
-      if (md) body = hudLines(md, "S", 144);
+      var md = encyDesc("map", it.M.id);
+      if (md) body = hudLines(md, "S", 152 - pad * 2);
       if (it.M.goal) extra.push(t('score.goal', { n: it.M.goal }));
       extra.push(t('score.record', { n: mapBest(it.i) }));
-      if (it.i > 0 && !it.soon) {
-        extra = extra.concat(hudLines(t('ency.map.need_m', { n: MAPS[it.i - 1].goal }) + " " + t('ency.map.need_prev'), "S", 144));
-      }
     }
-    var pad = 6, gap = 4;
-    var h = pad + artH + gap + nameLines.length * HUD_M.line + body.length * HUD_S.line + extra.length * HUD_S.line + pad;
-    if (extra.length) h += 2;
-    if (h > bot - top) h = bot - top;
-    var py = top;
-    box(ctx, x, py, 152, h, open ? "#1a1430" : "#120c1c", open ? C.cream : "#4a3a6a");
-    markBox("encyDetail", x, py, 152, h);
-    var artY = py + pad;
-    if (it.type === "hero") encyDrawArt(artCv, x + Math.round((152 - artW) / 2), artY, artW, artH, 2);
-    else if (it.type === "mob") encyDrawArt(artCv, x + Math.round((152 - artW) / 2), artY, artW, artH, 2);
-    else drawMapThumb(x + Math.round((152 - 40) / 2), artY, 40, 40, it.M.id, !open);
-    var ty = artY + artH + gap, li;
+    var textH = nameLines.length * HUD_M.line + body.length * HUD_S.line + extra.length * HUD_S.line + (extra.length ? 2 : 0);
+    var artBoxH = Math.max(40, h - pad - gap - textH - pad);
+    var artBoxW = 152 - pad * 2;
+    var artY = top + pad;
+    if (it.type === "map") {
+      drawMapThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
+    } else {
+      var want = open ? 2 : 1;
+      var probe = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
+      var bb = probe ? encyBBox(probe, 0) : null;
+      var bw = bb ? bb.w : 64, bh = bb ? bb.h : 64;
+      var scale = want;
+      while (scale > 1 && (bw * scale + 0 > artBoxW || bh * scale + 0 > artBoxH)) scale--;
+      var artCv = scale === 1 ? probe : (it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open));
+      var aw = Math.min(artBoxW, (bb ? bb.w * scale : artBoxW));
+      var ah = Math.min(artBoxH, (bb ? bb.h * scale : artBoxH));
+      encyDrawArt(artCv, x + pad + Math.round((artBoxW - aw) / 2), artY + Math.round((artBoxH - ah) / 2), aw, ah, 0);
+    }
+    var ty = artY + artBoxH + gap, li;
     for (li = 0; li < nameLines.length; li++) {
       hudText(ctx, nameLines[li], LW / 2, ty + li * HUD_M.line, open ? HUDCOL.main : HUDCOL.secondary, "M", "center");
     }
@@ -2054,6 +2098,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (li = 0; li < extra.length; li++) {
       hudText(ctx, extra[li], LW / 2, ty + li * HUD_S.line, HUDCOL.accent, "S", "center");
     }
+    ctx.restore();
   }
   function drawEncy() {
     applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
@@ -2086,17 +2131,34 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     var items = encyItems();
     var top = tabY + tabH + 4;
+    var hint = encyHintMode();
     if (encyCard < 0) {
-      hudText(ctx, t('ency.opened', { n: encyOpenCount(items), total: items.length }), LW / 2, top, HUDCOL.secondary, "S", "center");
+      if (hint === "G") {
+        var vis = (window as any).__encyVis;
+        var ga = (vis && vis.a >= 0) ? vis.a + 1 : 1;
+        var gb = (vis && vis.b >= 0) ? vis.b + 1 : Math.min(6, items.length);
+        hudText(ctx, ga + "-" + gb + " " + (gameLanguage() === "en" ? "OF" : "ИЗ") + " " + items.length, LW / 2, top, HUDCOL.secondary, "S", "center");
+      } else {
+        hudText(ctx, t('ency.opened', { n: encyOpenCount(items), total: items.length }), LW / 2, top, HUDCOL.secondary, "S", "center");
+      }
       top += HUD_S.line + 2;
+      if (hint === "E" && items.length > 6) {
+        var ew = hudWidth("ЕЩЁ", "S");
+        hudText(ctx, "ЕЩЁ", LW / 2 - 4, top, HUDCOL.secondary, "S", "center");
+        drawEncyChevron(LW / 2 + Math.round(ew / 2) + 1, top + 2);
+        top += HUD_S.line + 1;
+      }
     }
     var btnH = 22;
-    var btnY = LH - btnH - 6;
-    var bot = btnY - 4;
-    if (encyCard >= 0) { encyScrollMax = 0; encyScroll = 0; drawEncyDetail(x, top, bot); }
-    else if (encyTab === "maps") drawEncyMaps(x, top, bot);
+    var barLip = 3;
+    var barY = LH - btnH - 6 - barLip;
+    var barH = LH - barY;
+    var bot = barY;
+    if (encyCard >= 0) drawEncyDetail(x, top, bot);
     else drawEncyGrid(x, top, bot);
-    encyBtn("back", x + 26, btnY, 100, btnH, t('common.back'));
+    /* The full-width bar is the Back button: one frame, centred label, press on the whole bar.
+       The peeking row is clipped under this bar (drawn after the grid). */
+    encyBtn("back", x, barY, 152, barH, t('common.back'));
     drawFlash();
   }
 
@@ -2546,8 +2608,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawFxFront(p: any, sy: number, tick: number) {
     if (!p.alive) return;
     var cx = Math.round(p.x + 6), cy = Math.round(sy + 6);
+    /* Robot and bonus share drawShieldAura (activation, idle, blink, break). Old dome ring is unused. */
     if (p.shieldT > 0) drawShieldAura(ctx, p, sy, tick);
-    drawDome(p, cx, cy, tick);
     if (p.freezeT > 0) { ctx.globalAlpha = 0.45; rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff"); ctx.globalAlpha = 1; }
     if (p.rocketT > 0) {
       /* v1.0 w13: flame + baked smoke, anchored at the feet. -1 closes a 1 px boot gap. */
@@ -2701,6 +2763,24 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.globalAlpha = ready || active || rf > 0 ? 1 : 0.55;
     drawAbIcon(H.ab, cx - 6, cy - 6);
     ctx.globalAlpha = 1;
+    var pips = (H.charges > 1) ? (H.charges | 0) : 0;
+    if (pips > 1) drawAbPips(b.x + b.w + 2, cy, pips, me.abCharge, H.need);
+  }
+  /* Pixel-safe 3×3 pips with a 1 px outline, integer coordinates only. */
+  function drawAbPips(x: number, cy: number, n: number, charge: number, need: number) {
+    var i, px, py, on, fill, edge;
+    var size = 3, pad = 2, out = 1;
+    var box = size + out * 2;
+    py = Math.round(cy - box / 2);
+    x = Math.round(x);
+    for (i = 0; i < n; i++) {
+      px = x + i * (box + pad);
+      on = charge >= need * (i + 1);
+      fill = on ? "#4e8a58" : "#1a1430";
+      edge = on ? C.cream : "#5a5668";
+      rect(ctx, px, py, box, box, edge);
+      rect(ctx, px + out, py + out, size, size, fill);
+    }
   }
   function whyText(p: any) {
     var m = metersOf(p), w = p.why || "";
