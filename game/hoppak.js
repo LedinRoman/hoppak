@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("a9e45c2") return String("a9e45c2");
+      if ("e358252") return String("e358252");
     } catch (_e) {
     }
     return "";
@@ -10647,10 +10647,8 @@
       if (kind === "parrot" || kind === "bat" || kind === "ufo") return "center";
       return "bottom";
     }
-    function encyMobCanvas(kind, scale, locked) {
-      var ui2 = encyUiSprite(kind, locked);
-      if (ui2) return ui2;
-      var key = "m:" + kind + ":g1" + (locked ? ":L" : ":O");
+    function encyMobCanvas(kind, _scale, locked) {
+      var key = "m:" + kind + ":art" + (locked ? ":L" : ":O");
       if (encyArtCache[key]) return encyArtCache[key];
       var sheet = typeof MOB_SPRITES !== "undefined" ? MOB_SPRITES[kind] : null;
       var cv = null;
@@ -10666,41 +10664,39 @@
       var fi = ENCY_MOB_FRAME[kind] != null ? ENCY_MOB_FRAME[kind] : 0;
       if (fi > (sheet.n || 1) - 1) fi = 0;
       var fw = sheet.fw, fh = sheet.fh;
-      var dw = Math.max(1, Math.round(fw * 0.5)), dh = Math.max(1, Math.round(fh * 0.5));
       var out = document.createElement("canvas");
-      out.width = dw;
-      out.height = dh;
+      out.width = fw;
+      out.height = fh;
       var g = out.getContext("2d");
       if (!g) return null;
       encyNoSmooth(g);
-      g.drawImage(cv, fi * fw, 0, fw, fh, 0, 0, dw, dh);
+      g.drawImage(cv, fi * fw, 0, fw, fh, 0, 0, fw, fh);
       if (locked) encyTint(out);
       encyArtCache[key] = out;
       return out;
     }
-    function encyHeroCanvas(kind, scale, locked) {
+    function encyHeroCanvas(kind, _scale, locked) {
       var id = (CHARS[kind] || CHARS[0]).id;
-      var ui2 = encyUiSprite(id, locked);
-      if (ui2) return ui2;
+      var key = "h:" + id + ":art" + (locked ? ":L" : ":O");
+      if (encyArtCache[key]) return encyArtCache[key];
       var spr = heroSprite(id);
-      var ready = !!(spr && spr.complete && (spr.naturalWidth || spr.width));
-      var key = "h:" + id + ":" + scale + (locked ? ":L" : ":O");
-      if (ready && encyArtCache[key]) return encyArtCache[key];
-      if (!spr || !(spr.naturalWidth || spr.width)) return ready ? encyArtCache[key] : null;
+      var sw = spr ? spr.width || spr.naturalWidth || 0 : 0;
+      var sh = spr ? spr.height || spr.naturalHeight || 0 : 0;
+      if (!spr || sw < 1 || sh < 1) return null;
       var PL = posesFor(id);
       var fi = PL.indexOf("idle");
       if (fi < 0) fi = 0;
-      var fw = (spr.naturalWidth || spr.width) / PL.length;
-      var fh = spr.naturalHeight || spr.height;
+      var fw = Math.floor(sw / PL.length), fh = sh;
+      if (fw < 1 || fh < 1) return null;
       var out = document.createElement("canvas");
-      out.width = Math.round(fw * scale);
-      out.height = Math.round(fh * scale);
+      out.width = fw;
+      out.height = fh;
       var g = out.getContext("2d");
       if (!g) return null;
       encyNoSmooth(g);
-      g.drawImage(spr, fi * fw, 0, fw, fh, 0, 0, out.width, out.height);
+      g.drawImage(spr, fi * fw, 0, fw, fh, 0, 0, fw, fh);
       if (locked) encyTint(out);
-      if (ready) encyArtCache[key] = out;
+      encyArtCache[key] = out;
       return out;
     }
     function encyIntegerFit(sw, sh, maxW, maxH) {
@@ -10719,22 +10715,20 @@
       dh = Math.max(1, Math.min(maxH, sh));
       return { dw, dh };
     }
-    var ENCY_ART_SCALE = 1;
-    function encyDrawArt(cv, x, y, w, h, pad, _align) {
+    var ENCY_ART_PX = 0.5;
+    function encyDrawArt(cv, x, y, w, h, pad, _align, mul) {
       if (!cv) return;
       if (pad == null) pad = 0;
+      if (mul == null || mul < 1) mul = 1;
       var innerW = Math.max(1, w - pad * 2), innerH = Math.max(1, h - pad * 2);
-      var scale = ENCY_ART_SCALE;
-      var sw = cv.width, sh = cv.height;
-      var dw = sw * scale, dh = sh * scale;
+      var dw = Math.round(cv.width * ENCY_ART_PX * mul);
+      var dh = Math.round(cv.height * ENCY_ART_PX * mul);
       if (dw > innerW || dh > innerH) {
         var div = 2;
-        while (div <= 8 && (Math.floor(sw / div) * scale > innerW || Math.floor(sh / div) * scale > innerH)) div++;
+        while (div <= 8 && (Math.round(cv.width * ENCY_ART_PX * mul / div) > innerW || Math.round(cv.height * ENCY_ART_PX * mul / div) > innerH)) div++;
         if (div <= 8) {
-          sw = Math.max(1, Math.floor(sw / div));
-          sh = Math.max(1, Math.floor(sh / div));
-          dw = sw * scale;
-          dh = sh * scale;
+          dw = Math.max(1, Math.round(cv.width * ENCY_ART_PX * mul / div));
+          dh = Math.max(1, Math.round(cv.height * ENCY_ART_PX * mul / div));
         }
       }
       var dx = x + pad + Math.floor((innerW - dw) / 2);
@@ -10975,7 +10969,7 @@
         drawMapDetailThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
       } else {
         var artCv = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
-        encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, "center");
+        encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, "center", 2);
       }
       var ty = artY + artBoxH + gap, li;
       for (li = 0; li < nameLines.length; li++) {

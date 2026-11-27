@@ -8570,11 +8570,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (kind === "parrot" || kind === "bat" || kind === "ufo") return "center";
     return "bottom";
   }
-  function encyMobCanvas(kind: string, scale: number, locked: boolean) {
-    var ui = encyUiSprite(kind, locked);
-    if (ui) return ui;
-    /* Leftover mobs (trash, hole, ufo, snake, monkey): 64 art px at 1/2 = 1 game / UI pixel. No upscale. */
-    var key = "m:" + kind + ":g1" + (locked ? ":L" : ":O");
+  function encyMobCanvas(kind: string, _scale: number, locked: boolean) {
+    /* In-game mob art, native frame (64×64). Drawn at 0.5 in the grid and 1.0 (2× grid) in the detail card. */
+    var key = "m:" + kind + ":art" + (locked ? ":L" : ":O");
     if (encyArtCache[key]) return encyArtCache[key];
     var sheet = typeof MOB_SPRITES !== "undefined" ? MOB_SPRITES[kind] : null;
     var cv: any = null;
@@ -8590,41 +8588,40 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var fi = ENCY_MOB_FRAME[kind] != null ? ENCY_MOB_FRAME[kind] : 0;
     if (fi > (sheet.n || 1) - 1) fi = 0;
     var fw = sheet.fw, fh = sheet.fh;
-    var dw = Math.max(1, Math.round(fw * 0.5)), dh = Math.max(1, Math.round(fh * 0.5));
     var out = document.createElement("canvas");
-    out.width = dw;
-    out.height = dh;
+    out.width = fw;
+    out.height = fh;
     var g = out.getContext("2d");
     if (!g) return null;
     encyNoSmooth(g);
-    g.drawImage(cv, fi * fw, 0, fw, fh, 0, 0, dw, dh);
+    g.drawImage(cv, fi * fw, 0, fw, fh, 0, 0, fw, fh);
     if (locked) encyTint(out);
     encyArtCache[key] = out;
     return out;
   }
-  function encyHeroCanvas(kind: number, scale: number, locked: boolean) {
+  function encyHeroCanvas(kind: number, _scale: number, locked: boolean) {
+    /* In-game 64-px hero sheet, idle cell at native size (72×68). Same cell for every hero, including knight. */
     var id = (CHARS[kind] || CHARS[0]).id;
-    var ui = encyUiSprite(id, locked);
-    if (ui) return ui;
+    var key = "h:" + id + ":art" + (locked ? ":L" : ":O");
+    if (encyArtCache[key]) return encyArtCache[key];
     var spr = heroSprite(id);
-    var ready = !!(spr && spr.complete && (spr.naturalWidth || spr.width));
-    var key = "h:" + id + ":" + scale + (locked ? ":L" : ":O");
-    if (ready && encyArtCache[key]) return encyArtCache[key];
-    if (!spr || !(spr.naturalWidth || spr.width)) return ready ? encyArtCache[key] : null;
+    var sw = spr ? (spr.width || spr.naturalWidth || 0) : 0;
+    var sh = spr ? (spr.height || spr.naturalHeight || 0) : 0;
+    if (!spr || sw < 1 || sh < 1) return null;
     var PL = posesFor(id);
     var fi = PL.indexOf("idle");
     if (fi < 0) fi = 0;
-    var fw = (spr.naturalWidth || spr.width) / PL.length;
-    var fh = spr.naturalHeight || spr.height;
+    var fw = Math.floor(sw / PL.length), fh = sh;
+    if (fw < 1 || fh < 1) return null;
     var out = document.createElement("canvas");
-    out.width = Math.round(fw * scale);
-    out.height = Math.round(fh * scale);
+    out.width = fw;
+    out.height = fh;
     var g = out.getContext("2d");
     if (!g) return null;
     encyNoSmooth(g);
-    g.drawImage(spr, fi * fw, 0, fw, fh, 0, 0, out.width, out.height);
+    g.drawImage(spr, fi * fw, 0, fw, fh, 0, 0, fw, fh);
     if (locked) encyTint(out);
-    if (ready) encyArtCache[key] = out;
+    encyArtCache[key] = out;
     return out;
   }
   /* Largest integer scale that fits in maxW×maxH. If 1 is already too big, go one
@@ -8647,22 +8644,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   /* Largest integer scale that fits (never fractional). Uses the opaque bbox so leftover
      mobs (32×32) and Advisor sprites (e.g. 55×23 slime) read at a similar visual size. */
-  /* One integer factor for every encyclopedia hero and mob (grid and detail).
-     1x of the ency sprite: medium, crisp, no ragged upscale, same size in the card and the detail panel.
-     Drawn from the full canvas so all 30x38 heroes share one size (knight must not scale from a shorter bbox). */
-  var ENCY_ART_SCALE = 1;
-  function encyDrawArt(cv: any, x: number, y: number, w: number, h: number, pad?: number, _align?: string) {
+  /* Encyclopedia draw: same pixel grid as gameplay (1 art px = 0.5 game/UI px).
+     mul=1 is the grid (gameplay size: hero 36×34, mob 32×32). mul=2 is the detail card
+     (native art: 72×68 / 64×64), exactly 2× the grid, integer, no second resample. */
+  var ENCY_ART_PX = 0.5;
+  function encyDrawArt(cv: any, x: number, y: number, w: number, h: number, pad?: number, _align?: string, mul?: number) {
     if (!cv) return;
     if (pad == null) pad = 0;
+    if (mul == null || mul < 1) mul = 1;
     var innerW = Math.max(1, w - pad * 2), innerH = Math.max(1, h - pad * 2);
-    var scale = ENCY_ART_SCALE;
-    var sw = cv.width, sh = cv.height;
-    var dw = sw * scale, dh = sh * scale;
+    var dw = Math.round(cv.width * ENCY_ART_PX * mul);
+    var dh = Math.round(cv.height * ENCY_ART_PX * mul);
     if (dw > innerW || dh > innerH) {
-      /* Only shrink by a whole divisor if a future sprite is larger than the slot. Never fractional. */
       var div = 2;
-      while (div <= 8 && (Math.floor(sw / div) * scale > innerW || Math.floor(sh / div) * scale > innerH)) div++;
-      if (div <= 8) { sw = Math.max(1, Math.floor(sw / div)); sh = Math.max(1, Math.floor(sh / div)); dw = sw * scale; dh = sh * scale; }
+      while (div <= 8 && (Math.round(cv.width * ENCY_ART_PX * mul / div) > innerW || Math.round(cv.height * ENCY_ART_PX * mul / div) > innerH)) div++;
+      if (div <= 8) { dw = Math.max(1, Math.round(cv.width * ENCY_ART_PX * mul / div)); dh = Math.max(1, Math.round(cv.height * ENCY_ART_PX * mul / div)); }
     }
     var dx = x + pad + Math.floor((innerW - dw) / 2);
     var dy = y + pad + Math.floor((innerH - dh) / 2);
@@ -8892,8 +8888,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       drawMapDetailThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
     } else {
       var artCv = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
-      /* Same medium 1x size as the grid, centred, leaving room for the text below. */
-      encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, "center");
+      /* Detail: exactly 2× the grid (native 64-px art), centred, text still fits below. */
+      encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, "center", 2);
     }
     var ty = artY + artBoxH + gap, li;
     for (li = 0; li < nameLines.length; li++) {
