@@ -544,7 +544,7 @@ var MOBS: any = {
   ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, get name() { return t('mob.ray'); }, g: "m" },
   bob: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.bob'); }, g: "f" },
   ember: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.ember'); }, g: "m" },
-  /* Visual scale 0.5*0.92 (Roman: -8%), contrast 83. w/h are overwritten to the head-skull box below. hangTop stays pl.y+5. */
+  /* Visual scale 0.5*0.92 (Roman: -8%), contrast 77. w/h are overwritten to the head-skull box below. hangTop stays pl.y+5. */
   snake: { b: "snake", w: 10 * 0.92, h: 8 * 0.92, gap: 38, get name() { return t('mob.snake'); }, g: "f" },
 
   puffer: { b: "puff", w: 12, h: 12, gap: 40, get name() { return t('mob.puffer'); }, g: "f" },
@@ -1023,10 +1023,10 @@ function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: 
 
 /* v1.0 contrast knobs, percent of full (100 = unchanged). One object so a later
    admin/server payload can overwrite the values. No Settings slider; bg stays 80. */
-var VISUAL_CONTRAST: any = { bg: 80, plat: 92, hero: 92, mob: 88, coin: 85, shield: 95 };
-/* Jungle snake only: render at 92% of the usual 0.5 scale, contrast 83. Shared by draw + spawn clearance. */
+var VISUAL_CONTRAST: any = { bg: 73, plat: 85, hero: 87, mob: 83, coin: 78, shield: 89 };
+/* Jungle snake only: render at 92% of the usual 0.5 scale, contrast 77. Shared by draw + spawn clearance. */
 var SNAKE_DRAW_SCALE = 0.5 * 0.92;
-var SNAKE_CONTRAST = 83;
+var SNAKE_CONTRAST = 77;
 var SNAKE_HEAD_DRAW_H = 64 * SNAKE_DRAW_SCALE;
 /* Skull in the 64×64 head frame (leaf/neck tuft is y 0..15, not damaging).
    Tight box from the idle/strike sheets; scale 0.46. Vine is never in this box. */

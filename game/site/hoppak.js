@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("f627672") return String("f627672");
+      if ("5d0bd51") return String("5d0bd51");
     } catch (_e) {
     }
     return "";
@@ -703,7 +703,7 @@
     ember: { b: "sway", w: 12, h: 12, gap: 34, get name() {
       return t("mob.ember");
     }, g: "m" },
-    /* Visual scale 0.5*0.92 (Roman: -8%), contrast 83. w/h are overwritten to the head-skull box below. hangTop stays pl.y+5. */
+    /* Visual scale 0.5*0.92 (Roman: -8%), contrast 77. w/h are overwritten to the head-skull box below. hangTop stays pl.y+5. */
     snake: { b: "snake", w: 10 * 0.92, h: 8 * 0.92, gap: 38, get name() {
       return t("mob.snake");
     }, g: "f" },
@@ -1391,9 +1391,9 @@
     if (role === "S") return drawTiny(ctx, s, x, y, color, align);
     return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
   }
-  var VISUAL_CONTRAST = { bg: 80, plat: 92, hero: 92, mob: 88, coin: 85, shield: 95 };
+  var VISUAL_CONTRAST = { bg: 73, plat: 85, hero: 87, mob: 83, coin: 78, shield: 89 };
   var SNAKE_DRAW_SCALE = 0.5 * 0.92;
-  var SNAKE_CONTRAST = 83;
+  var SNAKE_CONTRAST = 77;
   var SNAKE_HEAD_DRAW_H = 64 * SNAKE_DRAW_SCALE;
   var SNAKE_HEAD_ART_X = 10;
   var SNAKE_HEAD_ART_Y = 16;
