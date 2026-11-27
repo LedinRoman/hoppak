@@ -31,6 +31,15 @@ var PX_PER_M = 8;
 var REMOTE_ALPHA = 0.84;
 var PW = 12;
 var PH = 16;
+/* v1.0 hitbox tweak: PW×PH itself does not change (wrap, wall-cling, feet at y+PH,
+   sprite anchor at x+6 / y+16), so jump, gravity and controls stay the same.
+   Only the collision rectangles move a little towards the 64 px art:
+   visible feet are ~12 game px (landing was a 10 px box); solid torso is ~12–13
+   (hurt was 8 px wide). Landing uses the full PW. Hurt/stomp/bullets stay 1 px
+   inside the body. Bonus pickups, coins, mob sizes and mobBox() are unchanged. */
+var LAND_PAD_X = 0; /* was 1: land with PW-2 */
+var HURT_PAD_X = 1; /* was 2: hurt with PW-4 */
+var HURT_PAD_Y = 4; /* top inset, unchanged */
 var GRAVITY = 0.19;
 var JUMP_V = -5.55;
 var JUMP_H = (JUMP_V * JUMP_V) / (2 * GRAVITY); /* ~81 px */
@@ -1834,7 +1843,7 @@ function hasLandablePlat(w: any, p: any) {
     var q = w.platforms[i];
     if (q.broken) continue;
     if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) continue;
-    if (q.y + 3 >= (p.prevY + PH) - 2 && q.y <= feet + reach && overlapsX(p.x + 1, PW - 2, q.x, q.w)) return true;
+    if (q.y + 3 >= (p.prevY + PH) - 2 && q.y <= feet + reach && overlapsX(p.x + LAND_PAD_X, PW - LAND_PAD_X * 2, q.x, q.w)) return true;
   }
   return false;
 }
@@ -1842,7 +1851,7 @@ function landOn(w: any, p: any, pl: any) {
   p.y = pl.y - PH;
   p.baseY = pl.y;
   p.squash = 7;
-  var spr = pl.spring && overlapsX(p.x + 2, PW - 4, pl.x + pl.w / 2 - 5, 10);
+  var spr = pl.spring && overlapsX(p.x + LAND_PAD_X, PW - LAND_PAD_X * 2, pl.x + pl.w / 2 - 5, 10);
   if (spr) {
     p.vy = SPRING_V;
     pl.springT = 10;
@@ -2294,7 +2303,7 @@ function tickWorld(w: any, inputs: any) {
         var q = w.platforms[k];
         if (q.broken) continue;
         if (q.y > p.camY + LH) continue;
-        if (pf <= q.y + 3 && feet >= q.y && overlapsX(p.x + 1, PW - 2, q.x, q.w)) {
+        if (pf <= q.y + 3 && feet >= q.y && overlapsX(p.x + LAND_PAD_X, PW - LAND_PAD_X * 2, q.x, q.w)) {
           if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) { q.broken = true; q.breakT = 14; if (w.net && q.type === "break") q.netTell = 1; spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2); if (p.id === 0) w.shake = 3; continue; }
           landOn(w, p, q); break;
         }
@@ -2311,7 +2320,7 @@ function tickWorld(w: any, inputs: any) {
         if (threat) m2.warnT = 18;
       }
       var bb = mobBox(m2);
-      if (overlapsX(p.x + 2, PW - 4, bb[0] + 1, bb[2] - 2) && p.y + 4 < bb[1] + bb[3] && p.y + PH > bb[1]) {
+      if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bb[0] + 1, bb[2] - 2) && p.y + HURT_PAD_Y < bb[1] + bb[3] && p.y + PH > bb[1]) {
         if (p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0) { killMob(w, m2, p, true); continue; }
         if (mobFrozen) { if (p.vy > 0 && p.prevY + PH <= bb[1] + 5) killMob(w, m2, p); continue; }
         var stompable = !(m2.b === "puff" && m2.big);
@@ -2324,7 +2333,7 @@ function tickWorld(w: any, inputs: any) {
     for (k = 0; k < w.bullets.length; k++) {
       var bl = w.bullets[k];
       if (bl.life <= 0) continue;
-      if (overlapsX(p.x + 2, PW - 4, bl.x - 1, 3) && bl.y + 4 > p.y + 2 && bl.y < p.y + PH) {
+      if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bl.x - 1, 3) && bl.y + 4 > p.y + 2 && bl.y < p.y + PH) {
         if (invuln(p)) { bl.life = 0; continue; }
         bl.life = 0;
         if (bl.kind === "ice") freezePlayer(w, p);
