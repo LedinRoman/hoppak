@@ -41,6 +41,8 @@ const ITEM_PRICES = {
 const playersByHash = new Map();
 const runsByPlayer = new Map();
 const requestLog = [];
+const storedRuns = [];
+const RUN_MODES = ['not_available', 'solo', 'coop', 'coop_bots', 'coop_mixed'];
 
 function sha256(s) {
   return crypto.createHash('sha256').update(s, 'utf8').digest('hex');
@@ -164,6 +166,14 @@ function unauth(res, tok) {
   return json(res, 409, { ok: false, error: 'DEVICE_REPLACED', profile: toPublic(profile) });
 }
 
+
+function parseRunMode(raw) {
+  if (raw === undefined || raw === null || raw === '') return 'solo';
+  if (typeof raw !== 'string') return null;
+  if (RUN_MODES.indexOf(raw) >= 0) return raw;
+  if (raw === 'squad' || raw === 'online') return 'not_available';
+  return null;
+}
 function createServer() {
   return http.createServer(async (req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
@@ -190,11 +200,11 @@ function createServer() {
         const pl = tok ? playersByHash.get(sha256(tok)) : null;
         if (pl) pl.coins = Math.max(0, Math.floor(Number(b.setCoins) || 0));
       }
-      if (b.clearLog) requestLog.length = 0;
-      return json(res, 200, { ok: true, mode, tgAuth, players: playersByHash.size, log: requestLog.slice() });
+      if (b.clearLog) { requestLog.length = 0; storedRuns.length = 0; }
+      return json(res, 200, { ok: true, mode, tgAuth, players: playersByHash.size, log: requestLog.slice(), runs: storedRuns.slice() });
     }
     if (urlPath === '/__mock/log' && req.method === 'GET') {
-      return json(res, 200, { ok: true, mode, tgAuth, log: requestLog.slice() });
+      return json(res, 200, { ok: true, mode, tgAuth, log: requestLog.slice(), runs: storedRuns.slice() });
     }
 
     if (urlPath === '/api/health' && req.method === 'GET') {
@@ -380,6 +390,9 @@ function createServer() {
           runner.campaign = mergeCampaign(runner.campaign, { best: { [b.map]: h } });
         }
         if (mode === 'v06' && runId) runsByPlayer.get(runner.id).set(runId, awarded);
+        const runMode = parseRunMode(b.mode);
+        if (!runMode) return json(res, 400, { ok: false, error: 'INVALID_MODE' });
+        storedRuns.push({ playerId: runner.id, runId: runId, mode: runMode, awarded: awarded });
         const out = { ok: true, awarded, profile: toPublic(runner) };
         if (limited) out.limited = limited;
         return json(res, 201, out);

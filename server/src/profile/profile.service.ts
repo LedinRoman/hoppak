@@ -15,6 +15,7 @@ import { countryOfIp, originLanguage } from './geo';
 import { kickAccount } from '../session-kick';
 import { publishAccountKick } from '../account-kick-bus';
 import { randomUUID } from 'crypto';
+import { parseRunMode } from './run-mode';
 import {
   ITEM_PRICES, MAP_IDS, RUN_HEIGHT_MAX, WALLET_COINS_MAX,
   awardForRun, clamp, emptyCampaign, mapPurchaseBlock, mergeCampaign, mergePurchases,
@@ -196,6 +197,10 @@ export class ProfileService {
     if (rawRunId !== undefined && rawRunId !== null && rawRunId !== '' && !runId) {
       throw new HttpException({ ok: false, error: 'INVALID_RUN_ID' }, HttpStatus.BAD_REQUEST);
     }
+    const runMode = parseRunMode(rawMode);
+    if (!runMode) {
+      throw new HttpException({ ok: false, error: 'INVALID_MODE' }, HttpStatus.BAD_REQUEST);
+    }
 
     const execute = async (
       em: EntityManager | null,
@@ -222,7 +227,7 @@ export class ProfileService {
       );
       if (elapsed === null) {
         if (runId && runRepo) {
-          try { await runRepo.insert(runRepo.create({ playerId: fresh.id, runId, awarded: 0 })); }
+          try { await runRepo.insert(runRepo.create({ playerId: fresh.id, runId, awarded: 0, mode: runMode })); }
           catch (err: any) {
             if (err && (err.code === '23505' || err.code === 'SQLITE_CONSTRAINT')) {
               const dup = await runRepo.findOne({ where: { playerId: fresh.id, runId } });
@@ -247,7 +252,7 @@ export class ProfileService {
             ? rawCause : null,
           map: mapIdEarly,
           hero: clamp(Math.floor(Number(rawHero) || 0), 0, 5),
-          mode: rawMode === 'solo' || rawMode === 'squad' || rawMode === 'online' ? rawMode : null,
+          mode: runMode,
           durationS: Math.floor(elapsed),
           clientVersion: typeof rawVer === 'string' ? Array.from(rawVer.replace(/\0/g, '')).slice(0, 16).join('') : null,
           finishedAt,

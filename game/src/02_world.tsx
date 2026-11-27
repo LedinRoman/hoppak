@@ -511,6 +511,26 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, ramFx: 0, stallT: 0, stallH: 0
   };
 }
+
+/* DB run mode from who is actually in the world at start, not from the lobby type.
+   One human and no bots (even if they pressed start in a coop room) is solo. */
+function classifyRunMode(players: any[]): string {
+  var humans = 0, bots = 0, i, p;
+  if (!players) return "solo";
+  for (i = 0; i < players.length; i++) {
+    p = players[i];
+    if (p && (p.isBot || p.bot)) bots++;
+    else humans++;
+  }
+  if (humans >= 2 && bots > 0) return "coop_mixed";
+  if (humans === 1 && bots > 0) return "coop_bots";
+  if (humans >= 2) return "coop";
+  return "solo";
+}
+function stampRunMode(w: any) {
+  if (!w) return;
+  w.runMode = classifyRunMode(w.players);
+}
 function createWorld(seed: number, mode: string, humanKind: number, humanLook: any, mapId?: string) {
   var w: any = {
     seed: seed >>> 0, rng: mulberry32(seed >>> 0), mode: mode, map: mapInfo(mapId || "city").id,

@@ -715,6 +715,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     mode = "solo"; resize();
     startRun(info.seed, info.map);
     NET.attachWorld(world, info);
+    stampRunMode(world);
   }
   function startRun(seed?: number, mapId?: string) {
     if (sessionNote) return;
@@ -737,6 +738,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     try { canvas.focus(); } catch (_e) {}
     VIEW_SHIFT = 0;
     if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.beginRun) world.runId = PROFILE.beginRun(world.map, save.char);
+    stampRunMode(world);
     abHintRun = !!(world.players[0] && heroHasAb(world.players[0]) && !(save.seen && save.seen.abHint));
     if (abHintRun) {
       if (!save.seen) save.seen = {};
@@ -773,7 +775,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     writeSave(save);
     if (typeof PROFILE !== "undefined" && PROFILE) {
       PROFILE.finishRun(mtr, runC, bonC, world, {
-        mode: world.net ? "online" : mode,
+        mode: world.runMode || "solo",
         map: world.map,
         ver: "1.0",
         awarded: world.earned,
@@ -3426,6 +3428,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     sfxReady: function (k: string) { return !!sfxBuf[k]; },
     screen: function (s: string) { phase = s; },
     start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },
+    classifyRunMode: classifyRunMode,
+    getRunMode: function () { return world && world.runMode; },
     setDir: function (d: number) { held.kl = d < 0; held.kr = d > 0; },
     setAutoPlay: function (on: boolean) { autoPlay = !!on; },
     ability: function () { abTap = true; },

@@ -1553,6 +1553,60 @@ async function admin(base, body) {
       console.log('PASS 19: contrast before first draw, unavailable fallback, zero-metre telemetry');
     }
 
+
+    // 20. Run mode is taken from who is in the run at start and stored on the mock.
+    {
+      await admin(base2, { mode: 'v06', clearLog: true });
+      const ctx = await browser.createBrowserContext();
+      const pg = await ctx.newPage();
+      await pg.goto(base2 + '/index.html');
+      await settle(pg);
+
+      const classified = await pg.evaluate(() => {
+        const fn = window.__hoppak.classifyRunMode;
+        return {
+          solo: fn([{ isBot: false }]),
+          soloEmptyCoop: fn([{ isBot: false }]),
+          coop: fn([{ isBot: false }, { isBot: false }]),
+          coopBots: fn([{ isBot: false }, { isBot: true }, { bot: true }]),
+          coopMixed: fn([{ isBot: false }, { isBot: false }, { bot: true }]),
+        };
+      });
+      assert.deepStrictEqual(classified, {
+        solo: 'solo',
+        soloEmptyCoop: 'solo',
+        coop: 'coop',
+        coopBots: 'coop_bots',
+        coopMixed: 'coop_mixed',
+      });
+
+      let finish = pg.waitForRequest((request) => new URL(request.url()).pathname === '/api/run/finish');
+      await pg.evaluate(() => {
+        const game = window.__hoppak;
+        game.start('solo', 7, 'city');
+        game.tap('menu');
+      });
+      let body = JSON.parse((await finish).postData());
+      assert.strictEqual(body.mode, 'solo');
+      assert.strictEqual(await pg.evaluate(() => window.__hoppak.getRunMode()), 'solo');
+
+      finish = pg.waitForRequest((request) => new URL(request.url()).pathname === '/api/run/finish');
+      await pg.evaluate(() => {
+        const game = window.__hoppak;
+        game.start('squad', 11, 'city');
+        game.tap('menu');
+      });
+      body = JSON.parse((await finish).postData());
+      assert.strictEqual(body.mode, 'coop_bots');
+      assert.strictEqual(await pg.evaluate(() => window.__hoppak.getRunMode()), 'coop_bots');
+
+      const stored = await admin(base2, {});
+      const modes = (stored.runs || []).map((r) => r.mode);
+      assert.deepStrictEqual(modes, ['solo', 'coop_bots']);
+      await ctx.close();
+      console.log('PASS 20: solo and coop_bots runs are stored with the right mode');
+    }
+
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));
     console.log('ALL CLIENT PROFILE E2E TESTS PASS');
   } finally {

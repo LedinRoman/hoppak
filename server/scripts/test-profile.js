@@ -684,6 +684,25 @@ async function testMigrationSql() {
   assert.match(settingsDown[0], /DROP TABLE game_settings/);
   console.log('PASS visual settings migration SQL');
 
+  const { PlayerRunMode1795690000000 } = require('../dist/db/migrations/1795690000000-PlayerRunMode');
+  const modeUp = [];
+  const modeDown = [];
+  const modeMig = new PlayerRunMode1795690000000();
+  await modeMig.up({ query: async (q) => modeUp.push(q) });
+  await modeMig.down({ query: async (q) => modeDown.push(q) });
+  assert.match(modeUp[0], /ALTER TABLE player_run ALTER COLUMN mode TYPE varchar\(32\)/);
+  assert.match(modeUp[1], /UPDATE player_run SET mode = 'not_available'/);
+  assert.ok(!/WHERE/i.test(modeUp[1]), 'backfill every existing row, no WHERE');
+  assert.match(modeUp[2], /ALTER TABLE player_run ALTER COLUMN mode SET DEFAULT 'solo'/);
+  assert.match(modeUp[3], /ALTER TABLE player_run ALTER COLUMN mode SET NOT NULL/);
+  assert.match(modeUp[4], /CREATE INDEX IF NOT EXISTS player_run_mode_idx ON player_run \(mode\)/);
+  assert.ok(!modeUp.some((q) => /ADD COLUMN/i.test(q)), 'must migrate the existing mode column, not add a second one');
+  assert.match(modeDown[0], /DROP INDEX IF EXISTS player_run_mode_idx/);
+  assert.match(modeDown[1], /ALTER TABLE player_run ALTER COLUMN mode DROP NOT NULL/);
+  assert.match(modeDown[2], /ALTER TABLE player_run ALTER COLUMN mode DROP DEFAULT/);
+  assert.ok(!modeDown.some((q) => /TYPE varchar\(8\)/i.test(q) || /SET mode = 'solo'/i.test(q)));
+  console.log('PASS player_run.mode migration SQL (widen + backfill, not additive)');
+
   const m = new AddBestBuyRunId1795642000000();
   const upSql = [];
   const downSql = [];
@@ -1278,7 +1297,7 @@ async function testRunTelemetry() {
     const row = runs.get(id + ':recorded');
     assert.deepStrictEqual(
       [row.heightM, row.cause, row.map, row.hero, row.mode, row.clientVersion],
-      [120, 'mob:bat', 'ice', 3, 'online', '1234567890123456'],
+      [120, 'mob:bat', 'ice', 3, 'not_available', '1234567890123456'],
     );
     assert.strictEqual(row.durationS, Math.floor((row.finishedAt - start) / 1000));
     assert.ok(row.durationS >= 3);
@@ -1290,10 +1309,32 @@ async function testRunTelemetry() {
     const zero = await req(base, 'POST', '/api/run/finish', { runId: 'zero-m', height: 0, cause: 'exit', mode: 'solo' }, token);
     assert.strictEqual(zero.data.awarded, 0);
     assert.strictEqual(runs.get(id + ':zero-m').cause, 'exit');
+    assert.strictEqual(runs.get(id + ':zero-m').mode, 'solo');
+
+    const modeCases = [
+      ['squad-legacy', 'squad', 'not_available'],
+      ['coop-live', 'coop', 'coop'],
+      ['coop-bots', 'coop_bots', 'coop_bots'],
+      ['coop-mixed', 'coop_mixed', 'coop_mixed'],
+      ['missing-mode', undefined, 'solo'],
+    ];
+    for (const [runId, mode, stored] of modeCases) {
+      await primeRun(base, token, runId, starts, 0);
+      const payload = { runId, height: 0, cause: 'exit' };
+      if (mode !== undefined) payload.mode = mode;
+      const res = await req(base, 'POST', '/api/run/finish', payload, token);
+      assert.strictEqual(res.status, 201, runId + ' ' + JSON.stringify(res.data));
+      assert.strictEqual(runs.get(id + ':' + runId).mode, stored, runId);
+    }
+    await primeRun(base, token, 'bad-mode', starts, 0);
+    const bad = await req(base, 'POST', '/api/run/finish', { runId: 'bad-mode', height: 0, cause: 'exit', mode: 'ranked' }, token);
+    assert.strictEqual(bad.status, 400);
+    assert.strictEqual(bad.data.error, 'INVALID_MODE');
+    assert.ok(!runs.has(id + ':bad-mode'));
   } finally {
     await app.close();
   }
-  console.log('PASS run telemetry (start, accepted finish, duplicate, zero metres)');
+  console.log('PASS run telemetry (start, accepted finish, duplicate, zero metres, mode mapping)');
 }
 
 (async () => {

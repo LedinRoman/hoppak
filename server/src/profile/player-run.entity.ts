@@ -26,8 +26,8 @@ export class PlayerRun {
   @Column({ type: 'smallint', nullable: true })
   hero: number | null;
 
-  @Column({ type: 'varchar', length: 8, nullable: true })
-  mode: string | null;
+  @Column({ type: 'varchar', length: 32, default: 'solo', comment: 'Canonical run mode: not_available (legacy rows), solo, coop, coop_bots, coop_mixed. Not a PG enum.' })
+  mode: string;
 
   @Column({ name: 'duration_s', type: 'int', nullable: true })
   durationS: number | null;

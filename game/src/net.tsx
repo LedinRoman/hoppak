@@ -451,7 +451,7 @@ var NET: any = (function () {
       var o = others[k];
       var mineBot = !!(o.bot && hostSim);
       var p: any = newPlayer(k + 1, o.kind, lookOf(o.kind), NET_XS[o.slot % 4], mineBot);
-      p.remote = !mineBot; p.pid = o.pid; p.name = o.name; p.react = 1; p.bias = 0;
+      p.bot = !!o.bot; p.remote = !mineBot; p.pid = o.pid; p.name = o.name; p.react = 1; p.bias = 0;
       w.players.push(p);
     }
     N.lastSend = 0; N.lastBot = 0; N.events = []; N.buf = {};
