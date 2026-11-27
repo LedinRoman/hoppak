@@ -1985,21 +1985,29 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   /* Largest integer scale that fits (never fractional). Uses the opaque bbox so leftover
      mobs (32×32) and Advisor sprites (e.g. 55×23 slime) read at a similar visual size. */
-  function encyDrawArt(cv: any, x: number, y: number, w: number, h: number, pad?: number, align?: string) {
+  /* One integer factor for every encyclopedia hero and mob (grid and detail).
+     1x of the ency sprite: medium, crisp, no ragged upscale, same size in the card and the detail panel.
+     Drawn from the full canvas so all 30x38 heroes share one size (knight must not scale from a shorter bbox). */
+  var ENCY_ART_SCALE = 1;
+  function encyDrawArt(cv: any, x: number, y: number, w: number, h: number, pad?: number, _align?: string) {
     if (!cv) return;
     if (pad == null) pad = 0;
-    if (!align) align = "center";
     var innerW = Math.max(1, w - pad * 2), innerH = Math.max(1, h - pad * 2);
+    var scale = ENCY_ART_SCALE;
+    var sw = cv.width, sh = cv.height;
+    var dw = sw * scale, dh = sh * scale;
+    if (dw > innerW || dh > innerH) {
+      /* Only shrink by a whole divisor if a future sprite is larger than the slot. Never fractional. */
+      var div = 2;
+      while (div <= 8 && (Math.floor(sw / div) * scale > innerW || Math.floor(sh / div) * scale > innerH)) div++;
+      if (div <= 8) { sw = Math.max(1, Math.floor(sw / div)); sh = Math.max(1, Math.floor(sh / div)); dw = sw * scale; dh = sh * scale; }
+    }
+    var dx = x + pad + Math.floor((innerW - dw) / 2);
+    var dy = y + pad + Math.floor((innerH - dh) / 2);
     ctx.save();
     ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
     encyNoSmooth(ctx);
-    var bb = encyBBox(cv, 0);
-    var sx = bb ? bb.x : 0, sy = bb ? bb.y : 0;
-    var sw = bb ? bb.w : cv.width, sh = bb ? bb.h : cv.height;
-    var fit = encyIntegerFit(sw, sh, innerW, innerH);
-    var dx = x + pad + Math.floor((innerW - fit.dw) / 2);
-    var dy = align === "bottom" ? (y + pad + (innerH - fit.dh)) : (y + pad + Math.floor((innerH - fit.dh) / 2));
-    ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, fit.dw, fit.dh);
+    ctx.drawImage(cv, 0, 0, cv.width, cv.height, dx, dy, dw, dh);
     ctx.restore();
   }
   function encyBtn(id: string, x: number, y: number, w: number, h: number, label: string) {
@@ -2110,18 +2118,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       else if (hint === "D") peek = 16;
       else peek = 16;
     }
-    /* Heroes/mobs: prefer a card tall enough for a 2× 30×38 hero (art 76 px) so grid sprites fill the card.
-       If 3 rows would force 1×, show 2 rows and let the rest scroll (with a short peek).
-       Maps stay on the 3-row layout (Roman already liked that tab). */
+    /* 3 visible rows: medium 1x art (heroes 30x38, mobs in the frog size class) sits centred in the card. */
     var ch = Math.floor((viewH - peek - 2 * gap) / 3);
-    if (encyTab !== "maps") {
-      var minArt = 76;
-      var minCh = nameBand + minArt;
-      if (ch < minCh) {
-        peek = Math.min(18, Math.max(peek, 12));
-        ch = Math.floor((viewH - peek - gap) / 2);
-      }
-    }
     if (ch < nameBand + 20) ch = nameBand + 20;
     var contentH = totalRows * ch + Math.max(0, totalRows - 1) * gap;
     encyScrollMax = Math.max(0, contentH - viewH);
@@ -2232,7 +2230,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       drawMapDetailThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
     } else {
       var artCv = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
-      /* Integer upscale, vertically centred in the free space above the name (not stuck at the bottom). */
+      /* Same medium 1x size as the grid, centred, leaving room for the text below. */
       encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, "center");
     }
     var ty = artY + artBoxH + gap, li;

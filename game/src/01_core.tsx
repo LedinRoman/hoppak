@@ -1081,7 +1081,7 @@ function warmUiImages() {
     loadUiImage("mapdetail_" + mapIds[i] + "_locked", "ui/map_detail/" + mapIds[i] + "_locked.png");
     loadUiImage("mapdetail_" + mapIds[i] + "_open", "ui/map_detail/" + mapIds[i] + "_open.png");
   }
-  var encyIds = ["pilot", "pirate", "ninja", "robot", "mage", "knight", "blob", "frog", "parrot", "bat"];
+  var encyIds = ["pilot", "pirate", "ninja", "robot", "mage", "knight", "blob", "frog", "parrot", "bat", "trash", "hole", "ufo", "snake", "monkey"];
   for (i = 0; i < encyIds.length; i++) loadUiImage("ency_" + encyIds[i], "ui/ency/" + encyIds[i] + ".png");
 }
 warmUiImages();
