@@ -69,9 +69,35 @@ function drawBgStrip64(ctx: Ctx, b: any, k: string, top: number) {
   if (top >= viewY1()) return;
   var w = b[k + "W"], h = b[k + "H"];
   ctx.imageSmoothingEnabled = false;
-  var x0 = Math.floor(viewX0() / w) * w;
-  for (var tx = x0; tx < LW + VIEW_PAD; tx += w) ctx.drawImage(cv, tx, top);
-  if (top + h < viewY1()) rect(ctx, viewX0(), top + h, viewW(), viewY1() - top - h, b[k + "Fill"]);
+  /* v1.0: the strips are 160-wide panels drawn on a 180+ wide view. Centre one on the field and mirror its
+     neighbours, so the joins are continuous instead of a hard vertical seam. Art is unchanged. */
+  var xc = Math.round((LW - w) / 2);
+  var n0 = Math.floor((viewX0() - xc) / w);
+  var y1v = viewY1();
+  if (top + h < y1v) rect(ctx, viewX0(), top + h, viewW(), y1v - top - h, b[k + "Fill"]);
+  for (var n = n0; xc + n * w < LW + VIEW_PAD; n++) {
+    var tx = xc + n * w;
+    if ((n & 1) === 0) ctx.drawImage(cv, tx, top);
+    else { ctx.save(); ctx.translate(tx + w, top); ctx.scale(-1, 1); ctx.drawImage(cv, 0, 0); ctx.restore(); }
+  }
+}
+/* First strip row (from the top) that is opaque across the whole width: anything stacked behind may end
+   there and stay hidden. Measured once from the packed art. */
+function stripSolidRow64(b: any, k: string) {
+  var key = "__solid" + k;
+  if (b[key] != null) return b[key];
+  var cv: any = art64Cv("bg:" + b.__id + k, b[k]);
+  var h = b[k + "H"] || 0, w = b[k + "W"] || 0, row = h;
+  try {
+    var d = cv.getContext("2d").getImageData(0, 0, w, h).data;
+    for (var y = 0; y < h && row === h; y++) {
+      var ok = true;
+      for (var x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] < 250) { ok = false; break; }
+      if (ok) row = y;
+    }
+  } catch (_e) { row = h; }
+  b[key] = row;
+  return row;
 }
 function drawBgSprite64(ctx: Ctx, b: any, k: string, src: string, x: number, y: number) {
   var cv = art64Cv("bg:" + b.__id + k, src);

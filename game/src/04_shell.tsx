@@ -1482,11 +1482,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var x = Math.round(me.x + PW / 2) - 2, y = Math.round(sy) - 9;
     rect(ctx, x + 1, y, 1, 1, "#3a6848"); rect(ctx, x, y + 1, 3, 1, "#3a6848"); rect(ctx, x + 1, y + 2, 1, 1, "#3a6848"); rect(ctx, x + 1, y + 1, 1, 1, "#d8e8d0");
   }
-  function withWrapX(x: number, wdt: number, fn: any) {
-    fn(x);
-    if (x < 12) fn(x + LW);
-    if (x + wdt > LW - 12) fn(x - LW);
+  /* v1.0: one copy only, placed by its centre; near an edge it overhangs into the side pad / off screen
+     instead of showing two halves (left + right) at once. Render-only, sim wrap unchanged. */
+  function wrapDrawX(x: number, wdt: number) {
+    var c = x + wdt / 2;
+    return c < 0 ? x + LW : c >= LW ? x - LW : x;
   }
+  function withWrapX(x: number, wdt: number, fn: any) { fn(wrapDrawX(x, wdt)); }
   function drawFaceMark(x: number, y: number, look: any, alive: boolean) {
     x = Math.round(x); y = Math.round(y);
     var hood = (look && look.hood) || "#c890ff";
@@ -1550,9 +1552,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     /* Clip in device pixels (ceil left / floor right) so a fractional scale cannot leak a 1 px sliver into the pads. */
     var mclip = ctx.getTransform();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    var x0 = Math.ceil(mclip.e - shx * mclip.a - 1e-9);
+    var x0 = Math.ceil(mclip.e - shx * mclip.a + viewX0() * mclip.a - 1e-9);
     var y0 = Math.ceil(mclip.f + viewY0() * mclip.d - 1e-9);
-    var x1 = Math.floor(mclip.e - shx * mclip.a + LW * mclip.a + 1e-9);
+    var x1 = Math.floor(mclip.e - shx * mclip.a + (LW + VIEW_PAD) * mclip.a + 1e-9);
     var y1 = Math.floor(mclip.f + viewY1() * mclip.d + 1e-9);
     ctx.beginPath();
     ctx.rect(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
@@ -1625,9 +1627,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         drawFxFront(p, sy, w.tick);
         p.x = ox;
       };
-      drawHeroAt(p.x);
-      if (p.wallT <= 0 && p.x < 12) drawHeroAt(p.x + LW);
-      if (p.wallT <= 0 && p.x > LW - PW - 12) drawHeroAt(p.x - LW);
+      drawHeroAt(p.wallT > 0 ? p.x : wrapDrawX(p.x, PW));
       if (w.mode === "squad") tags.push({ p: p, x: p.x + 6, y: Math.round(sy) - 13 });
     }
     tags.sort(function (a: any, b: any) { return b.y - a.y; });

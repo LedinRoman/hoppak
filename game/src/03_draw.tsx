@@ -73,14 +73,21 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   var alt = Math.max(0, -camY - (LH - 70));
   var m = alt / PX_PER_M;
   var sky = skyAt(map, m);
-  var bands = 24, i, k;
-  var skyTop = viewY0(), skyBot = viewY1(), skyH = skyBot - skyTop;
-  for (i = 0; i < bands; i++) {
-    var t = i / (bands - 1);
-    var col = t < 0.5 ? mixHex(sky[0], sky[1], t / 0.5) : mixHex(sky[1], sky[2], (t - 0.5) / 0.5);
-    var y0 = Math.round(skyTop + (skyH * i) / bands), y1 = Math.round(skyTop + (skyH * (i + 1)) / bands);
-    rect(ctx, viewX0(), y0, viewW(), y1 - y0, col);
-    if (i > 0) { ctx.fillStyle = col; for (var dx = viewX0() + (i % 2) * 2; dx < LW + VIEW_PAD; dx += 4) ctx.fillRect(dx, y0 - 1, 2, 1); }
+  var i, k;
+  /* v1.0: smooth sky. One game-px row per colour step (runs of equal colour merged) instead of 24 visible
+     bands with dashed edges; the 1-RGB-level steps are invisible, so layers meet a continuous gradient. */
+  var skyTop = Math.floor(viewY0()), skyBot = Math.ceil(viewY1()), skyH = skyBot - skyTop;
+  var runCol = "", runY = skyTop;
+  for (var ry = 0; ry <= skyH; ry++) {
+    var col = "";
+    if (ry < skyH) {
+      var t = skyH > 1 ? ry / (skyH - 1) : 0;
+      col = t < 0.5 ? mixHex(sky[0], sky[1], t / 0.5) : mixHex(sky[1], sky[2], (t - 0.5) / 0.5);
+    }
+    if (col !== runCol) {
+      if (runCol) rect(ctx, viewX0(), runY, viewW(), skyTop + ry - runY, runCol);
+      runCol = col; runY = skyTop + ry;
+    }
   }
   /* stars / plankton / embers */
   if (map === "city" || map === "space" || map === "ice" || (map === "jungle" && m > 500)) {
@@ -228,8 +235,22 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   var nearBase = LH - 40 + alt * 0.3;
   var b64h = bg64(map);
   if (b64h) {
-    drawBgStrip64(ctx, b64h, "far", farBase - b64h.farH);
-    drawBgStrip64(ctx, b64h, "near", nearBase - b64h.nearH);
+    /* v1.0 seam fix (code only): the three layers scroll at 0.1 / 0.3 / 1.0 of the climb, so a slower layer's
+       bottom used to come apart from the faster one in front and its flat fill colour showed as a hard band.
+       Keep them stacked: a layer is pushed down just enough that its bottom stays behind the solid part of
+       the layer in front (floor -> near -> far). Parallax is unchanged while they overlap anyway. */
+    var nearTop = nearBase - b64h.nearH;
+    var roofY0 = Math.round(-camY);
+    /* pushes are capped at "bottom edge = screen bottom", so a layer is carried by the one in front only
+       until it rests on the screen edge, then waits there for its own parallax; continuous at every step */
+    var yBot = viewY1();
+    if (b64h.floor) {
+      var floorTop = roofY0 + 3 - b64h.floorRow;
+      nearTop = Math.max(nearTop, Math.min(floorTop + stripSolidRow64(b64h, "floor") - b64h.nearH, yBot - b64h.nearH));
+    }
+    var farTop = Math.max(farBase - b64h.farH, Math.min(nearTop + stripSolidRow64(b64h, "near") - b64h.farH, yBot - b64h.farH));
+    drawBgStrip64(ctx, b64h, "far", farTop);
+    drawBgStrip64(ctx, b64h, "near", nearTop);
   } else if (map === "city") {
     if (farBase - 60 < LH) drawBuildings(ctx, farBase, 3, true, tick);
     if (nearBase - 70 < LH) drawBuildings(ctx, nearBase, 17, false, tick);

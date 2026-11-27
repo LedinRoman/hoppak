@@ -39,6 +39,8 @@ HEROES = {
 
 # heroes whose studio *_64.png lost armour to background keying: rebuilt from the hi-res frames
 REPIX = {'robot'}
+# sheet cells: 2 up, 3 fall, 8 apex, 9 fstart (ability/ko keep feet pinned)
+AIR_POSES = {2, 3, 8, 9}
 
 def rgba(p):
     return Image.open(p).convert('RGBA')
@@ -483,6 +485,9 @@ def hero_dewhite(im):
 def hero_sheet(hid, files, ch):
     sheet = Image.new('RGBA', (CW * len(files), ch), (0, 0, 0, 0))
     info = []
+    # head line for airborne poses = top of the rise ('up', index 2) frame as it would sit feet-pinned
+    _up = rgba(os.path.join(ANIM, hid, files[2]))
+    air_top = ch - _up.height + int(np.where(np.asarray(_up)[..., 3] > 0)[0].min())
     for i, f in enumerate(files):
         raw = rgba(os.path.join(ANIM, hid, f))
         raw0 = raw
@@ -499,7 +504,12 @@ def hero_sheet(hid, files, ch):
         hx = head_x(q)
         x = int(round(AX - hx))
         x = max(0, min(CW - q.width, x))
-        sheet.alpha_composite(q, (i * CW + x, ch - q.height))
+        y = ch - q.height
+        if i in AIR_POSES:
+            # airborne frames: keep the head line steady (same top as the rise frame) instead of pinning the
+            # feet, so up -> apex -> fall_start -> fall reads as one motion; tucked legs simply ride higher
+            y = max(0, air_top - int(np.where(np.asarray(q)[..., 3] > 0)[0].min()))
+        sheet.alpha_composite(q, (i * CW + x, y))
         info.append({'file': os.path.basename(f), 'size': list(q.size), 'placeX': x, 'headX': round(hx, 1),
                      'before': raw0, 'after': q, 'dewhite': st})
     return sheet, info

@@ -822,7 +822,10 @@ function warmUiImages() {
   var i;
   for (i = 0; i < tabs.length; i++) loadUiImage("bar_" + tabs[i], "ui/tab/bar_" + tabs[i] + ".png");
   for (i = 0; i < grids.length; i++) loadUiImage("grid_" + grids[i], "ui/grid/grid_" + grids[i] + ".png");
-  for (i = 0; i < ports.length; i++) loadUiImage("portrait_" + ports[i], "ui/portrait/portrait_" + ports[i] + ".png");
+  for (i = 0; i < ports.length; i++) {
+    loadUiImage("portrait_" + ports[i], "ui/portrait/portrait_" + ports[i] + ".png");
+    loadUiImage("portrait64_" + ports[i], "ui/portrait/portrait64_" + ports[i] + ".png");
+  }
 }
 warmUiImages();
 /* Nearest-neighbour only, dest size an integer multiple of the source. */
@@ -842,13 +845,48 @@ function drawUiPx(ctx: Ctx, key: string, x: number, y: number, mul?: number) {
   ctx.fillRect(x, y, ph, ph);
   return ph;
 }
+/* v1.0: portraits are drawn on the DEVICE pixel grid with an integer scale (menus are 7.31 device px per
+   game px, so game-px scaling would smear them). Uses the 64 px file when 64*k still fills >= 80% of the
+   slot, else the 32 px one. Falls back to the plain game-px path if the transform is not available. */
+function portraitSnap(ctx: Ctx, id: string, x: number, y: number, size: number, crop: boolean) {
+  var g: any = ctx as any;
+  var im64 = UI_IMGS["portrait64_" + id], im32 = UI_IMGS["portrait_" + id];
+  if (!g.getTransform || !(im64 || im32)) return -1;
+  var m = g.getTransform(), sc = m.a;
+  if (!(sc > 0) || Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6) return -1;
+  var dev = size * sc, im: any = null, k = 0, srcN = 0;
+  var cand = [[im64, 64], [im32, 32]];
+  for (var i = 0; i < cand.length && !im; i++) {
+    var c: any = cand[i][0], n = cand[i][1] as number;
+    if (!(c && c.complete && c.naturalWidth)) continue;
+    var kk = crop ? Math.max(1, Math.round(dev / (n * 0.66))) : Math.floor(dev / n);
+    if (kk < 1) continue;
+    if (!crop && n * kk < dev * 0.8 && i === 0 && im32 && im32.naturalWidth && Math.floor(dev / 32) * 32 > n * kk) continue;
+    im = c; k = kk; srcN = n;
+  }
+  if (!im) return -1;
+  var side = crop ? Math.min(srcN, Math.floor(dev / k)) : srcN;
+  var sx = crop ? Math.round((srcN - side) / 2) : 0, sy = crop ? Math.max(0, Math.round((srcN - side) / 2) - Math.round(srcN / 16)) : 0;
+  var w = side * k;
+  var dx = Math.round(m.e + x * sc + (dev - w) / 2), dy = Math.round(m.f + y * m.d + (size * m.d - w) / 2);
+  g.save();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.imageSmoothingEnabled = false;
+  g.drawImage(im, sx, sy, side, side, dx, dy, w, w);
+  g.restore();
+  return size;
+}
 function drawPortrait(ctx: Ctx, kind: number, x: number, y: number, mul?: number) {
   var id = (CHARS[kind] && CHARS[kind].id) || "pilot";
+  var r = portraitSnap(ctx, id, Math.round(x), Math.round(y), 32 * (mul || 1), false);
+  if (r > 0) return r;
   return drawUiPx(ctx, "portrait_" + id, x, y, mul || 1);
 }
 function drawPortraitCrop(ctx: Ctx, kind: number, x: number, y: number, size: number) {
   x = Math.round(x); y = Math.round(y); size = Math.round(size);
   var id = (CHARS[kind] && CHARS[kind].id) || "pilot";
+  var r = portraitSnap(ctx, id, x, y, size, true);
+  if (r > 0) return r;
   var im = UI_IMGS["portrait_" + id];
   ctx.imageSmoothingEnabled = false;
   if ((ctx as any).webkitImageSmoothingEnabled !== undefined) (ctx as any).webkitImageSmoothingEnabled = false;
