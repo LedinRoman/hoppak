@@ -1848,19 +1848,38 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (ready) encyArtCache[key] = out;
     return out;
   }
+  /* Largest integer scale that fits in maxW×maxH. If 1 is already too big, go one
+     divisor smaller (2, 3, …) so dest is still an integer number of source pixels. */
+  function encyIntegerFit(sw: number, sh: number, maxW: number, maxH: number) {
+    var mul, div, dw, dh;
+    if (sw <= maxW && sh <= maxH) {
+      mul = 1;
+      while (sw * (mul + 1) <= maxW && sh * (mul + 1) <= maxH) mul++;
+      return { dw: sw * mul, dh: sh * mul };
+    }
+    for (div = 2; div <= 8; div++) {
+      dw = Math.floor(sw / div);
+      dh = Math.floor(sh / div);
+      if (dw >= 1 && dh >= 1 && dw <= maxW && dh <= maxH) return { dw: dw, dh: dh };
+    }
+    dw = Math.max(1, Math.min(maxW, sw));
+    dh = Math.max(1, Math.min(maxH, sh));
+    return { dw: dw, dh: dh };
+  }
   function encyDrawArt(cv: any, x: number, y: number, w: number, h: number, pad?: number) {
     if (!cv) return;
     if (pad == null) pad = 2;
+    var innerW = Math.max(1, w - pad * 2), innerH = Math.max(1, h - pad * 2);
     ctx.save();
     ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
     encyNoSmooth(ctx);
     var bb = encyBBox(cv, 0);
     var sw = bb ? bb.w : cv.width, sh = bb ? bb.h : cv.height;
     var sx = bb ? bb.x : 0, sy = bb ? bb.y : 0;
-    var innerW = w - pad * 2, innerH = h - pad * 2;
-    var dx = x + pad + Math.round((innerW - sw) / 2);
-    var dy = y + pad + Math.round((innerH - sh) / 2);
-    ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, sw, sh);
+    var fit = encyIntegerFit(sw, sh, innerW, innerH);
+    var dx = x + pad + Math.round((innerW - fit.dw) / 2);
+    var dy = y + pad + Math.round((innerH - fit.dh) / 2);
+    ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, fit.dw, fit.dh);
     ctx.restore();
   }
   function encyBtn(id: string, x: number, y: number, w: number, h: number, label: string) {
@@ -1932,12 +1951,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var innerX = x + ENCY_PAD, innerY = y + ENCY_PAD;
     var innerW = w - ENCY_PAD * 2, innerArt = Math.max(8, artH - ENCY_PAD);
     if (it.type === "map") {
-      /* 2px inset from the frame so the largest integer scale (x2 = 40×58) can fit. */
-      drawMapThumb(x + 2, y + 2, w - 4, Math.max(8, artH - 2), it.M.id, !open);
+      /* Same size as the map-select screen: native 20×29, scale 1, integer, no smoothing. */
+      var tw = 20, th = 29;
+      var tx = x + Math.round((w - tw) / 2);
+      var ty = y + Math.round((artH - th) / 2);
+      if (ty < y + 2) ty = y + 2;
+      drawMapThumb(tx, ty, tw, th, it.M.id, !open);
     } else {
       var scale = 1;
       var cv = it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
-      encyDrawArt(cv, innerX, innerY, innerW, innerArt, 0);
+      encyDrawArt(cv, innerX, innerY, innerW, innerArt);
     }
     var name = open ? (it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name) : t('map.locked');
     var lines = hudLines(name, "S", w - ENCY_PAD * 2);
@@ -1950,7 +1973,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     ctx.restore();
   }
-  function drawEncyGrid(x: number, top: number, bot: number) {
+  function drawEncyGrid(x: number, top: number, bot: number, clipBot?: number) {
     var items = encyItems();
     var cols = ENCY_COLS, gap = 4;
     var cw = Math.floor((152 - gap) / 2);
@@ -1977,8 +2000,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var nudge = encyNudgePx();
     var scroll = encyScroll + nudge;
     ctx.save();
-    /* Clip to the screen bottom so the peeking row can slide under the back bar, which is painted after. */
-    ctx.beginPath(); ctx.rect(x, top, 152, Math.max(viewH, LH - top)); ctx.clip();
+    /* Clip through the bar (not past it) so the peeking row slides under the bar and not into the bottom margin. */
+    var clipTo = (clipBot != null ? clipBot : bot);
+    ctx.beginPath(); ctx.rect(x, top, 152, Math.max(0, clipTo - top)); ctx.clip();
     var i, col, row, cx, cy;
     var visA = -1, visB = -1;
     for (i = 0; i < items.length; i++) {
@@ -2073,7 +2097,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var artBoxW = 152 - pad * 2;
     var artY = top + pad;
     if (it.type === "map") {
-      drawMapThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
+      var dtw = 20, dth = 29;
+      drawMapThumb(x + pad + Math.round((artBoxW - dtw) / 2), artY + Math.round((artBoxH - dth) / 2), dtw, dth, it.M.id, !open);
     } else {
       var want = open ? 2 : 1;
       var probe = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
@@ -2082,9 +2107,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var scale = want;
       while (scale > 1 && (bw * scale + 0 > artBoxW || bh * scale + 0 > artBoxH)) scale--;
       var artCv = scale === 1 ? probe : (it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open));
-      var aw = Math.min(artBoxW, (bb ? bb.w * scale : artBoxW));
-      var ah = Math.min(artBoxH, (bb ? bb.h * scale : artBoxH));
-      encyDrawArt(artCv, x + pad + Math.round((artBoxW - aw) / 2), artY + Math.round((artBoxH - ah) / 2), aw, ah, 0);
+      encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH);
     }
     var ty = artY + artBoxH + gap, li;
     for (li = 0; li < nameLines.length; li++) {
@@ -2151,11 +2174,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     var btnH = 22;
     var barLip = 3;
-    var barY = LH - btnH - 6 - barLip;
-    var barH = LH - barY;
+    var barH = btnH + barLip * 2;
+    /* Bottom gap matches the column's side margin, plus the Mini App home-indicator inset. */
+    var sidePad = x;
+    var botSafe = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
+    var botPad = sidePad + botSafe;
+    var barY = LH - botPad - barH;
     var bot = barY;
     if (encyCard >= 0) drawEncyDetail(x, top, bot);
-    else drawEncyGrid(x, top, bot);
+    else drawEncyGrid(x, top, bot, barY + barH);
     /* The full-width bar is the Back button: one frame, centred label, press on the whole bar.
        The peeking row is clipped under this bar (drawn after the grid). */
     encyBtn("back", x, barY, 152, barH, t('common.back'));
