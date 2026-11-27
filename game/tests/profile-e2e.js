@@ -282,7 +282,9 @@ async function admin(base, body) {
         window.__hoppak.tap('camp:open');
         window.__hoppak.tap('camp:open'); // 2nd tap confirms purchase
       });
-      await sleep(300);
+      // Campaign unlock, not the locked shop. Wait for the 404 /buy to land
+      // (a short sleep was racing the profile queue and left buySupported=null).
+      await pg.evaluate(() => window.__hoppak.profile.flush());
       const afterBuy = await pg.evaluate(() => ({
         st: window.__hoppak.profile.getState(),
         save: window.__hoppak.getSave(),
@@ -294,7 +296,10 @@ async function admin(base, body) {
 
       // Reload /v/0.6/ under mode=2284797 -> coins MUST remain 50 (not reverted to 130!)
       await pg.reload();
-      await sleep(400);
+      await waitForState(pg, '2 profile ready after reload', () => {
+        const p = window.__hoppak && window.__hoppak.profile && window.__hoppak.profile.getState();
+        return !!(p && p.st === 'ready' && p.profile && p.profile.migratedAt);
+      });
       const afterReload = await pg.evaluate(() => ({
         st: window.__hoppak.profile.getState(),
         save: window.__hoppak.getSave(),
@@ -319,7 +324,7 @@ async function admin(base, body) {
         w.runCoins = 4; // +4 => +8 (coins 62 -> 70)
         g.forceResults();
       });
-      await sleep(400);
+      await pg.evaluate(() => window.__hoppak.profile.flush());
       const offlineState = await pg.evaluate(() => ({
         st: window.__hoppak.profile.getState(),
         save: window.__hoppak.getSave(),
@@ -1075,8 +1080,10 @@ async function admin(base, body) {
       assert.strictEqual(linked.ready, true);
       assert.strictEqual(linked.st, 'ready');
       assert.strictEqual(linked.tg, '9091', JSON.stringify(linked));
+      /* tg-boot.js fires these once; 04_shell.lockTgSwipes() repeats expand +
+         disableVerticalSwipes (idempotent). requestFullscreen stays boot-only. */
       assert.deepStrictEqual(callCounts(linked.calls), {
-        ready: 1, expand: 1, requestFullscreen: 1, disableVerticalSwipes: 1,
+        ready: 1, expand: 2, requestFullscreen: 1, disableVerticalSwipes: 2,
       });
       const logB = await (await fetch(base + '/__mock/log')).json();
       assert.strictEqual(logB.log.filter((x) => x.path === '/api/auth/telegram').length, 1);
@@ -1099,9 +1106,17 @@ async function admin(base, body) {
       await old.goto(base + '/index.html#tgWebAppData=' + encodeURIComponent(initData), { waitUntil: 'domcontentloaded' });
       const oldCalls = await old.evaluate(async () => {
         await window.__tgReady;
+        await new Promise(function (r) {
+          var t0 = Date.now();
+          (function tick() {
+            if (window.__hoppak || Date.now() - t0 > 2000) r();
+            else requestAnimationFrame(tick);
+          })();
+        });
+        await new Promise(function (r) { setTimeout(r, 50); });
         return window.__tgCalls || [];
       });
-      assert.deepStrictEqual(callCounts(oldCalls), { ready: 1, expand: 1 });
+      assert.deepStrictEqual(callCounts(oldCalls), { ready: 1, expand: 2 });
       await ctxOld.close();
 
       async function desk(platform) {
@@ -1122,9 +1137,17 @@ async function admin(base, body) {
         await pg.goto(base + '/index.html#tgWebAppData=' + encodeURIComponent(initData), { waitUntil: 'domcontentloaded' });
         const calls = await pg.evaluate(async () => {
           await window.__tgReady;
+          await new Promise(function (r) {
+            var t0 = Date.now();
+            (function tick() {
+              if (window.__hoppak || Date.now() - t0 > 2000) r();
+              else requestAnimationFrame(tick);
+            })();
+          });
+          await new Promise(function (r) { setTimeout(r, 50); });
           return window.__tgCalls || [];
         });
-        assert.deepStrictEqual(callCounts(calls), { ready: 1, expand: 1 }, platform);
+        assert.deepStrictEqual(callCounts(calls), { ready: 1, expand: 2, disableVerticalSwipes: 2 }, platform);
         await ctx.close();
       }
       await desk('tdesktop');
@@ -1302,6 +1325,8 @@ async function admin(base, body) {
           const g = window.__hoppak;
           g.tap('ency');
           const a = g.getFlash();
+          const encyPhase = g.getPhase();
+          g.screen('menu');
           g.tap('tab:shop');
           const shopTab = g.getFlash();
           const shopTabPhase = g.getPhase();
@@ -1309,6 +1334,7 @@ async function admin(base, body) {
           const b = g.getFlash();
           g.tap('tab:friends');
           const c = g.getFlash();
+          g.screen('menu');
           g.tap('hero:menu');
           const shop = g.getPhase();
           g.tap('back');
@@ -1316,7 +1342,7 @@ async function admin(base, body) {
           const shop2 = g.getPhase();
           g.tap('back');
           g.tap('set');
-          return { a, b, c, shop, shop2, shopTab, shopTabPhase };
+          return { a, b, c, shop, shop2, shopTab, shopTabPhase, encyPhase };
         });
         await pg.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
         flash.setOn = await pg.evaluate(() => window.__hoppak.screenLayout().boxes.some((x) => x.id === 'settings'));
@@ -1329,8 +1355,10 @@ async function admin(base, body) {
         await ctx.close();
         return flash;
       })();
-      assert.strictEqual(soon.a, 'СКОРО');
-      assert.strictEqual(soon.shopTab, 'Скоро');
+      /* Encyclopedia is shipped in v0.9; only the shop tab stays locked. */
+      assert.ok(!soon.a, 'ency must not flash СКОРО, got ' + JSON.stringify(soon.a));
+      assert.strictEqual(soon.encyPhase, 'ency');
+      assert.strictEqual(soon.shopTab, 'СКОРО');
       assert.strictEqual(soon.shopTabPhase, 'menu');
       assert.strictEqual(soon.b, 'Скоро в 0.8');
       assert.strictEqual(soon.c, 'Скоро в 0.9');
@@ -1502,8 +1530,10 @@ async function admin(base, body) {
       const ctxI = await browser.createBrowserContext();
       await open2(ctxI);
       await Promise.all([
+        /* Default mock replacement is 409 DEVICE_REPLACED (test 17 resets that
+           after its legacy-401 check). 401 SESSION_REPLACED is also accepted. */
         h1.waitForResponse((response) => response.url() === base2 + '/api/profile/seen'
-          && response.request().method() === 'POST' && response.status() === 401, { timeout: WAIT_MS })
+          && response.request().method() === 'POST' && (response.status() === 409 || response.status() === 401), { timeout: WAIT_MS })
           .catch(error => { throw new Error('18 old device heartbeat was not rejected', { cause: error }); }),
         h1.evaluate(() => window.__hoppak.profile.beat()),
       ]);
@@ -1548,7 +1578,8 @@ async function admin(base, body) {
       await admin(base2, { visualContrast: null });
       await pg.reload();
       await pg.waitForFunction(() => window.__contrast.length > 0);
-      assert.strictEqual(await pg.evaluate(() => window.__contrast[0]), 'saturate(80%) contrast(80%)');
+      /* Baked v0.9 defaults: bg 73, platforms 85, hero 87, mobs 83, coins 78, shield 89. First draw is bg. */
+      assert.strictEqual(await pg.evaluate(() => window.__contrast[0]), 'saturate(73%) contrast(73%)');
       await ctx.close();
       console.log('PASS 19: contrast before first draw, unavailable fallback, zero-metre telemetry');
     }
@@ -1581,24 +1612,29 @@ async function admin(base, body) {
       });
 
       let finish = pg.waitForRequest((request) => new URL(request.url()).pathname === '/api/run/finish');
-      await pg.evaluate(() => {
+      /* getRunMode reads the live world; goMenu() clears it, so read the mode before tap. */
+      let started = await pg.evaluate(() => {
         const game = window.__hoppak;
         game.start('solo', 7, 'city');
+        const mode = game.getRunMode();
         game.tap('menu');
+        return mode;
       });
       let body = JSON.parse((await finish).postData());
       assert.strictEqual(body.mode, 'solo');
-      assert.strictEqual(await pg.evaluate(() => window.__hoppak.getRunMode()), 'solo');
+      assert.strictEqual(started, 'solo');
 
       finish = pg.waitForRequest((request) => new URL(request.url()).pathname === '/api/run/finish');
-      await pg.evaluate(() => {
+      started = await pg.evaluate(() => {
         const game = window.__hoppak;
         game.start('squad', 11, 'city');
+        const mode = game.getRunMode();
         game.tap('menu');
+        return mode;
       });
       body = JSON.parse((await finish).postData());
       assert.strictEqual(body.mode, 'coop_bots');
-      assert.strictEqual(await pg.evaluate(() => window.__hoppak.getRunMode()), 'coop_bots');
+      assert.strictEqual(started, 'coop_bots');
 
       const stored = await admin(base2, {});
       const modes = (stored.runs || []).map((r) => r.mode);

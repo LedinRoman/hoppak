@@ -385,7 +385,9 @@ var PROFILE: any = (function () {
       headers: headers,
       cache: "no-store",
       mode: sameOrig ? "same-origin" : "cors",
-      credentials: "include"
+      /* Cookies (hoppak_session) only on the game origin. Cross-origin ?api= must
+         not use credentials:include — the mock's ACAO:* would fail the fetch. */
+      credentials: sameOrig ? "include" : "same-origin"
     };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
@@ -482,8 +484,11 @@ var PROFILE: any = (function () {
     try {
       var headers: any = { "Content-Type": "application/json" };
       if (tok) headers["Authorization"] = "Bearer " + tok;
+      var sameOrig = false;
+      try { sameOrig = typeof window !== "undefined" && window.location && window.location.origin === base; } catch (_eO) {}
       fetch(base + "/api/profile/seen", {
-        method: "POST", keepalive: true, cache: "no-store", credentials: "include",
+        method: "POST", keepalive: true, cache: "no-store",
+        credentials: sameOrig ? "include" : "same-origin",
         headers: headers,
         body: JSON.stringify({ exit: true }),
       }).catch(function () {});
@@ -942,12 +947,10 @@ var PROFILE: any = (function () {
           if (isLocked()) return null;
           var afterAuth = function (auth: any) {
             var tok = getToken();
-            if (auth && auth.profile) {
-              /* Cookie session already dropped the guest Bearer. Sync the signed-in account,
-                 never the snapshot taken before login. */
-              return syncCampaign(tok, auth.profile);
-            }
-            return syncMigrate(tok, P.profile || prof);
+            /* Use the signed-in profile (auth.profile). syncMigrate is a no-op when
+               migratedAt is already set, then syncCampaign; it does not reuse a
+               pre-login campaign snapshot. Needed so first-time bind still migrates. */
+            return syncMigrate(tok, (auth && auth.profile) || P.profile || prof);
           };
           if (isPlainBrowser() && readWidgetAuthFromUrl()) {
             return widgetAuth(getToken()).then(afterAuth);
