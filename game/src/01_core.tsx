@@ -31,6 +31,15 @@ var PX_PER_M = 8;
 var REMOTE_ALPHA = 0.84;
 var PW = 12;
 var PH = 16;
+/* v1.0 hitbox tweak: PW×PH itself does not change (wrap, wall-cling, feet at y+PH,
+   sprite anchor at x+6 / y+16), so jump, gravity and controls stay the same.
+   Only the collision rectangles move a little towards the 64 px art:
+   visible feet are ~12 game px (landing was a 10 px box); solid torso is ~12–13
+   (hurt was 8 px wide). Landing uses the full PW. Hurt/stomp/bullets stay 1 px
+   inside the body. Bonus pickups, coins, mob sizes and mobBox() are unchanged. */
+var LAND_PAD_X = 0; /* was 1: land with PW-2 */
+var HURT_PAD_X = 1; /* was 2: hurt with PW-4 */
+var HURT_PAD_Y = 4; /* top inset, unchanged */
 var GRAVITY = 0.19;
 var JUMP_V = -5.55;
 var JUMP_H = (JUMP_V * JUMP_V) / (2 * GRAVITY); /* ~81 px */
