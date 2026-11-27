@@ -943,12 +943,8 @@ function makeLook(kind: number, _color?: string, _hat?: string) {
 }
 function drawJumper(ctx: Ctx, x: number, y: number, lk: any, face: number, pose: string, blink: boolean, alive: boolean, sc?: number, fine?: boolean) {
   var s = sc || 1;
-  if (fine && ctx.getTransform) {
-    /* Menu heroes: sub-game-pixel motion snapped to the DEVICE pixel (a menu game px is ~7 device px). */
-    var mt = ctx.getTransform();
-    x = mt.a ? (Math.round(mt.a * x + mt.e) - mt.e) / mt.a : Math.round(x);
-    y = mt.d ? (Math.round(mt.d * y + mt.f) - mt.f) / mt.d : Math.round(y);
-  } else { x = Math.round(x); y = Math.round(y); }
+  var mt: any = fine && ctx.getTransform ? ctx.getTransform() : null;
+  if (!mt || !(mt.a > 0) || !(mt.d > 0) || mt.b || mt.c) { mt = null; x = Math.round(x); y = Math.round(y); }
   var flip = face < 0;
   var spr = heroSprite(lk.id);
   if (spr) {
@@ -961,6 +957,22 @@ function drawJumper(ctx: Ctx, x: number, y: number, lk: any, face: number, pose:
     var is64 = typeof HERO64 !== "undefined" && HERO64[lk.id];
     /* 64-px sheets: 1 art px = 0.5 game px, no stretch (cell may be 65 art tall). Feet at the hitbox bottom. */
     var dw = is64 ? fw * 0.5 * s : SPR_CW * s, dh = is64 ? fh * 0.5 * s : SPR_CH * s, cx = x + 6 * s, by = y + 16 * s;
+    if (mt) {
+      /* UI heroes (menu, shop, lobby, results): drawn on the DEVICE grid with a whole number of device px
+         per art px (floor(scale x dpr)), anchor rounded to a device pixel - like the portraits. The fractional
+         menu scale (~7.31) otherwise gives art pixels of mixed size (eaten / doubled pixels). */
+      var gpa = dw / fw; /* game px per art px */
+      var k = Math.max(1, Math.floor(mt.a * gpa + 1e-6));
+      var dcx = Math.round(mt.a * cx + mt.e), dby = Math.round(mt.d * by + mt.f);
+      var ax = Math.round((SPR_AX * s) / gpa);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      if (flip) { ctx.translate(dcx, 0); ctx.scale(-1, 1); ctx.drawImage(spr, fi * fw, 0, fw, fh, -ax * k, dby - fh * k, fw * k, fh * k); }
+      else ctx.drawImage(spr, fi * fw, 0, fw, fh, dcx - ax * k, dby - fh * k, fw * k, fh * k);
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     if (flip) { ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.drawImage(spr, fi * fw, 0, fw, fh, -SPR_AX * s, by - dh, dw, dh); }

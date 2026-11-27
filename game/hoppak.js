@@ -1201,11 +1201,9 @@
   }
   function drawJumper(ctx, x, y, lk, face, pose, blink, alive, sc, fine) {
     var s = sc || 1;
-    if (fine && ctx.getTransform) {
-      var mt = ctx.getTransform();
-      x = mt.a ? (Math.round(mt.a * x + mt.e) - mt.e) / mt.a : Math.round(x);
-      y = mt.d ? (Math.round(mt.d * y + mt.f) - mt.f) / mt.d : Math.round(y);
-    } else {
+    var mt = fine && ctx.getTransform ? ctx.getTransform() : null;
+    if (!mt || !(mt.a > 0) || !(mt.d > 0) || mt.b || mt.c) {
+      mt = null;
       x = Math.round(x);
       y = Math.round(y);
     }
@@ -1220,6 +1218,22 @@
       var fw = (spr.naturalWidth || spr.width) / PL.length, fh = spr.naturalHeight || spr.height;
       var is64 = typeof HERO64 !== "undefined" && HERO64[lk.id];
       var dw = is64 ? fw * 0.5 * s : SPR_CW * s, dh = is64 ? fh * 0.5 * s : SPR_CH * s, cx = x + 6 * s, by = y + 16 * s;
+      if (mt) {
+        var gpa = dw / fw;
+        var k = Math.max(1, Math.floor(mt.a * gpa + 1e-6));
+        var dcx = Math.round(mt.a * cx + mt.e), dby = Math.round(mt.d * by + mt.f);
+        var ax = Math.round(SPR_AX * s / gpa);
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+        if (flip) {
+          ctx.translate(dcx, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(spr, fi * fw, 0, fw, fh, -ax * k, dby - fh * k, fw * k, fh * k);
+        } else ctx.drawImage(spr, fi * fw, 0, fw, fh, dcx - ax * k, dby - fh * k, fw * k, fh * k);
+        ctx.restore();
+        return;
+      }
       ctx.save();
       ctx.imageSmoothingEnabled = false;
       if (flip) {
@@ -8834,7 +8848,7 @@
           drawText(ctx, String(p.name || "").slice(0, 8) + " " + metersOf(p) + " \u041C", x + 30, y + 3, C.cream, 1, "left");
         } else {
           drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
-          drawJumper(ctx, x + 22, y + rowH - 16, p.look, 1, "idle", false, true);
+          drawJumper(ctx, x + 22, y + rowH - 16, p.look, 1, "idle", false, true, 1, true);
           drawText(ctx, p.name + (p.id === 0 && squad ? " (\u0422\u042B)" : ""), x + 42, y + 4, C.cream, 1, "left");
           drawText(ctx, metersOf(p) + " \u041C", x + 42, y + 14, C.cream, 1, "left");
         }

@@ -1980,7 +1980,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         drawText(ctx, String(p.name || "").slice(0, 8) + " " + metersOf(p) + " М", x + 30, y + 3, C.cream, 1, "left");
       } else {
         drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
-        drawJumper(ctx, x + 22, y + rowH - 16, p.look, 1, "idle", false, true);
+        drawJumper(ctx, x + 22, y + rowH - 16, p.look, 1, "idle", false, true, 1, true);
         drawText(ctx, p.name + (p.id === 0 && squad ? " (ТЫ)" : ""), x + 42, y + 4, C.cream, 1, "left");
         drawText(ctx, metersOf(p) + " М", x + 42, y + 14, C.cream, 1, "left");
       }
