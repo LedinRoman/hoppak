@@ -204,7 +204,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var frameY = isWide ? (cssH >= 740 ? 16 : 4) : 0;
     var availW = Math.max(160, cssW - frameX * 2);
     var availH = Math.max(240, cssH - frameY * 2);
-    var lw = netFixedLW() || 160;
+    var lw = netFixedLW() || (phase === "play" ? FIELD_W : 160);
     var lh = 346;
     if (fieldLocked) { lw = LW; lh = LH; }
     var sx: number, sy: number, cssWpx: number, cssHpx: number;
@@ -695,7 +695,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     NET.attachWorld(world, info);
   }
   function startRun(seed?: number, mapId?: string) {
-    /* Menus may be taller than 346 on tall phones; the field is always 160×346 before the world exists. */
+    /* Menus may be taller than 346 on tall phones; the field is always FIELD_W×346 before the world exists. */
     phase = "play"; fieldLocked = false; resize();
     var s = seed != null ? seed : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
     world = createWorld(s, mode, save.char, lookNow(), mapId || (mode === "squad" ? lobbyMap : save.bg));
@@ -1425,6 +1425,39 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (p.vy > 1.5) return "fall";
     return "idle";
   }
+  /* v1.0 render-only animation state machine for the 64-px heroes (physics untouched; whole-frame swaps).
+     land: squash(land) ~35 ms -> crouch ~35 ms -> up(rise);  rising: up while vy < -0.6 (enter at < -1.2);
+     top: apex (|vy| small) -> fstart ~80 ms -> fall (enter at vy > 0.9, leave below 0.3);
+     every non-forced change waits ANIM_HOLD ms; landing and abilities switch at once. */
+  var ANIM_HOLD = 70, ANIM_SQ = 35, ANIM_CR = 35, ANIM_FS = 80;
+  var animSt: any = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+  function animPose(p: any) {
+    var raw = poseOf(p);
+    var id = p.look && p.look.id;
+    if (!animSt || !(typeof HERO64 !== "undefined" && HERO64[id])) return raw;
+    var now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    var a = animSt.get(p);
+    if (!a) { a = { pose: raw === "idle" ? "apex" : raw, t: now, sq: p.squash || 0 }; animSt.set(p, a); return a.pose; }
+    var dt = now - a.t, vy = p.vy || 0;
+    var landed = (p.squash || 0) > a.sq && (p.squash || 0) >= 4;
+    a.sq = p.squash || 0;
+    var air = vy < -1.2 ? "up" : vy > 0.9 ? "fstart" : "apex";
+    var next = a.pose, forced = false;
+    if (raw === "ability") { next = "ability"; forced = true; }
+    else if (landed) { next = "squash"; forced = true; }
+    else switch (a.pose) {
+      case "ability": next = air; forced = true; break;
+      case "squash": if (dt >= ANIM_SQ) { next = "crouch"; forced = true; } break;
+      case "crouch": if (dt >= ANIM_CR) { next = air; forced = true; } break;
+      case "up": if (vy > -0.6) next = vy > 0.9 ? "fstart" : "apex"; break;
+      case "apex": if (vy > 0.9) next = "fstart"; else if (vy < -1.2) next = "up"; break;
+      case "fstart": if (dt >= ANIM_FS) { next = vy > 0.3 ? "fall" : vy < -1.2 ? "up" : "apex"; forced = true; } break;
+      case "fall": if (vy < -1.2) next = "up"; else if (vy < 0.3) next = "apex"; break;
+      default: next = air;
+    }
+    if (next !== a.pose && (forced || dt >= ANIM_HOLD)) { a.pose = next; a.t = now; }
+    return a.pose;
+  }
   function goalLine(y: number, label: string) {
     if (y < -8 || y > LH + 8) return;
     var yy = Math.round(y);
@@ -1578,14 +1611,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var sy = p.y - cam;
       if (sy < viewY0() - 22 || sy > viewY1() + 10) continue;
       var blink = (w.tick + p.id * 41) % 170 < 6;
-      var pose = p.alive ? poseOf(p) : "fall";
+      var pose = p.alive ? animPose(p) : "fall";
       var drawHeroAt = function (xx: number) {
         var ox = p.x; p.x = xx;
         drawFxBack(p, sy, cam);
         /* Render-only: while clinging, face into the field. p.face is used by dash/kick/net, so sim stays as-is. */
         var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
         ctx.save();
-        if (p.id !== 0) ctx.globalAlpha = remoteAlpha();
+        ctx.globalAlpha = p.id !== 0 ? remoteAlpha() : 1; /* own hero always opaque */
         drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
         ctx.restore();
         if (p.id === 0) drawReadyPip(p, sy);
@@ -2330,6 +2363,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getPhase: function () { return phase; },
     dbgToast: function (s: string) { if (world) { world.toast = s; world.toastT = 70; } },
     getWorld: function () { return world; },
+    heroPose: function () { var p0 = world && world.players[0]; var a = p0 && animSt && animSt.get(p0); return a ? a.pose : null; },
     net: NET,
     profile: typeof PROFILE !== "undefined" ? PROFILE : null,
     getSave: function () { return save; },
@@ -2567,7 +2601,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);
       generateUntil(w, -toM * PX_PER_M - 200);
       return {
-        jumpH: JUMP_H, gapCap: GAP_CAP, rowSep: ROW_SEP, xSep: X_SEP,
+        jumpH: JUMP_H, gapCap: GAP_CAP, rowSep: ROW_SEP, xSep: X_SEP, lw: LW,
         platforms: w.platforms.map(function (p: any) { return { x: p.x, y: p.y, w: p.w, type: p.type, spring: p.spring, row: p.row, vx: p.vx }; }),
         monsters: w.monsters.map(function (m: any) { return { kind: m.kind, x: m.x, y: m.y, w: m.w, h: m.h, b: m.b, topY: m.topY, home: !!m.home }; }),
         unsupported: unsupportedMobs(w),

@@ -43,10 +43,36 @@ function ensureReach(w: any, row: any[], y: number) {
     }
     if (ok) continue;
     var pw = 36;
-    var x = Math.round(prev[a].x + prev[a].w / 2 - pw / 2);
-    while (x < 2) x += LW;
-    while (x + pw > LW - 2) x -= LW;
-    if (x < 2) x = 2;
+    var x0 = Math.round(prev[a].x + prev[a].w / 2 - pw / 2);
+    /* v1.0: never overlap a platform of this row (X_SEP clear, wrap-aware). Search outward from the
+       ideal spot, keep it within reach of the previous platform. No RNG, so seeds stay deterministic. */
+    var x = -1;
+    for (var dxs = 0; dxs <= LW && x < 0; dxs++) {
+      for (var sg = 0; sg < (dxs ? 2 : 1); sg++) {
+        var cx = x0 + (sg ? -dxs : dxs);
+        while (cx < 2) cx += LW;
+        while (cx + pw > LW - 2) cx -= LW;
+        if (cx < 2) continue;
+        if (edgeGap(prev[a].x, prev[a].w, cx, pw) > reach + 0.01) continue;
+        var free = true;
+        for (var oi = 0; oi < row.length; oi++) if (edgeGap(cx, pw, row[oi].x, row[oi].w) < X_SEP) { free = false; break; }
+        if (free) { x = cx; break; }
+      }
+    }
+    if (x < 0) {
+      /* No free spot in reach: make the nearest reachable platform of this row stable instead. */
+      var bestP: any = null, bestG = 1e9;
+      for (var ri = 0; ri < row.length; ri++) {
+        var gg = edgeGap(prev[a].x, prev[a].w, row[ri].x, row[ri].w);
+        if (gg < bestG) { bestG = gg; bestP = row[ri]; }
+      }
+      if (bestP && bestG <= reach + 0.01) {
+        bestP.type = "normal"; bestP.broken = false;
+        stable.push(bestP);
+        continue;
+      }
+      x = Math.max(2, Math.min(LW - pw - 2, x0));
+    }
     var np = mkPlat(x, y, pw, "normal", row.length ? row[0].row : w.rowN);
     row.push(np);
     w.platforms.push(stampPlat(w, np));
@@ -400,7 +426,7 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
   w.platforms.push(stampPlat(w, mkPlat(8, 0, LW - 16, "normal", 0)));
-  var xs = mode === "squad" ? [74, 22, 124, 48] : [74];
+  var xs = mode === "squad" ? [74, 22, 124, 48] : [Math.round(LW / 2) - 6];
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
   if (mode === "squad") {
     var bk = botKinds(humanKind);

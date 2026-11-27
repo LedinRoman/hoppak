@@ -24,15 +24,21 @@ SHOTS = STUDIO + '/v1-64px/shots'
 INK = (0x14, 0x0c, 0x1c)
 CW, AX = 72, 32  # art px; CH is max used frame height
 
-# pose order: idle, squash, up, fall, ability, ko(source), blink — paths under ANIM/<hero>/
+# pose order: idle, squash, up, fall, ability, ko(source), blink, crouch, apex, fstart (HERO64_POSES) — paths under ANIM/<hero>/
 HEROES = {
     'pilot': ['64/frame_01_64.png', '64/rest/land_64.png', '64/frame_11_64.png', '64/rest/fall_64.png',
-              '64/rest/dash_fly_64.png', '64/rest/fall_start_64.png', '64/frame_02_64.png'],
+              '64/rest/dash_fly_64.png', '64/rest/fall_start_64.png', '64/frame_02_64.png',
+              '64/rest/land_64.png', '64/rest/apex_64.png', '64/rest/fall_start_64.png'],
     'ninja': ['64/idle1_64.png', '64/land_64.png', '64/rise_64.png', '64/fall_64.png',
-              '64/push_64.png', '64/fall_start_64.png', '64/idle2_64.png'],
+              '64/push_64.png', '64/fall_start_64.png', '64/idle2_64.png',
+              '64/crouch_64.png', '64/apex_64.png', '64/fall_start_64.png'],
     'robot': ['64/idle1_64.png', '64/land_64.png', '64/rise_64.png', '64/fall_64.png',
-              '64/dome_full_64.png', '64/fall_start_64.png', '64/idle2_64.png'],
+              '64/dome_on_64.png', '64/fall_start_64.png', '64/idle2_64.png',
+              '64/crouch_64.png', '64/apex_64.png', '64/fall_start_64.png'],
 }
+
+# heroes whose studio *_64.png lost armour to background keying: rebuilt from the hi-res frames
+REPIX = {'robot'}
 
 def rgba(p):
     return Image.open(p).convert('RGBA')
@@ -210,6 +216,97 @@ def connected(flags):
             comps.append(pts)
     return comps
 
+def hires_to_64(src_path, ref_size):
+    """Re-pixelate a studio hi-res frame (pixel art on a flat light-gray background, closed black outline)
+    onto the 64 px grid of the existing *_64.png (same w x h, so placement/scale stay identical).
+    The background is removed by a flood from the image border only, so armour of the same gray stays."""
+    from scipy import ndimage
+    a = np.asarray(Image.open(src_path).convert('RGB')).astype(int)
+    H, W = a.shape[:2]
+    corner = np.concatenate([a[:40, :40].reshape(-1, 3), a[:40, -40:].reshape(-1, 3), a[-40:, :40].reshape(-1, 3), a[-40:, -40:].reshape(-1, 3)])
+    bgc = np.median(corner, 0)
+    near = np.abs(a - bgc).max(2) < 16
+    lab, n = ndimage.label(near)
+    border = np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))
+    bg = np.isin(lab, border[border > 0])
+    op = ~bg
+    ys, xs = np.where(op)
+    y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+    w, h = ref_size
+    sx, sy = (x1 - x0) / w, (y1 - y0) / h
+    out = np.zeros((h, w, 4), np.uint8)
+    for j in range(h):
+        for i in range(w):
+            cx0, cx1 = x0 + (i + 0.25) * sx, x0 + (i + 0.75) * sx
+            cy0, cy1 = y0 + (j + 0.25) * sy, y0 + (j + 0.75) * sy
+            bx = slice(int(cx0), max(int(cx0) + 1, int(cx1))); by = slice(int(cy0), max(int(cy0) + 1, int(cy1)))
+            m = op[by, bx]
+            if m.mean() < 0.5:
+                continue
+            px = a[by, bx][m]
+            q = (px >> 3)
+            keys, inv, cnt = np.unique(q, axis=0, return_inverse=True, return_counts=True)
+            k = cnt.argmax()
+            sel = px[inv.reshape(-1) == k]
+            out[j, i, :3] = np.median(sel, 0).round().astype(np.uint8)
+            out[j, i, 3] = 255
+    return Image.fromarray(out, 'RGBA')
+
+
+def fill_key_holes(im):
+    """Studio robot frames were keyed off a light-gray background that matched the armour, leaving
+    enclosed transparent holes inside the body. Fill enclosed transparent components that are not
+    ringed by dark outline (real gaps between limbs are) with the neighbouring armour colour."""
+    from scipy import ndimage
+    a = np.asarray(im.convert('RGBA')).copy()
+    t = a[..., 3] < 128
+    lab0, n0 = ndimage.label(t)
+    border0 = set(np.unique(np.concatenate([lab0[0], lab0[-1], lab0[:, 0], lab0[:, -1]]).tolist()))
+    enclosed = t & ~np.isin(lab0, list(border0))
+    # plus narrow pockets bitten into the silhouette edge (closing with a 5x5 disk)
+    pad = np.pad(~t, 3)
+    disk = np.array([[0,1,1,1,0],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[0,1,1,1,0]], bool)
+    closed = ndimage.binary_closing(pad, structure=disk)[3:-3, 3:-3]
+    cand = enclosed | (closed & t)
+    lab, n = ndimage.label(cand)
+    border = set()
+    h, w = t.shape
+    filled = 0
+    for i in range(1, n + 1):
+        if i in border:
+            continue
+        m = lab == i
+        ring = ndimage.binary_dilation(m) & ~m & ~t
+        ys, xs = np.where(ring)
+        if not len(ys):
+            continue
+        Ls = [hsl(*map(int, a[y, x, :3]))[2] for y, x in zip(ys, xs)]
+        dark = sum(1 for L in Ls if L < 0.30) / len(Ls)
+        if dark >= 0.6:
+            continue  # a real gap outlined in black
+        pend = set(zip(*np.where(m)))
+        while pend:
+            nxt = set()
+            for (y, x) in list(pend):
+                cols = {}
+                for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    yy, xx = y + dy, x + dx
+                    if 0 <= yy < h and 0 <= xx < w and a[yy, xx, 3] >= 128 and (yy, xx) not in pend:
+                        c = tuple(int(v) for v in a[yy, xx, :3])
+                        if hsl(*c)[2] >= 0.30:
+                            cols[c] = cols.get(c, 0) + 2
+                        else:
+                            cols[c] = cols.get(c, 0) + 1
+                if cols:
+                    c = max(cols.items(), key=lambda kv: kv[1])[0]
+                    nxt.add((y, x, c))
+            if not nxt:
+                break
+            for (y, x, c) in nxt:
+                a[y, x, :3] = c; a[y, x, 3] = 255; pend.discard((y, x)); filled += 1
+    return Image.fromarray(a, 'RGBA'), filled
+
+
 def hero_dewhite(im):
     """Remap light desaturated pixels; keep eyes readable; force binary alpha.
     Returns (image, stats dict)."""
@@ -289,38 +386,114 @@ def hero_dewhite(im):
         if dark_n:
             for py, px in pts:
                 eye_mask[py, px] = True
-    # map each source colour once
-    mapping = {}
+    # v1.0 (Roman 14:32): delete or outline-black, never re-tint (except eyes; blobs see below)
+    OUTLINE = (0x14, 0x0c, 0x1c)
+    orig = a.copy()
+    N4 = ((-1, 0), (1, 0), (0, -1), (0, 1))
+    def is_dark(y, x):
+        _H, _S, L = hsl(*map(int, orig[y, x, :3]))
+        return L < 0.30
+    # v1.0 fix (Roman 14:39): deletion is NOT propagated inward. A light pixel may go transparent only
+    # if it sits on the ORIGINAL outer edge (touches original transparency) and every opaque neighbour that
+    # stays is dark, so the silhouette keeps a closed dark outline. Shrink-only fixpoint, never grows.
+    orig_tr = orig[..., 3] == 0
+    pend = hit & ~eye_mask
+    cand = np.zeros_like(hit)
+    for y in range(h):
+        for x in range(w):
+            if not pend[y, x]:
+                continue
+            for dy, dx in N4:
+                yy, xx = y + dy, x + dx
+                if not (0 <= yy < h and 0 <= xx < w) or orig_tr[yy, xx]:
+                    cand[y, x] = True; break
+    changed = True
+    while changed:
+        changed = False
+        for y in range(h):
+            for x in range(w):
+                if not cand[y, x]:
+                    continue
+                for dy, dx in N4:
+                    yy, xx = y + dy, x + dx
+                    if not (0 <= yy < h and 0 <= xx < w) or orig_tr[yy, xx] or cand[yy, xx]:
+                        continue
+                    if pend[yy, xx]:
+                        continue  # stays light -> becomes outline black below, closes the edge
+                    if eye_mask[yy, xx] or not is_dark(yy, xx):
+                        cand[y, x] = False; changed = True; break
+    removed = cand
+    a[removed, 3] = 0
+    rest = pend & ~removed
+    blob_mask = np.zeros_like(hit)
+    for pts in connected(rest):
+        s = set(pts)
+        interior = [q for q in pts if all((q[0] + dy, q[1] + dx) in s for dy, dx in N4)]
+        if len(interior) >= 4:  # a light AREA (visor, plate): keep it solid in a darker own tone
+            for q in pts:
+                blob_mask[q] = True
+    # isolated 1-2 px light specks floating inside a non-dark area (dome sparkles, glints): erase them into
+    # the surrounding colour instead of a black dot; no transparency, no hole
+    speck_fill = {}
+    for pts in connected(rest & ~blob_mask):
+        if len(pts) > 2:
+            continue
+        s = set(pts); cols = {}; ok = True
+        for (py, px) in pts:
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    yy, xx = py + dy, px + dx
+                    if (yy, xx) in s or (dy == 0 and dx == 0):
+                        continue
+                    if not (0 <= yy < h and 0 <= xx < w) or a[yy, xx, 3] == 0 or hit[yy, xx] or is_dark(yy, xx):
+                        ok = False; continue
+                    c = tuple(int(v) for v in orig[yy, xx, :3]); cols[c] = cols.get(c, 0) + 1
+        if ok and cols:
+            c = max(cols.items(), key=lambda kv: kv[1])[0]
+            for q in pts:
+                speck_fill[q] = c
     counts = {}
-    eye_n = 0
+    mapping = {}
+    eye_n = int(eye_mask.sum())
+    def bump(key):
+        counts[key] = counts.get(key, 0) + 1
     for y in range(h):
         for x in range(w):
             if not hit[y, x]:
                 continue
-            src = (int(a[y, x, 0]), int(a[y, x, 1]), int(a[y, x, 2]))
+            src = (int(orig[y, x, 0]), int(orig[y, x, 1]), int(orig[y, x, 2]))
             if eye_mask[y, x]:
-                dest = EYE_TONE
-                eye_n += 1
-            else:
+                a[y, x, :3] = EYE_TONE; bump(('eye', 'eye'))
+            elif removed[y, x]:
+                bump(('removed', 'transparent'))
+            elif blob_mask[y, x]:
                 if src not in mapping:
                     mapping[src] = pick_darker(src, pal)
-                dest = mapping[src]
-            a[y, x, 0], a[y, x, 1], a[y, x, 2] = dest
-            key = (src, dest, 'eye' if eye_mask[y, x] else 'body')
-            counts[key] = counts.get(key, 0) + 1
-    pretty = []
-    for (src, dest, role), n in sorted(counts.items(), key=lambda kv: -kv[1]):
-        pretty.append({'from': '#%02x%02x%02x' % src, 'to': '#%02x%02x%02x' % dest, 'role': role, 'n': n})
-    return Image.fromarray(a, 'RGBA'), {'n': int(hit.sum()), 'eyes': eye_n, 'map': pretty}
+                a[y, x, :3] = mapping[src]; bump(('blob', '#%02x%02x%02x' % mapping[src]))
+            elif speck_fill.get((y, x)) is not None:
+                a[y, x, :3] = speck_fill[(y, x)]; bump(('speck', 'neighbour'))
+            else:
+                a[y, x, :3] = OUTLINE; bump(('outline', '#140c1c'))
+    pretty = [{'role': k[0], 'to': k[1], 'n': n} for k, n in sorted(counts.items(), key=lambda kv: -kv[1])]
+    return Image.fromarray(a, 'RGBA'), {'n': int(hit.sum()), 'eyes': eye_n, 'removed': int(removed.sum()),
+                                        'outline': counts.get(('outline', '#140c1c'), 0), 'speck': counts.get(('speck', 'neighbour'), 0),
+                                        'blob': int(blob_mask.sum()), 'map': pretty}
+
 
 def hero_sheet(hid, files, ch):
-    sheet = Image.new('RGBA', (CW * 7, ch), (0, 0, 0, 0))
+    sheet = Image.new('RGBA', (CW * len(files), ch), (0, 0, 0, 0))
     info = []
     for i, f in enumerate(files):
         raw = rgba(os.path.join(ANIM, hid, f))
-        if i == 5:
-            raw = ko(raw)
+        raw0 = raw
+        hi = os.path.join(ANIM, hid, os.path.basename(f).replace('_64.png', '.png'))
+        if hid in REPIX and os.path.exists(hi):
+            raw = hires_to_64(hi, raw.size)
+        raw, holes = fill_key_holes(raw)
         q, st = hero_dewhite(raw)
+        st['holes'] = holes
+        if i == 5:
+            raw = ko(raw); q = ko(q); raw0 = ko(raw0)
         if q.height > ch:
             q = q.crop((0, q.height - ch, q.width, q.height))
         hx = head_x(q)
@@ -328,7 +501,7 @@ def hero_sheet(hid, files, ch):
         x = max(0, min(CW - q.width, x))
         sheet.alpha_composite(q, (i * CW + x, ch - q.height))
         info.append({'file': os.path.basename(f), 'size': list(q.size), 'placeX': x, 'headX': round(hx, 1),
-                     'before': raw, 'after': q, 'dewhite': st})
+                     'before': raw0, 'after': q, 'dewhite': st})
     return sheet, info
 
 def uri(im):
@@ -379,7 +552,7 @@ def main():
         for i, meta in enumerate(info):
             st = meta['dewhite']
             total += st['n']; eyes += st['eyes']
-            dewhite.append({'file': meta['file'], 'n': st['n'], 'eyes': st['eyes'], 'map': st['map']})
+            dewhite.append({'file': meta['file'], 'n': st['n'], 'eyes': st['eyes'], 'removed': st['removed'], 'outline': st['outline'], 'blob': st['blob'], 'holes': st.get('holes', 0), 'map': st['map']})
         for i, tag in ((0, 'idle'), (2, 'up')):
             meta = info[i]
             before, after = meta['before'], meta['after']
@@ -485,6 +658,7 @@ def main():
         f.write('var ART64: any = ' + js + ';\n')
         f.write('HERO_SPRITES.pilot = ART64.hero.pilot; HERO_SPRITES.ninja = ART64.hero.ninja; HERO_SPRITES.robot = ART64.hero.robot;\n')
         f.write('var HERO64: any = { pilot: 1, ninja: 1, robot: 1 };\n')
+        f.write('var HERO64_POSES = ["idle", "squash", "up", "fall", "ability", "ko", "blink", "crouch", "apex", "fstart"];\n')
     print(json.dumps({'cellH': ch, 'changed': report['cleanup']['changed'], 'bytes': len(js),
                       'jungleClouds': [len(jg['cs']), len(jg['cb'])],
                       'bg': {k: list(out['bg'][k].keys()) for k in out['bg']},

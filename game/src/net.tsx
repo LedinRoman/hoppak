@@ -10,7 +10,7 @@
 /* Must match server PROTOCOL_VERSION in net @ 2e6bfc0 (hello { v, s }). */
 var NET_PROTO = 1;
 /* Room generation. 0.59 clients omit this and only meet each other. */
-var NET_GEN = "0.6";
+var NET_GEN = "1.0"; /* v1.0: 180-wide field + new generator; rooms never mix with 0.6rc (server GEN check) */
 var NET_SEND_MS = 66; /* own state ~15 Hz */
 var NET_DELAY_MS = 150; /* interpolation buffer */
 var NET_GRACE_MS = 10000;
@@ -317,7 +317,7 @@ var NET: any = (function () {
       if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
     } catch (_e2) {}
     if (tok) N.sessTok = tok; /* the login this socket belongs to */
-    return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
+    return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "1.0", p: plat };
   }
   function screenNow() {
     var w = N.api && N.api.world && N.api.world();
