@@ -238,20 +238,33 @@ function startHoppak(canvas: HTMLCanvasElement): any {
          view (HUD uses hudY). Sim stays LW×LH; death and camera still use LH. */
       var fillWidth = fieldLocked && phase === "play";
       if (fillWidth) {
-        /* v0.59 (Roman): fill the width, hide the leftover height at the BOTTOM so the view above the hero is the
-           same as on a full 346 field; a render-only look-down (VIEW_SHIFT) follows a falling hero to the death line. */
-        cssScale = availW / lw;
-        VIEW_PAD = 0;
-        VIEW_CROP = 0;
-        VIEW_BOT = Math.max(0, lh - availH / cssScale);
-        var botMax = viewBotMax(lh);
-        if (VIEW_BOT > botMax) {
+        /* v1.0 (Roman): integer device-px per art-px (art is 0.5 game px, so pScale is even).
+           The 160-wide sim field is unchanged; leftover width is scenery padding.
+           Extra height is shown ABOVE the 346 field (VIEW_CROP < 0), death line stays at the bottom. */
+        var devW = Math.round(availW * dpr), devH = Math.round(availH * dpr);
+        var maxPs = Math.floor(devW / lw);
+        var pInt = maxPs >= 2 ? (maxPs % 2 === 0 ? maxPs : maxPs - 1) : Math.max(1, maxPs);
+        var visH, tries = 0;
+        while (tries < 4) {
+          cssScale = pInt / dpr;
+          VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+          visH = devH / pInt;
+          if (visH >= lh) {
+            VIEW_CROP = -(visH - lh);
+            VIEW_BOT = 0;
+            break;
+          }
+          VIEW_CROP = 0;
+          VIEW_BOT = Math.max(0, lh - visH);
+          var botMax = viewBotMax(lh);
+          if (VIEW_BOT <= botMax) break;
           VIEW_CROP = Math.min(TOP_CROP_MAX, VIEW_BOT - botMax);
           VIEW_BOT = botMax;
-          if (lh - VIEW_CROP - VIEW_BOT > availH / cssScale + 1e-6) {
-            cssScale = availH / (lh - VIEW_CROP - VIEW_BOT);
-            VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
-          }
+          if (lh - VIEW_CROP - VIEW_BOT <= visH + 1e-6) break;
+          /* Too short for this scale even after the crop cap: zoom out one even step. */
+          if (pInt <= 2) break;
+          pInt -= 2;
+          tries++;
         }
         cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
         cssHpx = (lh - VIEW_CROP - VIEW_BOT) * cssScale;
@@ -1505,9 +1518,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var mclip = ctx.getTransform();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     var x0 = Math.ceil(mclip.e - shx * mclip.a - 1e-9);
-    var y0 = Math.ceil(mclip.f - 1e-9);
+    var y0 = Math.ceil(mclip.f + viewY0() * mclip.d - 1e-9);
     var x1 = Math.floor(mclip.e - shx * mclip.a + LW * mclip.a + 1e-9);
-    var y1 = Math.floor(mclip.f + LH * mclip.d + 1e-9);
+    var y1 = Math.floor(mclip.f + viewY1() * mclip.d + 1e-9);
     ctx.beginPath();
     ctx.rect(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
     ctx.clip();
@@ -1515,18 +1528,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
     if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, "ЦЕЛЬ " + w.goalM + " М");
     if (w.recM) recLine(-w.recM * PX_PER_M - cam, "РЕКОРД " + w.recM);
-    if (w.goalM) { var gy = -w.goalM * PX_PER_M - cam; if (gy > 8 && gy < LH - 8) showFirstTimeToast("goal"); }
-    if (w.recM) { var ry = -w.recM * PX_PER_M - cam; if (ry > 8 && ry < LH - 8) showFirstTimeToast("record"); }
+    if (w.goalM) { var gy = -w.goalM * PX_PER_M - cam; if (gy > viewY0() + 8 && gy < viewY1() - 8) showFirstTimeToast("goal"); }
+    if (w.recM) { var ry = -w.recM * PX_PER_M - cam; if (ry > viewY0() + 8 && ry < viewY1() - 8) showFirstTimeToast("record"); }
     for (i = 0; i < w.platforms.length; i++) {
       var brk = w.platforms[i];
       if (brk.type === "break" && !brk.broken) {
         var by2 = brk.y - cam;
-        if (by2 > 8 && by2 < LH - 8) { showFirstTimeToast("break"); break; }
+        if (by2 > viewY0() + 8 && by2 < viewY1() - 8) { showFirstTimeToast("break"); break; }
       }
     }
     for (i = 0; i < w.coins.length; i++) {
       var cn = w.coins[i];
-      if (!cn.taken && cn.y - cam > -8 && cn.y - cam < LH + 4) {
+      if (!cn.taken && cn.y - cam > viewY0() - 8 && cn.y - cam < viewY1() + 4) {
         withWrapX(cn.x, 14, function (xx: number) { if (!drawCoin64(ctx, xx, Math.round(cn.y - cam), w.tick + i * 3)) drawCoin(ctx, xx, Math.round(cn.y - cam), w.tick + i * 3); });
       }
     }
@@ -1563,7 +1576,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (var pi = w.players.length - 1; pi >= 0; pi--) {
       var p = w.players[pi];
       var sy = p.y - cam;
-      if (sy < -22 || sy > LH + 10) continue;
+      if (sy < viewY0() - 22 || sy > viewY1() + 10) continue;
       var blink = (w.tick + p.id * 41) % 170 < 6;
       var pose = p.alive ? poseOf(p) : "fall";
       var drawHeroAt = function (xx: number) {
@@ -1702,16 +1715,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!(p.domeT > 0)) return;
     var left = p.domeT;
     if (left <= 55 && ((left >> 2) % 2) === 0) return;
-    var rad = 16;
-    solidRing(cx, cy, rad + 1, "#2a1048");
-    solidRing(cx, cy, rad, "#f4e8ff");
-    solidRing(cx, cy, rad - 1, "#7a4ec8");
+    var rad = 16, ysc = 1.4;
+    solidRing(cx, cy, rad + 1, ysc, "#2a1048");
+    solidRing(cx, cy, rad, ysc, "#f4e8ff");
+    solidRing(cx, cy, rad - 1, ysc, "#7a4ec8");
   }
-  function solidRing(cx: number, cy: number, r: number, col: string) {
-    var n = Math.max(8, Math.round(r * 8));
+  function solidRing(cx: number, cy: number, r: number, ysc: number, col: string) {
+    var n = Math.max(8, Math.round(r * 8 * Math.max(1, ysc)));
     for (var k = 0; k < n; k++) {
       var a = (k / n) * Math.PI * 2;
-      rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col);
+      rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * ysc), 1, 1, col);
     }
   }
   function drawFxFront(p: any, sy: number, tick: number) {

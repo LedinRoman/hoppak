@@ -366,7 +366,7 @@ def main():
         for f in files:
             heights.append(rgba(os.path.join(ANIM, hid, f)).height)
     ch = max(heights)
-    out = {'hero': {}, 'plat': {}, 'bg': {'city': {}, 'jungle': {}}, 'cell': {'w': CW, 'h': ch, 'ax': AX}}
+    out = {'hero': {}, 'plat': {}, 'bg': {'city': {}, 'jungle': {}, 'ice': {}, 'lava': {}, 'aqua': {}}, 'cell': {'w': CW, 'h': ch, 'ax': AX}}
     report = {'cellH': ch, 'heroes': {}, 'cleanup': {'changed': [], 'kept_platform_white': [], 'kept_hero_lights': []}}
     all_changes = []
 
@@ -447,6 +447,28 @@ def main():
     jg['cb'] = [uri(rgba(p)) for p in sorted(glob.glob(B + 'jungle/_cloud_big*_sprite_1x.png'))]
     jg['cloudAlpha'] = 1
 
+    def pack_horizon(dst, folder, sun=None, floor_row=0, floor_src=None, clouds=True):
+        add(dst, 'far', rgba(B + folder + '/_far_sprite_1x.png'))
+        add(dst, 'near', rgba(B + folder + '/_near_sprite_1x.png'))
+        flp = floor_src or (B + folder + '/15_floor_1x.png')
+        fl = rgba(flp)
+        bb = fl.getbbox()
+        if bb:
+            fl = fl.crop((0, bb[1], min(160, fl.width), fl.height))
+        add(dst, 'floor', fl)
+        dst['floorRow'] = floor_row
+        if sun:
+            add(dst, 'sun', rgba(B + folder + '/' + sun))
+        if clouds:
+            dst['cs'] = [uri(rgba(p)) for p in sorted(glob.glob(B + folder + '/_cloud_small*_sprite_1x.png'))]
+            dst['cb'] = [uri(rgba(p)) for p in sorted(glob.glob(B + folder + '/_cloud_big*_sprite_1x.png'))]
+            dst['cloudAlpha'] = 1
+
+    # aqua: plants stick above the sand; crest is y=279 in the 346 layer (bbox top 265) → floorRow 14
+    pack_horizon(out['bg']['aqua'], 'aqua', sun=None, floor_row=14, clouds=False)
+    pack_horizon(out['bg']['ice'], 'ice', sun=None, floor_row=0)
+    pack_horizon(out['bg']['lava'], 'lava', sun='_sun_sprite_1x.png', floor_row=0)
+
     # summarise cleanup
     by = {}
     for c in all_changes:
@@ -465,6 +487,7 @@ def main():
         f.write('var HERO64: any = { pilot: 1, ninja: 1, robot: 1 };\n')
     print(json.dumps({'cellH': ch, 'changed': report['cleanup']['changed'], 'bytes': len(js),
                       'jungleClouds': [len(jg['cs']), len(jg['cb'])],
+                      'bg': {k: list(out['bg'][k].keys()) for k in out['bg']},
                       'sun': [jg['sunW'], jg['sunH']]}))
 
 main()

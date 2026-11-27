@@ -74,10 +74,11 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   var m = alt / PX_PER_M;
   var sky = skyAt(map, m);
   var bands = 24, i, k;
+  var skyTop = viewY0(), skyBot = viewY1(), skyH = skyBot - skyTop;
   for (i = 0; i < bands; i++) {
     var t = i / (bands - 1);
     var col = t < 0.5 ? mixHex(sky[0], sky[1], t / 0.5) : mixHex(sky[1], sky[2], (t - 0.5) / 0.5);
-    var y0 = Math.round((LH * i) / bands), y1 = Math.round((LH * (i + 1)) / bands);
+    var y0 = Math.round(skyTop + (skyH * i) / bands), y1 = Math.round(skyTop + (skyH * (i + 1)) / bands);
     rect(ctx, viewX0(), y0, viewW(), y1 - y0, col);
     if (i > 0) { ctx.fillStyle = col; for (var dx = viewX0() + (i % 2) * 2; dx < LW + VIEW_PAD; dx += 4) ctx.fillRect(dx, y0 - 1, 2, 1); }
   }
@@ -167,7 +168,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     ctx.globalAlpha = 0.18;
     for (k = 0; k < 4; k++) {
       var bx = 18 + k * 38;
-      for (var by = 0; by < LH; by += 8) rect(ctx, bx + Math.floor(by * 0.14), by, 10, 8, "#c8ffff");
+      for (var by = viewY0(); by < viewY1(); by += 8) rect(ctx, bx + Math.floor(by * 0.14), by, 10, 8, "#c8ffff");
     }
     ctx.globalAlpha = 0.65;
     for (k = 0; k < 16; k++) {
@@ -250,7 +251,7 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
   }
   /* start floor */
   var roofY = Math.round(-camY);
-  if (roofY < LH && roofY > -40) {
+  if (roofY < viewY1() && roofY > viewY0() - 40) {
     var b64f = bg64(map);
     if (b64f) {
       drawBgStrip64(ctx, b64f, "floor", roofY + 3 - b64f.floorRow);
@@ -752,33 +753,37 @@ function buildShieldFrames() {
     { r0: 13.4, r1: 15.2, cHi: "#ffffff", cMid: "#c8f4ff", cLow: "#5ec8ff", sparks: [[0, -16, "#ffffff"], [0, 16, "#a4e8ff"], [-16, 0, "#ffffff"], [16, 0, "#a4e8ff"]] },
     { r0: 12.7, r1: 14.3, cHi: "#a4e8ff", cMid: "#5ec8ff", cLow: "#3ca4ec", sparks: [[-10, -12, "#a4e8ff"], [12, -10, "#a4e8ff"], [-12, 10, "#3ca4ec"], [10, 12, "#3ca4ec"]] }
   ];
-  var N = 37, H = 18;
+  /* v1.0: 64-px hero is ~32.5 game px tall (head at sy-16.5). Stretch the ring
+     vertically ×1.4 so the aura covers the hat; width and physics stay the same. */
+  var YSC = 1.4, N = 51, H = 25;
   for (var fi = 0; fi < specs.length; fi++) {
     var sp = specs[fi];
     var grid: any[] = [];
     for (var i = 0; i < N * N; i++) grid.push(null);
     function idx(dx: number, dy: number) { return (dy + H) * N + (dx + H); }
-    for (var dy = -16; dy <= 16; dy++) {
+    var yLo = -Math.ceil(16 * YSC), yHi = Math.ceil(16 * YSC);
+    for (var dy = yLo; dy <= yHi; dy++) {
       for (var dx = -16; dx <= 16; dx++) {
-        var d = Math.sqrt(dx * dx + dy * dy);
+        var d = Math.sqrt(dx * dx + (dy / YSC) * (dy / YSC));
         if (d >= sp.r0 && d <= sp.r1) {
-          var diag = dx + dy;
+          var diag = dx + dy / YSC;
           grid[idx(dx, dy)] = diag < -7 ? sp.cHi : diag < 7 ? sp.cMid : sp.cLow;
         }
       }
     }
     for (var si = 0; si < sp.sparks.length; si++) {
-      var sx = sp.sparks[si][0] as number, sy2 = sp.sparks[si][1] as number;
+      var sx = sp.sparks[si][0] as number, sy2 = Math.round((sp.sparks[si][1] as number) * YSC);
+      if (sy2 < -H) sy2 = -H; if (sy2 > H) sy2 = H;
       grid[idx(sx, sy2)] = sp.sparks[si][2];
     }
     /* 1-px dark outline (#140c1c, hero sprite outline) around the outside of the bright aura */
     var out: any[] = [];
     var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-    for (dy = -17; dy <= 17; dy++) {
+    for (dy = yLo - 1; dy <= yHi + 1; dy++) {
       for (dx = -17; dx <= 17; dx++) {
         var c = grid[idx(dx, dy)];
         if (c) { out.push([dx, dy, c]); continue; }
-        var d2 = Math.sqrt(dx * dx + dy * dy);
+        var d2 = Math.sqrt(dx * dx + (dy / YSC) * (dy / YSC));
         if (d2 <= sp.r0) continue;
         for (var di = 0; di < 4; di++) {
           var nx = dx + dirs[di][0], ny = dy + dirs[di][1];

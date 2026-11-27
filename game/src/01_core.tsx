@@ -7,10 +7,12 @@ type Ctx = CanvasRenderingContext2D;
 var LW = 160;
 var LH = 346;
 var VIEW_PAD = 0; /* extra scenery px on each side; not part of the world */
-var VIEW_CROP = 0; /* world px cropped from the top when play fills the phone width; render-only */
+var VIEW_CROP = 0; /* world px cropped from the top (positive) or extra world shown above the 346 field (negative); render-only */
 var HUD_INSET = 0; /* world px pushed down so the play HUD clears the notch and the Telegram bar */
 function viewX0() { return -VIEW_PAD; }
 function viewW() { return LW + VIEW_PAD * 2; }
+function viewY0() { return VIEW_CROP; }
+function viewY1() { return LH - VIEW_BOT; }
 function hudY(y: number) { return y + VIEW_CROP + HUD_INSET; }
 var VIEW_BOT = 0; /* v0.59: world px hidden at the BOTTOM when play fills the phone width; render-only (sim view stays LH) */
 var VIEW_SHIFT = 0; /* v0.59: render-only look-down offset (0..VIEW_BOT) so a falling hero stays on screen until the sim death line */

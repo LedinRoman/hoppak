@@ -60,18 +60,18 @@ function drawCoin64(ctx: Ctx, x: number, y: number, t: number): boolean {
   ctx.restore();
   return true;
 }
-function bg64(map: string) { return map === "city" || map === "jungle" ? ART64.bg[map] : null; }
+function bg64(map: string) { return (ART64 && ART64.bg && ART64.bg[map]) ? ART64.bg[map] : null; }
 /** A full-width background strip (160 px tile), tiled over the side padding; below it, the bottom colour. */
 function drawBgStrip64(ctx: Ctx, b: any, k: string, top: number) {
   var cv = art64Cv("bg:" + b.__id + k, b[k]);
   if (!cv) return;
   top = Math.round(top);
-  if (top >= LH) return;
+  if (top >= viewY1()) return;
   var w = b[k + "W"], h = b[k + "H"];
   ctx.imageSmoothingEnabled = false;
   var x0 = Math.floor(viewX0() / w) * w;
   for (var tx = x0; tx < LW + VIEW_PAD; tx += w) ctx.drawImage(cv, tx, top);
-  if (top + h < LH) rect(ctx, viewX0(), top + h, viewW(), LH - top - h, b[k + "Fill"]);
+  if (top + h < viewY1()) rect(ctx, viewX0(), top + h, viewW(), viewY1() - top - h, b[k + "Fill"]);
 }
 function drawBgSprite64(ctx: Ctx, b: any, k: string, src: string, x: number, y: number) {
   var cv = art64Cv("bg:" + b.__id + k, src);
@@ -79,4 +79,4 @@ function drawBgSprite64(ctx: Ctx, b: any, k: string, src: string, x: number, y: 
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(cv, Math.round(x), Math.round(y));
 }
-if (typeof ART64 !== "undefined") { ART64.bg.city.__id = "city"; ART64.bg.jungle.__id = "jungle"; }
+if (typeof ART64 !== "undefined" && ART64.bg) { for (var _bgk in ART64.bg) if (ART64.bg[_bgk]) ART64.bg[_bgk].__id = _bgk; }
