@@ -9,6 +9,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var phase = "menu"; /* menu | shop | camp | ency | lobby | play | results | font */
   var world: any = null;
   var save = loadSave();
+  if (typeof PROFILE !== "undefined" && PROFILE.apiOrigin()) save.coins = PROFILE.cachedCoins();
   var mode = "solo";
   var room: any = { round: 0 };
   var shopHero = save.char;

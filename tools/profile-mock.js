@@ -26,6 +26,7 @@ function argVal(name, def) {
 
 /** Calls to POST /api/profile/seen (heartbeat and exit beacon), for tests. */
 const seenLog = [];
+const WALLET_COINS_MAX = 2147483647;
 let mode = argVal('mode', '2284797');
 let tgAuth = argVal('tgAuth', '503'); /* ok | 503 | 401 | 409 */
 const port = Number(argVal('port', process.env.PORT || 8799));
@@ -265,7 +266,7 @@ function createServer() {
           let merged = false;
           let mergedCoins = 0;
           if (guest && guest.id !== existing.id && !guest.telegramId && !guest.mergedInto) {
-            mergedCoins = clamp(Math.floor(Number(guest.coins) || 0), 0, 8000);
+            mergedCoins = Math.min(guest.coins, Math.max(0, WALLET_COINS_MAX - (existing.coins || 0)));
             existing.coins = (existing.coins || 0) + mergedCoins;
             existing.best = Math.max(existing.best || 0, Math.max(0, Math.floor(Number(guest.best) || 0)));
             existing.purchases = { ...existing.purchases, ...sanitizePurchases(guest.purchases) };
@@ -338,8 +339,6 @@ function createServer() {
         if (!p) return unauth(res, tok);
         const b = await readBody(req);
         if (p.migratedAt) return json(res, 201, { ok: true, profile: toPublic(p) });
-        const incoming = clamp(Math.floor(Number(b.coins) || 0), 0, 8000);
-        p.coins = clamp(p.coins + incoming, 0, 8000);
         if (mode === 'v06') {
           p.best = Math.max(p.best || 0, clamp(Math.floor(Number(b.best) || 0), 0, 20000));
         }
@@ -369,7 +368,7 @@ function createServer() {
         const c = clamp(rawC, 0, 15801);
         const bc = clamp(rawB, 0, 2500);
         const heightPay = h >= 100 ? Math.floor(h / 25) : 0;
-        const awarded = heightPay + c + bc;
+        const awarded = Math.min(heightPay + c + bc, Math.max(0, WALLET_COINS_MAX - runner.coins));
         let limited;
         if (rawH > 20000) limited = 'HEIGHT_CAP';
         else if (rawC > 15801) limited = 'COINS_CAP';
