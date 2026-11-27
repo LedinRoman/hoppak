@@ -4137,6 +4137,7 @@
     function failLink(cb) {
       N.st = "error";
       N.err = "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418";
+      N.linkTry = 0;
       var f = cb || N.onOpen;
       N.onOpen = null;
       if (f) f(false);
@@ -4215,7 +4216,7 @@
         N.ws = null;
         if (N.st === "unsupported") return;
         if (!opened && N.st !== "reconnecting") {
-          failLink();
+          if (!retryLink()) failLink();
           return;
         }
         if (N.room) startReconnect();
@@ -4249,12 +4250,23 @@
         N.probing = false;
         if (N.st !== "connecting" && N.st !== "reconnecting") return;
         if (!ok) {
-          failLink();
+          if (!retryLink()) failLink();
           return;
         }
         openSocket(u);
       });
     };
+    function retryLink() {
+      if (N.st === "reconnecting" || (N.linkTry | 0) >= 2) return false;
+      N.linkTry = (N.linkTry | 0) + 1;
+      var cb = N.onOpen;
+      N.onOpen = null;
+      N.st = "off";
+      setTimeout(function() {
+        N.connect(cb);
+      }, 300);
+      return true;
+    }
     function startReconnect() {
       if (N.st !== "reconnecting") {
         N.st = "reconnecting";
@@ -4337,6 +4349,7 @@
         if (N.st === "reconnecting" && tok) send("resume", { token: tok });
         else {
           N.st = "online";
+          N.linkTry = 0;
           var f = N.onOpen;
           N.onOpen = null;
           if (f) f(true);

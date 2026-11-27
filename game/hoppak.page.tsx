@@ -3101,7 +3101,7 @@ var NET: any = (function () {
 
   /* ---------- connection ---------- */
   function failLink(cb?: any) {
-    N.st = "error"; N.err = "НЕТ СВЯЗИ";
+    N.st = "error"; N.err = "НЕТ СВЯЗИ"; N.linkTry = 0;
     var f = cb || N.onOpen; N.onOpen = null; if (f) f(false);
   }
   function probeHealth(hu: string, cb: any) {
@@ -3140,7 +3140,7 @@ var NET: any = (function () {
       if (N.ws !== ws) return;
       N.ws = null;
       if (N.st === "unsupported") return;
-      if (!opened && N.st !== "reconnecting") { failLink(); return; }
+      if (!opened && N.st !== "reconnecting") { if (!retryLink()) failLink(); return; }
       if (N.room) startReconnect(); else if (N.st !== "error") N.st = "off";
     };
     ws.onerror = function () {};
@@ -3157,10 +3157,20 @@ var NET: any = (function () {
     probeHealth(toHealth(u), function (ok: boolean) {
       N.probing = false;
       if (N.st !== "connecting" && N.st !== "reconnecting") return;
-      if (!ok) { failLink(); return; }
+      if (!ok) { if (!retryLink()) failLink(); return; }
       openSocket(u);
     });
   };
+  /* A single stalled TLS handshake / probe (seen on mobile and long routes to the VPS) must not end in «НЕТ СВЯЗИ»:
+     try a fresh connection twice more before giving up. linkTry resets once the server says hello. */
+  function retryLink() {
+    if (N.st === "reconnecting" || (N.linkTry | 0) >= 2) return false;
+    N.linkTry = (N.linkTry | 0) + 1;
+    var cb = N.onOpen; N.onOpen = null;
+    N.st = "off";
+    setTimeout(function () { N.connect(cb); }, 300);
+    return true;
+  }
   function startReconnect() {
     if (N.st !== "reconnecting") { N.st = "reconnecting"; N.reconUntil = now() + NET_GRACE_MS; }
     if (N.reconTimer) return;
@@ -3207,7 +3217,7 @@ var NET: any = (function () {
       ping();
       var tok = N.token || load("hoppak.net.token");
       if (N.st === "reconnecting" && tok) send("resume", { token: tok });
-      else { N.st = "online"; var f = N.onOpen; N.onOpen = null; if (f) f(true); }
+      else { N.st = "online"; N.linkTry = 0; var f = N.onOpen; N.onOpen = null; if (f) f(true); }
       if (d.s && !N.rtt) N.off = d.s - now();
     } else if (ev === "room") {
       var wasRecon = N.st === "reconnecting";
