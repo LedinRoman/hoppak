@@ -1,13 +1,13 @@
 name: Deploy Hopper Server
 
 on:
-  push:
-    branches:
-      - main
-      - net
-    paths:
-      - 'server/**'
+  # Auto-deploy to prod is disabled (2026-11-27). Prod is manual only.
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY_PROD to confirm. This updates the live game container.'
+        required: true
+        type: string
 
 env:
   # Space-separated branch names allowed to auto-deploy on push.
@@ -15,7 +15,7 @@ env:
   # and `net` do not overwrite each other. Once `net` is merged into `main`,
   # change this to `main` (or `main net`). Manual workflow_dispatch always deploys
   # the selected ref.
-  DEPLOY_BRANCHES: 'net'
+  DEPLOY_BRANCHES: ''  # prod auto-deploy disabled
   HEALTH_URL: 'https://76-13-250-251.sslip.io/api/health'
 
 concurrency:
@@ -55,15 +55,8 @@ jobs:
         working-directory: .
         run: |
           should_deploy="false"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.confirm }}" = "DEPLOY_PROD" ]; then
             should_deploy="true"
-          else
-            for b in $DEPLOY_BRANCHES; do
-              if [ "$b" = "${{ github.ref_name }}" ]; then
-                should_deploy="true"
-                break
-              fi
-            done
           fi
           echo "should_deploy=$should_deploy" >> "$GITHUB_OUTPUT"
           echo "Branch=${{ github.ref_name }} event=${{ github.event_name }} DEPLOY_BRANCHES='$DEPLOY_BRANCHES' -> should_deploy=$should_deploy"
