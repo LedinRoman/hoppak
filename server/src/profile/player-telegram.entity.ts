@@ -1,9 +1,20 @@
-import { Column, Entity, PrimaryColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from 'typeorm';
+import { Player } from './player.entity';
 
-@Entity({ name: 'player_telegram', comment: 'Поля профиля Telegram, отдельно от player. В публичный API не отдаются.' })
+@Entity({ name: 'player_telegram', comment: 'Привязка к Telegram: id пользователя (единственное место, где он хранится) и поля профиля из initData. Один к одному с player; строки нет у гостя. Ключ входа — telegram_id.' })
 export class PlayerTelegram {
   @PrimaryColumn('uuid', { name: 'player_id', comment: 'UUID игрока, первичный ключ и внешний ключ на player.id.' })
   playerId: string;
+
+  @OneToOne(() => Player, (p) => p.tg, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'player_id' })
+  player?: Player;
+
+  @Column({ name: 'telegram_id', type: 'bigint', unique: true, comment: 'id пользователя Telegram (bigint) из проверенного initData.user.id. UNIQUE, NOT NULL. Нигде больше не хранится.' })
+  telegramId: string;
+
+  @Column({ name: 'linked_at', type: 'timestamptz', default: () => 'now()', comment: 'timestamptz первой привязки игрока к этому telegram_id.' })
+  linkedAt: Date;
 
   @Column({ type: 'varchar', length: 64, nullable: true, comment: 'username из проверенного initData, до 64 символов. Обновляется при каждом успешном входе. В API не отдаётся.' })
   username: string | null;

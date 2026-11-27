@@ -7,13 +7,15 @@ import { PlayerGeo } from './player-geo.entity';
 import { RunStart } from './run-start.entity';
 import { RulesPlausibility } from './rules-plausibility.entity';
 import { SuspiciousRun } from './suspicious-run.entity';
-import { OnlineNow } from './online-now.entity';
+import { PlayerAuth } from './player-auth.entity';
+import { PlayerStats } from './player-stats.entity';
+import { PlayerPresence } from './player-presence.entity';
 import { OnlineSnapshot } from './online-snapshot.entity';
 import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
 import { OnlineService } from '../online.service';
 
-const ENTITIES = [Player, PlayerRun, PlayerTelegram, PlayerGeo, RunStart, RulesPlausibility, SuspiciousRun, OnlineNow, OnlineSnapshot];
+const ENTITIES = [Player, PlayerRun, PlayerTelegram, PlayerGeo, RunStart, RulesPlausibility, SuspiciousRun, PlayerAuth, PlayerStats, PlayerPresence, OnlineSnapshot];
 
 @Module({})
 export class ProfileModule {

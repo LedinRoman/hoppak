@@ -25,6 +25,7 @@ const { AddTelegramProfile1795645000000 } = require('../dist/db/migrations/17956
 const { CommentProfileSchema1795646000000 } = require('../dist/db/migrations/1795646000000-CommentProfileSchema');
 const { SplitTelegramGeoOnlinePlausibility1795647000000 } = require('../dist/db/migrations/1795647000000-SplitTelegramGeoOnlinePlausibility');
 const { DropPlayerTelegramId1795648000000 } = require('../dist/db/migrations/1795648000000-DropPlayerTelegramId');
+const { SplitPlayerAuthStatsPresence1795649000000 } = require('../dist/db/migrations/1795649000000-SplitPlayerAuthStatsPresence');
 const { parseAndVerifyInitData, clipTelegramField } = require('../dist/profile/telegram');
 
 function clone(v) {
@@ -45,6 +46,9 @@ function makeMemoryRepos() {
     p.telegramLinkedAt = row.telegramLinkedAt ? new Date(row.telegramLinkedAt) : null;
     p.mergedAt = row.mergedAt ? new Date(row.mergedAt) : null;
     p.previousTokenAt = row.previousTokenAt ? new Date(row.previousTokenAt) : null;
+    /* 1:1 child rows live in their own tables; the fake keeps player_telegram in its own map like the DB does */
+    const tgRow = telegrams.get(p.id);
+    if (tgRow) p.tg = Object.assign(new PlayerTelegram(), tgRow);
     return p;
   }
 
@@ -70,15 +74,20 @@ function makeMemoryRepos() {
     async save(p) {
       if (!p.id) p.id = `00000000-0000-4000-8000-${String(seq++).padStart(12, '0')}`;
       if (!p.createdAt) p.createdAt = new Date();
+      if (p.tg) {
+        /* cascade: identity columns of the child row are saved with the player; names come from saveTelegram */
+        const prev = telegrams.get(p.id) || {};
+        telegrams.set(p.id, Object.assign(new PlayerTelegram(), prev, { playerId: p.id, telegramId: p.tg.telegramId, linkedAt: p.tg.linkedAt }));
+      }
       players.set(p.id, hydratePlayer(p));
       return players.get(p.id);
     },
     async findOne({ where }) {
       for (const p of players.values()) {
         if (where.id && p.id === where.id) return hydratePlayer(p);
-        if (where.guestTokenHash && p.guestTokenHash === where.guestTokenHash) return hydratePlayer(p);
-        if (where.telegramId && String(p.telegramId) === String(where.telegramId)) return hydratePlayer(p);
-        if (where.previousTokenHash && p.previousTokenHash === where.previousTokenHash) return hydratePlayer(p);
+        if (where.auth && where.auth.tokenHash && p.guestTokenHash === where.auth.tokenHash) return hydratePlayer(p);
+        if (where.tg && where.tg.telegramId && String(p.telegramId) === String(where.tg.telegramId)) return hydratePlayer(p);
+        if (where.auth && where.auth.previousTokenHash && p.previousTokenHash === where.auth.previousTokenHash) return hydratePlayer(p);
       }
       return null;
     },
@@ -743,6 +752,27 @@ async function testMigrationSql() {
   assert.ok(!up7.some((q) => /COMMENT ON COLUMN "player_telegram"\."telegram_id"/.test(q)));
   assert.ok(up7.some((q) => /COMMENT ON COLUMN "suspicious_runs"\."reason"/.test(q)));
   console.log('PASS drop duplicate telegram_id');
+
+  const m8 = new SplitPlayerAuthStatsPresence1795649000000();
+  const up8 = [];
+  const down8 = [];
+  await m8.up({ query: async (q) => up8.push(q) });
+  await m8.down({ query: async (q) => down8.push(q) });
+  const idx = (re) => up8.findIndex((q) => re.test(q));
+  for (const t of ['player_auth', 'player_stats', 'player_presence']) assert.ok(idx(new RegExp('CREATE TABLE "' + t + '"')) >= 0, t);
+  assert.ok(idx(/CREATE VIEW "player_online_v"/) > idx(/CREATE TABLE "player_presence"/));
+  /* data is copied before the source columns are dropped */
+  assert.ok(idx(/INSERT INTO "player_auth"/) < idx(/DROP COLUMN "guest_token_hash"/));
+  assert.ok(idx(/INSERT INTO "player_stats"/) < idx(/DROP COLUMN "best"/));
+  assert.ok(idx(/UPDATE "player_telegram" t SET "telegram_id"/) < idx(/DROP COLUMN "telegram_id"/));
+  assert.ok(idx(/INSERT INTO "player_presence"/) < idx(/DROP TABLE "online_now"/));
+  assert.ok(up8.some((q) => /telegram_id" SET NOT NULL/.test(q)) && up8.some((q) => /"player_telegram_telegram_id_key" UNIQUE/.test(q)));
+  for (const t of ['player', 'player_auth', 'player_stats', 'player_telegram', 'player_presence', 'player_geo']) {
+    assert.ok(up8.some((q) => new RegExp('COMMENT ON TABLE "' + t + '"').test(q)), 'comment ' + t);
+  }
+  assert.ok(up8.some((q) => /COMMENT ON VIEW "player_online_v"/.test(q)));
+  assert.ok(down8.some((q) => /DROP VIEW IF EXISTS "player_online_v"/.test(q)) && down8.some((q) => /CREATE TABLE "online_now"/.test(q)));
+  console.log('PASS split player into auth/stats/telegram/presence + online view migration SQL');
 }
 
 async function testPlausibilityAndSession() {

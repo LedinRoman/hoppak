@@ -75,29 +75,23 @@ export class ProfileService {
   async createGuest(): Promise<{ token: string; profile: PublicProfile }> {
     const repo = this.requireDb();
     const token = newGuestToken();
-    const p = repo.create({
-      guestTokenHash: hashToken(token),
-      coins: 0,
-      best: 0,
-      purchases: {},
-      campaign: emptyCampaign(),
-    });
+    const p = Player.make({ guestTokenHash: hashToken(token) });
     await repo.save(p);
     return { token, profile: this.toPublic(p) };
   }
 
   async findByToken(token: string): Promise<Player | null> {
     const repo = this.requireDb();
-    return repo.findOne({ where: { guestTokenHash: hashToken(token) } });
+    return repo.findOne({ where: { auth: { tokenHash: hashToken(token) } } });
   }
 
   async requireByToken(token: string | null, opts?: { allowPrevious?: boolean }): Promise<Player> {
     if (!token) throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
     const repo = this.requireDb();
     const hash = hashToken(token);
-    const cur = await repo.findOne({ where: { guestTokenHash: hash } });
+    const cur = await repo.findOne({ where: { auth: { tokenHash: hash } } });
     if (cur) return cur;
-    const prev = await repo.findOne({ where: { previousTokenHash: hash } });
+    const prev = await repo.findOne({ where: { auth: { previousTokenHash: hash } } });
     if (prev && opts?.allowPrevious) return prev;
     if (prev) throw new HttpException({ ok: false, error: 'SESSION_REPLACED' }, HttpStatus.UNAUTHORIZED);
     throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
@@ -125,10 +119,7 @@ export class ProfileService {
     }
     const price = ITEM_PRICES[key];
     const runBuy = async (playerRepo: Repository<Player>): Promise<{ profile: PublicProfile; alreadyOwned?: boolean }> => {
-      const fresh = (await playerRepo.findOne({
-        where: { id: p.id },
-        ...(repo.manager ? { lock: { mode: 'pessimistic_write' } } : {}),
-      })) || p;
+      const fresh = (await this.loadLocked(playerRepo, p.id)) || p;
       const owned = fresh.purchases || {};
       if (owned[key]) {
         return { alreadyOwned: true, profile: this.toPublic(fresh) };
@@ -164,10 +155,7 @@ export class ProfileService {
     void _openRaw;
     const repo = this.requireDb();
     const execute = async (playerRepo: Repository<Player>): Promise<PublicProfile> => {
-      const fresh = (await playerRepo.findOne({
-        where: { id: p.id },
-        ...(repo.manager ? { lock: { mode: 'pessimistic_write' } } : {}),
-      })) || p;
+      const fresh = (await this.loadLocked(playerRepo, p.id)) || p;
       fresh.campaign = mergeCampaign(fresh.campaign, { best: sanitizeMapBest(mapBestRaw) });
       let top = fresh.best || 0;
       for (const id of Object.keys(fresh.campaign.best || {})) top = Math.max(top, fresh.campaign.best[id] || 0);
@@ -204,10 +192,7 @@ export class ProfileService {
       const runRepo = em ? em.getRepository(PlayerRun) : this.runs;
       const startRepo = em ? em.getRepository(RunStart) : this.starts;
       const susRepo = em ? em.getRepository(SuspiciousRun) : this.suspicious;
-      const fresh = (await playerRepo.findOne({
-        where: { id: p.id },
-        ...(repo.manager ? { lock: { mode: 'pessimistic_write' } } : {}),
-      })) || p;
+      const fresh = (await this.loadLocked(playerRepo, p.id)) || p;
       if (runId && runRepo) {
         const dup = await runRepo.findOne({ where: { playerId: fresh.id, runId } });
         if (dup) {
@@ -275,6 +260,18 @@ export class ProfileService {
     return execute(null);
   }
 
+  /**
+   * Row lock on the core player row (all writers take it first), then a plain load with the 1:1 rows.
+   * FOR UPDATE cannot sit on the nullable side of the eager LEFT JOINs, so the lock is a separate statement.
+   */
+  private async loadLocked(playerRepo: Repository<Player>, id: string): Promise<Player | null> {
+    const mgr: any = playerRepo.manager;
+    if (mgr && typeof mgr.transaction === 'function' && typeof mgr.query === 'function') {
+      await mgr.query(`SELECT 1 FROM "player" WHERE "id" = $1 FOR UPDATE`, [id]);
+    }
+    return playerRepo.findOne({ where: { id } });
+  }
+
   /** A stuck lock must release the pool connection instead of waiting forever. */
   private async armFinishTx(em: EntityManager) {
     if (!em || typeof em.query !== 'function') return;
@@ -317,10 +314,7 @@ export class ProfileService {
     const out = new Map<string, Player>();
     const canLock = !!(repo.manager && typeof repo.manager.transaction === 'function');
     for (const id of unique) {
-      const row = await repo.findOne({
-        where: { id },
-        ...(canLock ? { lock: { mode: 'pessimistic_write' as const } } : {}),
-      });
+      const row = canLock ? await this.loadLocked(repo, id) : await repo.findOne({ where: { id } });
       if (row) out.set(id, row);
     }
     return out;
@@ -332,13 +326,14 @@ export class ProfileService {
     p.previousTokenHash = p.guestTokenHash;
     p.previousTokenAt = new Date();
     p.guestTokenHash = hashToken(next);
+    if (p.auth) p.auth.tokenIssuedAt = new Date();
     return next;
   }
 
   private async saveTelegram(playerId: string, tg: VerifiedTelegramInitData) {
     if (!this.telegrams || !playerId) return;
-    const existing = await this.telegrams.findOne({ where: { playerId } });
-    const row = existing || this.telegrams.create({ playerId });
+    const row = await this.telegrams.findOne({ where: { playerId } });
+    if (!row) return; /* the row is created with the link inside the auth transaction */
     row.username = tg.username;
     row.firstName = tg.firstName;
     row.lastName = tg.lastName;
@@ -361,9 +356,9 @@ export class ProfileService {
     const { telegramId } = verified;
 
     const execute = async (playerRepo: Repository<Player>) => {
-      const foundTg = await playerRepo.findOne({ where: { telegramId } });
+      const foundTg = await playerRepo.findOne({ where: { tg: { telegramId } } });
       const foundGuest = guestToken
-        ? await playerRepo.findOne({ where: { guestTokenHash: hashToken(guestToken) } })
+        ? await playerRepo.findOne({ where: { auth: { tokenHash: hashToken(guestToken) } } })
         : null;
       const locked = await this.lockByIds(
         playerRepo,
@@ -413,14 +408,7 @@ export class ProfileService {
       }
 
       const token = newGuestToken();
-      const created = playerRepo.create({
-        guestTokenHash: hashToken(token),
-        coins: 0,
-        best: 0,
-        purchases: {},
-        telegramId,
-        telegramLinkedAt: new Date(),
-      });
+      const created = Player.make({ guestTokenHash: hashToken(token), telegramId });
       await playerRepo.save(created);
       return { token, profile: this.toPublic(created), linked: true, playerId: created.id, kicked: false };
     };
@@ -452,11 +440,10 @@ export class ProfileService {
       /* A private address must not wipe a country learned from a public one. */
       if (typeof this.geos.query === 'function') {
         await this.geos.query(
-          `INSERT INTO "player_geo" ("player_id", "last_ip", "country", "origin_language", "first_seen", "last_seen")
-           VALUES ($1, $2, $3, $4, now(), now())
+          `INSERT INTO "player_geo" ("player_id", "last_ip", "country", "origin_language", "first_seen")
+           VALUES ($1, $2, $3, $4, now())
            ON CONFLICT ("player_id") DO UPDATE SET
              "last_ip" = COALESCE(NULLIF($2, ''), "player_geo"."last_ip"),
-             "last_seen" = now(),
              "country" = COALESCE($3, "player_geo"."country"),
              "origin_language" = COALESCE($4, "player_geo"."origin_language")`,
           [playerId, ip || '', country, lang],
@@ -471,7 +458,6 @@ export class ProfileService {
         row.country = country;
         row.originLanguage = lang;
       }
-      row.lastSeen = now;
       if (!row.firstSeen) row.firstSeen = now;
       await this.geos.save(row);
     } catch (err) {
@@ -485,15 +471,12 @@ export class ProfileService {
     try {
       const p = await this.findByToken(token);
       if (!p) {
-        const prev = await this.players.findOne({ where: { previousTokenHash: hashToken(token) } });
+        const prev = await this.players.findOne({ where: { auth: { previousTokenHash: hashToken(token) } } });
         return prev ? { replaced: true } : null;
       }
       let first: string | null = null;
       let user: string | null = null;
-      if (this.telegrams) {
-        const t = await this.telegrams.findOne({ where: { playerId: p.id } });
-        if (t) { first = t.firstName; user = t.username; }
-      }
+      if (p.tg) { first = p.tg.firstName; user = p.tg.username; }
       return { id: p.id, name: displayName(first, user, p.id), sessionId: hashToken(token) };
     } catch (err) {
       console.error('identity lookup failed');

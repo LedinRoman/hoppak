@@ -77,6 +77,14 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       platform: ws.sess.platform || '',
     });
   }
+  /** Any socket traffic from a signed-in account counts as "seen"; the service writes at most once per 20 s. */
+  private pulse(ws: Sock) {
+    const s = ws.sess;
+    const id = s && s.accountId;
+    if (!id || !this.online) return;
+    const screen = s.room && s.player ? (s.room.phase === 'play' ? (s.player.dead ? 'spectator' : 'game') : 'lobby') : 'menu';
+    this.online.touch({ playerId: id, room: s.room ? s.room.code : '', screen, clientVersion: s.clientVersion || '', platform: s.platform || '' });
+  }
   private sweepPresence() {
     for (const ws of this.clients) {
       const s = ws.sess;
@@ -125,6 +133,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     // crude flood guard: count messages per 1s window, drop the excess; kill sockets that keep flooding
     ws.on('message', () => {
       stats.msgsIn++;
+      this.pulse(ws);
       const s = ws.sess, now = Date.now();
       if (now - s.win > 1000) { s.win = now; s.winN = 0; }
       if (++s.winN > MAX_MSGS_PER_SEC * 3) ws.close(4008, 'flood');

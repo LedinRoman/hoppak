@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-@Entity({ name: 'online_snapshots', comment: 'Снимок числа онлайн раз в минуту. Без Redis.' })
+@Entity({ name: 'online_snapshots', comment: 'Снимок числа онлайн раз в минуту (из player_online_v). Без Redis.' })
 export class OnlineSnapshot {
   @PrimaryGeneratedColumn({ comment: 'Порядковый номер снимка, первичный ключ.' })
   id: number;
@@ -8,6 +8,6 @@ export class OnlineSnapshot {
   @Column({ type: 'timestamptz', default: () => 'now()', comment: 'timestamptz снимка.' })
   ts: Date;
 
-  @Column({ type: 'int', comment: 'Сколько строк online_now были моложе 60 секунд в этот момент.' })
+  @Column({ type: 'int', comment: 'Сколько игроков были онлайн в этот момент (player_online_v.is_online).' })
   count: number;
 }

@@ -56,6 +56,8 @@ const login = (bearer) => call('POST', '/api/auth/telegram', { initData: initDat
   await sleep(2500);
   const oldProf = await call('GET', '/api/profile', null, TP);
   check('P menu: old token gets SESSION_REPLACED over HTTP', oldProf.s === 401 && oldProf.d.error === 'SESSION_REPLACED', { s: oldProf.s, e: oldProf.d && oldProf.d.error });
+  const oldBeat = await call('POST', '/api/profile/seen', { v: 'x' }, TP);
+  check('P heartbeat with the replaced token gets SESSION_REPLACED (first device learns within one beat)', oldBeat.s === 401 && oldBeat.d.error === 'SESSION_REPLACED', { s: oldBeat.s });
   check('P room: socket told "replaced" and closed 4001', (sp2.events.includes('replaced')) && sp2.closed === 4001, { closed: sp2.closed });
   // P (stale token, e.g. a suspended phone app) tries to enter multiplayer anyway: refused, no seat
   const stale = await sock('create', TP);

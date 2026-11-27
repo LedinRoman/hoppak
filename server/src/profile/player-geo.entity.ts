@@ -14,9 +14,7 @@ export class PlayerGeo {
   @Column({ name: 'origin_language', type: 'varchar', length: 8, nullable: true, comment: 'Основной язык страны, справочно. Интерфейс по нему не локализуется.' })
   originLanguage: string | null;
 
-  @Column({ name: 'first_seen', type: 'timestamptz', comment: 'timestamptz первого успешного определения для этого игрока.' })
+  @Column({ name: 'first_seen', type: 'timestamptz', comment: 'timestamptz первого успешного определения для этого игрока. Время последнего захода — в player_presence.last_seen_at.' })
   firstSeen: Date;
 
-  @Column({ name: 'last_seen', type: 'timestamptz', comment: 'timestamptz последнего входа или обновления профиля, когда гео записалось.' })
-  lastSeen: Date;
 }

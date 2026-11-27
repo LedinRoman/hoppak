@@ -14,7 +14,7 @@ This document defines the HTTP JSON contract for the v0.6 guest profile.
   - Client override order: `?api=` query param → `window.HOPPAK_API` → `localStorage["hoppak.api"]` → build-time `HOP_API` → same-origin `location.origin` (on `http:`/`https:`).
 - **CORS:** `feat/profile-db @ 2284797` does **not** call `app.enableCors()`. Caddy routes `/`, `/v/<ver>/`, and `/api/*` on the same origin (`https://staging.76-13-250-251.sslip.io` / prod).
 - **One profile across all `/v/<ver>/` paths:** The client stores the Bearer token in `localStorage["hoppak_guest_token"]` (origin-scoped, shared across `/`, `/v/0.58/`, `/v/0.6/`, etc. on the same domain), along with the pending run queue (`hoppak_profile_queue`) and local purchase cache (`hoppak_profile_buys`).
-- **Auth header:** `Authorization: Bearer <64-hex-token>`. The server stores only `sha256(token)` in `player.guest_token_hash`.
+- **Auth header:** `Authorization: Bearer <64-hex-token>`. The server stores only `sha256(token)` in `player_auth.token_hash` (before migration 1795649000000: `player.guest_token_hash`).
 - **HTTP status on POST:** NestJS `@Post()` returns `201 Created` on success (`200 OK` on `GET`).
 
 ---
@@ -160,3 +160,24 @@ Credit coins after a completed run (note path: `/api/run/finish`, not `/api/prof
 Not resolved here (Devops currently runs `hs-profile` as a separate container on staging):
 - `2284797` and `c432f62` share merge-base `2e6bfc0` and conflict in `server/package.json` and `server/src/app.module.ts`.
 - `feat/profile-server-v06` intentionally leaves `server/package.json` and `server/src/app.module.ts` untouched so it adds zero new conflict hunks.
+
+
+## 5. Schema since migration `1795649000000-SplitPlayerAuthStatsPresence` (0.6.1-rc.9)
+
+`player` is the core row; everything else is a 1:1 table keyed by `player_id` (FK to `player.id`, ON DELETE CASCADE). Every table and column has a Russian `COMMENT`.
+
+| Table | Columns |
+|---|---|
+| `player` | `id`, `coins`, `purchases`, `migrated_at`, `created_at`, `merged_into` (FK player), `merged_at` |
+| `player_auth` | `player_id`, `token_hash` (UNIQUE), `token_issued_at`, `previous_token_hash` (idx), `previous_token_at` |
+| `player_telegram` | `player_id`, `telegram_id` (UNIQUE NOT NULL, the only copy), `linked_at`, `username`, `first_name`, `last_name`, `language`, `is_premium`, `updated_at` |
+| `player_stats` | `player_id`, `best`, `campaign` |
+| `player_presence` | `player_id`, `first_seen_at`, `last_seen_at` (idx), `left_at`, `screen`, `room`, `client_version`, `platform` |
+| `player_geo` | `player_id`, `last_ip`, `country`, `origin_language`, `first_seen` |
+| view `player_online_v` | `player_id`, `is_online`, `last_seen_at`, `left_at`, `seconds_since_seen`, `screen`, `room`, `client_version`, `platform`, `telegram_id`, `username`, `first_name` |
+
+Unchanged: `player_run`, `run_start`, `suspicious_runs`, `rules_plausibility`, `online_snapshots`. `online_now` is gone (merged into `player_presence`).
+
+**Online flag.** `player_online_v.is_online = last_seen_at > now() - 60 s AND (left_at IS NULL OR left_at < last_seen_at)`.
+`last_seen_at` is written on login, on every client heartbeat (`POST /api/profile/seen`, every ~25 s while the page is visible), on socket traffic and on exit (`POST /api/profile/seen {"exit":true}` via `fetch keepalive` on pagehide/hidden), at most once per 20 s per player and process. No Redis, no cleanup job: a crashed process stops writing and the row ages out of the 60 s window by itself. Admin: `SELECT * FROM player_online_v WHERE is_online;`.
+A heartbeat with a rotated-out token answers `401 SESSION_REPLACED`, so the first device sees the "account opened elsewhere" banner within one beat.

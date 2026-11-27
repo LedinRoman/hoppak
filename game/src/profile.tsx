@@ -300,9 +300,41 @@ var PROFILE: any = (function () {
     P.lastCheck = t;
     req("GET", "/api/profile", undefined, tok);
   };
+  /* Presence: while a session is live and the page is visible, a heartbeat every 25 s keeps last_seen_at / "online" fresh on the server.
+     A replaced login answers SESSION_REPLACED, so the first device also finds out here (banner through req). Hiding or closing the page
+     sends an exit beacon (fetch keepalive); the next heartbeat makes the player online again. */
+  var BEAT_MS = 25000;
+  function tgPlatform() {
+    try { var w: any = window; return w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.platform ? String(w.Telegram.WebApp.platform).slice(0, 16) : "web"; } catch (_e) { return "web"; }
+  }
+  P.beat = function () {
+    if (!P.live || P.replaced) return;
+    var tok = getToken();
+    if (!tok) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    req("POST", "/api/profile/seen", { v: "0.6rc", p: tgPlatform() }, tok);
+  };
+  P.exit = function () {
+    if (!P.live || P.replaced) return;
+    var tok = getToken();
+    var base = apiOrigin();
+    if (!tok || !base || typeof fetch === "undefined") return;
+    try {
+      fetch(base + "/api/profile/seen", {
+        method: "POST", keepalive: true, cache: "no-store",
+        headers: { "Authorization": "Bearer " + tok, "Content-Type": "application/json" },
+        body: JSON.stringify({ exit: true }),
+      }).catch(function () {});
+    } catch (_eX) {}
+  };
   try {
     if (typeof document !== "undefined" && document.addEventListener) {
-      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") P.recheck(); });
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "visible") { P.recheck(); P.beat(); }
+        else P.exit();
+      });
+      window.addEventListener("pagehide", function () { P.exit(); });
+      setInterval(P.beat, BEAT_MS);
     }
   } catch (_eV) {}
 

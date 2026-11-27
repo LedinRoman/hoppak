@@ -24,6 +24,8 @@ function argVal(name, def) {
   return hit ? hit.slice(pref.length) : def;
 }
 
+/** Calls to POST /api/profile/seen (heartbeat and exit beacon), for tests. */
+const seenLog = [];
 let mode = argVal('mode', '2284797');
 let tgAuth = argVal('tgAuth', '503'); /* ok | 503 | 401 | 409 */
 const port = Number(argVal('port', process.env.PORT || 8799));
@@ -303,6 +305,13 @@ function createServer() {
         return json(res, 200, { ok: true, profile: toPublic(p) });
       }
 
+      if (urlPath === '/api/profile/seen' && req.method === 'POST') {
+        if (!p) return unauth(res, tok);
+        const sb = await readBody(req);
+        seenLog.push({ exit: !!(sb && sb.exit === true), v: sb && sb.v, p: sb && sb.p });
+        return json(res, 201, { ok: true });
+      }
+
       if (urlPath === '/api/profile/migrate' && req.method === 'POST') {
         if (!p) return unauth(res, tok);
         const b = await readBody(req);
@@ -413,4 +422,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, ITEM_PRICES };
+module.exports = { createServer, ITEM_PRICES, seenLog };

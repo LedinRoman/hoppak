@@ -11,7 +11,7 @@ const fs = require('fs');
 const { execFileSync } = require('child_process');
 const pp = require('/tmp/pp/node_modules/puppeteer-core');
 const path = require('path');
-const { createServer } = require('../../tools/profile-mock');
+const { createServer, seenLog } = require('../../tools/profile-mock');
 
 execFileSync('bash', ['build.sh', 'site'], {
   cwd: path.resolve(__dirname, '..'),
@@ -1326,6 +1326,51 @@ async function admin(base, body) {
       assert.strictEqual(await note(f1), true, '17f returning to a replaced app shows the banner');
       for (const c of [ctxA, ctxB, ctxD, ctxE, ctxF, ctxG]) await c.close();
       console.log('PASS 17: banner only for a different client; same browser, reopen and stale token never self-kick');
+    }
+
+    // 18. Presence: heartbeat while visible, exit beacon when the page is hidden/closed, takeover learned from the heartbeat.
+    {
+      await admin(base2, { mode: 'v06', tgAuth: 'ok', clearLog: true });
+      const seedTg2 = (tgId) => {
+        window.Telegram = {
+          WebApp: {
+            initData: 'user=' + encodeURIComponent(JSON.stringify({ id: tgId, first_name: 'Roman' })) + '&auth_date=1&hash=00',
+            platform: 'android',
+            safeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+            contentSafeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
+            onEvent() {}, offEvent() {},
+            BackButton: { isVisible: false, onClick() {} },
+          },
+        };
+      };
+      const open2 = async (ctx) => {
+        const pg = await ctx.newPage();
+        pg.on('pageerror', (e) => errs.push('18 pageerror: ' + e.message));
+        await pg.evaluateOnNewDocument(seedTg2, 6102);
+        await pg.goto(base2 + '/index.html');
+        await settle(pg);
+        await sleep(300);
+        return pg;
+      };
+      const ctxH = await browser.createBrowserContext();
+      const h1 = await open2(ctxH);
+      const n0 = seenLog.length;
+      await h1.evaluate(() => window.__hoppak.profile.beat());
+      await sleep(400);
+      assert.strictEqual(seenLog.length, n0 + 1, '18 heartbeat reaches the server');
+      assert.strictEqual(seenLog[seenLog.length - 1].exit, false, '18 heartbeat is not an exit');
+      assert.strictEqual(seenLog[seenLog.length - 1].p, 'android', '18 heartbeat carries the Telegram platform');
+      await h1.evaluate(() => window.__hoppak.profile.exit());
+      await sleep(400);
+      assert.strictEqual(seenLog[seenLog.length - 1].exit, true, '18 exit beacon reaches the server');
+      // another device takes the account over: the next heartbeat of the first one shows the banner
+      const ctxI = await browser.createBrowserContext();
+      await open2(ctxI);
+      await h1.evaluate(() => window.__hoppak.profile.beat());
+      await sleep(700);
+      assert.strictEqual(await h1.evaluate(() => !!window.__hoppak.sessionNote()), true, '18 first device learns about the takeover from its heartbeat');
+      for (const c of [ctxH, ctxI]) await c.close();
+      console.log('PASS 18: heartbeat, exit beacon, takeover learned from the heartbeat');
     }
 
     assert.strictEqual(errs.length, 0, 'pageerrors: ' + errs.join('; '));
