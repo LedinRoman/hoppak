@@ -1,10 +1,11 @@
 import { Body, Controller, Get, Headers, HttpException, HttpStatus, Optional, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ProfileService } from './profile.service';
-import { accessToken, accessViaCookie, clearSessionCookie, setSessionCookie } from './auth';
+import { accessToken, bearerToken, clearSessionCookie, cookieToken, setSessionCookie } from './auth';
 import { publicBotId } from './telegram';
 import { clientAddress } from './client-ip';
 import { OnlineService } from '../online.service';
+import type { Player } from './player.entity';
 
 @Controller('api')
 export class ProfileController {
@@ -23,17 +24,24 @@ export class ProfileController {
     await this.profiles.noteGeo(playerId, ip);
   }
 
+  private tokens(req: Request, auth?: string) {
+    return { bearer: bearerToken(auth), cookie: cookieToken(req.headers?.cookie) };
+  }
+
+  private withSession(player: Player, viaCookie: boolean) {
+    const profile = this.profiles.toPublic(player);
+    return viaCookie ? { ok: true as const, profile, session: 'cookie' as const } : { ok: true as const, profile };
+  }
+
   @Post('profile/guest')
   async guest(@Req() req: Request, @Headers('authorization') auth?: string) {
-    const token = accessToken(req, auth);
-    if (token) {
-      const existing = await this.profiles.requireByToken(token);
-      await this.geo(existing.id, req);
-      this.seen(existing.id);
-      if (accessViaCookie(req, auth)) {
-        return { ok: true, profile: this.profiles.toPublic(existing), session: 'cookie' };
-      }
-      return { ok: true, token, profile: this.profiles.toPublic(existing) };
+    const { bearer, cookie } = this.tokens(req, auth);
+    if (bearer || cookie) {
+      const { player, viaCookie } = await this.profiles.playerFromRequest(bearer, cookie);
+      await this.geo(player.id, req);
+      this.seen(player.id);
+      if (viaCookie) return { ok: true, profile: this.profiles.toPublic(player), session: 'cookie' };
+      return { ok: true, token: bearer || cookie, profile: this.profiles.toPublic(player) };
     }
     const created = await this.profiles.createGuest();
     await this.geo(created.profile.id, req);
@@ -43,10 +51,11 @@ export class ProfileController {
 
   @Get('profile')
   async get(@Req() req: Request, @Headers('authorization') auth?: string) {
-    const p = await this.profiles.requireByToken(accessToken(req, auth));
-    await this.geo(p.id, req);
-    this.seen(p.id);
-    return { ok: true, profile: this.profiles.toPublic(p) };
+    const { bearer, cookie } = this.tokens(req, auth);
+    const { player, viaCookie } = await this.profiles.playerFromRequest(bearer, cookie);
+    await this.geo(player.id, req);
+    this.seen(player.id);
+    return this.withSession(player, viaCookie);
   }
 
   /**
@@ -59,9 +68,10 @@ export class ProfileController {
     @Headers('authorization') auth?: string,
     @Body() body?: { v?: string; p?: string; exit?: boolean },
   ) {
-    const p = await this.profiles.requireByToken(accessToken(req, auth));
-    if (body && body.exit === true) this.online?.exit(p.id);
-    else this.seen(p.id, body && body.v, body && body.p);
+    const { bearer, cookie } = this.tokens(req, auth);
+    const { player } = await this.profiles.playerFromRequest(bearer, cookie);
+    if (body && body.exit === true) this.online?.exit(player.id);
+    else this.seen(player.id, body && body.v, body && body.p);
     return { ok: true };
   }
 
@@ -71,15 +81,17 @@ export class ProfileController {
     @Headers('authorization') auth?: string,
     @Body() body?: { purchases?: Record<string, number>; best?: number },
   ) {
-    const p = await this.profiles.requireByToken(accessToken(req, auth));
-    const profile = await this.profiles.migrate(p, body?.purchases, body?.best);
+    const { bearer, cookie } = this.tokens(req, auth);
+    const { player } = await this.profiles.playerFromRequest(bearer, cookie);
+    const profile = await this.profiles.migrate(player, body?.purchases, body?.best);
     return { ok: true, profile };
   }
 
   @Post('profile/buy')
   async buy(@Req() req: Request, @Headers('authorization') auth?: string, @Body() body?: { key?: string }) {
-    const p = await this.profiles.requireByToken(accessToken(req, auth));
-    const result = await this.profiles.buy(p, body?.key);
+    const { bearer, cookie } = this.tokens(req, auth);
+    const { player } = await this.profiles.playerFromRequest(bearer, cookie);
+    const result = await this.profiles.buy(player, body?.key);
     return { ok: true, ...result };
   }
 
@@ -89,8 +101,9 @@ export class ProfileController {
     @Headers('authorization') auth?: string,
     @Body() body?: { mapBest?: Record<string, number>; open?: Record<string, number> },
   ) {
-    const p = await this.profiles.requireByToken(accessToken(req, auth));
-    const profile = await this.profiles.syncCampaign(p, body?.mapBest, body?.open);
+    const { bearer, cookie } = this.tokens(req, auth);
+    const { player } = await this.profiles.playerFromRequest(bearer, cookie);
+    const profile = await this.profiles.syncCampaign(player, body?.mapBest, body?.open);
     return { ok: true, profile };
   }
 
@@ -100,9 +113,10 @@ export class ProfileController {
     @Headers('authorization') auth?: string,
     @Body() body?: { runId?: string; map?: string; hero?: number },
   ) {
-    const p = await this.profiles.requireByToken(accessToken(req, auth));
-    await this.profiles.beginRun(p, body?.runId, body?.map, body?.hero);
-    this.seen(p.id);
+    const { bearer, cookie } = this.tokens(req, auth);
+    const { player } = await this.profiles.playerFromRequest(bearer, cookie);
+    await this.profiles.beginRun(player, body?.runId, body?.map, body?.hero);
+    this.seen(player.id);
     return { ok: true };
   }
 
@@ -112,9 +126,10 @@ export class ProfileController {
     @Headers('authorization') auth?: string,
     @Body() body?: { height?: number; runCoins?: number; bonusCoins?: number; runId?: string; map?: string; hero?: number; ver?: string; cause?: string; mode?: string },
   ) {
-    const p = await this.profiles.requireByToken(accessToken(req, auth), { allowPrevious: true });
+    const { bearer, cookie } = this.tokens(req, auth);
+    const { player } = await this.profiles.playerFromRequest(bearer, cookie, { allowPrevious: true });
     const result = await this.profiles.finishRun(
-      p, body?.height, body?.runCoins, body?.bonusCoins, body?.runId, body?.map, body?.hero, body?.ver,
+      player, body?.height, body?.runCoins, body?.bonusCoins, body?.runId, body?.map, body?.hero, body?.ver,
       body?.cause, body?.mode,
     );
     return { ok: true, awarded: result.awarded, profile: result.profile, limited: result.limited, duplicate: result.duplicate };

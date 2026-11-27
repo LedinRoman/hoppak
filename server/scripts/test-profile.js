@@ -431,7 +431,9 @@ async function testTelegramMerge() {
     const linked = await req(base, 'POST', '/api/auth/telegram', { initData: init(4242) }, pTok0);
     assert.strictEqual(linked.status, 201, 'link P: ' + JSON.stringify(linked.data));
     assert.strictEqual(linked.data.linked, true);
+    assert.strictEqual(linked.data.login, 'linked');
     assert.strictEqual(linked.data.profile.telegramId, '4242');
+    assert.strictEqual(linked.data.profile.auth, 'telegram');
     assert.strictEqual(linked.data.token, pTok0);
 
     const gGuest = await req(base, 'POST', '/api/profile/guest');
@@ -448,7 +450,9 @@ async function testTelegramMerge() {
     const merged = await req(base, 'POST', '/api/auth/telegram', { initData: init(4242) }, gTok);
     assert.strictEqual(merged.status, 201, 'merge: ' + JSON.stringify(merged.data));
     assert.strictEqual(merged.data.merged, true);
+    assert.strictEqual(merged.data.login, 'merged');
     assert.strictEqual(merged.data.linked, false);
+    assert.strictEqual(merged.data.profile.auth, 'telegram');
     // Guest server wallet transfers once. 7000 + 2000.
     assert.strictEqual(merged.data.mergedCoins, 2000);
     assert.strictEqual(merged.data.profile.coins, 9000);
@@ -1423,10 +1427,12 @@ async function testTelegramWidget() {
     const linked = await req(base, 'POST', '/api/auth/telegram-widget', valid, gTok);
     assert.strictEqual(linked.status, 201, 'widget link: ' + JSON.stringify(linked.data && { ok: linked.data.ok, error: linked.data.error, linked: linked.data.linked }));
     assert.strictEqual(linked.data.linked, true);
+    assert.strictEqual(linked.data.login, 'linked');
     assert.strictEqual(linked.data.session, 'cookie');
     assert.strictEqual(linked.data.token, undefined, 'widget login must not return the raw token');
     assert.strictEqual(linked.data.profile.telegramId, '61001');
     assert.strictEqual(linked.data.profile.displayName, 'ROMAN');
+    assert.strictEqual(linked.data.profile.auth, 'telegram');
     const cookieVal = assertSessionCookie(linked.setCookie, false);
 
     const viaCookie = await req(base, 'GET', '/api/profile', undefined, undefined, { cookie: SESSION_COOKIE + '=' + cookieVal });
@@ -1447,9 +1453,11 @@ async function testTelegramWidget() {
     const merged = await req(base, 'POST', '/api/auth/telegram-widget', makeWidgetData(TEST_BOT_TOKEN, 61001, { first_name: 'Ro' }), g2.data.token);
     assert.strictEqual(merged.status, 201, 'widget merge');
     assert.strictEqual(merged.data.merged, true);
+    assert.strictEqual(merged.data.login, 'merged');
     assert.strictEqual(merged.data.mergedCoins, 2000);
     assert.strictEqual(merged.data.profile.id, gId);
     assert.strictEqual(merged.data.profile.coins, 3500);
+    assert.strictEqual(merged.data.profile.auth, 'telegram');
     assert.strictEqual(merged.data.token, undefined);
     const mergedCookie = assertSessionCookie(merged.setCookie, false);
     const afterMerge = await req(base, 'GET', '/api/profile', undefined, undefined, { cookie: SESSION_COOKIE + '=' + mergedCookie });
@@ -1485,6 +1493,117 @@ async function testTelegramWidget() {
   console.log('PASS telegram widget (hash, stale, merge, cookie flags, logout)');
 }
 
+async function testTelegramLoginCases() {
+  process.env.TELEGRAM_BOT_TOKEN = TEST_BOT_TOKEN;
+  const { app, base, players } = await startTestApp();
+  const init = (uid, extra) => makeInitData(TEST_BOT_TOKEN, uid, extra || {});
+  try {
+    /* Case 2 (widget): first time in the browser — convert the guest, do not mint an empty user. */
+    const guest2 = await req(base, 'POST', '/api/profile/guest');
+    const g2Tok = guest2.data.token;
+    const g2Id = guest2.data.profile.id;
+    players.get(g2Id).coins = 318;
+    players.get(g2Id).purchases = { 'char:1': 1 };
+    players.get(g2Id).best = 200;
+    const bind = await req(base, 'POST', '/api/auth/telegram-widget', makeWidgetData(TEST_BOT_TOKEN, 71001, { first_name: 'Roman' }), g2Tok);
+    assert.strictEqual(bind.status, 201, 'case 2 widget: ' + JSON.stringify(bind.data && { login: bind.data.login, error: bind.data.error }));
+    assert.strictEqual(bind.data.login, 'linked');
+    assert.strictEqual(bind.data.linked, true);
+    assert.strictEqual(bind.data.merged, false);
+    assert.strictEqual(bind.data.profile.id, g2Id, 'guest row is converted, not replaced');
+    assert.strictEqual(bind.data.profile.coins, 318);
+    assert.strictEqual(bind.data.profile.purchases['char:1'], 1);
+    assert.strictEqual(bind.data.profile.best, 200);
+    assert.strictEqual(bind.data.profile.telegramId, '71001');
+    assert.strictEqual(bind.data.profile.displayName, 'ROMAN');
+    assert.strictEqual(bind.data.profile.auth, 'telegram');
+    const bindCookie = assertSessionCookie(bind.setCookie, false);
+    const afterBind = await req(base, 'POST', '/api/profile/campaign', { mapBest: { city: 200 } }, undefined, { cookie: SESSION_COOKIE + '=' + bindCookie });
+    assert.strictEqual(afterBind.status, 201, 'campaign after bind');
+    assert.strictEqual(afterBind.data.profile.id, g2Id);
+    assert.strictEqual(afterBind.data.profile.telegramId, '71001');
+    assert.strictEqual(afterBind.data.profile.auth, 'telegram');
+    assert.strictEqual(afterBind.data.profile.displayName, 'ROMAN');
+    assert.strictEqual(afterBind.data.profile.coins, 318);
+
+    /* Case 1 (widget): Telegram user already exists (Mini App). Browser guest merges into THAT account. */
+    const tg = await req(base, 'POST', '/api/profile/guest');
+    const tgTok = tg.data.token;
+    const tgId = tg.data.profile.id;
+    const seeded = await req(base, 'POST', '/api/auth/telegram', { initData: init(71002, { first_name: 'Hopper' }) }, tgTok);
+    assert.strictEqual(seeded.data.login, 'linked');
+    players.get(tgId).coins = 10000;
+    players.get(tgId).purchases = Object.assign({}, players.get(tgId).purchases, { 'char:2': 1 });
+    players.get(tgId).best = 800;
+
+    const browserGuest = await req(base, 'POST', '/api/profile/guest');
+    const bTok = browserGuest.data.token;
+    const bId = browserGuest.data.profile.id;
+    players.get(bId).coins = 318;
+    players.get(bId).purchases = { 'char:1': 1 };
+    players.get(bId).best = 200;
+
+    const merged = await req(base, 'POST', '/api/auth/telegram-widget', makeWidgetData(TEST_BOT_TOKEN, 71002, { first_name: 'Hopper' }), bTok);
+    assert.strictEqual(merged.status, 201, 'case 1 widget: ' + JSON.stringify(merged.data && { login: merged.data.login, error: merged.data.error }));
+    assert.strictEqual(merged.data.login, 'merged');
+    assert.strictEqual(merged.data.merged, true);
+    assert.strictEqual(merged.data.profile.id, tgId, 'switches to the existing Telegram account');
+    assert.notStrictEqual(merged.data.profile.id, bId);
+    assert.strictEqual(merged.data.profile.coins, 10318);
+    assert.strictEqual(merged.data.profile.best, 800);
+    assert.strictEqual(merged.data.profile.purchases['char:1'], 1, 'guest hero kept');
+    assert.strictEqual(merged.data.profile.purchases['char:2'], 1, 'telegram hero kept');
+    assert.strictEqual(merged.data.profile.telegramId, '71002');
+    assert.strictEqual(merged.data.profile.auth, 'telegram');
+    assert.ok(players.get(bId).mergedInto === tgId);
+    const mergedCookie = assertSessionCookie(merged.setCookie, false);
+
+    const camp = await req(base, 'POST', '/api/profile/campaign', { mapBest: { city: 200 } }, undefined, { cookie: SESSION_COOKIE + '=' + mergedCookie });
+    assert.strictEqual(camp.status, 201);
+    assert.strictEqual(camp.data.profile.id, tgId);
+    assert.strictEqual(camp.data.profile.telegramId, '71002');
+    assert.strictEqual(camp.data.profile.auth, 'telegram');
+    assert.strictEqual(camp.data.profile.purchases['char:1'], 1);
+    assert.strictEqual(camp.data.profile.purchases['char:2'], 1);
+
+    /* Stale guest Bearer + new cookie must keep the Telegram account (not 401 / not a new guest). */
+    const both = await req(base, 'GET', '/api/profile', undefined, bTok, { cookie: SESSION_COOKIE + '=' + mergedCookie });
+    assert.strictEqual(both.status, 200, 'stale bearer + cookie: ' + JSON.stringify(both.data));
+    assert.strictEqual(both.data.profile.id, tgId);
+    assert.strictEqual(both.data.profile.telegramId, '71002');
+    assert.strictEqual(both.data.profile.auth, 'telegram');
+    assert.strictEqual(both.data.profile.coins, 10318);
+    assert.strictEqual(both.data.session, 'cookie');
+
+    /* Same two cases on the Mini App path (shared completeTelegramAuth). */
+    const maGuest = await req(base, 'POST', '/api/profile/guest');
+    const maTok = maGuest.data.token;
+    const maId = maGuest.data.profile.id;
+    players.get(maId).coins = 50;
+    players.get(maId).purchases = { 'char:3': 1 };
+    const maBind = await req(base, 'POST', '/api/auth/telegram', { initData: init(71003, { first_name: 'Mia' }) }, maTok);
+    assert.strictEqual(maBind.data.login, 'linked');
+    assert.strictEqual(maBind.data.profile.id, maId);
+    assert.strictEqual(maBind.data.profile.purchases['char:3'], 1);
+    assert.strictEqual(maBind.data.profile.auth, 'telegram');
+
+    const ma2 = await req(base, 'POST', '/api/profile/guest');
+    players.get(ma2.data.profile.id).coins = 25;
+    players.get(ma2.data.profile.id).purchases = { 'char:4': 1 };
+    const maMerge = await req(base, 'POST', '/api/auth/telegram', { initData: init(71003) }, ma2.data.token);
+    assert.strictEqual(maMerge.data.login, 'merged');
+    assert.strictEqual(maMerge.data.profile.id, maId);
+    assert.strictEqual(maMerge.data.profile.coins, 75);
+    assert.strictEqual(maMerge.data.profile.purchases['char:3'], 1);
+    assert.strictEqual(maMerge.data.profile.purchases['char:4'], 1);
+    assert.strictEqual(maMerge.data.profile.auth, 'telegram');
+  } finally {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    await app.close();
+  }
+  console.log('PASS telegram login cases (existing TG merge vs first-time bind, widget + Mini App, hero union, stale bearer)');
+}
+
 (async () => {
   await testWithoutDb();
   await testRunTelemetry();
@@ -1492,6 +1611,7 @@ async function testTelegramWidget() {
   await testTelegramMerge();
   await testTelegramProfileFields();
   await testTelegramWidget();
+  await testTelegramLoginCases();
   await testAwardSeries();
   await testMigrationSql();
   await testPlausibilityAndSession();

@@ -375,7 +375,9 @@ var PROFILE: any = (function () {
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     var to = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, REQ_MS);
     var headers: any = {};
-    if (token) headers["Authorization"] = "Bearer " + token;
+    var sendBearer = token;
+    if (hasCookieSession() && isPlainBrowser() && path !== "/api/auth/telegram-widget") sendBearer = "";
+    if (sendBearer) headers["Authorization"] = "Bearer " + sendBearer;
     var sameOrig = false;
     try { sameOrig = typeof window !== "undefined" && window.location && window.location.origin === base; } catch (_e0) {}
     var opts: any = {
@@ -498,8 +500,22 @@ var PROFILE: any = (function () {
     }
   } catch (_eV) {}
 
+  function isTelegramProf(p: any): boolean {
+    return !!(p && (p.telegramId || p.auth === "telegram"));
+  }
   function applyProfile(prof: any, wRef?: any, awarded?: number, limited?: string) {
     if (!prof) return;
+    if (isTelegramProf(P.profile) && !isTelegramProf(prof)) {
+      /* A later GET/campaign can drop the telegram 1:1 row; keep the signed-in identity.
+         If the payload is a different guest, do not overwrite the Telegram session. */
+      if (prof.id && P.profile.id && String(prof.id) !== String(P.profile.id)) return;
+      prof = Object.assign({}, prof, {
+        telegramId: P.profile.telegramId,
+        displayName: P.profile.displayName,
+        auth: "telegram"
+      });
+    }
+    if (!prof.auth) prof.auth = isTelegramProf(prof) ? "telegram" : "guest";
     P.profile = prof;
     P.live = true;
     writeJson(CACHE_KEY, prof);
@@ -593,6 +609,42 @@ var PROFILE: any = (function () {
     var finish = function (token: string, prof: any) {
       return deferMigration ? Promise.resolve(prof) : syncMigrate(token, prof);
     };
+    var fromCookie = function () {
+      return req("GET", "/api/profile").then(function (res: any) {
+        if (isLocked()) return null;
+        if (res.ok && res.data && res.data.ok && res.data.profile) {
+          setCookieSession(true);
+          dropToken(getToken());
+          return finish("", res.data.profile);
+        }
+        setCookieSession(false);
+        return null;
+      });
+    };
+    if (isPlainBrowser() && hasCookieSession()) {
+      return fromCookie().then(function (prof: any) {
+        if (prof || isLocked()) return prof;
+        if (tok) {
+          /* Cookie missing/expired; try the stored token once, then mint a guest. */
+        } else {
+          return createGuest().then(function (made: any) {
+            if (!made) return null;
+            return finish(made.token, made.profile);
+          });
+        }
+        return req("GET", "/api/profile", undefined, tok).then(function (res: any) {
+          if (isLocked()) return null;
+          if (!handleStatus(res) || !res.data || !res.data.profile) {
+            dropToken(tok);
+            return createGuest().then(function (made: any) {
+              if (!made) return null;
+              return finish(made.token, made.profile);
+            });
+          }
+          return finish(tok, res.data.profile);
+        });
+      });
+    }
     if (tok) {
       return req("GET", "/api/profile", undefined, tok).then(function (res: any) {
         if (isLocked()) return null;
@@ -602,6 +654,16 @@ var PROFILE: any = (function () {
             /* Another tab of this browser logged in again meanwhile: use its token, don't make a second guest. */
             P.adopted = true;
             return ensureProfile(deferMigration);
+          }
+          if (isPlainBrowser() && hasCookieSession()) {
+            dropToken(tok);
+            return fromCookie().then(function (prof: any) {
+              if (prof || isLocked()) return prof;
+              return createGuest().then(function (made: any) {
+                if (!made) return null;
+                return finish(made.token, made.profile);
+              });
+            });
           }
           if (replaced(res.status, res.data)) return null;
           var cached = P.profile || readJson(CACHE_KEY, null);
@@ -620,14 +682,8 @@ var PROFILE: any = (function () {
       });
     }
     if (isPlainBrowser()) {
-      return req("GET", "/api/profile").then(function (res: any) {
-        if (isLocked()) return null;
-        if (res.ok && res.data && res.data.ok && res.data.profile) {
-          setCookieSession(true);
-          dropToken(getToken());
-          return finish("", res.data.profile);
-        }
-        setCookieSession(false);
+      return fromCookie().then(function (prof: any) {
+        if (prof || isLocked()) return prof;
         return createGuest().then(function (made: any) {
           if (!made) return null;
           return finish(made.token, made.profile);
@@ -872,10 +928,6 @@ var PROFILE: any = (function () {
       if (getToken() && lsGet(LOCK_KEY)) noteReplaced(getToken());
       if (isLocked()) return flushAll(false);
       var deferMigration = !!readInitData();
-      var campSnap: any = null;
-      try {
-        campSnap = localCampaign();
-      } catch (_eSnap) {}
       return ensureProfile(deferMigration).then(function (prof: any) {
         if (isLocked()) return flushAll(false);
         if (!prof) {
@@ -890,8 +942,12 @@ var PROFILE: any = (function () {
           if (isLocked()) return null;
           var afterAuth = function (auth: any) {
             var tok = getToken();
-            if (auth && auth.merged) return syncCampaign(tok, auth.profile || P.profile, campSnap);
-            return syncMigrate(tok, (auth && auth.profile) || P.profile || prof);
+            if (auth && auth.profile) {
+              /* Cookie session already dropped the guest Bearer. Sync the signed-in account,
+                 never the snapshot taken before login. */
+              return syncCampaign(tok, auth.profile);
+            }
+            return syncMigrate(tok, P.profile || prof);
           };
           if (isPlainBrowser() && readWidgetAuthFromUrl()) {
             return widgetAuth(getToken()).then(afterAuth);
@@ -988,6 +1044,8 @@ var PROFILE: any = (function () {
       apiOrigin: apiOrigin(),
       tgTried: !!P.tgTried,
       telegramId: prof && prof.telegramId ? String(prof.telegramId) : "",
+      auth: prof && prof.auth ? String(prof.auth) : (prof && prof.telegramId ? "telegram" : "guest"),
+      displayName: prof && prof.displayName ? String(prof.displayName) : "",
       cookieSession: hasCookieSession(),
       plainBrowser: isPlainBrowser()
     };

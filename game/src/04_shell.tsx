@@ -422,7 +422,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     try {
       var w: any = window as any;
       if (w.__hopTg && w.__hopTg.linked && location.protocol === "file:") return true;
-      return !!(typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState().telegramId);
+      var st = (typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState) ? PROFILE.getState() : null;
+      return !!(st && (st.telegramId || st.auth === "telegram" || (st.profile && (st.profile.telegramId || st.profile.auth === "telegram"))));
     } catch (_e) { return false; }
   }
   function tgName(): string {
@@ -1148,13 +1149,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function webLoginAvailable() {
     try {
       var st = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState();
-      return !!(st && st.plainBrowser && !st.telegramId);
+      return !!(st && st.plainBrowser && !st.telegramId && st.auth !== "telegram");
     } catch (_e) { return false; }
   }
   function webLogoutAvailable() {
     try {
       var st = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState();
-      return !!(st && st.plainBrowser && st.cookieSession && st.telegramId);
+      return !!(st && st.plainBrowser && st.cookieSession && (st.telegramId || st.auth === "telegram"));
     } catch (_e) { return false; }
   }
   function drawProfileCard() {

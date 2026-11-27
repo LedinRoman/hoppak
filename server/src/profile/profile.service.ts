@@ -32,6 +32,20 @@ export type PublicProfile = {
   createdAt: string;
   telegramId: string | null;
   displayName: string;
+  /** How this profile is signed in. Client must use this, not Telegram.WebApp. */
+  auth: 'telegram' | 'guest';
+};
+
+export type TelegramLoginKind = 'merged' | 'linked' | 'existing' | 'created';
+
+export type TelegramAuthResult = {
+  token: string;
+  profile: PublicProfile;
+  linked: boolean;
+  merged?: boolean;
+  mergedCoins?: number;
+  /** Explicit login case: merged into an existing TG account, or the guest was bound (linked), etc. */
+  login: TelegramLoginKind;
 };
 
 @Injectable()
@@ -70,7 +84,14 @@ export class ProfileService {
       createdAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
       telegramId: p.telegramId ? String(p.telegramId) : null,
       displayName: displayName(p.tg?.firstName ?? null, p.tg?.username ?? null, p.id),
+      auth: p.telegramId ? 'telegram' : 'guest',
     };
+  }
+
+  /** If a lock/reload dropped the 1:1 telegram row, keep the already-loaded one so the client still sees the name. */
+  private publicOf(p: Player, fallback?: Player | null): PublicProfile {
+    if (p && !p.tg && fallback && fallback.tg) p.tg = fallback.tg;
+    return this.toPublic(p);
   }
 
   async createGuest(): Promise<{ token: string; profile: PublicProfile }> {
@@ -103,18 +124,56 @@ export class ProfileService {
     throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
   }
 
+  /**
+   * Bearer wins when it is still valid. If it is expired or was the pre-merge guest,
+   * fall back to the HttpOnly session cookie so the browser keeps the Telegram account.
+   */
+  async tryPlayerFromRequest(
+    bearer: string | null,
+    cookie: string | null,
+    opts?: { allowPrevious?: boolean },
+  ): Promise<{ player: Player; viaCookie: boolean } | null> {
+    if (bearer) {
+      try {
+        return { player: await this.requireByToken(bearer, opts), viaCookie: false };
+      } catch (err: any) {
+        const status = err && typeof err.getStatus === 'function' ? err.getStatus() : 0;
+        if (cookie && cookie !== bearer && (status === 401 || status === 409)) {
+          try {
+            return { player: await this.requireByToken(cookie, opts), viaCookie: true };
+          } catch {
+            throw err;
+          }
+        }
+        throw err;
+      }
+    }
+    if (cookie) return { player: await this.requireByToken(cookie, opts), viaCookie: true };
+    return null;
+  }
+
+  async playerFromRequest(
+    bearer: string | null,
+    cookie: string | null,
+    opts?: { allowPrevious?: boolean },
+  ): Promise<{ player: Player; viaCookie: boolean }> {
+    const resolved = await this.tryPlayerFromRequest(bearer, cookie, opts);
+    if (!resolved) throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
+    return resolved;
+  }
+
   async migrate(p: Player, purchases: unknown, best?: unknown): Promise<PublicProfile> {
     const repo = this.requireDb();
     const execute = async (playerRepo: Repository<Player>): Promise<PublicProfile> => {
       const fresh = (await this.loadLocked(playerRepo, p.id)) || p;
-      if (fresh.migratedAt || fresh.mergedAt) return this.toPublic(fresh);
+      if (fresh.migratedAt || fresh.mergedAt) return this.publicOf(fresh, p);
       const incomingBest = clamp(Math.floor(Number(best) || 0), 0, RUN_HEIGHT_MAX);
       fresh.best = Math.max(fresh.best || 0, incomingBest);
       /* Map opens arrive only through buy(). A localStorage blob cannot grant them. */
       fresh.purchases = mergePurchases(fresh.purchases || {}, purchasesWithoutMaps(sanitizePurchases(purchases)));
       fresh.migratedAt = new Date();
       await playerRepo.save(fresh);
-      return this.toPublic(fresh);
+      return this.publicOf(fresh, p);
     };
     if (repo.manager && typeof repo.manager.transaction === 'function') {
       return repo.manager.transaction(async (em) => execute(em.getRepository(Player)));
@@ -172,7 +231,7 @@ export class ProfileService {
       for (const id of Object.keys(fresh.campaign.best || {})) top = Math.max(top, fresh.campaign.best[id] || 0);
       fresh.best = top;
       await playerRepo.save(fresh);
-      return this.toPublic(fresh);
+      return this.publicOf(fresh, p);
     };
     if (repo.manager && typeof repo.manager.transaction === 'function') {
       return repo.manager.transaction(async (em) => execute(em.getRepository(Player)));
@@ -300,7 +359,7 @@ export class ProfileService {
     if (mgr && typeof mgr.transaction === 'function' && typeof mgr.query === 'function') {
       await mgr.query(`SELECT 1 FROM "player" WHERE "id" = $1 FOR UPDATE`, [id]);
     }
-    return playerRepo.findOne({ where: { id } });
+    return playerRepo.findOne({ where: { id }, relations: { tg: true, auth: true, stats: true } });
   }
 
   /** A stuck lock must release the pool connection instead of waiting forever. */
@@ -319,7 +378,7 @@ export class ProfileService {
     const incoming = Math.min(Math.max(0, guest.coins || 0), Math.max(0, WALLET_COINS_MAX - balance));
     target.coins = balance + incoming;
     target.best = Math.max(target.best || 0, clamp(Math.floor(Number(guest.best) || 0), 0, RUN_HEIGHT_MAX));
-    target.purchases = mergePurchases(target.purchases || {}, sanitizePurchases(guest.purchases));
+    target.purchases = mergePurchases(sanitizePurchases(target.purchases), sanitizePurchases(guest.purchases));
     target.campaign = mergeCampaign(target.campaign, guest.campaign);
     let top = target.best || 0;
     const best = (target.campaign && target.campaign.best) || {};
@@ -376,18 +435,12 @@ export class ProfileService {
     return botToken;
   }
 
-  async authTelegram(
-    guestToken: string | null,
-    initData: unknown,
-  ): Promise<{ token: string; profile: PublicProfile; linked: boolean; merged?: boolean; mergedCoins?: number }> {
+  async authTelegram(guestToken: string | null, initData: unknown): Promise<TelegramAuthResult> {
     const verified = parseAndVerifyInitData(initData, this.requireBotToken());
     return this.completeTelegramAuth(guestToken, verified);
   }
 
-  async authTelegramWidget(
-    guestToken: string | null,
-    body: unknown,
-  ): Promise<{ token: string; profile: PublicProfile; linked: boolean; merged?: boolean; mergedCoins?: number }> {
+  async authTelegramWidget(guestToken: string | null, body: unknown): Promise<TelegramAuthResult> {
     const verified = parseAndVerifyWidgetData(body, this.requireBotToken());
     return this.completeTelegramAuth(guestToken, verified);
   }
@@ -406,10 +459,17 @@ export class ProfileService {
     await repo.save(found);
   }
 
+  /**
+   * Shared Mini App + widget path.
+   * 1) Existing Telegram player: switch to that account, merge the browser/Mini App guest into it
+   *    (coins summed, purchases union, best max), mark the guest merged.
+   * 2) No Telegram player yet: bind telegram id to the current guest and keep its progress.
+   *    Do not create an empty user when a guest session is present.
+   */
   private async completeTelegramAuth(
     guestToken: string | null,
     verified: VerifiedTelegramInitData,
-  ): Promise<{ token: string; profile: PublicProfile; linked: boolean; merged?: boolean; mergedCoins?: number }> {
+  ): Promise<TelegramAuthResult> {
     const repo = this.requireDb();
     const { telegramId } = verified;
     const tokenHash = guestToken ? hashToken(guestToken) : null;
@@ -435,7 +495,7 @@ export class ProfileService {
         this.updateTelegram(existingByTg, verified);
         if (guest && guest.id === existingByTg.id && guestToken) {
           await playerRepo.save(existingByTg);
-          return { token: guestToken, profile: this.toPublic(existingByTg), linked: false, playerId: existingByTg.id, replacedSession: null };
+          return { token: guestToken, profile: this.publicOf(existingByTg), linked: false, merged: false, login: 'existing' as const, playerId: existingByTg.id, replacedSession: null };
         }
         if (guest && guest.id !== existingByTg.id && !guest.telegramId && !guest.mergedInto) {
           const mergedCoins = this.applyMerge(existingByTg, guest);
@@ -445,17 +505,18 @@ export class ProfileService {
           await playerRepo.save(existingByTg);
           return {
             token: nextToken,
-            profile: this.toPublic(existingByTg),
+            profile: this.publicOf(existingByTg),
             linked: false,
             merged: true,
             mergedCoins,
+            login: 'merged' as const,
             playerId: existingByTg.id,
             replacedSession: existingByTg.previousTokenHash,
           };
         }
         const nextToken = this.rotateSession(existingByTg);
         await playerRepo.save(existingByTg);
-        return { token: nextToken, profile: this.toPublic(existingByTg), linked: false, playerId: existingByTg.id, replacedSession: existingByTg.previousTokenHash };
+        return { token: nextToken, profile: this.publicOf(existingByTg), linked: false, merged: false, login: 'existing' as const, playerId: existingByTg.id, replacedSession: existingByTg.previousTokenHash };
       }
 
       if (guest) {
@@ -466,14 +527,14 @@ export class ProfileService {
         guest.telegramLinkedAt = new Date();
         this.updateTelegram(guest, verified);
         await playerRepo.save(guest);
-        return { token: guestToken!, profile: this.toPublic(guest), linked: true, playerId: guest.id, replacedSession: null };
+        return { token: guestToken!, profile: this.publicOf(guest), linked: true, merged: false, login: 'linked' as const, playerId: guest.id, replacedSession: null };
       }
 
       const token = newGuestToken();
       const created = Player.make({ guestTokenHash: hashToken(token), telegramId });
       this.updateTelegram(created, verified);
       await playerRepo.save(created);
-      return { token, profile: this.toPublic(created), linked: true, playerId: created.id, replacedSession: null };
+      return { token, profile: this.publicOf(created), linked: true, merged: false, login: 'created' as const, playerId: created.id, replacedSession: null };
     };
 
     const run = async () => {

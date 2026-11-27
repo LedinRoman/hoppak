@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("6ac749c") return String("6ac749c");
+      if ("194f27d") return String("194f27d");
     } catch (_e) {
     }
     return "";
@@ -7437,7 +7437,9 @@
         }
       }, REQ_MS);
       var headers = {};
-      if (token) headers["Authorization"] = "Bearer " + token;
+      var sendBearer = token;
+      if (hasCookieSession() && isPlainBrowser() && path !== "/api/auth/telegram-widget") sendBearer = "";
+      if (sendBearer) headers["Authorization"] = "Bearer " + sendBearer;
       var sameOrig = false;
       try {
         sameOrig = typeof window !== "undefined" && window.location && window.location.origin === base;
@@ -7574,8 +7576,20 @@
       }
     } catch (_eV) {
     }
+    function isTelegramProf(p) {
+      return !!(p && (p.telegramId || p.auth === "telegram"));
+    }
     function applyProfile(prof, wRef, awarded, limited) {
       if (!prof) return;
+      if (isTelegramProf(P.profile) && !isTelegramProf(prof)) {
+        if (prof.id && P.profile.id && String(prof.id) !== String(P.profile.id)) return;
+        prof = Object.assign({}, prof, {
+          telegramId: P.profile.telegramId,
+          displayName: P.profile.displayName,
+          auth: "telegram"
+        });
+      }
+      if (!prof.auth) prof.auth = isTelegramProf(prof) ? "telegram" : "guest";
       P.profile = prof;
       P.live = true;
       writeJson(CACHE_KEY, prof);
@@ -7667,6 +7681,41 @@
       var finish2 = function(token, prof) {
         return deferMigration ? Promise.resolve(prof) : syncMigrate(token, prof);
       };
+      var fromCookie = function() {
+        return req("GET", "/api/profile").then(function(res) {
+          if (isLocked()) return null;
+          if (res.ok && res.data && res.data.ok && res.data.profile) {
+            setCookieSession(true);
+            dropToken(getToken());
+            return finish2("", res.data.profile);
+          }
+          setCookieSession(false);
+          return null;
+        });
+      };
+      if (isPlainBrowser() && hasCookieSession()) {
+        return fromCookie().then(function(prof) {
+          if (prof || isLocked()) return prof;
+          if (tok) {
+          } else {
+            return createGuest().then(function(made) {
+              if (!made) return null;
+              return finish2(made.token, made.profile);
+            });
+          }
+          return req("GET", "/api/profile", void 0, tok).then(function(res) {
+            if (isLocked()) return null;
+            if (!handleStatus(res) || !res.data || !res.data.profile) {
+              dropToken(tok);
+              return createGuest().then(function(made) {
+                if (!made) return null;
+                return finish2(made.token, made.profile);
+              });
+            }
+            return finish2(tok, res.data.profile);
+          });
+        });
+      }
       if (tok) {
         return req("GET", "/api/profile", void 0, tok).then(function(res) {
           if (isLocked()) return null;
@@ -7675,6 +7724,16 @@
             if (newer && newer !== tok && !P.adopted) {
               P.adopted = true;
               return ensureProfile(deferMigration);
+            }
+            if (isPlainBrowser() && hasCookieSession()) {
+              dropToken(tok);
+              return fromCookie().then(function(prof) {
+                if (prof || isLocked()) return prof;
+                return createGuest().then(function(made) {
+                  if (!made) return null;
+                  return finish2(made.token, made.profile);
+                });
+              });
             }
             if (replaced(res.status, res.data)) return null;
             var cached = P.profile || readJson(CACHE_KEY, null);
@@ -7693,14 +7752,8 @@
         });
       }
       if (isPlainBrowser()) {
-        return req("GET", "/api/profile").then(function(res) {
-          if (isLocked()) return null;
-          if (res.ok && res.data && res.data.ok && res.data.profile) {
-            setCookieSession(true);
-            dropToken(getToken());
-            return finish2("", res.data.profile);
-          }
-          setCookieSession(false);
+        return fromCookie().then(function(prof) {
+          if (prof || isLocked()) return prof;
           return createGuest().then(function(made) {
             if (!made) return null;
             return finish2(made.token, made.profile);
@@ -7959,11 +8012,6 @@
         if (getToken() && lsGet(LOCK_KEY)) noteReplaced(getToken());
         if (isLocked()) return flushAll(false);
         var deferMigration = !!readInitData();
-        var campSnap = null;
-        try {
-          campSnap = localCampaign();
-        } catch (_eSnap) {
-        }
         return ensureProfile(deferMigration).then(function(prof) {
           if (isLocked()) return flushAll(false);
           if (!prof) {
@@ -7978,8 +8026,10 @@
             if (isLocked()) return null;
             var afterAuth = function(auth) {
               var tok = getToken();
-              if (auth && auth.merged) return syncCampaign(tok, auth.profile || P.profile, campSnap);
-              return syncMigrate(tok, auth && auth.profile || P.profile || prof);
+              if (auth && auth.profile) {
+                return syncCampaign(tok, auth.profile);
+              }
+              return syncMigrate(tok, P.profile || prof);
             };
             if (isPlainBrowser() && readWidgetAuthFromUrl()) {
               return widgetAuth(getToken()).then(afterAuth);
@@ -8081,6 +8131,8 @@
         apiOrigin: apiOrigin(),
         tgTried: !!P.tgTried,
         telegramId: prof && prof.telegramId ? String(prof.telegramId) : "",
+        auth: prof && prof.auth ? String(prof.auth) : prof && prof.telegramId ? "telegram" : "guest",
+        displayName: prof && prof.displayName ? String(prof.displayName) : "",
         cookieSession: hasCookieSession(),
         plainBrowser: isPlainBrowser()
       };
@@ -8654,7 +8706,8 @@
       try {
         var w = window;
         if (w.__hopTg && w.__hopTg.linked && location.protocol === "file:") return true;
-        return !!(typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState().telegramId);
+        var st = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState ? PROFILE.getState() : null;
+        return !!(st && (st.telegramId || st.auth === "telegram" || st.profile && (st.profile.telegramId || st.profile.auth === "telegram")));
       } catch (_e) {
         return false;
       }
@@ -9720,7 +9773,7 @@
     function webLoginAvailable() {
       try {
         var st = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState();
-        return !!(st && st.plainBrowser && !st.telegramId);
+        return !!(st && st.plainBrowser && !st.telegramId && st.auth !== "telegram");
       } catch (_e) {
         return false;
       }
@@ -9728,7 +9781,7 @@
     function webLogoutAvailable() {
       try {
         var st = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState && PROFILE.getState();
-        return !!(st && st.plainBrowser && st.cookieSession && st.telegramId);
+        return !!(st && st.plainBrowser && st.cookieSession && (st.telegramId || st.auth === "telegram"));
       } catch (_e) {
         return false;
       }

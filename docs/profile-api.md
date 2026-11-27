@@ -102,14 +102,17 @@ Credit coins after a completed run (note path: `/api/run/finish`, not `/api/prof
 - **Server (`release/v0.6rc`):**
   - No `TELEGRAM_BOT_TOKEN` → `503` `TELEGRAM_AUTH_UNAVAILABLE`. The token lives only in the server environment.
   - Bad / missing / future `initData` → `401` `INVALID_INIT_DATA`; older than 24 h → `401` `EXPIRED_INIT_DATA`.
-  - If this `telegramId` already has a player and the Bearer guest is that same player: return it (`linked: false`, same token).
-  - If this `telegramId` already has a *different* player and the Bearer guest is not linked yet: **merge** inside one transaction with `SELECT … FOR UPDATE` on both rows (locked in id order).
+  Shared login cases (also returned as `login`). The Mini App and the browser widget use the same function.
+  - `login: "existing"` — this `telegramId` already has a player and the current session is that same player (`linked: false`).
+  - `login: "merged"` — this `telegramId` already has a *different* player and the Bearer/cookie guest is not linked yet: **merge** inside one transaction with `SELECT … FOR UPDATE` on both rows (locked in id order). The client switches to the Telegram account.
     - The guest server balance is added to the Telegram server balance up to the PostgreSQL integer maximum (2,147,483,647).
     - Purchases are the union (`hero:` / `char:` / `map:` keys only). `best` is the max.
     - The guest row gets `merged_into` / `merged_at`, its coins are zeroed, and its token hash is replaced so the old Bearer is `401`.
     - Response adds `merged: true` and `mergedCoins` (the amount actually added). A repeat with the old token does not add again.
   - If the current guest is already linked to a different `telegramId` → `409` `GUEST_ALREADY_LINKED`.
-  - Otherwise the guest is linked (`linked: true`, same token), or a new Telegram player is created when there is no guest.
+  - `login: "linked"` — no Telegram player yet: the current guest is converted (telegram id is bound to it, all progress kept, same id/token). A new empty user is not created when a guest session is present.
+  - `login: "created"` — no guest session: a new Telegram player is created.
+  Public profile includes `auth: "telegram" | "guest"`. The client must show the name, login type and owned heroes from this payload, not from a leftover guest token.
 - **Client:** on `merged: true`, a one-shot toast `ПРОГРЕСС ОБЪЕДИНЁН`. `initData` is sent only to this endpoint and is not logged.
 - **Client:** When `window.Telegram.WebApp.initData` is non-empty (Mini App), the client calls this once per session after the guest profile is ready, stores the returned token/profile, and on any error stays on the guest profile without retrying. The game HTML does not load `telegram-web-app.js` (plain web builds stay unchanged). The Mini App session stays in `localStorage` (`hoppak_guest_token`) and is sent as `Authorization: Bearer`.
 
@@ -117,12 +120,12 @@ Credit coins after a completed run (note path: `/api/run/finish`, not `/api/prof
 
 Browser Telegram Login Widget / `oauth.telegram.org` redirect (plain website, not the Mini App).
 
-- **Auth:** Optional `Authorization: Bearer <guest-token>` so a guest can be linked or merged. After success the API also accepts the session cookie on every profile route (`Bearer` still wins if both are present).
+- **Auth:** Optional `Authorization: Bearer <guest-token>` so a guest can be linked or merged. After success the API accepts the session cookie on every profile route. A still-valid Bearer wins; if it is `401`/`409` (the pre-merge guest), the cookie is used instead so the browser stays on the Telegram account.
 - **Request body:** `{ "id", "first_name", "last_name?", "username?", "photo_url?", "auth_date", "hash" }` as returned by the widget. The hash is never logged.
 - **Verification:** `data_check_string` is the received fields except `hash`, sorted, `key=value` joined by `\n`. `secret_key = SHA256(bot_token)`, then `hex(HMAC_SHA256(data_check_string, secret_key))` must match `hash` (timing-safe). `auth_date` older than 24 h → `401` `EXPIRED_WIDGET_DATA`; bad or future data → `401` `INVALID_WIDGET_DATA`. No `TELEGRAM_BOT_TOKEN` → `503` `TELEGRAM_AUTH_UNAVAILABLE`.
 - **Account:** the same upsert, guest→Telegram merge and session rotation as `POST /api/auth/telegram`.
 - **Session cookie:** `Set-Cookie: hoppak_session=<token>; Max-Age=2592000; Path=/; HttpOnly; Secure; SameSite=Lax`. The raw token is **not** returned in the JSON body (`session: "cookie"`).
-- **Client:** shown only in the plain browser (no `initData` / `tgWebAppData`). After a redirect back to `/tg-auth` (on staging `/stage/tg-auth`, on prod also `/play/tg-auth`) the game posts this endpoint, drops the guest token from `localStorage`, and keeps a non-secret flag `hoppak_cookie_session`. Logout is `POST /api/auth/logout` (clears the cookie, revokes the server session, returns to a new guest).
+- **Client:** shown only in the plain browser (no `initData` / `tgWebAppData`). After a redirect back to `/tg-auth` (on staging `/stage/tg-auth`, on prod also `/play/tg-auth`) the game posts this endpoint, drops the guest token from `localStorage` (and stops sending it as Bearer), applies the server profile (name, `auth`, purchases), and keeps a non-secret flag `hoppak_cookie_session`. Logout is `POST /api/auth/logout` (clears the cookie, revokes the server session, returns to a new guest).
 
 ### `GET /api/auth/telegram-login`
 
