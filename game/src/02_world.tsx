@@ -723,6 +723,7 @@ function useAbility(w: any, p: any) {
   else if (H.ab === "wall") { p.wallT = 300; p.wall = 0; spawnParts(w, p.x + 6, p.y + 8, 10, "#d82a2a", 2, 0, 1); }
   else if (H.ab === "dash") { p.vy = Math.min(p.vy, -6.6); p.vx = clamp(p.vx + p.face * 1.6, -MAX_VX * 1.3, MAX_VX * 1.3); p.dashT = 14; p.grabT = 0; spawnParts(w, p.x + 6, p.y + PH, 12, "#7ad8ff", 2.4, 0.08, 2); }
   else if (H.ab === "dome") { p.domeT = 200; p.domeSave = true; spawnParts(w, p.x + 6, p.y + 8, 14, "#c89bff", 2.6, 0, 1); }
+  else if (H.ab === "shield") { giveBonus(w, p, "shield"); }
   else if (H.ab === "pound") { p.poundT = 1; p.vy = 7.5; p.grabT = 0; spawnParts(w, p.x + 6, p.y, 8, "#ffd046", 2, -0.05, 1); }
   p.abCharge = 0;
   p.abFx = 16;
@@ -734,21 +735,25 @@ function botWantsAb(w: any, p: any) {
   var ab = CHARS[p.kind].ab;
   if (p.grabT > 0) return ab === "dash" || ab === "hook";
   if (ab === "pound" || ab === "wall") return false;
-  if (ab === "dome") return w.tick % 200 === p.id * 41;
+  if (ab === "dome" || ab === "shield") return w.tick % 200 === p.id * 41;
   return p.vy > 1.2 && p.y > p.camY + LH * 0.7;
 }
-function pickItem(w: any, p: any, it: any) {
-  it.taken = true;
-  it.popT = BUBBLE.popTicks;
+function giveBonus(w: any, p: any, kind: string) {
   var B: any = null;
-  for (var i = 0; i < BONUSES.length; i++) if (BONUSES[i].id === it.kind) B = BONUSES[i];
-  if (!B) return;
+  for (var i = 0; i < BONUSES.length; i++) if (BONUSES[i].id === kind) B = BONUSES[i];
+  if (!B) return false;
   if (B.id === "bigcoin") w.bonusCoins += BIGCOIN;
   else if (B.id === "shield") p.shieldT = B.t;
   else if (B.id === "magnet") p.magnetT = Math.max(p.magnetT, B.t);
   else if (B.id === "rocket") { p.rocketT = B.t; p.grabT = 0; p.poundT = 0; p.invT = Math.max(p.invT, B.t + 40); }
   toast(w, B.id === "bigcoin" ? t('pickup.treasure', { n: BIGCOIN }) : t('pickup.collected', { name: B.name }));
   if (p.id === 0) { w.shake = 3; hopSfx(B.id === "shield" ? "shield" : "bonus"); }
+  return true;
+}
+function pickItem(w: any, p: any, it: any) {
+  it.taken = true;
+  it.popT = BUBBLE.popTicks;
+  giveBonus(w, p, it.kind);
 }
 
 function tickWorld(w: any, inputs: any) {
@@ -795,6 +800,7 @@ function tickWorld(w: any, inputs: any) {
     var mo = w.monsters[i];
     mo.t += sf;
     if (mo.fx > 0) mo.fx--;
+    else if (mo.fx < 0) mo.fx++;
     if (mo.warnT > 0) mo.warnT--; else mo.warn = 0;
     if (mo.cool > 0) mo.cool -= sf;
     if (!mo.alive) { if (mo.squish > 0) mo.squish--; continue; }
@@ -822,12 +828,18 @@ function tickWorld(w: any, inputs: any) {
       }
       mo.y = mo.baseY + Math.round(mo.hy);
     } else if (b === "throw" || b === "spit") {
+      /* Monkey windup is 14 ticks (fi 2, nut still in hand). Spawn the nut on the release tick, then hold fi 3. Spit still fires immediately. Same nut pos/vel/hitbox as before. */
+      if (b === "throw" && mo.nutPend && mo.fx === 0) {
+        mo.nutPend = 0;
+        w.bullets.push({ kind: "nut", x: mo.x + 6, y: mo.y - 2, vx: 0.45 * mo.dir, vy: -3.1, g: 0.075, life: 260 });
+        mo.fx = -10;
+      }
       mo.shootT -= sf;
       if (mo.shootT <= 0) {
         mo.shootT = Math.round(lerp(170, 115, mo.d));
         if (nearPlayer(mo)) {
           mo.fx = 14;
-          if (b === "throw") { mo.dir = -mo.dir; w.bullets.push({ kind: "nut", x: mo.x + 6, y: mo.y - 2, vx: 0.45 * mo.dir, vy: -3.1, g: 0.075, life: 260 }); }
+          if (b === "throw") { mo.dir = -mo.dir; mo.nutPend = 1; }
           else w.bullets.push({ kind: "fire", x: mo.x + 6, y: mo.y - 3, vx: 0, vy: -3.5, g: 0.065, life: 260 });
         }
       }
@@ -1136,6 +1148,7 @@ function tickWorld(w: any, inputs: any) {
        BUG-14: if already bouncing (vy < 0) at the rim, do not kill. */
     if (w.tick > 80 && ep.vy >= 0 && ep.y > ep.camY + LH) {
       if (ep.domeT > 0 && ep.domeSave) { ep.domeSave = false; ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; ep.invT = 40; spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2); if (ep.id === 0) toast(w, t('play.dome_saved')); }
+      else if (useShield(w, ep)) { ep.y = ep.camY + LH - PH - 12; ep.vy = SPRING_V; }
       else killPlayer(w, ep, "fall");
     }
   }

@@ -109,13 +109,15 @@ function buildVersionText() {
 }
 
 
+/* When true, the robot keeps the old cosmos-shield (dome, saves a fall). Off: regular bonus shield. */
+var ROBOT_OLD_DOME = false;
 /* Heroes: look + ability. Each ability has its own TYPE (no repeats) and its own CHARGE:
    charge: time (ticks, 50/s) | coins (coins picked) | height (metres climbed) | kills (mobs stomped) */
 var CHARS: any[] = [
   { id: "pilot", get name() { return t('hero.pilot.name'); }, hood: "#2c3a5c", price: 0, ab: "dash", get abName() { return t('hero.pilot.ability'); }, get type() { return t('hero.pilot.type'); }, get abDesc() { return [t('hero.pilot.description1'), t('hero.pilot.description2')]; }, charge: "time", need: 400 },
   { id: "pirate", get name() { return t('hero.pirate.name'); }, hood: "#a8282c", price: 150, ab: "hook", get abName() { return t('hero.pirate.ability'); }, get type() { return t('hero.pirate.type'); }, get abDesc() { return [t('hero.pirate.description1'), t('hero.pirate.description2')]; }, charge: "time", need: 400 },
   { id: "ninja", get name() { return t('hero.ninja.name'); }, hood: "#26305a", price: 200, ab: "wall", get abName() { return t('hero.ninja.ability'); }, get type() { return t('hero.ninja.type'); }, get abDesc() { return [t('hero.ninja.description1'), t('hero.ninja.description2')]; }, charge: "time", need: 500 },
-  { id: "robot", get name() { return t('hero.robot.name'); }, hood: "#d8dce8", price: 240, ab: "dome", get abName() { return t('hero.robot.ability'); }, get type() { return t('hero.robot.type'); }, get abDesc() { return [t('hero.robot.description1'), t('hero.robot.description2')]; }, charge: "height", need: 200 },
+  { id: "robot", get name() { return t('hero.robot.name'); }, hood: "#d8dce8", price: 240, ab: ROBOT_OLD_DOME ? "dome" : "shield", get abName() { return t('hero.robot.ability'); }, get type() { return t('hero.robot.type'); }, get abDesc() { return [t('hero.robot.description1'), t('hero.robot.description2')]; }, charge: "height", need: 200 },
   { id: "mage", get name() { return t('hero.mage.name'); }, hood: "#7a3ac8", price: 280, ab: "tele", get abName() { return t('hero.mage.ability'); }, get type() { return t('hero.mage.type'); }, get abDesc() { return [t('hero.mage.description1'), t('hero.mage.description2')]; }, charge: "coins", need: 5 },
   { id: "knight", get name() { return t('hero.knight.name'); }, hood: "#c02a2a", price: 320, ab: "pound", get abName() { return t('hero.knight.ability'); }, get type() { return t('hero.knight.type'); }, get abDesc() { return [t('hero.knight.description1'), t('hero.knight.description2')]; }, charge: "kills", need: 1 }
 ];
@@ -930,7 +932,7 @@ function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: 
 
 /* v1.0 contrast knobs, percent of full (100 = unchanged). One object so a later
    admin/server payload can overwrite the values. No Settings slider; bg stays 80. */
-var VISUAL_CONTRAST: any = { bg: 80, plat: 92, hero: 92, mob: 88, coin: 85 };
+var VISUAL_CONTRAST: any = { bg: 80, plat: 92, hero: 92, mob: 88, coin: 85, shield: 95 };
 function applyContrast(ctx: Ctx, pct: number, fn: any) {
   if (!(pct < 100)) { fn(); return; }
   ctx.save();
@@ -944,6 +946,7 @@ function applyPlatContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRA
 function applyHeroContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.hero, fn); }
 function applyMobContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.mob, fn); }
 function applyCoinContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.coin, fn); }
+function applyShieldContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.shield, fn); }
 function tinyLines(s: string, maxW: number) {
   s = tinyChars(s);
   if (tinyWidth(s) <= maxW) return [s];
