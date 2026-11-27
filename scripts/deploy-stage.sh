@@ -7,7 +7,7 @@
 #
 # Env:
 #   HOP_SERVER      default https://staging.76-13-250-251.sslip.io
-#   HOP_VER_LABEL   default v1.0-w18 (page title / JS header)
+#   HOP_VER_LABEL   default v0.9 (page title / JS header)
 #   SSH_KEY         default ~/.ssh/hopper_hostinger
 #   SSH_HOST        default root@76.13.250.251
 #   SITE_ROOT       default /srv/hopper-staging/site
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 ORIGIN="${HOP_SERVER:-https://staging.76-13-250-251.sslip.io}"
-LABEL="${HOP_VER_LABEL:-v1.0-w18}"
+LABEL="${HOP_VER_LABEL:-v0.9}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/hopper_hostinger}"
 SSH_HOST="${SSH_HOST:-root@76.13.250.251}"
 SITE_ROOT="${SITE_ROOT:-/srv/hopper-staging/site}"
@@ -33,14 +33,14 @@ sha=$(git rev-parse --short=12 HEAD)
 echo "building staging $sha  origin=$ORIGIN  label=$LABEL"
 
 cd game
-HOP_SERVER="$ORIGIN" bash build.sh site
+HOP_SERVER="$ORIGIN" bash build.sh staging
 python3 - << PY
 import hashlib, re
 from pathlib import Path
 label = "${LABEL}"
 html_path = Path("site/index.html")
 html = html_path.read_text()
-for old in ("Хоппак v0.6rc", "Хоппак v0.6", "Хоппак v1.0-w18", "Хоппак v1.0"):
+for old in ("Хоппак v0.6rc", "Хоппак v0.6", "Хоппак v1.0-w19", "Хоппак v1.0-w18", "Хоппак v1.0"):
     html = html.replace(old, "Хоппак " + label)
 html_path.write_text(html)
 js = Path("site/hoppak.js")

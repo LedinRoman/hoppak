@@ -32,12 +32,12 @@ jobs:
       - name: Build site
         env:
           HOP_SERVER: https://staging.76-13-250-251.sslip.io
-          HOP_VER_LABEL: v1.0-w18
+          HOP_VER_LABEL: v0.9
         run: |
           export ESB=/tmp/esb/node_modules/.bin/esbuild
-          bash game/build.sh site
+          bash game/build.sh staging
           grep -q "staging.76-13-250-251.sslip.io" game/site/hoppak.js
-          grep -q "Хоппак v1.0-w18" game/site/index.html
+          grep -q "Хоппак v0.9" game/site/index.html
 
       - name: Configure SSH
         run: |
