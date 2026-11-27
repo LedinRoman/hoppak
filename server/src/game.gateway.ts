@@ -43,10 +43,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (this.presenceTimer) { clearInterval(this.presenceTimer); this.presenceTimer = null; }
   }
 
-  /** A name the player typed (cn=1) wins; the Telegram/profile name is only the default. Typed names are cleaned. */
+  /** Room name = what the ИМЯ button shows (typed name, else own nickname), cleaned; identity name only as fallback. */
   private roomName(idn: { name: string } | null, d: any): string {
-    const typed = d && d.cn ? String(d.name ?? '').replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, 10) : '';
-    if (typed) return typed;
+    /* The client sends the name it shows on the ИМЯ button: the typed one, else the player's own nickname
+       (Telegram first name / guest HOP-xxxx). Use it so lobby, game and score match the menu. */
+    const shown = d ? String(d.name ?? '').replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, 10) : '';
+    if (shown) return shown;
     return idn ? idn.name : d?.name;
   }
   private async identity(token: unknown) {
