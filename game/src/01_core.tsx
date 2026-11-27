@@ -532,6 +532,10 @@ function loadSave() {
   s.music = s.vol; s.sfxVol = s.vol; s.musicOn = s.audioOn; s.sfx = s.audioOn;
   masterVol = s.vol; audioOn = !!s.audioOn;
   sfxVol = masterVol; musicVol = masterVol; sfxOn = audioOn; musicOn = audioOn;
+  /* TEMPORARY: background contrast (Settings). Invalid / missing → 100. */
+  if (typeof s.bgContrast !== "number") s.bgContrast = 100;
+  s.bgContrast = snapBgContrast(s.bgContrast);
+  bgContrastPct = s.bgContrast;
   return s;
 }
 function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
@@ -857,6 +861,30 @@ function uiWidth(s: string, role: string) {
 function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: string, align?: string) {
   if (role === "S") return drawTiny(ctx, s, x, y, color, align);
   return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
+}
+
+/* TEMPORARY (Nov 2026): Settings "Контраст фона" / Background contrast.
+   Roman wants to try quieter backgrounds. Remove once the test is done.
+   Affects only drawBg layers (sky, parallax, horizons, floor). Heroes, platforms,
+   mobs, bonuses and UI stay untouched. Default 100 = current look. */
+var BG_CONTRAST_STEPS = [40, 55, 70, 85, 100];
+var bgContrastPct = 100;
+function applyBgContrast(ctx: Ctx, fn: any) {
+  var p = bgContrastPct;
+  if (!(p < 100)) { fn(); return; }
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.filter = "saturate(" + p + "%) contrast(" + p + "%)";
+  fn();
+  ctx.restore();
+}
+function snapBgContrast(pct: number) {
+  var best = 100, bd = 1e9;
+  for (var i = 0; i < BG_CONTRAST_STEPS.length; i++) {
+    var d = Math.abs(BG_CONTRAST_STEPS[i] - pct);
+    if (d < bd) { bd = d; best = BG_CONTRAST_STEPS[i]; }
+  }
+  return best;
 }
 
 function tinyLines(s: string, maxW: number) {

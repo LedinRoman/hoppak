@@ -890,7 +890,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     held.left = l; held.right = r;
   }
   var volGeom = { x: 0, w: 1 };
+  var bgcGeom = { x: 0, w: 1 };
   function setSlider(id: string, x: number) {
+    if (id === "bgc") {
+      var t = clamp((x - bgcGeom.x) / Math.max(1, bgcGeom.w), 0, 1);
+      var p = snapBgContrast(40 + t * 60);
+      if (p === bgContrastPct) return;
+      bgContrastPct = p;
+      save.bgContrast = p;
+      writeSave(save);
+      return;
+    }
     var v = Math.round(clamp((x - volGeom.x) / Math.max(1, volGeom.w), 0, 1) * 10) / 10;
     if (v > 0 && !audioOn) setAudioOn(true);
     setMasterVol(v);
@@ -910,6 +920,24 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, bx, by, bw, 1, on ? C.cream : "#5a5668");
     rect(ctx, bx + Math.min(bw - 1, fw), by - 1, 1, 7, C.gold);
   }
+  /* TEMPORARY: background contrast row (Settings only). Five snap steps: 40/55/70/85/100. */
+  function contrastRow(x: number, y: number, w: number) {
+    drawText(ctx, "КОНТРАСТ ФОНА", x, y, TYPECOL.primary, TYPE.M, "left");
+    drawText(ctx, bgContrastPct + "%", x + w, y, TYPECOL.muted, TYPE.M, "right");
+    var bx = x, bw = w, by = y + 12;
+    addHit("bgc", bx, by, bw, 8);
+    bgcGeom = { x: bx, w: bw };
+    rect(ctx, bx, by, bw, 5, "#120c28");
+    var t = (bgContrastPct - 40) / 60;
+    var fw = Math.max(0, Math.round(bw * clamp(t, 0, 1)));
+    if (fw > 0) rect(ctx, bx, by, fw, 5, C.gold);
+    rect(ctx, bx, by, bw, 1, C.cream);
+    for (var sj = 0; sj < BG_CONTRAST_STEPS.length; sj++) {
+      var tick = bx + Math.round(sj / (BG_CONTRAST_STEPS.length - 1) * (bw - 1));
+      rect(ctx, tick, by - 1, 1, 7, C.cream);
+    }
+    rect(ctx, bx + Math.min(bw - 1, fw), by - 1, 1, 7, C.gold);
+  }
   function onPtrDown(e: any) {
     e.preventDefault();
     audioUnlock();
@@ -918,7 +946,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var loc = toLogic(e.clientX, e.clientY);
     var id = hitAt(loc.x, loc.y);
     pressId = id;
-    if (id === "vol") { setSlider(id, loc.x); return; }
+    if (id === "vol" || id === "bgc") { setSlider(id, loc.x); return; }
     if (phase === "results") coinSkip = true;
     if (phase !== "play") return;
     if (paused) return;
@@ -928,7 +956,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function onPtrMove(e: any) {
     var loc = toLogic(e.clientX, e.clientY);
-    if (pressId === "vol") { setSlider(pressId, loc.x); return; }
+    if (pressId === "vol" || pressId === "bgc") { setSlider(pressId, loc.x); return; }
     if (phase !== "play" || paused) return;
     var pid = e.pointerId != null ? e.pointerId : 1;
     var p = pointers[pid];
@@ -960,7 +988,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       else if (id === "ab" && pressId === "ab") requestAbility();
       delete pointers[e.pointerId != null ? e.pointerId : 1];
       recomputeHold();
-    } else if (pressId === "vol") {
+    } else if (pressId === "vol" || pressId === "bgc") {
       if (id === pressId) setSlider(pressId, loc.x);
     } else if (id && id === pressId) activate(id);
     pressId = null;
@@ -1180,6 +1208,25 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return r;
   }
   var lastHop: any = { where: "", hop: 0, room: 0, sc: 2, k: 1, h: 0, platY: 0, budget: 0 };
+  /* In-game 64 px grass platform (drawPlat64), tinted for the current world.
+     Visual height below the landing row is ~8 game px (aqua 8.5). */
+  function menuPlatBelow(map?: string) {
+    var id = mapInfo(map || (save && save.bg) || "city").id;
+    var key = "normal_" + (typeof ART64 !== "undefined" && ART64.plat && ART64.plat["normal_" + id] ? id : "city");
+    var m = (typeof ART64 !== "undefined" && ART64.plat) ? ART64.plat[key] : null;
+    return m ? Math.round((m.h - (m.land || 1)) * 0.5) : 8;
+  }
+  function menuPlatW(sc: number) {
+    var cellW = (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.w) ? ART64.cell.w : 72;
+    var heroW = cellW * 0.5 * sc;
+    return Math.round(Math.min(120, Math.max(24, heroW + 6)));
+  }
+  function drawMenuPlat(x: number, y: number, w: number, map?: string) {
+    var id = mapInfo(map || (save && save.bg) || "city").id;
+    if (typeof drawPlat64 === "function" && drawPlat64(ctx, { type: "normal", w: w }, x, y, w, id, 0)) return true;
+    rect(ctx, x, y, w, 5, C.wood); rect(ctx, x, y + 4, w, 2, C.woodD); rect(ctx, x, y, w, 1, C.edge);
+    return false;
+  }
   function menuFrame() {
     var top = menuTop();
     var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
@@ -1194,7 +1241,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var logoY = top + 25;
       var tagY = logoY + 7 * logoSc + 4;
       var tagBot = tagY + 9;
-      var platY = pickY - 8;
+      var platY = pickY - (menuPlatBelow() + 3);
       return { tabY: tabY, gridY: gridY, playY: playY, pickY: pickY, logoY: logoY, tagY: tagY, tagBot: tagBot, platY: platY };
     }
     var L = stack();
@@ -1217,7 +1264,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     };
   }
   function drawMenu() {
-    drawBg(ctx, MENU_CAM(), ui, save.bg, true);
+    applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
     dimView(ctx, "rgba(18,14,44,0.14)");
     var x = colX();
     var L = menuFrame();
@@ -1236,14 +1283,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var mi = mapIdx(save.bg), M = MAPS[mi], bestM = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + bestM + "/" + M.goal + " М") : (M.name + " · " + bestM + " М");
     var platY = L.platY;
-    rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood); rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
+    var mPlatW = menuPlatW(L.heroSc), mPlatX = Math.round(LW / 2 - mPlatW / 2), mPlatH = menuPlatBelow();
+    drawMenuPlat(mPlatX, platY, mPlatW);
     var heroId = (CHARS[save.char] || CHARS[0]).id;
     var mh = demoHop(lookNow(), L.hopRoom), hop = mh.hop, pose = mh.pose;
     var heroY = platY - 16 * L.heroSc - hop;
     drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, L.heroSc), heroY, lookNow(), 1, pose, ui % 170 < 6, true, L.heroSc, true);
-    lastHop = { where: "menu", hop: hop, room: L.hopRoom, sc: L.heroSc, k: L.heroK, h: L.heroH, platY: platY, budget: platY - (L.tagBot + 2) };
+    lastHop = { where: "menu", hop: hop, room: L.hopRoom, sc: L.heroSc, k: L.heroK, h: L.heroH, platY: platY, budget: platY - (L.tagBot + 2), platW: mPlatW };
     markBox("hero", LW / 2 - 18, platY - hop - L.heroH, 36, L.heroH);
-    markBox("plat", LW / 2 - 28, platY, 56, 7);
+    markBox("plat", mPlatX, platY, mPlatW, mPlatH);
     var pickW = 120;
     btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", "ВЫБРАТЬ ГЕРОЯ", TYPECOL.primary, TYPE.M, C.gold);
     btn("start", x, L.playY, 152, L.playH, C.mint, "", TYPECOL.ink, TYPE.L);
@@ -1292,14 +1340,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       screenLay = [];
       dimView(ctx, "rgba(8,6,20,0.62)");
       var py0 = belowBand();
-      box(ctx, x, py0, 152, 142, C.navy, C.cream);
-      markBox("settings", x, py0, 152, 142);
+      var setH = 168;
+      box(ctx, x, py0, 152, setH, C.navy, C.cream);
+      markBox("settings", x, py0, 152, setH);
       drawText(ctx, "НАСТРОЙКИ", LW / 2, py0 + 6, TYPECOL.accent, TYPE.M, "center");
       btn("tilt", x + 8, py0 + 20, 136, 20, tiltOn ? C.mint : "#1a1430", "НАКЛОН: " + (tiltOn ? "ВКЛ" : "ВЫКЛ"), tiltOn ? TYPECOL.ink : TYPECOL.primary);
       volRow("vol", x + 8, py0 + 44, 136, "ГРОМКОСТЬ", masterVol, audioOn);
-      btn("vib", x + 8, py0 + 70, 136, 20, vibOn ? C.mint : "#1a1430", "ВИБРО: " + (vibOn ? "ВКЛ" : "ВЫКЛ"), vibOn ? TYPECOL.ink : TYPECOL.primary);
-      btn("set:prof", x + 8, py0 + 94, 136, 20, "#1a1430", "ПРОФИЛЬ", TYPECOL.primary);
-      btn("set", x + 26, py0 + 118, 100, 16, C.navy, "ЗАКРЫТЬ");
+      contrastRow(x + 8, py0 + 70, 136);
+      btn("vib", x + 8, py0 + 96, 136, 20, vibOn ? C.mint : "#1a1430", "ВИБРО: " + (vibOn ? "ВКЛ" : "ВЫКЛ"), vibOn ? TYPECOL.ink : TYPECOL.primary);
+      btn("set:prof", x + 8, py0 + 120, 136, 20, "#1a1430", "ПРОФИЛЬ", TYPECOL.primary);
+      btn("set", x + 26, py0 + 144, 100, 16, C.navy, "ЗАКРЫТЬ");
     }
     drawFlash();
   }
@@ -1324,7 +1374,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
   }
   function drawShop() {
-    drawBg(ctx, MENU_CAM(), ui, save.bg, true);
+    applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
     /* If the card would be too short for a readable jumping hero, tighten the title and grid first. */
@@ -1363,7 +1413,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
        picked k=2 / sc≈0.5 — half the in-game size — and the platform stayed a fixed 72-px bar.
        Target a hero around 30–40% of the card (at least the in-game sc=1 size when it fits),
        integer device-px per art-px, and a platform just wider than the sprite. */
-    var btnH = 22, btnPad = 6, platH = 6;
+    var btnH = 22, btnPad = 6, platH = menuPlatBelow() + 2;
     var chrome = 4 + btnH + btnPad + platH + 2;
     var minTextH = 38;
     var aShop = menuScaleA();
@@ -1399,7 +1449,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var heroW = cellW * 0.5 * fit.sc;
     var platW = Math.round(Math.min(152 - 16, Math.max(20, heroW + 6)));
     var platX = Math.round(LW / 2 - platW / 2);
-    rect(ctx, platX, platTop, platW, 4, C.wood); rect(ctx, platX, platTop, platW, 1, C.edge);
+    drawMenuPlat(platX, platTop, platW);
     var mh = demoHop(makeLook(i, save.color, save.hat), hopRoom), pose = mh.pose, hop = mh.hop;
     if (hop > hopRoom) hop = hopRoom;
     drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, fit.sc), platTop - 16 * fit.sc - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, fit.sc, true);
@@ -1432,7 +1482,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x, y, Math.max(0, Math.round(w * clamp(f, 0, 1))), h, col);
   }
   function drawCamp() {
-    drawBg(ctx, MENU_CAM(), ui, save.bg, true);
+    applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
     dimView(ctx, "rgba(18,14,44,0.34)");
     var x = colX();
     var hdCamp = header("КАМПАНИЯ", TYPE.L);
@@ -1469,7 +1519,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawFlash();
   }
   function drawLobby() { /* UI only: bot lobby now, online room UI can hook here later */
-    drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
+    applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); });
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
     var hdLobby = header("ЗАБЕГ С БОТАМИ", TYPE.M);
@@ -1687,7 +1737,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var shx = w.shake > 0 ? (w.tick % 2 ? 1 : -1) * Math.ceil(w.shake / 3) : 0;
     ctx.save();
     ctx.translate(shx, 0);
-    drawBg(ctx, cam, w.tick, w.map);
+    applyBgContrast(ctx, function () { drawBg(ctx, cam, w.tick, w.map); });
     ctx.save();
     /* Clip in device pixels (ceil left / floor right) so a fractional scale cannot leak a 1 px sliver into the pads. */
     var mclip = ctx.getTransform();
@@ -2105,7 +2155,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawResults() {
     hits = [];
     resultLay = [];
-    drawBg(ctx, world.cameraY, ui, world.map);
+    applyBgContrast(ctx, function () { drawBg(ctx, world.cameraY, ui, world.map); });
     dimView(ctx, "rgba(18,14,44,0.36)");
     var x = colX();
     var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
@@ -2345,7 +2395,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned, accountName: accountName, relayout: function () { resize(); },
     sessionReplaced: function () { sessionNote = true; goMenu(); },
     sessionOk: function () { sessionNote = false; },
-    bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
+    bg: function () { applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); }); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
     setPhase: function (p: string) { phase = p; }, goMenu: goMenu,
@@ -2588,6 +2638,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     setAutoPlay: function (on: boolean) { autoPlay = !!on; },
     ability: function () { abTap = true; },
     setHero: function (k: number) { save.char = k; },
+    /* TEMPORARY: hook for the background-contrast setting (and screenshots). */
+    setBgContrast: function (p: number) {
+      bgContrastPct = snapBgContrast(typeof p === "number" ? p : 100);
+      save.bgContrast = bgContrastPct;
+      writeSave(save);
+      return bgContrastPct;
+    },
     addCoins: function (n: number) { save.coins += n; writeSave(save); },
     forceResults: function () { if (world) { finish(world); payout(); phase = "results"; } },
     setVolume: function (v: number) { setMasterVol(v); save.vol = masterVol; save.music = masterVol; save.sfxVol = masterVol; writeSave(save); },
