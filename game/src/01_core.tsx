@@ -583,7 +583,15 @@ function loadSave() {
   if (s.bgContrast != null) delete s.bgContrast;
   return s;
 }
-function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
+function writeSave(s: any) {
+  if (typeof PROFILE !== "undefined" && PROFILE.apiOrigin()) {
+    var local = Object.assign({}, s);
+    delete local.coins;
+    storageSet("hoppak_save", JSON.stringify(local));
+  } else {
+    storageSet("hoppak_save", JSON.stringify(s));
+  }
+}
 
 /* ---- audio: files under audio/, started only after a gesture. Beeps remain if a file cannot play. ---- */
 var audioCtx: any = null, sfxOn = true, vibOn = true, sfxVol = 0.8, musicOn = true, musicVol = 0.55;

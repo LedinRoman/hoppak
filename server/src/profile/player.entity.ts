@@ -17,7 +17,7 @@ export class Player {
   @PrimaryColumn('uuid', { comment: 'UUID игрока, первичный ключ. Сервер задаёт uuid v4 при создании строки.' })
   id: string;
 
-  @Column({ type: 'int', default: 0, comment: 'Баланс монет на сервере, целое ≥ 0. Начисляется за забеги и разовую миграцию локального сейва (вход до 8000), списывается в POST /api/profile/buy.' })
+  @Column({ type: 'int', default: 0, comment: 'Баланс монет на сервере, целое ≥ 0. Начисляется за забеги, списывается в POST /api/profile/buy.' })
   coins: number;
 
   @Column({ type: 'jsonb', default: () => "'{}'", comment: 'JSONB купленных предметов. Ключи hero:/char:/map:, значение 1. Открытия карт хранятся здесь, не в player_stats.campaign. Пишется buy(), мерджем и миграцией сейва (карты из сейва не импортируются).' })
