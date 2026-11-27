@@ -1188,13 +1188,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     };
     var mi = mapIdx(save.bg), M = MAPS[mi], bestM = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + bestM + "/" + M.goal + " М") : (M.name + " · " + bestM + " М");
-    var mh = menuHop(820, 10), hop = mh.hop, pose = mh.pose;
     var platY = L.platY;
     rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood); rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
     var heroId = (CHARS[save.char] || CHARS[0]).id;
     var heroVis = heroArtH(heroId, 2);
+    var mh = demoHop(lookNow(), Math.min(26, Math.max(0, platY - heroVis - (L.tagBot + 2)))), hop = mh.hop, pose = mh.pose;
     var heroY = platY - 32 - hop;
-    if (platY - heroVis - hop < L.tagBot + 2) { hop = Math.max(0, platY - heroVis - (L.tagBot + 2)); heroY = platY - 32 - hop; }
     drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, 2), heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2, true);
     markBox("hero", LW / 2 - 18, platY - hop - heroVis, 36, heroVis);
     markBox("plat", LW / 2 - 28, platY, 56, 7);
@@ -1316,7 +1315,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var mid = showHero ? y0 + heroRoom - 8 : y0 - 10;
     if (showHero) {
       rect(ctx, x + 40, mid + 8, 72, 4, C.wood); rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
-      var mh = menuHop(860, 10), pose = mh.pose, hop = mh.hop;
+      var mh = demoHop(makeLook(i, save.color, save.hat), Math.min(14, Math.max(0, mid + 8 - shopVis - (y0 + 1)))), pose = mh.pose, hop = mh.hop;
       if ((menuNow() % 4300) > 3440) { pose = "ability"; hop = 6; }
       var hopMax = Math.max(0, mid + 8 - shopVis - (y0 + 1));
       if (hop > hopMax) hop = hopMax;
@@ -1415,6 +1414,28 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   /* v1.0 menu hop (start screen, shop): time-based, float height (drawJumper snaps it to the device pixel),
      ground beat squash -> crouch, then a parabola with the 64-px transition frames up -> apex -> fstart -> fall. */
   function menuNow() { return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now(); }
+  /* v1.0 menu demo jump: the game's own jump on a tiny demo platform - 50 Hz sim with GRAVITY / JUMP_V and the
+     landing squash, poses from animPose (same 64-px state machine and frames as in play). Only the height is
+     scaled to the room the menu has (shape and timing are the game's); drawn interpolated between sim ticks
+     and snapped to device pixels by drawJumper. */
+  var demoP: any = { x: 0, y: 0, prevY: 0, vy: JUMP_V, squash: 0, alive: true, face: 1, look: null }, demoAcc = 0, demoLast = -1;
+  function demoHop(look: any, room: number) {
+    var now = menuNow();
+    if (demoLast < 0 || now - demoLast > 250) { demoLast = now; demoAcc = 0; }
+    demoAcc += (now - demoLast) / 1000; demoLast = now;
+    if (!demoP.look || demoP.look.id !== look.id) demoP.look = look;
+    var n = 0;
+    while (demoAcc >= STEP && n < 10) {
+      demoAcc -= STEP; n++;
+      demoP.prevY = demoP.y;
+      demoP.vy = Math.min(demoP.vy + GRAVITY, 6.5);
+      demoP.y += demoP.vy;
+      if (demoP.squash > 0) demoP.squash--;
+      if (demoP.vy > 0 && demoP.y >= 0) { demoP.y = 0; demoP.squash = 7; demoP.vy = JUMP_V; }
+    }
+    var yi = demoP.prevY + (demoP.y - demoP.prevY) * clamp(demoAcc / STEP, 0, 1);
+    return { hop: Math.max(0, -yi) / JUMP_H * room, pose: animPose(demoP) };
+  }
   function menuHop(periodMs: number, H: number) {
     var t = (menuNow() % periodMs) / periodMs, G = 0.14;
     if (t < G) return { hop: 0, pose: t < G * 0.5 ? "squash" : "crouch" };

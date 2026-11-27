@@ -855,19 +855,24 @@ function portraitSnap(ctx: Ctx, id: string, x: number, y: number, size: number, 
   if (!g.getTransform || !(im64 || im32)) return -1;
   var m = g.getTransform(), sc = m.a;
   if (!(sc > 0) || Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6) return -1;
-  var dev = size * sc, im: any = null, k = 0, srcN = 0;
+  var dev = size * sc, im: any = null, k = 0, srcN = 0, best = -1;
+  /* v1.0: the portrait fills ~85-100% of its slot at any window width / dpr. Whole device px per art px
+     (round, not floor); if that overflows the slot the edge rows are cropped (at most ~15%); the 64 px
+     portrait wins when it fills >= 85%, else whichever source fills more. */
   var cand = [[im64, 64], [im32, 32]];
-  for (var i = 0; i < cand.length && !im; i++) {
+  for (var i = 0; i < cand.length; i++) {
     var c: any = cand[i][0], n = cand[i][1] as number;
     if (!(c && c.complete && c.naturalWidth)) continue;
-    var kk = crop ? Math.max(1, Math.round(dev / (n * 0.66))) : Math.floor(dev / n);
-    if (kk < 1) continue;
-    if (!crop && n * kk < dev * 0.8 && i === 0 && im32 && im32.naturalWidth && Math.floor(dev / 32) * 32 > n * kk) continue;
-    im = c; k = kk; srcN = n;
+    var base = crop ? n * 0.66 : n;
+    var kk = Math.max(1, Math.round(dev / base));
+    while (kk > 1 && n * kk > dev * (crop ? 1.6 : 1.2)) kk--;
+    var fill = Math.min(1, (crop ? base : n) * kk / dev);
+    var score = fill + (n === 64 && fill >= 0.85 ? 1 : 0);
+    if (score > best) { best = score; im = c; k = kk; srcN = n; }
   }
   if (!im) return -1;
-  var side = crop ? Math.min(srcN, Math.floor(dev / k)) : srcN;
-  var sx = crop ? Math.round((srcN - side) / 2) : 0, sy = crop ? Math.max(0, Math.round((srcN - side) / 2) - Math.round(srcN / 16)) : 0;
+  var side = Math.min(srcN, Math.floor(dev / k));
+  var sx = Math.round((srcN - side) / 2), sy = crop ? Math.max(0, Math.round((srcN - side) / 2) - Math.round(srcN / 16)) : Math.round((srcN - side) / 2);
   var w = side * k;
   var dx = Math.round(m.e + x * sc + (dev - w) / 2), dy = Math.round(m.f + y * m.d + (size * m.d - w) / 2);
   g.save();
@@ -962,7 +967,8 @@ function drawJumper(ctx: Ctx, x: number, y: number, lk: any, face: number, pose:
          per art px (floor(scale x dpr)), anchor rounded to a device pixel - like the portraits. The fractional
          menu scale (~7.31) otherwise gives art pixels of mixed size (eaten / doubled pixels). */
       var gpa = dw / fw; /* game px per art px */
-      var k = Math.max(1, Math.floor(mt.a * gpa + 1e-6));
+      /* whole device px per art px, rounded (not floored) so the hero is ~85-115% of its slot on any dpr */
+      var k = Math.max(1, Math.round(mt.a * gpa));
       var dcx = Math.round(mt.a * cx + mt.e), dby = Math.round(mt.d * by + mt.f);
       var ax = Math.round((SPR_AX * s) / gpa);
       ctx.save();
@@ -6030,13 +6036,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     };
     var mi = mapIdx(save.bg), M = MAPS[mi], bestM = mapBest(mi);
     var sub = M.goal ? (M.name + " · " + bestM + "/" + M.goal + " М") : (M.name + " · " + bestM + " М");
-    var mh = menuHop(820, 10), hop = mh.hop, pose = mh.pose;
     var platY = L.platY;
     rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood); rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
     var heroId = (CHARS[save.char] || CHARS[0]).id;
     var heroVis = heroArtH(heroId, 2);
+    var mh = demoHop(lookNow(), Math.min(26, Math.max(0, platY - heroVis - (L.tagBot + 2)))), hop = mh.hop, pose = mh.pose;
     var heroY = platY - 32 - hop;
-    if (platY - heroVis - hop < L.tagBot + 2) { hop = Math.max(0, platY - heroVis - (L.tagBot + 2)); heroY = platY - 32 - hop; }
     drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, 2), heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2, true);
     markBox("hero", LW / 2 - 18, platY - hop - heroVis, 36, heroVis);
     markBox("plat", LW / 2 - 28, platY, 56, 7);
@@ -6158,7 +6163,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var mid = showHero ? y0 + heroRoom - 8 : y0 - 10;
     if (showHero) {
       rect(ctx, x + 40, mid + 8, 72, 4, C.wood); rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
-      var mh = menuHop(860, 10), pose = mh.pose, hop = mh.hop;
+      var mh = demoHop(makeLook(i, save.color, save.hat), Math.min(14, Math.max(0, mid + 8 - shopVis - (y0 + 1)))), pose = mh.pose, hop = mh.hop;
       if ((menuNow() % 4300) > 3440) { pose = "ability"; hop = 6; }
       var hopMax = Math.max(0, mid + 8 - shopVis - (y0 + 1));
       if (hop > hopMax) hop = hopMax;
@@ -6257,6 +6262,28 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   /* v1.0 menu hop (start screen, shop): time-based, float height (drawJumper snaps it to the device pixel),
      ground beat squash -> crouch, then a parabola with the 64-px transition frames up -> apex -> fstart -> fall. */
   function menuNow() { return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now(); }
+  /* v1.0 menu demo jump: the game's own jump on a tiny demo platform - 50 Hz sim with GRAVITY / JUMP_V and the
+     landing squash, poses from animPose (same 64-px state machine and frames as in play). Only the height is
+     scaled to the room the menu has (shape and timing are the game's); drawn interpolated between sim ticks
+     and snapped to device pixels by drawJumper. */
+  var demoP: any = { x: 0, y: 0, prevY: 0, vy: JUMP_V, squash: 0, alive: true, face: 1, look: null }, demoAcc = 0, demoLast = -1;
+  function demoHop(look: any, room: number) {
+    var now = menuNow();
+    if (demoLast < 0 || now - demoLast > 250) { demoLast = now; demoAcc = 0; }
+    demoAcc += (now - demoLast) / 1000; demoLast = now;
+    if (!demoP.look || demoP.look.id !== look.id) demoP.look = look;
+    var n = 0;
+    while (demoAcc >= STEP && n < 10) {
+      demoAcc -= STEP; n++;
+      demoP.prevY = demoP.y;
+      demoP.vy = Math.min(demoP.vy + GRAVITY, 6.5);
+      demoP.y += demoP.vy;
+      if (demoP.squash > 0) demoP.squash--;
+      if (demoP.vy > 0 && demoP.y >= 0) { demoP.y = 0; demoP.squash = 7; demoP.vy = JUMP_V; }
+    }
+    var yi = demoP.prevY + (demoP.y - demoP.prevY) * clamp(demoAcc / STEP, 0, 1);
+    return { hop: Math.max(0, -yi) / JUMP_H * room, pose: animPose(demoP) };
+  }
   function menuHop(periodMs: number, H: number) {
     var t = (menuNow() % periodMs) / periodMs, G = 0.14;
     if (t < G) return { hop: 0, pose: t < G * 0.5 ? "squash" : "crouch" };

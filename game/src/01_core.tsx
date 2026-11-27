@@ -855,19 +855,24 @@ function portraitSnap(ctx: Ctx, id: string, x: number, y: number, size: number, 
   if (!g.getTransform || !(im64 || im32)) return -1;
   var m = g.getTransform(), sc = m.a;
   if (!(sc > 0) || Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6) return -1;
-  var dev = size * sc, im: any = null, k = 0, srcN = 0;
+  var dev = size * sc, im: any = null, k = 0, srcN = 0, best = -1;
+  /* v1.0: the portrait fills ~85-100% of its slot at any window width / dpr. Whole device px per art px
+     (round, not floor); if that overflows the slot the edge rows are cropped (at most ~15%); the 64 px
+     portrait wins when it fills >= 85%, else whichever source fills more. */
   var cand = [[im64, 64], [im32, 32]];
-  for (var i = 0; i < cand.length && !im; i++) {
+  for (var i = 0; i < cand.length; i++) {
     var c: any = cand[i][0], n = cand[i][1] as number;
     if (!(c && c.complete && c.naturalWidth)) continue;
-    var kk = crop ? Math.max(1, Math.round(dev / (n * 0.66))) : Math.floor(dev / n);
-    if (kk < 1) continue;
-    if (!crop && n * kk < dev * 0.8 && i === 0 && im32 && im32.naturalWidth && Math.floor(dev / 32) * 32 > n * kk) continue;
-    im = c; k = kk; srcN = n;
+    var base = crop ? n * 0.66 : n;
+    var kk = Math.max(1, Math.round(dev / base));
+    while (kk > 1 && n * kk > dev * (crop ? 1.6 : 1.2)) kk--;
+    var fill = Math.min(1, (crop ? base : n) * kk / dev);
+    var score = fill + (n === 64 && fill >= 0.85 ? 1 : 0);
+    if (score > best) { best = score; im = c; k = kk; srcN = n; }
   }
   if (!im) return -1;
-  var side = crop ? Math.min(srcN, Math.floor(dev / k)) : srcN;
-  var sx = crop ? Math.round((srcN - side) / 2) : 0, sy = crop ? Math.max(0, Math.round((srcN - side) / 2) - Math.round(srcN / 16)) : 0;
+  var side = Math.min(srcN, Math.floor(dev / k));
+  var sx = Math.round((srcN - side) / 2), sy = crop ? Math.max(0, Math.round((srcN - side) / 2) - Math.round(srcN / 16)) : Math.round((srcN - side) / 2);
   var w = side * k;
   var dx = Math.round(m.e + x * sc + (dev - w) / 2), dy = Math.round(m.f + y * m.d + (size * m.d - w) / 2);
   g.save();
@@ -962,7 +967,8 @@ function drawJumper(ctx: Ctx, x: number, y: number, lk: any, face: number, pose:
          per art px (floor(scale x dpr)), anchor rounded to a device pixel - like the portraits. The fractional
          menu scale (~7.31) otherwise gives art pixels of mixed size (eaten / doubled pixels). */
       var gpa = dw / fw; /* game px per art px */
-      var k = Math.max(1, Math.floor(mt.a * gpa + 1e-6));
+      /* whole device px per art px, rounded (not floored) so the hero is ~85-115% of its slot on any dpr */
+      var k = Math.max(1, Math.round(mt.a * gpa));
       var dcx = Math.round(mt.a * cx + mt.e), dby = Math.round(mt.d * by + mt.f);
       var ax = Math.round((SPR_AX * s) / gpa);
       ctx.save();
