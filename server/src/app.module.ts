@@ -1,9 +1,9 @@
 import { Controller, Get, Module } from '@nestjs/common';
+import { TranslationsController } from './translations.controller';
 import { GameGateway } from './game.gateway';
 import { RoomsService, stats } from './rooms.service';
 import { DbModule } from './db/db.module';
 import { ProfileModule } from './profile/profile.module';
-import { TranslationsController } from './translations.controller';
 import { AccountKickBus } from './account-kick-bus';
 
 @Controller('api')

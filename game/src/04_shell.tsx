@@ -21,6 +21,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var autoPlay = false;
   var held: any = { left: false, right: false, kl: false, kr: false };
   var pointers: any = {};
+  var simHold = false; /* test hook: sim frozen (no overlay), stepped with simTicks */
   var acc = 0, uiAcc = 0, UI_STEP = 1 / 60, lastT = -1, raf = 0, running = true, driving = false, ui = 0;
   var hits: any[] = [];
   var SCALE = 1, pScale = 1, pScaleY = 1, cssScale = 1, isWide = false, isPhone = false, phoneLand = false, lastBackdropMap = "";
@@ -85,9 +86,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     /* A phone keyboard (name prompt) shrinks the height for a moment with the width unchanged.
        Keep the last stable size; accept the new one only if it is still there 1.2 s later. */
     if (stableView && isCoarsePointer() && Math.abs(v.w - stableView.w) < 2 && v.h < stableView.h * 0.85) {
-      var t = Date.now();
-      if (!shrinkSince) shrinkSince = t;
-      if (t - shrinkSince < 1200) {
+      var nowMs = Date.now();
+      if (!shrinkSince) shrinkSince = nowMs;
+      if (nowMs - shrinkSince < 1200) {
         if (!shrinkTimer) shrinkTimer = setTimeout(function () { shrinkTimer = 0; resize(); }, 1250);
         return stableView;
       }
@@ -118,11 +119,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return true;
   }
   function typingTarget(e: any) {
-    var t = e && e.target;
-    if (!t) return false;
-    var tag = String(t.tagName || "").toLowerCase();
+    var el = e && e.target;
+    if (!el) return false;
+    var tag = String(el.tagName || "").toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") return true;
-    return !!t.isContentEditable;
+    return !!el.isContentEditable;
   }
   function paintCinemaBtn() {
     if (!cinemaBtn) return;
@@ -141,8 +142,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     g.fillRect(13, 17, 5, 1); g.fillRect(17, 13, 1, 5);
   }
   function updateDesktopLanguage() {
-    var hint = document.getElementById("desk-hint");
-    if (hint) hint.textContent = CHARS[save.char]?.ab ? t('play.desktop_ability_hint') : t('play.desktop_hint');
+    try { document.documentElement.lang = gameLanguage(); } catch (_e) {}
+    var hintEl = document.getElementById("desk-hint");
+    if (hintEl) {
+      var deskHasAb = !!(CHARS[save.char] && CHARS[save.char].ab);
+      hintEl.textContent = deskHasAb ? t('play.desktop_ability_hint') : t('play.desktop_hint');
+    }
     if (cinemaBtn) cinemaBtn.setAttribute("aria-label", t('settings.cinema'));
   }
   function ensureCinemaBtn() {
@@ -155,6 +160,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       cinemaBtn = document.createElement("button");
       cinemaBtn.type = "button";
       cinemaBtn.id = "cinema";
+      cinemaBtn.setAttribute("aria-label", t('settings.cinema'));
       cinemaBtn.style.cssText = "position:fixed;top:8px;right:8px;z-index:40;width:22px;height:22px;padding:0;border:0;background:transparent;cursor:pointer;";
       var c = document.createElement("canvas");
       c.width = 22; c.height = 22;
@@ -208,7 +214,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var frameY = isWide ? (cssH >= 740 ? 16 : 4) : 0;
     var availW = Math.max(160, cssW - frameX * 2);
     var availH = Math.max(240, cssH - frameY * 2);
-    var lw = netFixedLW() || 160;
+    var lw = netFixedLW() || (phase === "play" ? FIELD_W : 160);
     var lh = 346;
     if (fieldLocked) { lw = LW; lh = LH; }
     var sx: number, sy: number, cssWpx: number, cssHpx: number;
@@ -242,35 +248,43 @@ function startHoppak(canvas: HTMLCanvasElement): any {
          view (HUD uses hudY). Sim stays LW×LH; death and camera still use LH. */
       var fillWidth = fieldLocked && phase === "play";
       if (fillWidth) {
-        /* v0.59 (Roman): fill the width, hide the leftover height at the BOTTOM so the view above the hero is the
-           same as on a full 346 field; a render-only look-down (VIEW_SHIFT) follows a falling hero to the death line. */
-        cssScale = availW / lw;
-        VIEW_PAD = 0;
-        VIEW_CROP = 0;
-        VIEW_BOT = Math.max(0, lh - availH / cssScale);
-        var botMax = viewBotMax(lh);
-        if (VIEW_BOT > botMax) {
+        /* v1.0 (Roman 15:18): the 180 field fills the full screen width (fractional scale, positions snapped
+           to device pixels; on 360 px phones it is exactly 6). The top safe area (status bar + Telegram
+           buttons) is not part of the play view: VIEW_TOPPAD game px there show sky only, the HUD and the
+           first visible platform start below it. Extra height is shown ABOVE the 346 field (VIEW_CROP < 0). */
+        var devW = Math.round(availW * dpr), devH = Math.round(availH * dpr);
+        var pF = devW / lw, visH;
+        var insetCss = insetTopCss();
+        for (var tries = 0; tries < 3; tries++) {
+          cssScale = pF / dpr;
+          VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+          VIEW_TOPPAD = Math.max(0, Math.round(insetCss / cssScale));
+          visH = devH / pF - VIEW_TOPPAD;
+          if (visH >= lh) { VIEW_CROP = -(visH - lh); VIEW_BOT = 0; break; }
+          VIEW_CROP = 0;
+          VIEW_BOT = Math.max(0, lh - visH);
+          var botMax = viewBotMax(lh);
+          if (VIEW_BOT <= botMax) break;
           VIEW_CROP = Math.min(TOP_CROP_MAX, VIEW_BOT - botMax);
           VIEW_BOT = botMax;
-          if (lh - VIEW_CROP - VIEW_BOT > availH / cssScale + 1e-6) {
-            cssScale = availH / (lh - VIEW_CROP - VIEW_BOT);
-            VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
-          }
+          if (lh - VIEW_CROP - VIEW_BOT <= visH + 1e-6) break;
+          /* Too short even after the crop cap: zoom out so the cropped field fits the height (side pads). */
+          pF = devH / (lh - VIEW_CROP - VIEW_BOT + VIEW_TOPPAD);
         }
         cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
-        cssHpx = (lh - VIEW_CROP - VIEW_BOT) * cssScale;
+        cssHpx = (lh - VIEW_CROP - VIEW_BOT + VIEW_TOPPAD) * cssScale;
       } else if (!fieldLocked && phase !== "play" && availH * lw > availW * lh) {
         /* Menus on a tall phone: fill the whole screen (no stripes under the TG header or below the tab bar).
            Width sets the scale, the menu just gets taller. Runs always go back to 346 (startRun). */
         cssScale = availW / lw;
         lh = Math.max(lh, Math.floor(availH / cssScale));
-        VIEW_PAD = 0;
+        VIEW_PAD = 0; VIEW_TOPPAD = 0;
         VIEW_CROP = 0; VIEW_BOT = 0;
         cssWpx = availW;
         cssHpx = availH;
       } else {
         cssScale = Math.min(availW / lw, availH / lh);
-        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
+        VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2); VIEW_TOPPAD = 0;
         VIEW_CROP = 0; VIEW_BOT = 0;
         cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
         cssHpx = lh * cssScale;
@@ -280,14 +294,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.width = pxW;
       canvas.height = pxH;
       var worldW = lw + 2 * VIEW_PAD;
-      var worldH = lh - VIEW_CROP - VIEW_BOT;
+      var worldH = lh - VIEW_CROP - VIEW_BOT + VIEW_TOPPAD;
       pScale = pxW / worldW;
       pScaleY = pxH / Math.max(1e-6, worldH);
       sx = pScale;
       sy = pScaleY;
       /* Snap the field origin to a device pixel so the clip has no 1 px sliver. */
       FIELD_OX = Math.round(VIEW_PAD * sx);
-      FIELD_OY = Math.round(-VIEW_CROP * sy);
+      FIELD_OY = Math.round((-VIEW_CROP + VIEW_TOPPAD) * sy);
       PHONE_INT = false;
       DEV_W = pxW; DEV_H = pxH;
       canvas.style.position = "absolute";
@@ -297,7 +311,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       canvas.style.boxShadow = "none";
       canvas.style.borderRadius = "0px";
     }
-    if (isWide) { VIEW_PAD = 0; VIEW_CROP = 0; VIEW_BOT = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
+    if (isWide) { VIEW_PAD = 0; VIEW_TOPPAD = 0; VIEW_CROP = 0; VIEW_BOT = 0; FIELD_OX = 0; FIELD_OY = 0; PHONE_INT = false; DEV_W = canvas.width; DEV_H = canvas.height; }
     lastFill = fieldLocked && phase === "play" && !isWide;
     netLW = netFixedLW();
     LW = lw; LH = lh; SCALE = cssScale;
@@ -306,10 +320,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     canvas.style.imageRendering = "pixelated";
     var hintEl = document.getElementById("desk-hint");
     if (hintEl) {
+      var deskHasAb = !!(CHARS[save.char] && CHARS[save.char].ab);
+      hintEl.textContent = deskHasAb ? t('play.desktop_ability_hint') : t('play.desktop_hint');
       hintEl.style.display = (isWide && !cinemaOn && (cssH - LH * cssScale) >= 34) ? "block" : "none";
     }
     ensureCinemaBtn();
-    updateDesktopLanguage();
     ctx.setTransform(sx, 0, 0, sy, FIELD_OX, FIELD_OY);
     ctx.imageSmoothingEnabled = false;
     (ctx as any).webkitImageSmoothingEnabled = false;
@@ -370,15 +385,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function mapOpen(i: number) { return i === 0 || !!save.owned["map:" + MAPS[i].id]; }
   function mapBest(i: number) { return save.mapBest[MAPS[i].id] || 0; }
   function mapGoalMet(i: number) { return i > 0 && mapOpen(i - 1) && mapBest(i - 1) >= MAPS[i - 1].goal; }
+  /* Campaign 2000 m line and results goal are solo-only. Co-op (online or bots) must not show it. */
+  function showRunGoal() { return mode !== "squad" && !(world && world.net); }
   function openMaps() { var o: string[] = []; for (var i = 0; i < MAPS.length; i++) if (mapOpen(i)) o.push(MAPS[i].id); return o; }
   function heroOwned(i: number) { return CHARS[i].price === 0 || !!save.owned["char:" + i]; }
   function mapTip(id: string) {
     var s = mapInfo(id).special;
     return s === "ice" ? t('map.effect_ice') : s === "bounce" ? t('map.effect_bounce') : s === "lava" ? t('map.effect_lava') : s === "bubble" ? t('map.effect_bubble') : s === "grav" ? t('map.effect_gravity') : "";
   }
-  var flashUnlocked = false;
   function mapOpened(M: any) { return M.id === "jungle" ? t('map.jungle.opened') : t('map.opened', { name: M.name }); }
-  function say(s: string, unlocked = false) { flashUnlocked = unlocked; flash = s; flashT = 90; flashPh = phase; }
+  function say(s: string) { flash = s; flashT = 90; flashPh = phase; }
   function addHit(id: string, x: number, y: number, w: number, h: number) { hits.push({ id: id, x: x, y: y, w: w, h: h }); }
   function hitAt(x: number, y: number) {
     for (var i = hits.length - 1; i >= 0; i--) { var h = hits[i]; if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h.id; }
@@ -391,8 +407,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var fill2 = on ? mixHex(fill, "#ffffff", 0.2) : fill;
     box(ctx, x, y, w, h, fill2, border || C.cream);
     if (on) rect(ctx, x + 1, y + h - 2, w - 2, 1, "rgba(0,0,0,0.35)");
-    var s = sc || 1;
-    drawText(ctx, label, x + w / 2, y + Math.round((h - 7 * s) / 2) + (on ? 1 : 0), tcol || C.cream, s, "center");
+    var s = sc == null ? TYPE.M : sc;
+    drawText(ctx, label, x + w / 2, y + Math.round((h - 7 * s) / 2) + (on ? 1 : 0), tcol || TYPECOL.primary, s, "center");
   }
   function telegramLinked(): boolean {
     try {
@@ -417,15 +433,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return out;
   }
   function coinsLabel(x: number, y: number, n: number, align?: string, _showTg?: boolean) {
-    var s = String(n), w = textWidth(s, 1) + 9;
+    var s = String(n), w = textWidth(s, TYPE.M) + 9;
     var x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
     drawCoin(ctx, x0, y, ui);
-    drawText(ctx, s, x0 + 9, y - 0.5, C.gold, 1, "left");
+    drawText(ctx, s, x0 + 9, y - 0.5, TYPECOL.accent, TYPE.M, "left");
   }
   function menuTop() {
     return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) + (testInsetTop || 0);
   }
-  /* Nick uses the same 5×7 font as the rest of the UI, at scale 1. */
+  /* Nick uses the same 5×7 font as the rest of the UI, at TYPE.M. */
   function nickWidth(n: number) { return n ? n * 6 - 1 + 2 : 0; }
   function fitNick(raw: string, maxW: number) {
     var s = drawableChars(String(raw || ""));
@@ -437,7 +453,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function drawNick(raw: string, x: number, y: number, maxW: number) {
     var fit = fitNick(raw, maxW);
-    if (fit.text) drawTextO(ctx, fit.text, x, y, "#b8ae9a", "left", "#1a1030");
+    if (fit.text) drawTextO(ctx, fit.text, x, y, TYPECOL.muted, "left", "#1a1030");
     var pen = x + (fit.text ? fit.text.length * 6 : 0);
     if (fit.dots) {
       var dy = y + 6;
@@ -627,7 +643,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawWallet() {
     var top = menuTop();
     var s = String(save.coins);
-    var w = textWidth(s, 1) + 9;
+    var w = textWidth(s, TYPE.M) + 9;
     var x = LW - 4 - w;
     var coinX = x - 3;
     var rowY = 1 + top;
@@ -661,7 +677,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     box(ctx, x, y, w, h, fill, lack ? "#8a8498" : C.cream);
     if (on) rect(ctx, x + 1, y + h - 2, w - 2, 1, "rgba(0,0,0,0.35)");
     var lab = lack ? t('shop.need', { n: price - save.coins }) : wait ? t('shop.confirm', { n: price }) : t('shop.buy', { n: price });
-    drawText(ctx, lab, x + w / 2, y + Math.round((h - 7) / 2) + (on ? 1 : 0), lack ? "#d8d0e0" : INK, 1, "center");
+    drawText(ctx, lab, x + w / 2, y + Math.round((h - 7 * TYPE.M) / 2) + (on ? 1 : 0), lack ? TYPECOL.muted : TYPECOL.ink, TYPE.M, "center");
   }
   function tryBuy(id: string, price: number, apply: any) {
     if (save.coins < price) return;
@@ -670,7 +686,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function abBar() {
     var coinW = 28;
-    try { if (world) coinW = textWidth(String(world.runCoins || 0), 1) + 19; } catch (_e) {}
+    try { if (world) coinW = textWidth(String(world.runCoins || 0), TYPE.M) + 19; } catch (_e) {}
     return { x: 4 + coinW, y: hudY(5), w: 16, h: 16 };
   }
   function startSquad(seed?: number) {
@@ -684,7 +700,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     NET.attachWorld(world, info);
   }
   function startRun(seed?: number, mapId?: string) {
-    /* Menus may be taller than 346 on tall phones; the field is always 160×346 before the world exists. */
+    /* Menus may be taller than 346 on tall phones; the field is always FIELD_W×346 before the world exists. */
     phase = "play"; fieldLocked = false; resize();
     var s = seed != null ? seed : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
     world = createWorld(s, mode, save.char, lookNow(), mapId || (mode === "squad" ? lobbyMap : save.bg));
@@ -790,8 +806,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       lobbyMap = om[mod(li + (id === "lmap:next" ? 1 : -1), om.length)]; return;
     }
     if (id === "shop" || id === "hero:menu") { showSet = false; showProf = false; phase = "shop"; return; }
-    if (id === "ency") { say(t('common.soon')); return; }
-    if (id === "tab:shop") { say(t('common.soon_lower')); return; }
+    if (id === "ency" || id === "soon" || id === "tab:shop") { say(t('common.soon')); return; }
     if (id === "tab:leagues") { say(t('menu.leagues_soon')); return; }
     if (id === "tab:friends") { say(t('menu.friends_soon')); return; }
     if (id === "tab:home") { showSet = false; showProf = false; if (phase !== "menu") goMenu(); return; }
@@ -800,7 +815,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       room = room || { round: 0 }; phase = "lobby"; return;
     }
     if (id === "acct") { showSet = false; showProf = !showProf; return; }
-    if (id === "set:language") { toggleGameLanguage(); resize(); return; }
+    if (id === "set:language") { toggleGameLanguage(); try { document.documentElement.lang = gameLanguage(); } catch (_e) {} updateDesktopLanguage(); resize(); return; }
     if (id === "set:prof") { showSet = false; showProf = true; return; }
     if (id === "prof:close" || id === "prof:out") { showProf = false; return; }
     if (id === "prof:card") return;
@@ -839,8 +854,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     flashT = 0;
     /* A tap only highlights an open map. ИГРАТЬ on the menu starts that map. */
     if (mapOpen(i)) { if (save.bg !== M.id) { save.bg = M.id; writeSave(save); } return; }
-    if (!mapOpen(i - 1)) { say(t('map.unlock_first', { name: MAPS[i - 1].name })); return; }
-    if (!mapGoalMet(i)) { say(t('map.reach_at', { n: MAPS[i - 1].goal, name: where(i - 1) })); return; }
+    if (!mapOpen(i - 1)) { say(t('map.unlock_first')); return; }
+    if (!mapGoalMet(i)) { say(t('map.goal_prev', { n: MAPS[i - 1].goal })); return; }
   }
   function nextClosable() {
     for (var i = 1; i < MAPS.length; i++) if (!mapOpen(i) && mapGoalMet(i)) return i;
@@ -850,7 +865,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var M = MAPS[i];
     if (mapOpen(i) || !mapGoalMet(i)) return;
     tryBuy(buyId || ("camp:open:" + i), M.price, function () {
-      save.coins -= M.price; save.owned["map:" + M.id] = 1; save.bg = M.id; say(mapOpened(M), true);
+      save.coins -= M.price; save.owned["map:" + M.id] = 1; save.bg = M.id; say(mapOpened(M));
       if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.buy("map:" + M.id, M.price);
     });
   }
@@ -893,8 +908,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     writeSave(save);
   }
   function volRow(id: string, x: number, y: number, w: number, label: string, vol: number, on: boolean) {
-    drawText(ctx, label, x, y, on ? C.cream : "#9a8ab8", 1, "left");
-    btn(id + ":mute", x + w - 36, y - 2, 36, 12, on ? C.mint : "#1a1430", on ? t('common.on') : t('common.off'), on ? INK : C.cream);
+    drawText(ctx, label, x, y, on ? TYPECOL.primary : TYPECOL.muted, TYPE.M, "left");
+    btn(id + ":mute", x + w - 36, y - 2, 36, 12, on ? C.mint : "#1a1430", on ? t('common.on') : t('common.off'), on ? TYPECOL.ink : TYPECOL.primary);
     var bx = x, bw = w, by = y + 12;
     addHit(id, bx, by, bw, 8);
     volGeom = { x: bx, w: bw };
@@ -1022,7 +1037,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var w = textWidth(title, sc) + 16;
     var x = Math.round(LW / 2 - w / 2);
     box(ctx, x, y, w, h, C.navy, C.cream);
-    drawText(ctx, title, LW / 2, y + 5, C.cream, sc, "center");
+    drawText(ctx, title, LW / 2, y + 5, TYPECOL.primary, sc, "center");
     markBox("header", x, y, w, h);
     if (phase === "results") pushRes("header", x, y, w, h);
     return { x: x, y: y, w: w, h: h, bottom: y + h };
@@ -1030,30 +1045,34 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawSessionNote() {
     var y = belowBand();
     box(ctx, colX(), y, 152, 26, C.navy, C.gold);
-    drawText(ctx, t('kick.line1'), LW / 2, y + 3, C.gold, 1, "center");
-    drawText(ctx, t('kick.line2'), LW / 2, y + 14, C.gold, 1, "center");
+    drawText(ctx, t('kick.line1'), LW / 2, y + 3, TYPECOL.accent, TYPE.M, "center");
+    drawText(ctx, t('kick.line2'), LW / 2, y + 14, TYPECOL.accent, TYPE.M, "center");
     markBox("session", colX(), y, 152, 26);
   }
   function drawFlash() {
     if (flashT <= 0) return;
     if (phase !== flashPh) { flashT = 0; return; }
-    var unlock = flashUnlocked;
-    var sc = 1, fy = LH - 64, fh = 13;
+    var unlock = flash.indexOf("ОТКРЫТ") >= 0 || /UNLOCK|OPENED/i.test(flash);
+    var sc = TYPE.M, fy = LH - 64, fh = 13;
     if (unlock && phase === "camp") {
       if (campCard >= 0) { fy = Math.round(LH / 2 - 70) + 84; fh = 16; }
       else { fy = 36; fh = 22; } /* under the title, in the tip-plaque row */
     } else if (unlock) { fy = 36; fh = 16; }
-    var w = Math.min(LW - 8, textWidth(flash, sc) + 16);
+    var flines = typeLines(flash, "M", LW - 24);
+    if (flines.length > 1) fh = Math.max(fh, 6 + flines.length * 10);
+    var w = Math.min(LW - 8, 16 + Math.max.apply(null, flines.map(function (ln: string) { return textWidth(ln, sc); })));
     ctx.globalAlpha = Math.min(1, flashT / 20);
     box(ctx, Math.round(LW / 2 - w / 2), fy, w, fh, C.navy, C.gold);
-    drawText(ctx, flash, LW / 2, fy + 4, C.gold, sc, "center");
+    for (var fi = 0; fi < flines.length; fi++) {
+      drawText(ctx, flines[fi], LW / 2, fy + 4 + fi * 10, TYPECOL.accent, sc, "center");
+    }
     ctx.globalAlpha = 1;
   }
   function plaque() {
     var x = colX();
     box(ctx, x, 48, 152, 14, C.navy, C.gold);
     coinsLabel(x + 4, 51, save.coins, undefined, true);
-    drawText(ctx, t('score.record', { n: save.best || 0 }), x + 148, 51, C.cream, 1, "right");
+    drawText(ctx, t('score.record', { n: save.best || 0 }), x + 148, 51, TYPECOL.primary, TYPE.M, "right");
   }
   function drawProfileCard() {
     hits = [];
@@ -1068,7 +1087,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     addHit("prof:card", x, y, 152, h);
     box(ctx, x, y, 152, h, C.navy, C.cream);
     markBox("profile", x, y, 152, h);
-    drawText(ctx, t('profile.title'), LW / 2, y + 6, C.gold, 1, "center");
+    drawText(ctx, t('profile.title'), LW / 2, y + 6, TYPECOL.accent, TYPE.M, "center");
     var photo = linked ? accountPhoto() : null;
     var av = 28;
     if (photo) {
@@ -1085,21 +1104,25 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x + 8, y + 22, 1, av, "#1a1030");
     rect(ctx, x + 8 + av - 1, y + 22, 1, av, "#1a1030");
     var name = accountName(true);
-    drawText(ctx, name, x + 40, y + 24, C.cream, 1, "left");
+    drawText(ctx, name, x + 40, y + 24, TYPECOL.primary, TYPE.M, "left");
     var lineY = y + 36;
     if (linked && u.username) {
-      drawText(ctx, glyphsOf(String(u.username), 14), x + 40, lineY, "#b8ae9a", 1, "left");
+      drawText(ctx, glyphsOf(String(u.username), 14), x + 40, lineY, TYPECOL.muted, TYPE.M, "left");
       lineY += 12;
     }
     var entryY = y + 54;
-    drawText(ctx, linked ? t('profile.telegram') : t('profile.guest'), x + 8, entryY, C.cream, 1, "left");
-    if (!linked) drawText(ctx, t('profile.local_progress'), x + 8, entryY + 12, "#b8ae9a", 1, "left");
-    drawText(ctx, t('score.record', { n: save.best || 0 }), x + 8, y + h - 36, C.gold, 1, "left");
+    drawText(ctx, linked ? t('profile.telegram') : t('profile.guest'), x + 8, entryY, TYPECOL.primary, TYPE.M, "left");
+    if (!linked) drawText(ctx, t('profile.local_progress'), x + 8, entryY + 12, TYPECOL.muted, TYPE.M, "left");
+    drawText(ctx, t('score.record', { n: save.best || 0 }), x + 8, y + h - 36, TYPECOL.accent, TYPE.M, "left");
     btn("prof:close", x + 26, y + h - 22, 100, 16, C.navy, t('common.close'));
+  }
+  function uiImgReady(key: string) {
+    var im = UI_IMGS[key];
+    return !!(im && im.complete && im.naturalWidth);
   }
   function drawTabIcon(key: string, x: number, y: number, dim?: boolean) {
     if (dim) ctx.globalAlpha = 0.45;
-    drawUiPx(ctx, "bar_" + key, x, y, 1);
+    drawUiPx(ctx, uiImgReady("menu_icon_tab_" + key) ? "menu_icon_tab_" + key : "bar_" + key, x, y, 1);
     if (dim) ctx.globalAlpha = 1;
   }
   /* 5×7 padlock, meant for the top-right corner of a 16×16 tab icon — not a replacement for it. */
@@ -1114,26 +1137,101 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawGridCell(id: string, x: number, y: number, w: number, h: number, icon: string, label: string, dim?: boolean) {
     addHit(id, x, y, w, h);
     markBox(id, x, y, w, h);
-    var fill = dim ? "#12101c" : C.navy;
-    box(ctx, x, y, w, h, fill, dim ? "#5a4a72" : C.cream);
-    var ix = x + 1, iy = y + Math.round((h - 24) / 2);
+    var cellKey = dim ? "menu_cell_dim" : "menu_cell_idle";
+    if (!drawNineSlice(ctx, cellKey, x, y, w, h, UI_SLICE.cell)) {
+      box(ctx, x, y, w, h, dim ? "#12101c" : C.navy, dim ? "#5a4a72" : C.cream);
+    }
+    /* Temporary menu layout (Roman is reworking the HUD). Keep icon/text/tab coords in these helpers so a new set of sprites can drop in without touching hero/platform/bg. 16×16 icon, 6 px gap to the label, 4 px cell padding. */
+    var pad = 4, gap = 6, iconS = 16;
+    var ix = x + pad, iy = y + Math.floor((h - iconS) / 2);
+    var iconKey = "menu_icon_" + icon;
     if (dim) ctx.globalAlpha = 0.45;
-    drawUiPx(ctx, icon, ix, iy, 1);
+    drawUiPx(ctx, uiImgReady(iconKey) ? iconKey : icon, ix, iy, 1);
     if (dim) ctx.globalAlpha = 1;
-    /* Text runs from 1 px after the icon to the inner edge of the frame: ЭНЦИКЛОПЕДИЯ (47 px) fits one line. */
-    var tx = ix + 24 + 1, tw = x + w - 1 - tx;
-    var col = dim ? "#9a8ab8" : C.cream;
+    var tx = ix + iconS + gap, tw = (x + w - pad) - tx;
+    var col = dim ? TYPECOL.muted : TYPECOL.primary;
     var lines = tinyLines(label, tw);
     var block = lines.length * 6 - 1;
     var ly = y + Math.round((h - block) / 2);
     for (var i = 0; i < lines.length; i++) drawTiny(ctx, lines[i], tx, ly + i * 6, col, "left");
   }
+  /* Visible height of the menu/shop hero at scale `sc` (1 art px = 0.5 game px for 64-px sheets). */
+  function heroArtH(id: string, sc: number) {
+    var spr = heroSprite(id);
+    if (spr && typeof HERO64 !== "undefined" && HERO64[id]) return (spr.naturalHeight || spr.height) * 0.5 * sc;
+    return SPR_CH * sc;
+  }
+  function heroCellH() {
+    var sprH = 0;
+    try {
+      var spr = heroSprite((CHARS[save.char] || CHARS[0]).id);
+      if (spr) sprH = spr.naturalHeight || spr.height || 0;
+    } catch (_e) {}
+    if (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.h) return Math.max(ART64.cell.h, sprH);
+    return sprH || 68;
+  }
+  /* Canvas scale in device px per game px (drawJumper's fine path uses getTransform().a). */
+  function menuScaleA() {
+    var mt: any = ctx.getTransform ? ctx.getTransform() : null;
+    if (mt && mt.a > 0) return mt.a;
+    return pScale || ((cssScale || 1) * Math.max(1, (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1));
+  }
+  /* Pick the largest whole device-px-per-art-px size that still leaves a visible jump (minHop)
+     inside budget. Prefer a readable hero (do not spend the whole budget on hop and leave a speck)
+     and cap hop at 26, the start-screen amplitude. Same k rounding as drawJumper(..., fine). */
+  function heroFitHop(budget: number) {
+    var a = menuScaleA(), fh = heroCellH();
+    var kCap = Math.max(1, Math.round(a * 0.5 * 2));
+    function hh(k: number) { return fh * k / a; }
+    var minHop = 16, targetHop = 26;
+    var k = kCap;
+    while (k > 1 && hh(k) + minHop > budget) k--;
+    /* Prefer a readable hero: k=2 with a 12 px hop beats a 10 px speck with a 26 px hop. */
+    if (k === 1 && kCap >= 2 && hh(2) + 10 <= budget) k = 2;
+    var hop = Math.min(targetHop, Math.max(0, budget - hh(k)));
+    if (hop < 8) hop = Math.max(8, budget - hh(k));
+    return { sc: (2 * k) / a, k: k, h: hh(k), hop: hop };
+  }
+  function heroFit(budget: number, roomHop: number) {
+    var r = heroFitHop(Math.max(0, budget));
+    if (roomHop > r.hop && r.k > 1) {
+      var r2 = heroFitHop(budget); /* already prefers minHop=16 */
+      return r2;
+    }
+    return r;
+  }
+  var lastHop: any = { where: "", hop: 0, room: 0, sc: 2, k: 1, h: 0, platY: 0, budget: 0 };
+  /* In-game 64 px grass platform (drawPlat64), tinted for the current world.
+     Visual height below the landing row is ~8 game px (aqua 8.5). */
+  function menuPlatBelow(map?: string) {
+    var id = mapInfo(map || (save && save.bg) || "city").id;
+    var key = "normal_" + (typeof ART64 !== "undefined" && ART64.plat && ART64.plat["normal_" + id] ? id : "city");
+    var m = (typeof ART64 !== "undefined" && ART64.plat) ? ART64.plat[key] : null;
+    return m ? Math.round((m.h - (m.land || 1)) * 0.5) : 8;
+  }
+  function menuPlatW(sc: number) {
+    var cellW = (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.w) ? ART64.cell.w : 72;
+    var heroW = cellW * 0.5 * sc;
+    return Math.round(Math.min(120, Math.max(24, heroW + 6)));
+  }
+  function drawMenuPlat(x: number, y: number, w: number, map?: string) {
+    var id = mapInfo(map || (save && save.bg) || "city").id;
+    var ok = false;
+    applyPlatContrast(ctx, function () {
+      if (typeof drawPlat64 === "function" && drawPlat64(ctx, { type: "normal", w: w }, x, y, w, id, 0)) ok = true;
+      else {
+        rect(ctx, x, y, w, 5, C.wood); rect(ctx, x, y + 4, w, 2, C.woodD); rect(ctx, x, y, w, 1, C.edge);
+        ok = false;
+      }
+    });
+    return ok;
+  }
   function menuFrame() {
     var top = menuTop();
-    var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
+    var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
     /* ИГРАТЬ keeps the prod 34px button and at least 10px of air. Squeeze the logo and the grid, not these gaps. */
     var playGap = 10, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
-    var logoSc = 3;
+    var logoSc = TYPE.XL;
     function stack() {
       var tabY = LH - bot - tabH;
       var gridY = tabY - playGap - (gridH * 2 + gridGap);
@@ -1142,64 +1240,88 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var logoY = top + 25;
       var tagY = logoY + 7 * logoSc + 4;
       var tagBot = tagY + 9;
-      var platY = pickY - 8;
-      var heroTop = platY - 42;
-      return { tabY: tabY, gridY: gridY, playY: playY, pickY: pickY, logoY: logoY, tagY: tagY, tagBot: tagBot, platY: platY, heroTop: heroTop };
+      var platY = pickY - (menuPlatBelow() + 3);
+      return { tabY: tabY, gridY: gridY, playY: playY, pickY: pickY, logoY: logoY, tagY: tagY, tagBot: tagBot, platY: platY };
     }
     var L = stack();
-    if (L.heroTop < L.tagBot + 4) { logoSc = 2; L = stack(); }
-    if (L.heroTop < L.tagBot + 4) { gridGap = 2; pickH = 16; L = stack(); }
-    if (L.heroTop < L.tagBot + 2) L.heroTop = L.tagBot + 2;
+    /* Need a real jump (the hero must leave the ground), not just pose frames in place.
+       Telegram safe-area + content-safe-area insets on a phone used to leave platY - cellH
+       <= tagBot, so demoHop's room was clamped to 0. Squeeze the logo/grid first, then
+       shrink the hero to a smaller whole device-px size rather than killing the hop. */
+    function gap() { return L.platY - (L.tagBot + 2); }
+    function need() { var f = heroFitHop(1000); return f.h + 26; }
+    if (gap() < need()) { logoSc = TYPE.L; L = stack(); }
+    if (gap() < need()) { gridGap = 2; pickH = 16; L = stack(); }
+    var g = Math.max(16, gap());
+    var fit = heroFitHop(g);
+    var hopRoom = fit.hop;
     return {
       top: top, bot: bot, logoY: L.logoY, logoSc: logoSc, tagY: L.tagY, tagBot: L.tagBot,
-      platY: L.platY, heroTop: L.heroTop, pickY: L.pickY, pickH: pickH, playY: L.playY, playH: playH,
+      platY: L.platY, heroTop: L.platY - fit.h - hopRoom, heroSc: fit.sc, heroK: fit.k, heroH: fit.h, hopRoom: hopRoom,
+      pickY: L.pickY, pickH: pickH, playY: L.playY, playH: playH,
       gridY: L.gridY, gridH: gridH, gridGap: gridGap, tabY: L.tabY, tabH: tabH, playGap: playGap
     };
   }
   function drawMenu() {
-    drawBg(ctx, MENU_CAM(), ui, save.bg, true);
+    applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
     dimView(ctx, "rgba(18,14,44,0.14)");
     var x = colX();
     var L = menuFrame();
-    var logoW = bigWidth(t('menu.title'), L.logoSc);
-    drawBig(ctx, t('menu.title'), LW / 2, L.logoY, TITLE.face, L.logoSc, "center", TITLE.outline, TITLE.shadow);
-    drawTextO(ctx, t('menu.tagline'), LW / 2, L.tagY, C.cream, "center");
+    var logoKey = (L.logoSc === TYPE.XL && uiImgReady("menu_logo_x2")) ? "menu_logo_x2" : (uiImgReady("menu_logo") ? "menu_logo" : "");
+    var logoW = logoKey === "menu_logo_x2" ? 136 : logoKey === "menu_logo" ? 68 : bigWidth(t('menu.title'), L.logoSc);
+    var logoH = logoKey === "menu_logo_x2" ? 30 : logoKey === "menu_logo" ? 15 : 7 * L.logoSc;
+    var logoX = Math.round((LW - logoW) / 2);
+    /* Anchor the logo above the existing tagline so hop room / hero / platform stay as they are. */
+    var logoY = logoKey ? L.tagY - 3 - logoH : L.logoY;
+    if (logoKey) drawUiPx(ctx, logoKey, logoX, logoY, 1);
+    else drawBig(ctx, t('menu.title'), LW / 2, L.logoY, TITLE.face, L.logoSc, "center", TITLE.outline, TITLE.shadow);
+    drawTextO(ctx, t('menu.tagline'), LW / 2, L.tagY, TYPECOL.primary, "center");
     menuLay = {
       chip: { x: 3, y: 1 + L.top, w: CHIP, h: CHIP },
       coins: { x: 0, y: 1 + L.top, w: 0, h: CHIP },
-      logo: { x: Math.round(LW / 2 - logoW / 2) - 1, y: L.logoY - 1, w: logoW + 2, h: 7 * L.logoSc + 2 },
-      tag: { x: Math.round(LW / 2 - textWidth(t('menu.tagline'), 1) / 2) - 1, y: L.tagY - 1, w: textWidth(t('menu.tagline'), 1) + 2, h: 9 },
+      logo: { x: logoX, y: logoY, w: logoW, h: logoH },
+      tag: { x: Math.round(LW / 2 - textWidth(t('menu.tagline'), TYPE.M) / 2) - 1, y: L.tagY - 1, w: textWidth(t('menu.tagline'), TYPE.M) + 2, h: 9 },
       logoSc: L.logoSc,
       safeTop: L.top,
       safeBottom: L.bot
     };
     var mi = mapIdx(save.bg), M = MAPS[mi], bestM = mapBest(mi);
     var sub = M.goal ? t('menu.map_progress', { name: M.name, n: bestM, goal: M.goal }) : t('menu.map_best', { name: M.name, n: bestM });
-    var ph = (ui % 60) / 60;
-    var hop = Math.round(Math.sin(ph * Math.PI) * 10);
-    var pose = ph < 0.08 || ph > 0.95 ? "squash" : ph < 0.5 ? "up" : "fall";
     var platY = L.platY;
-    rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood); rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
-    var heroY = platY - 32 - hop;
-    if (heroY < L.tagBot + 2) { heroY = L.tagBot + 2; hop = 0; }
+    var mPlatW = menuPlatW(L.heroSc), mPlatX = Math.round(LW / 2 - mPlatW / 2), mPlatH = menuPlatBelow();
+    drawMenuPlat(mPlatX, platY, mPlatW);
     var heroId = (CHARS[save.char] || CHARS[0]).id;
-    drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, 2), heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2);
-    markBox("hero", LW / 2 - 16, heroY, 32, 32);
-    markBox("plat", LW / 2 - 28, platY, 56, 7);
+    var mh = demoHop(lookNow(), L.hopRoom), hop = mh.hop, pose = mh.pose;
+    var heroY = platY - 16 * L.heroSc - hop;
+    drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, L.heroSc), heroY, lookNow(), 1, pose, ui % 170 < 6, true, L.heroSc, true);
+    lastHop = { where: "menu", hop: hop, room: L.hopRoom, sc: L.heroSc, k: L.heroK, h: L.heroH, platY: platY, budget: platY - (L.tagBot + 2), platW: mPlatW };
+    markBox("hero", LW / 2 - 18, platY - hop - L.heroH, 36, L.heroH);
+    markBox("plat", mPlatX, platY, mPlatW, mPlatH);
     var pickW = 120;
-    btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", t('menu.choose_hero'), C.cream, 1, C.gold);
-    btn("start", x, L.playY, 152, L.playH, C.mint, "", INK, 2);
-    /* Same face as prod b683155: BIGF scale 2, ink, no outline, 4px under the button top. */
-    drawBig(ctx, t('menu.play'), LW / 2, L.playY + 4, INK, 2, "center");
-    drawText(ctx, sub, LW / 2, L.playY + 23, INK, 1, "center");
-    var hgap = 2;
-    var gw = Math.floor((152 - hgap) / 2);
+    var pickX = x + Math.round((152 - pickW) / 2);
+    var pickSt = pressId === "hero:menu" ? "pressed" : "idle";
+    addHit("hero:menu", pickX, L.pickY, pickW, L.pickH);
+    markBox("hero:menu", pickX, L.pickY, pickW, L.pickH);
+    if (!drawNineSlice(ctx, "menu_btn_sec_" + pickSt, pickX, L.pickY, pickW, L.pickH, UI_SLICE.btn_sec)) {
+      btn("hero:menu", pickX, L.pickY, pickW, L.pickH, "#1a1430", "", TYPECOL.primary, TYPE.M, C.gold);
+    }
+    drawText(ctx, t('menu.choose_hero'), LW / 2, L.pickY + Math.round((L.pickH - 7) / 2) + (pickSt === "pressed" ? 1 : 0), TYPECOL.primary, TYPE.M, "center");
+    var playSt = pressId === "start" ? "pressed" : "idle";
+    addHit("start", x, L.playY, 152, L.playH);
+    markBox("start", x, L.playY, 152, L.playH);
+    if (!drawNineSlice(ctx, "menu_btn_play_" + playSt, x, L.playY, 152, L.playH, UI_SLICE.btn_play)) {
+      box(ctx, x, L.playY, 152, L.playH, C.mint, C.cream);
+    }
+    var playDy = playSt === "pressed" ? 1 : 0;
+    drawBig(ctx, t('menu.play_label'), LW / 2, L.playY + 4 + playDy, TYPECOL.ink, TYPE.L, "center");
+    drawText(ctx, sub, LW / 2, L.playY + 23 + playDy, TYPECOL.ink, TYPE.M, "center");
+    var hgap = 4;
+    var gw = 74;
     var gx2 = x + gw + hgap;
     var gy2 = L.gridY + L.gridH + L.gridGap;
-    /* Grid cells are ~26px tall; 24px icons leave 1px padding. Labels sit to the right, tiny 3×5. */
-    drawGridCell("camp", x, L.gridY, gw, L.gridH, "grid_maps", t('menu.maps'));
+    drawGridCell("camp", x, L.gridY, gw, L.gridH, "grid_map", t('menu.maps'));
     drawGridCell("net:menu", gx2, L.gridY, gw, L.gridH, "grid_multiplayer", t('menu.multiplayer'));
-    drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", t('menu.encyclopedia'));
+    drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", t('menu.encyclopedia_soon'), true);
     drawGridCell("soon", gx2, gy2, gw, L.gridH, "grid_quests", t('menu.quests_soon'), true);
     var tabs = [
       { id: "tab:shop", key: "shop", label: t('shop.title'), lock: true },
@@ -1208,7 +1330,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       { id: "tab:friends", key: "friends", label: t('menu.friends'), lock: true },
       { id: "set", key: "settings", label: t('menu.options'), lock: false }
     ];
-    var tw = Math.floor(LW / tabs.length);
+    var tw = 32;
     var homeOn = phase === "menu" && !showSet && !showProf;
     for (var ti = 0; ti < tabs.length; ti++) {
       var tb = tabs[ti];
@@ -1216,33 +1338,49 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var on = (tb.id === "tab:home" && homeOn) || (tb.id === "set" && showSet);
       addHit(tb.id, tx, L.tabY, tw, L.tabH);
       markBox(tb.id === "set" ? "tab:settings" : tb.id, tx, L.tabY, tw, L.tabH);
-      /* Fill down to the screen edge (home-indicator area) so no map background shows under the bar. */
-      rect(ctx, tx, L.tabY, tw, LH - L.tabY, on ? "#24356a" : (tb.lock ? "#0c0a14" : "#100c22"));
-      if (on) rect(ctx, tx, L.tabY, tw, 2, C.cream);
-      rect(ctx, tx, L.tabY, tw, 1, INK);
-      if (ti > 0) rect(ctx, tx, L.tabY, 1, LH - L.tabY, INK);
-      var ix = tx + Math.floor((tw - 16) / 2);
-      var iy = L.tabY + 3;
+      var tabKey = tb.lock ? "menu_tab_locked" : (on ? "menu_tab_active" : "menu_tab_normal");
+      if (!drawNineSlice(ctx, tabKey, tx, L.tabY, tw, L.tabH, UI_SLICE.tab)) {
+        rect(ctx, tx, L.tabY, tw, LH - L.tabY, on ? "#24356a" : (tb.lock ? "#0c0a14" : "#100c22"));
+        if (on) rect(ctx, tx, L.tabY, tw, 2, C.cream);
+        rect(ctx, tx, L.tabY, tw, 1, INK);
+        if (ti > 0) rect(ctx, tx, L.tabY, 1, LH - L.tabY, INK);
+      } else if (L.tabY + L.tabH < LH) {
+        /* Extend the tab body into the home-indicator inset so the map does not show under the bar. */
+        var fill = on ? "#264575" : (tb.lock ? "#140e1e" : "#18172a");
+        rect(ctx, tx, L.tabY + L.tabH, tw, LH - L.tabY - L.tabH, fill);
+      }
+      /* Own tab layout: 16×16 icon centred, label 6 px below it, lock in the top-right. */
+      var labY = L.tabY + 26;
+      var iy = labY - 6 - 16;
+      /* Locked tabs slide the icon 4 px left so the 7×8 lock in the corner does not cover it. */
+      var ix = tb.lock ? tx + 4 : tx + Math.floor((tw - 16) / 2);
       drawTabIcon(tb.key, ix, iy, !!tb.lock);
-      var tc = tb.lock ? "#6a6080" : (on ? C.cream : "#9a8ab8");
-      drawTiny(ctx, tb.label, tx + tw / 2, L.tabY + 22, tc, "center");
-      if (tb.lock) drawTabLock(ix + 11, iy - 1);
+      var tc = tb.lock ? "#6a6080" : (on ? TYPECOL.primary : TYPECOL.muted);
+      var labW = tinyWidth(tb.label);
+      var lx = tx + Math.floor((tw - labW) / 2);
+      drawTiny(ctx, tb.label, lx, labY, tc, "left");
+      if (tb.lock) {
+        var lockX = tx + tw - 8, lockY = L.tabY + 2;
+        if (uiImgReady("menu_icon_lock")) drawUiPx(ctx, "menu_icon_lock", lockX, lockY, 1);
+        else drawTabLock(lockX, lockY);
+      }
     }
-    if (LH - L.tabY <= L.tabH) rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
     if (showSet) {
       hits = [];
       screenLay = [];
       dimView(ctx, "rgba(8,6,20,0.62)");
-      var py0 = Math.min(belowBand(), LH - 164);
-      box(ctx, x, py0, 152, 160, C.navy, C.cream);
-      markBox("settings", x, py0, 152, 160);
-      drawText(ctx, t('settings.title'), LW / 2, py0 + 6, C.gold, 1, "center");
-      btn("tilt", x + 8, py0 + 20, 136, 20, tiltOn ? C.mint : "#1a1430", t('settings.tilt', { state: tiltOn ? t('common.on') : t('common.off') }), tiltOn ? INK : C.cream);
+      var py0 = belowBand();
+      var setH = 178;
+      box(ctx, x, py0, 152, setH, C.navy, C.cream);
+      markBox("settings", x, py0, 152, setH);
+      drawText(ctx, t('settings.title'), LW / 2, py0 + 6, TYPECOL.accent, TYPE.M, "center");
+      btn("tilt", x + 8, py0 + 20, 136, 20, tiltOn ? C.mint : "#1a1430", t('settings.tilt', { state: tiltOn ? t('common.on') : t('common.off') }), tiltOn ? TYPECOL.ink : TYPECOL.primary);
       volRow("vol", x + 8, py0 + 44, 136, t('settings.volume'), masterVol, audioOn);
-      btn("vib", x + 8, py0 + 70, 136, 20, vibOn ? C.mint : "#1a1430", t('settings.vibration', { state: vibOn ? t('common.on') : t('common.off') }), vibOn ? INK : C.cream);
-      btn("set:prof", x + 8, py0 + 94, 136, 20, "#1a1430", t('profile.title'), C.cream);
-      btn("set:language", x + 8, py0 + 117, 136, 18, C.navy, t('settings.language', { mode: gameLanguageLabel() }));
-      btn("set", x + 26, py0 + 138, 100, 16, C.navy, t('common.close'));
+      btn("vib", x + 8, py0 + 70, 136, 20, vibOn ? C.mint : "#1a1430", t('settings.vibration', { state: vibOn ? t('common.on') : t('common.off') }), vibOn ? TYPECOL.ink : TYPECOL.primary);
+      btn("set:language", x + 8, py0 + 94, 136, 20, C.navy, t('settings.language', { mode: gameLanguageLabel() }));
+      btn("set:prof", x + 8, py0 + 118, 136, 20, "#1a1430", t('profile.title'), TYPECOL.primary);
+      btn("set", x + 26, py0 + 142, 100, 16, C.navy, t('common.close'));
+      uiText(ctx, buildVersionText(), LW / 2, py0 + 164, TYPECOL.muted, "S", "center");
     }
     drawFlash();
   }
@@ -1266,12 +1404,45 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       rect(ctx, x + 5, y + 7, 6, 6, "#e88a62"); rect(ctx, x + 3, y + 10, 10, 1, "#fff0b4");
     }
   }
+  function drawMapThumb(x: number, y: number, w: number, h: number, id: string, locked: boolean) {
+    var key = "mapthumb_" + id + (locked ? "_locked" : "_open");
+    var im = UI_IMGS[key];
+    if (im && im.complete && im.naturalWidth) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      ctx.imageSmoothingEnabled = false;
+      var sw = im.naturalWidth, sh = im.naturalHeight;
+      var k = Math.max(1, Math.floor(Math.min(w / sw, h / sh) + 1e-6));
+      var dw = sw * k, dh = sh * k;
+      var dx = x + Math.floor((w - dw) / 2), dy = y + Math.floor((h - dh) / 2);
+      ctx.drawImage(im, dx, dy, dw, dh);
+      ctx.restore();
+      return;
+    }
+    if (locked) {
+      /* Dark square until Advisor's sketch (_locked) arrives. */
+      rect(ctx, x, y, w, h, "#0a0814");
+      ctx.globalAlpha = 0.35;
+      rect(ctx, x + 2, y + 3, w - 4, h - 6, "#1a1430");
+      ctx.globalAlpha = 1;
+      box(ctx, x, y, w, h, "transparent", "#2a2040");
+      return;
+    }
+    drawBgSwatch(x, y, w, h, id);
+  }
   function drawShop() {
-    drawBg(ctx, MENU_CAM(), ui, save.bg, true);
+    applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
-    var hdShop = header(t('shop.title'), 2);
-    var pw = 34, gap = 4, cols = 3, rows = 2;
+    /* If the card would be too short for a readable jumping hero, tighten the title and grid first. */
+    var shopBotPeek = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
+    var backPeek = LH - 34 - shopBotPeek;
+    var y0est = belowBand() + (7 * TYPE.L + 10) + 4 + (34 * 2 + 4) + 4;
+    var tightShop = backPeek - 6 - y0est < 140;
+    var hdShop = header(t('shop.title'), tightShop ? TYPE.M : TYPE.L);
+    var pw = 34, gap = tightShop ? 2 : 4, cols = 3, rows = 2;
     var sx = Math.round(LW / 2 - (cols * pw + (cols - 1) * gap) / 2);
     var heroY = hdShop.bottom + 4;
     markBox("heroes", sx, heroY, cols * pw + (cols - 1) * gap, rows * pw + (rows - 1) * gap);
@@ -1291,34 +1462,121 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
-    var y0 = heroY + rows * pw + (rows - 1) * gap + 6, ch = LH - y0 - 42;
+    var shopBot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
+    var backY = LH - 34 - shopBot;
+    /* v1.0 w14: pack hero + platform + text as a group and size the card to that
+       group, so a tall slot does not leave a navy void above a bottom-aligned hero.
+       k is the largest whole device-px-per-art-px size that still fits after the
+       type-scale text block and a visible hop reserve. If k is capped, shrink the
+       card to the content and centre it between the grid and the back button. */
+    var slotTop = heroY + rows * pw + (rows - 1) * gap + 4;
+    var slotBot = backY - 6;
+    var slotH = Math.max(90, slotBot - slotTop);
+    var btnH = 22, platH = menuPlatBelow() + 2;
+    var padTop = 4, padMid = 4, padBot = 4;
+    /* v1.0 w19: one step up the type scale when it still fits (name XL, chip L,
+       desc M). If that would shrink the hero or hop reserve, fall back.
+       Dark plate + 1px ink outline for contrast. Roles stay on the fixed scale. */
+    var nameRole = "L", chipRole = "M", descRole = "M";
+    function shopTextH(nameR: string, chipR: string, descR: string) {
+      return typeH(nameR) + 1 + (typeH(chipR) + 4) + 1 + typeH(descR) + 1 + typeH(descR) + 2 + typeH("M");
+    }
+    var textH = shopTextH(nameRole, chipRole, descRole);
+    var aShop = menuScaleA();
+    if (pScale && pScale > aShop) aShop = pScale;
+    if (!(aShop > 0)) aShop = 1;
+    var fhShop = heroCellH();
+    var hi: number;
+    for (hi = 0; hi < CHARS.length; hi++) {
+      try {
+        var sprI = heroSprite(CHARS[hi].id);
+        var sH = sprI ? (sprI.naturalHeight || sprI.height || 0) : 0;
+        if (sH > fhShop) fhShop = sH;
+      } catch (_e) {}
+    }
+    if (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.h) fhShop = Math.max(ART64.cell.h, fhShop);
+    function shopHh(kShop: number) { return fhShop * kShop / aShop; }
+    function shopChrome(tH: number) { return padTop + platH + padMid + tH + padMid + btnH + padBot; }
+    var minHop = 10, typHop = 8, targetHop = 26;
+    function shopPick(nameR: string, chipR: string, descR: string, hopFloor: number) {
+      var tH = shopTextH(nameR, chipR, descR);
+      var av = slotH - shopChrome(tH);
+      if (av < shopHh(1) + hopFloor && descR !== "S") {
+        descR = "S";
+        tH = shopTextH(nameR, chipR, descR);
+        av = slotH - shopChrome(tH);
+      }
+      av = Math.max(16, av);
+      var maxH = Math.min(av - hopFloor, Math.max(8, Math.round(slotH * 0.45)));
+      var k = 1;
+      while (shopHh(k + 1) <= maxH && shopHh(k + 1) + hopFloor <= av) k++;
+      var room = av - shopHh(k);
+      var hop = Math.min(targetHop, Math.max(0, room));
+      return { nameR: nameR, chipR: chipR, descR: descR, textH: tH, k: k, hop: hop, avail: av, room: room };
+    }
+    var fitBase = shopPick("L", "M", "M", minHop);
+    var fitTry = shopPick("XL", "L", "M", typHop);
+    var fitMid = shopPick("XL", "M", "M", typHop);
+    /* Prefer a larger type if the hero size k does not drop and typHop px of hop remain. */
+    var pick = (fitTry.k >= fitBase.k && fitTry.room >= typHop) ? fitTry : fitMid;
+    if (!(pick.k >= fitBase.k && pick.room >= typHop)) pick = fitBase;
+    nameRole = pick.nameR; chipRole = pick.chipR; descRole = pick.descR;
+    textH = pick.textH;
+    var avail = pick.avail;
+    var kShop = pick.k;
+    var hopRoom = pick.hop;
+    var fit = { sc: (2 * kShop) / aShop, k: kShop, h: shopHh(kShop), hop: hopRoom };
+    var contentH = shopChrome(textH) + fit.h + hopRoom;
+    var ch = Math.min(slotH, contentH);
+    var y0 = slotTop + Math.round((slotH - ch) / 2);
     markBox("card", x, y0, 152, ch);
     box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
-    /* Text block (name → charge line) is mid+16 … mid+85; the act button needs 22 px + 4 px air above it.
-       If the card is short (TG safe-area, 360 wide), drop the bouncing hero first: the portrait above shows it. */
-    var btnH = 22, btnPad = 6;
-    var textBot = 85, roomFull = 52 + textBot + 4 + btnH + btnPad, showHero = ch >= roomFull;
-    var mid = showHero ? y0 + 52 : y0 - 10;
-    if (showHero) {
-      rect(ctx, x + 40, mid + 8, 72, 4, C.wood); rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
-      var ph = (ui % 70) / 70, pose = ui % 280 > 230 ? "ability" : ph < 0.08 ? "squash" : ph < 0.5 ? "up" : "fall";
-      var hop = pose === "ability" ? 6 : Math.round(Math.sin(ph * Math.PI) * 10);
-      drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2);
+    var byb = y0 + ch - btnH - padBot;
+    var groupH = hopRoom + fit.h + platH + padMid + textH;
+    var groupSpace = byb - padMid - (y0 + padTop);
+    var groupTop = y0 + padTop;
+    if (groupSpace > groupH) groupTop = y0 + padTop + Math.round((groupSpace - groupH) / 2);
+    var platTop = groupTop + hopRoom + fit.h;
+    var textTop = platTop + platH + padMid;
+    var budget = platTop - (y0 + 1);
+    var cellW = (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.w) ? ART64.cell.w : 72;
+    var heroW = cellW * 0.5 * fit.sc;
+    var platW = Math.round(Math.min(152 - 16, Math.max(20, heroW + 6)));
+    var platX = Math.round(LW / 2 - platW / 2);
+    drawMenuPlat(platX, platTop, platW);
+    var mh = demoHop(makeLook(i, save.color, save.hat), hopRoom), pose = mh.pose, hop = mh.hop;
+    if (hop > hopRoom) hop = hopRoom;
+    drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, fit.sc), platTop - 16 * fit.sc - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, fit.sc, true);
+    lastHop = { where: "shop", hop: hop, room: hopRoom, sc: fit.sc, k: fit.k, h: fit.h, platY: platTop, budget: budget, platW: platW, y0: y0, ch: ch, textH: textH, name: nameRole, chip: chipRole, desc: descRole, slotH: slotH };
+    var ny = textTop;
+    var by0 = ny + typeH(nameRole) + 1;
+    var badgeH = typeH(chipRole) + 4;
+    var tw = uiWidth(H2.abName, chipRole) + 10;
+    box(ctx, Math.round(x + 4), textTop - 1, 144, textH + 2, "#140c1c", "#0c0818");
+    box(ctx, Math.round(LW / 2 - tw / 2), by0, tw, badgeH, "#3a4ac8", C.cream);
+    function shopTextO(s: string, tx: number, ty: number, col: string, role: string) {
+      if (role === "S") { uiText(ctx, s, tx, ty, col, role, "center"); return; }
+      var sc = TYPE[role] || 1, o = "#0c0818";
+      drawText(ctx, s, tx - 1, ty, o, sc, "center");
+      drawText(ctx, s, tx + 1, ty, o, sc, "center");
+      drawText(ctx, s, tx, ty - 1, o, sc, "center");
+      drawText(ctx, s, tx, ty + 1, o, sc, "center");
+      drawText(ctx, s, tx, ty, col, sc, "center");
     }
-    drawText(ctx, H2.name, LW / 2, mid + 16, C.cream, 2, "center");
-    var tw = textWidth(H2.abName, 1) + 10;
-    box(ctx, Math.round(LW / 2 - tw / 2), mid + 34, tw, 12, "#3a4ac8", C.cream);
-    drawText(ctx, H2.abName, LW / 2, mid + 37, C.cream, 1, "center");
-    drawText(ctx, H2.abDesc[0], LW / 2, mid + 52, C.cream, 1, "center");
-    drawText(ctx, H2.abDesc[1], LW / 2, mid + 62, C.cream, 1, "center");
-    drawChargeLine(LW / 2, mid + 76, H2, "#9a8ab8");
-    markBox("cardText", x + 4, mid + 16, 144, textBot - 16);
-    var byb = Math.max(y0 + ch - btnH - btnPad, mid + textBot + 4);
+    shopTextO(H2.name, LW / 2, ny, TYPECOL.primary, nameRole);
+    shopTextO(H2.abName, LW / 2, by0 + Math.max(1, Math.round((badgeH - typeH(chipRole)) / 2)), TYPECOL.primary, chipRole);
+    var desc1 = by0 + badgeH + 1;
+    var desc2 = desc1 + typeH(descRole) + 1;
+    shopTextO(H2.abDesc[0], LW / 2, desc1, TYPECOL.primary, descRole);
+    shopTextO(H2.abDesc[1], LW / 2, desc2, TYPECOL.primary, descRole);
+    var chgY = Math.min(textTop + textH - typeH("M") - 1, desc2 + typeH(descRole) + 2);
+    drawChargeLine(LW / 2, chgY, H2, TYPECOL.primary);
+    markBox("cardText", x + 4, textTop, 144, textH);
     markBox("cardBtn", x + 10, byb, 132, btnH);
-    if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", t('shop.selected'), C.gold, 1, C.gold);
-    else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, t('shop.select'), INK);
+    if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", t('shop.selected'), TYPECOL.accent, TYPE.M, TYPECOL.accent);
+    else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, t('shop.select'), TYPECOL.ink);
     else drawBuy("hero:act", x + 10, byb, 132, 22, H2.price);
-    btn("back", x + 26, LH - 34, 100, 22, C.navy, t('common.back'));
+    btn("back", x + 26, backY, 100, 22, C.navy, t('common.back'));
     drawFlash();
   }
   function bar(x: number, y: number, w: number, h: number, f: number, col: string) {
@@ -1326,47 +1584,54 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x, y, Math.max(0, Math.round(w * clamp(f, 0, 1))), h, col);
   }
   function drawCamp() {
-    drawBg(ctx, MENU_CAM(), ui, save.bg, true);
+    applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, save.bg, true); });
     dimView(ctx, "rgba(18,14,44,0.34)");
     var x = colX();
-    var hdCamp = header(t('campaign.title'), 2);
+    var hdCamp = header(t('campaign.title'), TYPE.L);
     var tipY = hdCamp.bottom + 4;
     box(ctx, x, tipY, 152, 22, "#1a1430", C.mint);
     markBox("tip", x, tipY, 152, 22);
-    drawText(ctx, t('campaign.reach'), LW / 2, tipY + 3, C.cream, 1, "center");
-    drawText(ctx, t('campaign.unlock'), LW / 2, tipY + 13, C.mint, 1, "center");
+    drawText(ctx, t('campaign.reach'), LW / 2, tipY + 3, TYPECOL.primary, TYPE.M, "center");
+    drawText(ctx, t('campaign.unlock'), LW / 2, tipY + 13, TYPECOL.mint, TYPE.M, "center");
     var top = tipY + 26, bot = LH - 40, rh = Math.min(42, Math.floor((bot - top) / MAPS.length));
     for (var i = 0; i < MAPS.length; i++) {
       var M = MAPS[i], y = top + i * rh, open = mapOpen(i), can = !open && mapGoalMet(i), locked = !open && !can;
       var bd = save.bg === M.id ? C.gold : open ? C.cream : can ? C.mint : "#4a3a6a";
       addHit("camp:" + i, x, y, 152, rh - 3);
       markBox("map" + i, x, y, 152, rh - 3);
-      box(ctx, x, y, 152, rh - 3, open ? (save.bg === M.id ? "#2a2050" : C.navy) : "#1a1430", bd);
-      drawBgSwatch(x + 3, y + 3, 20, rh - 9, M.id);
-      if (!open) { ctx.globalAlpha = 0.55; rect(ctx, x + 3, y + 3, 20, rh - 9, "#0c0818"); ctx.globalAlpha = 1; }
-      drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, open || can ? C.cream : "#9a8ab8", 1, "left");
+      box(ctx, x, y, 152, rh - 3, open ? (save.bg === M.id ? "#2a2050" : C.navy) : "#120c1c", bd);
       if (open) {
+        drawMapThumb(x + 3, y + 3, 20, rh - 9, M.id, false);
+        drawText(ctx, (i + 1) + ". " + M.name, x + 28, y + 3, TYPECOL.primary, TYPE.M, "left");
         var b = mapBest(i);
         if (M.goal) {
-          drawText(ctx, (b >= M.goal ? "✓ " : "") + t('score.goal', { n: M.goal }), x + 28, y + 13, b >= M.goal ? C.mint : C.gold, 1, "left");
-          drawText(ctx, b + "/" + M.goal, x + 148, y + 3, C.cream, 1, "right");
+          drawText(ctx, (b >= M.goal ? "✓ " : "") + t('score.goal', { n: M.goal }), x + 28, y + 13, b >= M.goal ? TYPECOL.mint : TYPECOL.accent, TYPE.M, "left");
+          drawText(ctx, b + "/" + M.goal, x + 148, y + 3, TYPECOL.primary, TYPE.M, "right");
           bar(x + 28, y + rh - 11, 107, 5, b / M.goal, b >= M.goal ? C.mint : C.gold);
-        } else drawText(ctx, t('score.record', { n: b }), x + 28, y + 15, C.gold, 1, "left");
-      } else if (can) {
-        drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
+        } else drawText(ctx, t('score.record', { n: b }), x + 28, y + 15, TYPECOL.accent, TYPE.M, "left");
       } else {
-        drawText(ctx, t('map.goal_at', { n: MAPS[i - 1].goal, name: where(i - 1) }), x + 28, y + 13, "#9a8ab8", 1, "left");
-        drawText(ctx, "● " + M.price, x + 28, y + 23, C.gold, 1, "left");
+        /* Locked / unbought maps stay unnamed; sketch thumb when Advisor files arrive. */
+        drawMapThumb(x + 3, y + 3, 20, rh - 9, M.id, true);
+        drawText(ctx, (i + 1) + ". " + t('map.locked'), x + 28, y + 3, TYPECOL.muted, TYPE.M, "left");
+        if (can) {
+          drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
+        } else {
+          var gLines = typeLines(t('map.goal_prev', { n: MAPS[i - 1].goal }), "M", 118);
+          for (var gi = 0; gi < gLines.length && gi < 2; gi++) {
+            drawText(ctx, gLines[gi], x + 28, y + 13 + gi * 9, TYPECOL.muted, TYPE.M, "left");
+          }
+          drawText(ctx, "● " + M.price, x + 148, y + 3, TYPECOL.accent, TYPE.M, "right");
+        }
       }
     }
     btn("back", x + 26, LH - 34, 100, 22, C.navy, t('common.back'));
     drawFlash();
   }
   function drawLobby() { /* UI only: bot lobby now, online room UI can hook here later */
-    drawBg(ctx, MENU_CAM(), ui, menuMap(), true);
+    applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); });
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
-    var hdLobby = header(t('lobby.with_bots'), 1);
+    var hdLobby = header(t('lobby.with_bots'), TYPE.M);
     var ps = lobbyNames();
     var row0 = hdLobby.bottom + 4;
     var slotH = 36, slotGap = 2;
@@ -1376,16 +1641,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       box(ctx, x, y, 152, slotH, i === 0 ? "#2a2050" : C.navy, i === 0 ? C.gold : C.cream);
       ctx.imageSmoothingEnabled = false;
       drawPortrait(ctx, ps[i].kind, x + 2, y + 2, 1);
-      drawText(ctx, ps[i].name, x + 40, y + 6, C.cream, 1, "left");
-      drawText(ctx, ps[i].tag, x + 40, y + 18, i === 0 ? C.gold : "#9a8ab8", 1, "left");
-      drawText(ctx, CHARS[ps[i].kind].abName, x + 148, y + 14, "#9a8ab8", 1, "right");
+      drawText(ctx, ps[i].name, x + 40, y + 6, TYPECOL.primary, TYPE.M, "left");
+      drawText(ctx, ps[i].tag, x + 40, y + 18, i === 0 ? TYPECOL.accent : TYPECOL.muted, TYPE.M, "left");
+      drawText(ctx, CHARS[ps[i].kind].abName, x + 148, y + 14, TYPECOL.muted, TYPE.M, "right");
     }
     var my = row0 + 4 * (slotH + slotGap) + 6;
-    btn("lmap:prev", x, my, 20, 18, "#1a1430", "<", C.cream);
-    btn("lmap:next", x + 132, my, 20, 18, "#1a1430", ">", C.cream);
+    btn("lmap:prev", x, my, 20, 18, "#1a1430", "<", TYPECOL.primary);
+    btn("lmap:next", x + 132, my, 20, 18, "#1a1430", ">", TYPECOL.primary);
     box(ctx, x + 22, my, 108, 18, C.navy, C.cream);
-    drawText(ctx, t('lobby.map', { name: mapInfo(lobbyMap).name }), LW / 2, my + 6, C.gold, 1, "center");
-    btn("go", x, Math.max(my + 28, LH - 66), 152, 26, C.mint, t('lobby.start'), INK, 2);
+    drawText(ctx, t('lobby.map', { name: mapInfo(lobbyMap).name }), LW / 2, my + 6, TYPECOL.accent, TYPE.M, "center");
+    btn("go", x, Math.max(my + 28, LH - 66), 152, 26, C.mint, t('lobby.start'), TYPECOL.ink, TYPE.L);
     btn("back", x + 26, LH - 34, 100, 22, C.navy, t('common.back'));
   }
   function lobbyNames() {
@@ -1395,6 +1660,37 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return out;
   }
 
+  /* v1.0 menu hop (start screen, shop): time-based, float height (drawJumper snaps it to the device pixel),
+     ground beat squash -> crouch, then a parabola with the 64-px transition frames up -> apex -> fstart -> fall. */
+  function menuNow() { return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now(); }
+  /* v1.0 menu demo jump: the game's own jump on a tiny demo platform - 50 Hz sim with GRAVITY / JUMP_V and the
+     landing squash, poses from animPose (same 64-px state machine and frames as in play). Only the height is
+     scaled to the room the menu has (shape and timing are the game's); drawn interpolated between sim ticks
+     and snapped to device pixels by drawJumper. */
+  var demoP: any = { x: 0, y: 0, prevY: 0, vy: JUMP_V, squash: 0, alive: true, face: 1, look: null }, demoAcc = 0, demoLast = -1;
+  function demoHop(look: any, room: number) {
+    var now = menuNow();
+    if (demoLast < 0 || now - demoLast > 250) { demoLast = now; demoAcc = 0; }
+    demoAcc += (now - demoLast) / 1000; demoLast = now;
+    if (!demoP.look || demoP.look.id !== look.id) demoP.look = look;
+    var n = 0;
+    while (demoAcc >= STEP && n < 10) {
+      demoAcc -= STEP; n++;
+      demoP.prevY = demoP.y;
+      demoP.vy = Math.min(demoP.vy + GRAVITY, 6.5);
+      demoP.y += demoP.vy;
+      if (demoP.squash > 0) demoP.squash--;
+      if (demoP.vy > 0 && demoP.y >= 0) { demoP.y = 0; demoP.squash = 7; demoP.vy = JUMP_V; }
+    }
+    var yi = demoP.prevY + (demoP.y - demoP.prevY) * clamp(demoAcc / STEP, 0, 1);
+    return { hop: Math.max(0, -yi) / JUMP_H * room, pose: animPose(demoP) };
+  }
+  function menuHop(periodMs: number, H: number) {
+    var ph = (menuNow() % periodMs) / periodMs, G = 0.14;
+    if (ph < G) return { hop: 0, pose: ph < G * 0.5 ? "squash" : "crouch" };
+    var sF = (ph - G) / (1 - G), v = 1 - 2 * sF;
+    return { hop: H * 4 * sF * (1 - sF), pose: v > 0.4 ? "up" : v > -0.2 ? "apex" : v > -0.5 ? "fstart" : "fall" };
+  }
   function poseOf(p: any) {
     if (!(p.domeT > 0) && (p.abFx > 0 || p.poundT > 0 || p.dashT > 0 || p.hookN > 0 || p.wall || p.teleFx > 10)) return "ability";
     if (p.squash > 3) return "squash";
@@ -1402,13 +1698,72 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (p.vy > 1.5) return "fall";
     return "idle";
   }
+  /* v1.0 render-only animation state machine for the 64-px heroes (physics untouched; whole-frame swaps).
+     land: squash(land) ~35 ms -> crouch ~35 ms -> up(rise);  rising: up while vy < -0.6 (enter at < -1.2);
+     top: apex (|vy| small) -> fstart ~80 ms -> fall (enter at vy > 0.9, leave below 0.3);
+     every non-forced change waits ANIM_HOLD ms; landing and abilities switch at once. */
+  var ANIM_HOLD = 70, ANIM_SQ = 35, ANIM_CR = 35, ANIM_FS = 80;
+  var animSt: any = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+  /* v1.0 ability phases (render-only, frames ability/ab2/ab3/ab4 of the 64-px sheet):
+     pirate hook: throw -> grab -> pull -> hit (by hookT/hookN); mage tele: cast -> out -> in (teleT) -> land (teleFx);
+     knight pound: ram_up (first ticks) -> ram_dive; on impact ram_hit ~110 ms -> ram_jump while rising (~330 ms). */
+  function abSub(p: any, a: any, now: number) {
+    var id = p.look && p.look.id;
+    if (id === "pirate") {
+      if (p.hookN > 0) { var u = p.hookT / p.hookN; return u < 0.22 ? "ability" : u < 0.45 ? "ab2" : u < 0.85 ? "ab3" : "ab4"; }
+      return "none";
+    }
+    if (id === "mage") {
+      if (p.teleN > 0) return p.teleT <= 3 ? "ability" : p.teleT <= 6 ? "ab2" : "ab3";
+      if (p.teleFx > 0) return "ab4";
+      return "none";
+    }
+    if (id === "knight") {
+      if (p.poundT > 0) return (p.abFx || 0) > 13 ? "ab2" : "ability";
+      if (p.ramFx > 14) return "ab3";
+      if (p.ramFx > 0 && (p.vy || 0) < -1) return "ab4";
+      return "none";
+    }
+    return null;
+  }
+  function animPose(p: any) {
+    var raw = poseOf(p);
+    var id = p.look && p.look.id;
+    if (!animSt || !(typeof HERO64 !== "undefined" && HERO64[id])) return raw;
+    var now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    var a = animSt.get(p);
+    if (!a) { a = { pose: raw === "idle" ? "apex" : raw, t: now, sq: p.squash || 0 }; animSt.set(p, a); return a.pose; }
+    var dt = now - a.t, vy = p.vy || 0;
+    var landed = (p.squash || 0) > a.sq && (p.squash || 0) >= 4;
+    a.sq = p.squash || 0;
+    var air = vy < -1.2 ? "up" : vy > 0.9 ? "fstart" : "apex";
+    var next = a.pose, forced = false;
+    /* "none": a phased-ability hero with nothing running - the generic abFx 'ability' flash is skipped */
+    var sub = abSub(p, a, now);
+    if (sub === "none" && raw === "ability") raw = (p.squash || 0) > 3 ? "squash" : "idle";
+    if (sub && sub !== "none") { next = sub; forced = true; }
+    else if (raw === "ability") { next = "ability"; forced = true; }
+    else if (landed) { next = "squash"; forced = true; }
+    else switch (a.pose) {
+      case "ability": case "ab2": case "ab3": case "ab4": next = air; forced = true; break;
+      case "squash": if (dt >= ANIM_SQ) { next = "crouch"; forced = true; } break;
+      case "crouch": if (dt >= ANIM_CR) { next = air; forced = true; } break;
+      case "up": if (vy > -0.6) next = vy > 0.9 ? "fstart" : "apex"; break;
+      case "apex": if (vy > 0.9) next = "fstart"; else if (vy < -1.2) next = "up"; break;
+      case "fstart": if (dt >= ANIM_FS) { next = vy > 0.3 ? "fall" : vy < -1.2 ? "up" : "apex"; forced = true; } break;
+      case "fall": if (vy < -1.2) next = "up"; else if (vy < 0.3) next = "apex"; break;
+      default: next = air;
+    }
+    if (next !== a.pose && (forced || dt >= ANIM_HOLD)) { a.pose = next; a.t = now; }
+    return a.pose;
+  }
   function goalLine(y: number, label: string) {
     if (y < -8 || y > LH + 8) return;
     var yy = Math.round(y);
     for (var x = viewX0(); x < LW + VIEW_PAD; x += 4) { var on = ((x - viewX0()) >> 2) % 2 === 0; rect(ctx, x, yy, 4, 1, on ? C.cream : "#162040"); rect(ctx, x, yy + 1, 4, 1, on ? "#162040" : C.cream); }
-    var tw = textWidth(label, 1) + 6;
+    var tw = textWidth(label, TYPE.M) + 6;
     rect(ctx, 3, yy - 11, tw + 2, 11, INK); rect(ctx, 4, yy - 10, tw, 9, "#162040");
-    drawText(ctx, label, 4 + tw / 2, yy - 9, C.gold, 1, "center");
+    drawText(ctx, label, 4 + tw / 2, yy - 9, TYPECOL.accent, TYPE.M, "center");
   }
   function recLine(y: number, label: string) {
     if (y < -8 || y > LH + 8) return;
@@ -1416,9 +1771,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.globalAlpha = 0.7;
     for (var x = viewX0(); x < LW + VIEW_PAD; x += 2) rect(ctx, x, yy, 1, 1, C.cream);
     ctx.globalAlpha = 1;
-    var tw = textWidth(label, 1) + 6, lx = LW - tw - 5;
+    var tw = textWidth(label, TYPE.M) + 6, lx = LW - tw - 5;
     rect(ctx, lx - 1, yy - 11, tw + 2, 11, INK); rect(ctx, lx, yy - 10, tw, 9, "#162040");
-    drawText(ctx, label, lx + tw / 2, yy - 9, C.cream, 1, "center");
+    drawText(ctx, label, lx + tw / 2, yy - 9, TYPECOL.primary, TYPE.M, "center");
   }
   function drawReadyPip(me: any, sy: number) {
     var dbg: any = (window as any).__dbg || {}; var pp = dbg.ring && dbg.ring.pop != null ? dbg.ring.pop : popT;
@@ -1426,11 +1781,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var x = Math.round(me.x + PW / 2) - 2, y = Math.round(sy) - 9;
     rect(ctx, x + 1, y, 1, 1, "#3a6848"); rect(ctx, x, y + 1, 3, 1, "#3a6848"); rect(ctx, x + 1, y + 2, 1, 1, "#3a6848"); rect(ctx, x + 1, y + 1, 1, 1, "#d8e8d0");
   }
-  function withWrapX(x: number, wdt: number, fn: any) {
-    fn(x);
-    if (x < 12) fn(x + LW);
-    if (x + wdt > LW - 12) fn(x - LW);
+  /* v1.0: one copy only, placed by its centre; near an edge it overhangs into the side pad / off screen
+     instead of showing two halves (left + right) at once. Render-only, sim wrap unchanged. */
+  function wrapDrawX(x: number, wdt: number) {
+    var c = x + wdt / 2;
+    return c < 0 ? x + LW : c >= LW ? x - LW : x;
   }
+  function withWrapX(x: number, wdt: number, fn: any) { fn(wrapDrawX(x, wdt)); }
   function drawFaceMark(x: number, y: number, look: any, alive: boolean) {
     x = Math.round(x); y = Math.round(y);
     var hood = (look && look.hood) || "#c890ff";
@@ -1448,8 +1805,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var dm = metersOf(b) - metersOf(a);
       return dm || (a.id - b.id);
     });
+    var watching = !!(w.net && w.players[0] && !w.players[0].alive);
+    var watch = watching ? w.watchP : null;
     var pb = pauseBox();
+    /* Sit on the right of the pause button. While spectating, start below the
+       "СМОТРИМ …" banner (y=24, h=22, centred) so the gold frame never overlaps it. */
     var x = pb.x + pb.w - 13, y0 = hudY(26), step = 14;
+    if (watching) y0 = Math.max(y0, 48);
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       var target = y0 + i * step;
@@ -1459,12 +1821,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (Math.abs(target - next) < 1) next = target;
       rankY[p.id] = next;
       var iy = Math.round(next);
+      var isWatch = !!(watch && (p === watch || p.id === watch.id || (watch.pid != null && p.pid === watch.pid)));
+      var mark = watching ? isWatch : p.id === 0;
+      if (watching && !isWatch) ctx.globalAlpha = 0.45;
       drawFaceMark(x, iy, p.look, !!p.alive);
-      if (p.id === 0) {
+      ctx.globalAlpha = 1;
+      if (mark) {
         rect(ctx, x - 1, iy - 1, 10, 1, C.gold);
         rect(ctx, x - 1, iy + 8, 10, 1, C.gold);
         rect(ctx, x - 1, iy, 1, 8, C.gold);
         rect(ctx, x + 8, iy, 1, 8, C.gold);
+        /* Small left marker so the watched portrait is obvious at a glance. */
+        rect(ctx, x - 4, iy + 3, 2, 2, C.gold);
       }
       if (!p.alive) {
         for (var d = 1; d < 11; d++) {
@@ -1489,50 +1857,56 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var shx = w.shake > 0 ? (w.tick % 2 ? 1 : -1) * Math.ceil(w.shake / 3) : 0;
     ctx.save();
     ctx.translate(shx, 0);
-    drawBg(ctx, cam, w.tick, w.map);
+    applyBgContrast(ctx, function () { drawBg(ctx, cam, w.tick, w.map); });
     ctx.save();
     /* Clip in device pixels (ceil left / floor right) so a fractional scale cannot leak a 1 px sliver into the pads. */
     var mclip = ctx.getTransform();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    var x0 = Math.ceil(mclip.e - shx * mclip.a - 1e-9);
-    var y0 = Math.ceil(mclip.f - 1e-9);
-    var x1 = Math.floor(mclip.e - shx * mclip.a + LW * mclip.a + 1e-9);
-    var y1 = Math.floor(mclip.f + LH * mclip.d + 1e-9);
+    var x0 = Math.ceil(mclip.e - shx * mclip.a + viewX0() * mclip.a - 1e-9);
+    var y0 = Math.ceil(mclip.f + viewY0() * mclip.d - 1e-9);
+    var x1 = Math.floor(mclip.e - shx * mclip.a + (LW + VIEW_PAD) * mclip.a + 1e-9);
+    var y1 = Math.floor(mclip.f + viewY1() * mclip.d + 1e-9);
     ctx.beginPath();
     ctx.rect(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
     ctx.clip();
     ctx.setTransform(mclip.a, mclip.b, mclip.c, mclip.d, mclip.e, mclip.f);
-    for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
-    if (w.goalM) goalLine(-w.goalM * PX_PER_M - cam, t('score.goal', { n: w.goalM }));
+    applyPlatContrast(ctx, function () {
+      for (i = 0; i < w.platforms.length; i++) drawPlatform(ctx, w.platforms[i], cam, w.map, w.tick);
+    });
+    if (showRunGoal() && w.goalM) goalLine(-w.goalM * PX_PER_M - cam, t('score.goal', { n: w.goalM }));
     if (w.recM) recLine(-w.recM * PX_PER_M - cam, t('score.record_line', { n: w.recM }));
-    if (w.goalM) { var gy = -w.goalM * PX_PER_M - cam; if (gy > 8 && gy < LH - 8) showFirstTimeToast("goal"); }
-    if (w.recM) { var ry = -w.recM * PX_PER_M - cam; if (ry > 8 && ry < LH - 8) showFirstTimeToast("record"); }
+    if (showRunGoal() && w.goalM) { var gy = -w.goalM * PX_PER_M - cam; if (gy > viewY0() + 8 && gy < viewY1() - 8) showFirstTimeToast("goal"); }
+    if (w.recM) { var ry = -w.recM * PX_PER_M - cam; if (ry > viewY0() + 8 && ry < viewY1() - 8) showFirstTimeToast("record"); }
     for (i = 0; i < w.platforms.length; i++) {
       var brk = w.platforms[i];
       if (brk.type === "break" && !brk.broken) {
         var by2 = brk.y - cam;
-        if (by2 > 8 && by2 < LH - 8) { showFirstTimeToast("break"); break; }
+        if (by2 > viewY0() + 8 && by2 < viewY1() - 8) { showFirstTimeToast("break"); break; }
       }
     }
+    applyCoinContrast(ctx, function () {
     for (i = 0; i < w.coins.length; i++) {
       var cn = w.coins[i];
-      if (!cn.taken && cn.y - cam > -8 && cn.y - cam < LH + 4) {
-        withWrapX(cn.x, 6, function (xx: number) { drawCoin(ctx, xx, Math.round(cn.y - cam), w.tick + i * 3); });
+      if (!cn.taken && cn.y - cam > viewY0() - 8 && cn.y - cam < viewY1() + 4) {
+        withWrapX(cn.x, 14, function (xx: number) { if (!drawCoin64(ctx, xx, Math.round(cn.y - cam), w.tick + i * 3)) drawCoin(ctx, xx, Math.round(cn.y - cam), w.tick + i * 3); });
       }
     }
+    });
     for (i = 0; i < w.items.length; i++) {
       var it = w.items[i];
       withWrapX(it.x, 14, function (xx: number) {
         var ox = it.x; it.x = xx; drawItem(ctx, it, cam, w.tick); it.x = ox;
       });
     }
-    for (i = 0; i < w.monsters.length; i++) {
-      var mo = w.monsters[i];
-      var mw = (MOBS[mo.kind] && MOBS[mo.kind].w) || 12;
-      withWrapX(mo.x, mw, function (xx: number) {
-        var ox = mo.x; mo.x = xx; drawMob(ctx, mo, cam, w.map, w.freezeMobT > 0); mo.x = ox;
-      });
-    }
+    applyMobContrast(ctx, function () {
+      for (i = 0; i < w.monsters.length; i++) {
+        var mo = w.monsters[i];
+        var mw = (MOBS[mo.kind] && MOBS[mo.kind].w) || 12;
+        withWrapX(mo.x, mw, function (xx: number) {
+          var ox = mo.x; mo.x = xx; drawMob(ctx, mo, cam, w.map, w.freezeMobT > 0); mo.x = ox;
+        });
+      }
+    });
     for (i = 0; i < w.bullets.length; i++) {
       var bu = w.bullets[i];
       withWrapX(bu.x - 2, 5, function (xx: number) {
@@ -1553,25 +1927,23 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (var pi = w.players.length - 1; pi >= 0; pi--) {
       var p = w.players[pi];
       var sy = p.y - cam;
-      if (sy < -22 || sy > LH + 10) continue;
+      if (sy < viewY0() - 22 || sy > viewY1() + 10) continue;
       var blink = (w.tick + p.id * 41) % 170 < 6;
-      var pose = p.alive ? poseOf(p) : "fall";
+      var pose = p.alive ? animPose(p) : "fall";
       var drawHeroAt = function (xx: number) {
         var ox = p.x; p.x = xx;
-        drawFxBack(p, sy, cam);
         /* Render-only: while clinging, face into the field. p.face is used by dash/kick/net, so sim stays as-is. */
         var faceDraw = p.wall === -1 ? 1 : p.wall === 1 ? -1 : p.face;
+        drawFxBack(p, sy, cam, pose, faceDraw, w.tick);
         ctx.save();
-        if (p.id !== 0) ctx.globalAlpha = remoteAlpha();
+        ctx.globalAlpha = p.id !== 0 ? remoteAlpha() : 1; /* own hero always opaque */
         drawJumper(ctx, p.x, sy, p.look, faceDraw, pose, blink, p.alive);
         ctx.restore();
         if (p.id === 0) drawReadyPip(p, sy);
         drawFxFront(p, sy, w.tick);
         p.x = ox;
       };
-      drawHeroAt(p.x);
-      if (p.wallT <= 0 && p.x < 12) drawHeroAt(p.x + LW);
-      if (p.wallT <= 0 && p.x > LW - PW - 12) drawHeroAt(p.x - LW);
+      drawHeroAt(p.wallT > 0 ? p.x : wrapDrawX(p.x, PW));
       if (w.mode === "squad") tags.push({ p: p, x: p.x + 6, y: Math.round(sy) - 13 });
     }
     tags.sort(function (a: any, b: any) { return b.y - a.y; });
@@ -1579,8 +1951,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var tg = tags[i];
       var isMe = tg.p.id === 0;
       var tgNm = String(tg.p.name || t('lobby.bot'));
-      var label = !tg.p.alive ? t('play.eliminated') : isMe ? "▼" : tgNm === t('lobby.bot_number', { n: tg.p.id }) ? tgNm : tgNm.slice(0, 3);
-      tg.w = textWidth(label, 1) + 4;
+      var label = !tg.p.alive ? t('play.eliminated') : isMe ? "▼" : /^(?:БОТ|BOT) \d$/.test(tgNm) ? tgNm : tgNm.slice(0, 3);
+      tg.w = textWidth(label, TYPE.M) + 4;
       for (var j = 0; j < i; j++) {
         var o = tags[j];
         if (Math.abs(o.x - tg.x) < (o.w + tg.w) / 2 + 1 && Math.abs(o.y - tg.y) < 10) tg.y = o.y - 10;
@@ -1588,7 +1960,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var lx = clamp(tg.x, tg.w / 2 + 1, LW - 12 - tg.w / 2);
       ctx.globalAlpha = isMe ? 0.85 : 0.5;
       if (!isMe) rect(ctx, Math.round(lx - tg.w / 2), tg.y, tg.w, 9, tg.p.alive ? C.navy : "#4a1020");
-      drawText(ctx, label, lx, tg.y + (isMe ? 2 : 1), tg.p.alive ? (isMe ? C.gold : C.cream) : C.red, 1, "center");
+      drawText(ctx, label, lx, tg.y + (isMe ? 2 : 1), tg.p.alive ? (isMe ? TYPECOL.accent : TYPECOL.primary) : TYPECOL.danger, TYPE.M, "center");
       ctx.globalAlpha = 1;
     }
     ctx.restore();
@@ -1599,7 +1971,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var meter = t('unit.meters', { n: metersOf(me) });
     var pb = pauseBox();
     coinsLabel(5, hudY(6), w.runCoins);
-    drawTextO(ctx, meter, wantPause ? pb.x - 4 : LW - edgePad("right"), hudY(6), C.cream, "right");
+    drawTextO(ctx, meter, wantPause ? pb.x - 4 : LW - edgePad("right"), hudY(6), TYPECOL.primary, "right");
     drawRankColumn(w);
     if (wantPause) {
       addHit("pause", pb.x, pb.y, pb.w, pb.h);
@@ -1610,26 +1982,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     }
     drawBonusHud(me);
     drawAbRing(me);
-    if (w.toastT > 0) {
-      var tw2 = textWidth(w.toast, 1) + 12;
-      ctx.globalAlpha = Math.min(1, w.toastT / 15);
-      box(ctx, Math.round(LW / 2 - tw2 / 2), hudY(38), tw2, 13, C.navy, C.gold);
-      drawText(ctx, w.toast, LW / 2, hudY(41), C.gold, 1, "center");
-      ctx.globalAlpha = 1;
-    }
-    if (w.tick < 170 && !(w.toastT > 0) && !paused) {
-      ctx.globalAlpha = clamp((170 - w.tick) / 40, 0, 1);
-      var Hn = CHARS[me.kind];
-      var line1 = !isPhone ? t('play.walk') : t('play.tap');
-      var line2 = abHintRun ? (!isPhone ? ("↑ " + Hn.abName) : (t('play.swipe', { name: Hn.abName }))) : "";
-      var htw = textWidth(line1, 1);
-      if (line2) htw = Math.max(htw, textWidth(line2, 1));
-      var hw = htw + 12, hh = line2 ? 23 : 12, hx = Math.round(LW / 2 - hw / 2);
-      box(ctx, hx, hudY(56), hw, hh, C.navy, C.cream);
-      drawText(ctx, line1, LW / 2, hudY(58), C.cream, 1, "center");
-      if (line2) drawText(ctx, line2, LW / 2, hudY(68), C.cream, 1, "center");
-      ctx.globalAlpha = 1;
-    }
+    /* Floating/intro hint plaques (break, ability names, tap tutorial) are disabled for v1.0. */
     if ((w.fallWarn || w.liftWarn) && !paused) {
       if ((ui >> 2) % 2) {
         ctx.globalAlpha = w.fallWarn ? 0.9 : 0.6;
@@ -1640,12 +1993,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         rect(ctx, cxw - 4, viewBottom() - 8, 10, 2, C.cream);
         ctx.globalAlpha = 1;
       }
-      if (w.liftWarn) {
-        var liftLab = t('play.climb');
-        var ltw = textWidth(liftLab, 1) + 10;
-        box(ctx, Math.round(LW / 2 - ltw / 2), viewBottom() - 24, ltw, 13, C.navy, C.gold);
-        drawText(ctx, liftLab, LW / 2, viewBottom() - 21, C.gold, 1, "center");
-      }
+      /* liftWarn keeps the edge flash, without the «ЛЕЗЬ ВВЕРХ» text plaque. */
     }
     if (paused) {
       dimView(ctx, "rgba(8,6,20,0.55)");
@@ -1657,17 +2005,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       drawBig(ctx, t('play.pause'), LW / 2, top + 8, C.gold, 2, "center", INK);
       var py = top + 28;
       if (resumeCd > 0) {
-        drawText(ctx, String(resumeCd), LW / 2, py, C.gold, 3, "center");
+        drawText(ctx, String(resumeCd), LW / 2, py, TYPECOL.accent, TYPE.XL, "center");
         py += 26;
       } else if (land) {
-        drawText(ctx, t('play.rotate'), LW / 2, py, C.cream, 1, "center");
+        drawText(ctx, t('play.rotate'), LW / 2, py, TYPECOL.primary, TYPE.M, "center");
         py += 14;
       }
       volRow("vol", px + 8, py, 136, t('settings.volume'), masterVol, audioOn);
       py += 28;
       if (resumeCd > 0) btn("menu", px + 10, py, 132, 22, C.navy, t('common.menu'));
       else {
-        btn("resume", px + 10, py, 132, 22, C.mint, t('play.resume'), INK);
+        btn("resume", px + 10, py, 132, 22, C.mint, t('play.resume'), TYPECOL.ink);
         btn("menu", px + 10, py + 26, 132, 22, C.navy, t('common.menu'));
       }
       pauseLay = hits.filter(function (h: any) {
@@ -1675,16 +2023,34 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       });
     }
   }
-  function drawFxBack(p: any, sy: number, cam: number) {
+  function drawFxBack(p: any, sy: number, cam: number, pose?: string, faceDraw?: number, tick?: number) {
     var cx = Math.round(p.x + 6), cy = Math.round(sy + 8), k;
     if (p.hookN > 0) {
       var hx = Math.round(p.htx + 6), hy = Math.round(p.hty - cam);
-      var n = Math.max(2, Math.round(Math.abs(hy - sy) / 3));
-      for (k = 0; k <= n; k++) rect(ctx, Math.round(cx + (hx - cx) * k / n), Math.round(sy + 2 + (hy - sy - 2) * k / n), 1, 1, k % 2 ? "#c8a070" : "#7a5030");
-      rect(ctx, hx - 2, hy - 1, 5, 2, "#d8dce8"); rect(ctx, hx - 2, hy - 3, 1, 2, "#d8dce8"); rect(ctx, hx + 2, hy - 3, 1, 2, "#d8dce8");
+      /* Rope start: the 64-px pirate's own rope end (grab / pull: the sprite rope runs to the frame edge, the code
+         rope continues from that exact art pixel, so it is neither doubled nor broken). Throw: the hook is still in
+         the hand in the art, no code rope. Hit (no rope in the art): from the hand. Other sprites: from the body. */
+      var anc = typeof ART64 !== "undefined" && ART64.anchor && ART64.anchor[p.look && p.look.id];
+      var rx = cx, ry = sy + 2, drawRope = true;
+      if (anc && pose === "ability") drawRope = false;
+      else if (anc && (pose === "ab2" || pose === "ab3") && anc[pose]) {
+        var px0 = Math.round(p.x), cell = ART64.cell, fh2 = cell.h * 0.5;
+        var ax2 = anc[pose][0] * 0.5 + 0.25, ay2 = anc[pose][1] * 0.5 + 0.25;
+        rx = (faceDraw || 1) < 0 ? px0 + 6 + SPR_AX - ax2 : px0 + 6 - SPR_AX + ax2;
+        ry = Math.round(sy) + 16 - fh2 + ay2;
+      } else if (anc && pose === "ab4") { rx = cx + (faceDraw || 1) * 3; ry = sy + 5; }
+      if (drawRope) {
+        var ddx = hx + 0.5 - rx, ddy = hy - ry, n = Math.max(2, Math.ceil(Math.max(Math.abs(ddx), Math.abs(ddy)) * 2));
+        for (k = 0; k <= n; k++) {
+          ctx.fillStyle = (k >> 2) % 2 ? "#c8a070" : "#7a5030";
+          ctx.fillRect(Math.floor((rx + ddx * k / n) * 2) / 2 - 0.25, Math.floor((ry + ddy * k / n) * 2) / 2 - 0.25, 1, 1);
+        }
+        rect(ctx, hx - 2, hy - 1, 5, 2, "#b8c4d0"); rect(ctx, hx - 2, hy - 3, 1, 2, "#b8c4d0"); rect(ctx, hx + 2, hy - 3, 1, 2, "#b8c4d0");
+        rect(ctx, hx - 2, hy + 1, 5, 1, INK);
+      }
     }
     if (p.grabT > 0 && p.grabMob) { for (k = 0; k < 4; k++) rect(ctx, cx - 5 + k * 3, cy - 2 + (k % 2) * 3, 3, 2, "#3a9a2a"); }
-    if (p.magnetT > 0 && (ui >> 2) % 2) { ctx.globalAlpha = 0.35; for (k = 0; k < 8; k++) { var a = k * 0.785 + ui * 0.05; rect(ctx, cx + Math.cos(a) * 15, cy + Math.sin(a) * 15, 1, 1, "#ff5a62"); } ctx.globalAlpha = 1; }
+    if (p.magnetT > 0) drawMagnetCloud(ctx, p, sy, pose || "idle", faceDraw || 1, tick || 0);
     if (p.teleFx > 0) { ctx.globalAlpha = p.teleFx / 18; for (k = 0; k < 10; k++) { var a2 = k * 0.63 + ui * 0.2, r2 = 18 - p.teleFx * 0.6; rect(ctx, cx + Math.cos(a2) * r2, cy + Math.sin(a2) * r2, 2, 2, k % 2 ? "#e8c8ff" : "#a060ff"); } ctx.globalAlpha = 1; }
   }
   /* Robot shield: a solid violet band from the first tick. Render only; domeT is unchanged. */
@@ -1692,16 +2058,16 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!(p.domeT > 0)) return;
     var left = p.domeT;
     if (left <= 55 && ((left >> 2) % 2) === 0) return;
-    var rad = 16;
-    solidRing(cx, cy, rad + 1, "#2a1048");
-    solidRing(cx, cy, rad, "#f4e8ff");
-    solidRing(cx, cy, rad - 1, "#7a4ec8");
+    var rad = 16, ysc = 1.4;
+    solidRing(cx, cy, rad + 1, ysc, "#2a1048");
+    solidRing(cx, cy, rad, ysc, "#f4e8ff");
+    solidRing(cx, cy, rad - 1, ysc, "#7a4ec8");
   }
-  function solidRing(cx: number, cy: number, r: number, col: string) {
-    var n = Math.max(8, Math.round(r * 8));
+  function solidRing(cx: number, cy: number, r: number, ysc: number, col: string) {
+    var n = Math.max(8, Math.round(r * 8 * Math.max(1, ysc)));
     for (var k = 0; k < n; k++) {
       var a = (k / n) * Math.PI * 2;
-      rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col);
+      rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * ysc), 1, 1, col);
     }
   }
   function drawFxFront(p: any, sy: number, tick: number) {
@@ -1710,19 +2076,56 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (p.shieldT > 0) drawShieldAura(ctx, p, sy, tick);
     drawDome(p, cx, cy, tick);
     if (p.freezeT > 0) { ctx.globalAlpha = 0.45; rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff"); ctx.globalAlpha = 1; }
-    if (p.rocketT > 0) { rect(ctx, cx - 2, sy + PH, 4, 3 + (ui % 3), "#ffd046"); rect(ctx, cx - 1, sy + PH + 3, 2, 3, "#ff7830"); }
+    if (p.rocketT > 0) {
+      /* v1.0 w13: flame + baked smoke, anchored at the feet. -1 closes a 1 px boot gap. */
+      var flame = typeof fx64Sheet === "function" ? fx64Sheet("rocketFlame") : null;
+      if (flame) {
+        var fi = Math.floor(tick / 6) % 4;
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.translate(Math.round(p.x + PW / 2), Math.round(sy + PH - 1));
+        ctx.scale(0.5, 0.5);
+        ctx.drawImage(flame, fi * 24, 0, 24, 36, -12, 0, 24, 36);
+        ctx.restore();
+      } else {
+        var flick = (ui % 3);
+        rect(ctx, cx - 1, sy + PH, 2, 2, "#fff2c0");
+        rect(ctx, cx - 2, sy + PH + 1, 4, 2 + flick, "#ffd040");
+        rect(ctx, cx - 2, sy + PH + 3 + flick, 4, 2, "#ff9a3a");
+        rect(ctx, cx - 1, sy + PH + 5 + flick, 2, 2, "#e0602c");
+        rect(ctx, cx + 3 + (ui % 2), sy + PH + 6 + flick, 2, 2, "#6a6a78");
+        rect(ctx, cx - 4, sy + PH + 8 + (ui % 3), 2, 2, "#8a8a98");
+        rect(ctx, cx + 2, sy + PH + 10 + flick, 1, 1, "#5a5a68");
+      }
+    }
   }
   var BON_HUD: any[] = [["shieldT", "shield", 500], ["magnetT", "magnet", 450], ["rocketT", "rocket", 85], ["domeT", "shield", 200], ["wallT", "rocket", 300]];
   function drawBonusHud(me: any) {
+    /* v1.0: 16×18 game (32×36 art) plates, hand-drawn 20×20 icons, timer bar 20×4.
+       Slot size unchanged. Bar blinks for the last min(90, duration/3) ticks
+       (rocket ~28 ticks; shield/magnet stay at 90). */
     var x = 3, y = hudY(36);
+    var icons = typeof fx64Sheet === "function" ? fx64Sheet("hudIcons") : null;
+    var BAR: any = { shield: "#3e6eb4", magnet: "#c03a3a", rocket: "#e0602a" };
+    var IDX: any = { shield: 0, magnet: 1, rocket: 2 };
     for (var i = 0; i < BON_HUD.length; i++) {
-      var b = BON_HUD[i], t = me[b[0]];
-      if (!(t > 0)) continue;
+      var b = BON_HUD[i], left = me[b[0]];
+      if (!(left > 0)) continue;
       if (b[0] === "domeT" || b[0] === "wallT") continue;
-      rect(ctx, x, y, 16, 18, INK); rect(ctx, x + 1, y + 1, 14, 16, "#1a1430");
-      drawHudIcon(ctx, b[1], x + 3, y + 2);
-      var f = clamp(t / b[2], 0, 1);
-      rect(ctx, x + 3, y + 14, 10, 2, "#2c2a52"); rect(ctx, x + 3, y + 14, Math.max(1, Math.round(10 * f)), 2, ITEM_COL[b[1]] || C.cream);
+      var f = clamp(left / b[2], 0, 1);
+      var blinkT = Math.min(90, b[2] / 3);
+      var blink = left <= blinkT && (((left >> 2) % 2) === 0);
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(x, y);
+      ctx.scale(0.5, 0.5);
+      rect(ctx, 0, 0, 32, 36, "#140c1c");
+      rect(ctx, 2, 2, 28, 32, "#1a1430");
+      if (icons && IDX[b[1]] != null) ctx.drawImage(icons, IDX[b[1]] * 20, 0, 20, 20, 6, 3, 20, 20);
+      rect(ctx, 6, 28, 20, 4, "#2c2a52");
+      if (!blink) rect(ctx, 6, 28, Math.max(1, Math.round(20 * f)), 4, BAR[b[1]] || "#f6ecd0");
+      ctx.restore();
+      if (!icons) drawHudIcon(ctx, b[1], x + 3, y + 2);
       y += 20;
     }
   }
@@ -1737,7 +2140,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       rect(ctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col);
     }
   }
+  var AB_FI: any = { dash: 0, hook: 1, wall: 2, dome: 3, tele: 4, pound: 5 };
   function drawAbIcon(ab: string, x: number, y: number) {
+    /* v1.0 w13: brighter v1 glyphs only. Disc, rings and states stay in drawAbRing. */
+    var sheet = typeof fx64Sheet === "function" ? fx64Sheet("abIcons") : null;
+    var fi = AB_FI[ab];
+    if (sheet && fi != null) {
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(x + 6, y + 6);
+      ctx.scale(0.5, 0.5);
+      ctx.drawImage(sheet, fi * 24, 0, 24, 24, -12, -12, 24, 24);
+      ctx.restore();
+      return;
+    }
     if (ab === "dash") {
       rect(ctx, x + 5, y + 1, 2, 1, "#7ad8ff"); rect(ctx, x + 4, y + 2, 4, 2, "#7ad8ff"); rect(ctx, x + 5, y + 4, 2, 3, "#c8f4ff");
       rect(ctx, x + 4, y + 7, 4, 2, "#ffd046"); rect(ctx, x + 5, y + 9, 2, 2, "#ff7830"); rect(ctx, x + 3, y + 8, 1, 2, "#ff7830"); rect(ctx, x + 8, y + 8, 1, 2, "#ff7830");
@@ -1766,21 +2182,27 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x + 1, y + 1, 5, 5, "#0c0818");
     rect(ctx, x + 3, y + 2, 1, 3, col); rect(ctx, x + 3, y + 4, 2, 1, col);
   }
+  function ruCount(n: number, one: string, few: string, many: string) {
+    var k = Math.abs(Math.floor(n));
+    var m100 = k % 100, m10 = k % 10;
+    var w = (m100 >= 11 && m100 <= 14) ? many : m10 === 1 ? one : (m10 >= 2 && m10 <= 4) ? few : many;
+    return k + " " + w;
+  }
   function drawChargeLine(cx: number, y: number, H: any, col: string) {
     var ic = H.charge;
     var chg = ic === "time" ? t('unit.seconds', { n: Math.round(H.need / 50) })
       : ic === "coins" ? t('unit.coins', { n: H.need })
       : ic === "height" ? t('unit.meters', { n: H.need })
       : t('unit.mobs', { n: H.need });
-    var pre = t('shop.charge'), iw = 8, gap = 2, tw = textWidth(pre, 1) + iw + gap + textWidth(chg, 1);
+    var pre = t('shop.charge'), iw = 8, gap = 2, tw = textWidth(pre, TYPE.M) + iw + gap + textWidth(chg, TYPE.M);
     var x0 = Math.round(cx - tw / 2);
-    drawText(ctx, pre, x0, y, col, 1, "left");
-    var ix = x0 + textWidth(pre, 1);
+    drawText(ctx, pre, x0, y, col, TYPE.M, "left");
+    var ix = x0 + textWidth(pre, TYPE.M);
     if (ic === "time") icoClock(ix, y, col);
     else if (ic === "coins") drawCoin(ctx, ix, y + 1, ui);
-    else if (ic === "height") drawText(ctx, "↑", ix, y, C.mint, 1, "left");
+    else if (ic === "height") drawText(ctx, "↑", ix, y, TYPECOL.mint, TYPE.M, "left");
     else icoSkull(ix, y, col);
-    drawText(ctx, chg, ix + iw + gap, y, col, 1, "left");
+    drawText(ctx, chg, ix + iw + gap, y, col, TYPE.M, "left");
   }
   function icoSkull(x: number, y: number, col: string) {
     rect(ctx, x + 1, y, 5, 4, col); rect(ctx, x + 2, y + 4, 3, 2, col); rect(ctx, x + 2, y + 1, 1, 1, "#0c0818"); rect(ctx, x + 4, y + 1, 1, 1, "#0c0818");
@@ -1864,30 +2286,30 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var roundNo = 0;
     for (var ri = 0; ri < S.rounds.length; ri++) roundNo = Math.max(roundNo, Number(S.rounds[ri] && S.rounds[ri].round) || 0);
     if (!roundNo) roundNo = S.rounds.length;
-    drawText(ctx, t('results.round', { n: roundNo }), LW / 2, y + 2, C.gold, 1, "center");
+    drawText(ctx, t('results.round', { n: roundNo }), LW / 2, y + 2, TYPECOL.accent, TYPE.M, "center");
     for (var i = 0; i < pids.length; i++) {
       var pid = pids[i];
       var lineY = y + 11 + i * 9;
-      drawText(ctx, String(S.names[pid] || t('lobby.player')).slice(0, 8), x + 6, lineY, C.cream, 1, "left");
-      drawText(ctx, t('results.summary', { wins: S.wins[pid] || 0, best: S.best[pid] || 0 }), x + 146, lineY, C.cream, 1, "right");
+      drawText(ctx, String(S.names[pid] || t('lobby.player')).slice(0, 8), x + 6, lineY, TYPECOL.primary, TYPE.M, "left");
+      drawText(ctx, (S.wins[pid] || 0) + "П  " + (S.best[pid] || 0) + "М", x + 146, lineY, TYPECOL.primary, TYPE.M, "right");
     }
     return y + h + 3;
   }
   function drawResults() {
     hits = [];
     resultLay = [];
-    drawBg(ctx, world.cameraY, ui, world.map);
+    applyBgContrast(ctx, function () { drawBg(ctx, world.cameraY, ui, world.map); });
     dimView(ctx, "rgba(18,14,44,0.36)");
     var x = colX();
-    var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
-    var hdRes = header(t('results.title'), 2);
+    var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
+    var hdRes = header(t('results.title'), TYPE.L);
     var list = world.players.slice().sort(function (a: any, b: any) { return a.place - b.place; });
     var squad = world.mode === "squad";
     var me = world.players[0], mtr = metersOf(me), why = whyText(me);
     var note = limitLabel(world.limited);
     var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
     /* Only talk about the next map while it is still locked. «МОЖНО ОТКРЫТЬ» only when the goal is met AND coins suffice. */
-    var hasGoal = !!(M2.goal && mi2 + 1 < MAPS.length && !mapOpen(mi2 + 1));
+    var hasGoal = !!(showRunGoal() && M2.goal && mi2 + 1 < MAPS.length && !mapOpen(mi2 + 1));
     var met = hasGoal && mapBest(mi2) >= M2.goal;
     if (met && save.coins < (MAPS[mi2 + 1].price || 0)) hasGoal = false;
     var evN = eveningCount();
@@ -1895,27 +2317,30 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var nh: any = null;
     var y0 = hdRes.bottom + 4;
     var btnY = LH - 64 - bot;
-    var full = list.length * (squad ? 28 : 36) + (why ? 18 : 0) + (hasGoal ? (met ? 26 : 32) : 0) + (note ? 72 : 60) + (evN ? (13 + evN * 11 + 6) : 0) + 16 + (nh ? 26 : 0);
+    var resVis = 0;
+    for (var ri = 0; ri < list.length; ri++) { var rv = heroArtH((list[ri].look && list[ri].look.id) || "pilot", 1); if (rv > resVis) resVis = rv; }
+    var resRow = Math.max(33, Math.ceil(resVis + 4)), resStep = resRow + 3;
+    var full = list.length * (squad ? Math.max(28, resStep) : resStep) + (why ? 18 : 0) + (hasGoal ? (met ? 26 : 32) : 0) + (note ? 72 : 60) + (evN ? (13 + evN * 11 + 6) : 0) + 16 + (nh ? 26 : 0);
     var compact = full > btnY - 4 - y0;
     var y = y0;
     var limitY = btnY - 4;
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
-      var rowH = compact ? 13 : (squad ? 25 : 33);
-      var step = compact ? 14 : (squad ? 28 : 36);
+      var rowH = compact ? 13 : (squad ? Math.max(25, resRow) : resRow);
+      var step = compact ? 14 : (squad ? Math.max(28, resStep) : resStep);
       if (y + step > limitY) break;
       var fill = p.place === 1 ? "#6a4a10" : p.place === 2 ? "#3a4050" : p.place === 3 ? "#4a3020" : C.navy;
       box(ctx, x, y, 152, rowH, fill, p.id === 0 ? C.gold : C.cream);
       pushRes("place" + p.place, x, y, 152, rowH);
       if (compact) {
-        drawText(ctx, String(p.place), x + 8, y + 3, p.place === 1 ? C.gold : C.cream, 1, "center");
+        drawText(ctx, String(p.place), x + 8, y + 3, p.place === 1 ? TYPECOL.accent : TYPECOL.primary, TYPE.M, "center");
         drawFaceMark(x + 16, y + 1, p.look, !!p.alive);
-        drawText(ctx, String(p.name || "").slice(0, 8) + " " + t('unit.meters', { n: metersOf(p) }), x + 30, y + 3, C.cream, 1, "left");
+        drawText(ctx, String(p.name || "").slice(0, 8) + " " + t('unit.meters', { n: metersOf(p) }), x + 30, y + 3, TYPECOL.primary, TYPE.M, "left");
       } else {
-        drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? C.gold : C.cream, 2, "center");
-        drawJumper(ctx, x + 22, y + Math.round(rowH / 2 - 8), p.look, 1, "idle", false, true);
-        drawText(ctx, p.name + (p.id === 0 && squad ? t('results.you') : ""), x + 42, y + 4, C.cream, 1, "left");
-        drawText(ctx, t('unit.meters', { n: metersOf(p) }), x + 42, y + 14, C.cream, 1, "left");
+        drawText(ctx, String(p.place), x + 10, y + rowH / 2 - 6, p.place === 1 ? TYPECOL.accent : TYPECOL.primary, TYPE.L, "center");
+        drawJumper(ctx, x + 22, y + rowH - 16, p.look, 1, "idle", false, true, 1, true);
+        drawText(ctx, p.name + (p.id === 0 && squad ? t('results.you') : ""), x + 42, y + 4, TYPECOL.primary, TYPE.M, "left");
+        drawText(ctx, t('unit.meters', { n: metersOf(p) }), x + 42, y + 14, TYPECOL.primary, TYPE.M, "left");
       }
       y += step;
     }
@@ -1923,7 +2348,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var wh = compact ? 12 : 14;
       box(ctx, x, y, 152, wh, "#201838", "#8a7ab8");
       pushRes("why", x, y, 152, wh);
-      drawText(ctx, why, LW / 2, y + (compact ? 3 : 4), "#d8c8f0", 1, "center");
+      drawText(ctx, why, LW / 2, y + (compact ? 3 : 4), TYPECOL.muted, TYPE.M, "center");
       y += compact ? 13 : 18;
     }
     if (hasGoal && y + (compact ? 16 : (met ? 26 : 32)) <= limitY) {
@@ -1933,19 +2358,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         addHit("camp", x, y, 152, gh);
         box(ctx, x, y, 152, gh, C.navy, C.mint);
         pushRes("goal", x, y, 152, gh);
-        drawText(ctx, t('results.map_available', { name: nxt.name }), LW / 2, y + (compact ? 4 : 7), C.mint, 1, "center");
+        drawText(ctx, t('results.map_available'), LW / 2, y + (compact ? 4 : 7), TYPECOL.mint, TYPE.M, "center");
         y += compact ? 16 : 26;
       } else if (!compact) {
         box(ctx, x, y, 152, 28, C.navy, C.gold);
         pushRes("goal", x, y, 152, 28);
-        drawText(ctx, t('results.next_map', { name: to(mi2 + 1) }), x + 6, y + 3, C.cream, 1, "left");
-        drawText(ctx, t('unit.meter_progress', { n: b, goal: M2.goal }), x + 146, y + 3, C.cream, 1, "right");
+        drawText(ctx, t('results.next_map'), x + 6, y + 3, TYPECOL.primary, TYPE.M, "left");
+        drawText(ctx, t('unit.meter_progress', { n: b, goal: M2.goal }), x + 146, y + 3, TYPECOL.primary, TYPE.M, "right");
         bar(x + 6, y + 16, 140, 6, b / M2.goal, C.gold);
         y += 32;
       } else {
         box(ctx, x, y, 152, 14, C.navy, C.gold);
         pushRes("goal", x, y, 152, 14);
-        drawText(ctx, t('results.map_progress', { name: to(mi2 + 1), n: b, goal: M2.goal }), LW / 2, y + 4, C.cream, 1, "center");
+        drawText(ctx, t('results.map_progress', { n: b, goal: M2.goal }), LW / 2, y + 4, TYPECOL.primary, TYPE.M, "center");
         y += 16;
       }
     }
@@ -1954,9 +2379,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (y + ah + 4 <= limitY) {
       box(ctx, x, y, 152, ah, C.navy, C.gold);
       pushRes("award", x, y, 152, ah);
-      drawText(ctx, t('results.height', { n: mtr }), x + 6, y + 3, C.cream, 1, "left"); coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
-      drawText(ctx, t('results.collected'), x + 6, y + (compact ? 12 : 15), C.cream, 1, "left"); coinsLabel(x + 146, y + (compact ? 12 : 15), world.earnC || 0, "right");
-      drawText(ctx, t('results.treasures'), x + 6, y + (compact ? 21 : 27), C.cream, 1, "left"); coinsLabel(x + 146, y + (compact ? 21 : 27), world.earnB || 0, "right");
+      drawText(ctx, t('results.height', { n: mtr }), x + 6, y + 3, TYPECOL.primary, TYPE.M, "left"); coinsLabel(x + 146, y + 3, world.earnH || 0, "right");
+      drawText(ctx, t('results.collected'), x + 6, y + (compact ? 12 : 15), TYPECOL.primary, TYPE.M, "left"); coinsLabel(x + 146, y + (compact ? 12 : 15), world.earnC || 0, "right");
+      drawText(ctx, t('results.treasures'), x + 6, y + (compact ? 21 : 27), TYPECOL.primary, TYPE.M, "left"); coinsLabel(x + 146, y + (compact ? 21 : 27), world.earnB || 0, "right");
       var dur = 700, nowA = (typeof performance !== "undefined" ? performance.now() : Date.now());
       if (coinT0 < 0) coinT0 = nowA;
       var kk = coinSkip ? 1 : Math.max(0, Math.min(1, (nowA - coinT0) / dur));
@@ -1965,12 +2390,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var shownTot = (world.coinFrom != null ? world.coinFrom : (save.coins - (world.earned || 0))) + shownEarn;
       if (kk < 1 && (ui % 4 === 0)) hopSfx("tick");
       if (compact) {
-        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, C.gold, 1, "center");
-        if (note) drawText(ctx, note, LW / 2, y + 39, C.cream, 1, "center");
+        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 30, TYPECOL.accent, TYPE.M, "center");
+        if (note) drawText(ctx, note, LW / 2, y + 39, TYPECOL.primary, TYPE.M, "center");
       } else {
         rect(ctx, x + 6, y + 37, 140, 1, "#5a4a7a");
-        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 42, C.gold, 2, "center");
-        if (note) drawText(ctx, note, LW / 2, y + 62, C.cream, 1, "center");
+        drawText(ctx, "+" + shownEarn + " → " + shownTot, LW / 2, y + 42, TYPECOL.accent, TYPE.L, "center");
+        if (note) drawText(ctx, note, LW / 2, y + 62, TYPECOL.primary, TYPE.M, "center");
       }
       y += compact ? ah + 3 : (note ? 72 : 60);
     }
@@ -1984,11 +2409,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (world.newBest) {
         box(ctx, x, y, 152, 13, C.navy, C.gold);
         pushRes("record", x, y, 152, 13);
-        drawText(ctx, t('results.new_record', { n: rec }), LW / 2, y + 3, C.gold, 1, "center");
+        drawText(ctx, t('results.new_record', { n: rec }), LW / 2, y + 3, TYPECOL.accent, TYPE.M, "center");
         y += 15;
       } else {
         pushRes("record", x, y, 152, 9);
-        drawText(ctx, t('results.map_record', { n: rec }), LW / 2, y + 1, C.cream, 1, "center");
+        drawText(ctx, t('results.map_record', { n: rec }), LW / 2, y + 1, TYPECOL.primary, TYPE.M, "center");
         y += 12;
       }
     }
@@ -1998,21 +2423,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         addHit("shop", x, y, 152, 22);
         box(ctx, x, y, 152, 22, C.navy, C.mint);
         pushRes("need", x, y, 152, 22);
-        drawText(ctx, t('results.hero_available', { name: hto(nh.i) }), LW / 2, y + 7, C.mint, 1, "center");
+        drawText(ctx, t('results.hero_available', { name: hto(nh.i) }), LW / 2, y + 7, TYPECOL.mint, TYPE.M, "center");
       } else if (!compact) {
         box(ctx, x, y, 152, 22, C.navy, C.coral);
         pushRes("need", x, y, 152, 22);
-        drawText(ctx, t('results.hero_remaining', { name: hto(nh.i), n: nh.left }), LW / 2, y + 3, C.cream, 1, "center");
+        drawText(ctx, t('results.hero_remaining', { name: hto(nh.i), n: nh.left }), LW / 2, y + 3, TYPECOL.primary, TYPE.M, "center");
         var runsLeft = Math.max(1, Math.ceil(nh.left / Math.max(8, world.earned || 8)));
-        drawText(ctx, t('results.runs_left', { n: runsLeft }), LW / 2, y + 12, C.gold, 1, "center");
+        drawText(ctx, t('results.runs_left', { n: runsLeft }), LW / 2, y + 12, TYPECOL.accent, TYPE.M, "center");
       } else {
         box(ctx, x, y, 152, nhH, C.navy, C.coral);
         pushRes("need", x, y, 152, nhH);
-        drawText(ctx, t('results.hero_progress', { name: hto(nh.i), n: nh.left }), LW / 2, y + 3, C.cream, 1, "center");
+        drawText(ctx, t('results.hero_progress', { name: hto(nh.i), n: nh.left }), LW / 2, y + 3, TYPECOL.primary, TYPE.M, "center");
       }
     }
     var lab = squad ? t('results.rematch') : t('results.again');
-    btn("rematch", x, btnY, 152, 28, C.mint, lab, INK, 2);
+    btn("rematch", x, btnY, 152, 28, C.mint, lab, TYPECOL.ink, TYPE.L);
     btn("menu", x, btnY + 32, 72, 22, C.navy, t('common.menu'));
     btn("shop", x + 80, btnY + 32, 72, 22, C.navy, t('shop.title'));
     pushRes("rematch", x, btnY, 152, 28);
@@ -2022,12 +2447,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function drawFontSheet() {
     hits = [];
     dimView(ctx, "#120c28");
-    drawText(ctx, t('debug.font'), LW / 2, 6, C.gold, 2, "center");
-    var words = [CHARS[2].name, t('common.menu'), CHARS[3].abName, t('shop.buy', { n: 80 }), t('campaign.reach'), t('menu.play'), t('results.again'), t('lobby.with_bots'), t('score.goal', { n: 500 })];
-    for (var i = 0; i < words.length; i++) drawText(ctx, words[i], 6, 28 + i * 12, C.cream, 1, "left");
+    drawText(ctx, t('debug.font'), LW / 2, 6, TYPECOL.accent, TYPE.L, "center");
+    var words = [CHARS[2].name, t('common.menu'), CHARS[3].abName, t('shop.charge') + '40%', t('shop.buy', { n: 80 }), t('campaign.reach'), t('menu.play'), t('results.again'), t('lobby.with_bots'), t('score.goal', { n: 2000 })];
+    for (var i = 0; i < words.length; i++) drawText(ctx, words[i], 6, 28 + i * 12, TYPECOL.primary, TYPE.M, "left");
     var keys = Object.keys(FONT), x = 6, y = 28 + words.length * 12 + 8;
     for (var k = 0; k < keys.length; k++) {
-      drawText(ctx, keys[k], x, y, C.mint, 1, "left");
+      drawText(ctx, keys[k], x, y, TYPECOL.mint, TYPE.M, "left");
       x += 12; if (x > LW - 12) { x = 6; y += 12; }
     }
     btn("back", colX() + 26, LH - 28, 100, 20, C.navy, t('common.back'));
@@ -2063,9 +2488,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     bindTgInsets();
-    HUD_INSET = phase === "play" ? Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) : 0;
+    HUD_INSET = phase === "play" ? Math.max(0, Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) - VIEW_TOPPAD) : 0;
     syncBackdrop(menuMap());
-    if (phase === "play" && world && world.phase === "play" && !paused) {
+    if (phase === "play" && world && world.phase === "play" && !paused && !simHold) {
       acc += dt;
       var steps = 0;
       if (world.net && NET.waiting && NET.waiting(world)) acc = 0;
@@ -2093,7 +2518,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (phoneLand && phase !== "play") {
       dimView(ctx, "rgba(8,6,20,0.55)");
       box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
-      drawText(ctx, t('play.rotate'), LW / 2, LH / 2 - 14, C.cream, 1, "center");
+      drawText(ctx, t('play.rotate'), LW / 2, LH / 2 - 14, TYPECOL.primary, TYPE.M, "center");
       hits = [];
     }
     if (PHONE_INT && FIELD_OY > 0) {
@@ -2113,7 +2538,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned, accountName: accountName, relayout: function () { resize(); },
     sessionReplaced: function () { sessionNote = true; goMenu(); },
     sessionOk: function () { sessionNote = false; },
-    bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
+    bg: function () { applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); }); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
     setPhase: function (p: string) { phase = p; }, goMenu: goMenu,
@@ -2172,11 +2597,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       } else applyMaster();
     }
     if (document.hidden && phase === "play") paused = true;
+    if (!document.hidden) lockTgSwipes();
   }
   var envSide: any = {};
   var testInsetTop = 0;
   function insetSideCss(side: string) {
     var sum = 0;
+    var tov = (window as any).__hopTestInset;
+    if (tov && tov[side] != null) return Number(tov[side]) || 0;
     try {
       var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
       if (tg) {
@@ -2206,11 +2634,45 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return envSide[side];
   }
   function insetTopCss() { return insetSideCss("top"); }
+  /* Bottom UI (tab bar, НАЗАД): only the system home-indicator inset.
+     contentSafeAreaInset.bottom is the Telegram pull-bar, which we disable;
+     counting it too left a huge empty band and crushed the shop hero. */
+  function insetBottomUiCss() {
+    var tov = (window as any).__hopTestInset;
+    if (tov && tov.bottomUi != null) return Number(tov.bottomUi) || 0;
+    if (tov && tov.bottom != null && tov.safeBottom == null) {
+      /* tests that pass a single bottom value: treat as the system bar if small, else cap */
+      var b = Number(tov.bottom) || 0;
+      return Math.min(b, 40);
+    }
+    try {
+      var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
+      if (tg && tg.safeAreaInset && tg.safeAreaInset.bottom != null) {
+        var sys = Number(tg.safeAreaInset.bottom) || 0;
+        if (sys > 0) return sys;
+      }
+    } catch (_e) {}
+    return insetSideCss("bottom");
+  }
   function edgePad(side: string) {
     return 5 + Math.round(insetSideCss(side) / Math.max(0.01, cssScale || 1));
   }
   function pauseBox() {
     return { x: LW - edgePad("right") - 22, y: hudY(0), w: 22, h: 22 };
+  }
+  /* Expand the Mini App and turn off Telegram's own swipe-to-collapse (the white bottom pull bar).
+     Version-guarded; does not touch the in-game upward swipe that fires the hero ability (onPtrMove).
+     Never logs initData or the token. */
+  function lockTgSwipes() {
+    try {
+      var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
+      if (!tg) return;
+      try { if (tg.expand) tg.expand(); } catch (_e1) {}
+      try {
+        var ok = !(tg.isVersionAtLeast) || tg.isVersionAtLeast("7.7");
+        if (ok && tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+      } catch (_e2) {}
+    } catch (_e3) {}
   }
   function bindTgInsets() {
     if (tgInsetBound) return;
@@ -2219,17 +2681,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!tg) {
       if (w.__tgReady && w.__tgReady.then && !w.__hopInsetWait) {
         w.__hopInsetWait = true;
-        w.__tgReady.then(function () { bindTgInsets(); });
+        w.__tgReady.then(function () { bindTgInsets(); lockTgSwipes(); });
       }
       return;
     }
     tgInsetBound = true;
-    var bump = function () { resize(); };
+    lockTgSwipes();
+    var bump = function () { lockTgSwipes(); resize(); };
     try {
       if (tg.onEvent) {
         tg.onEvent("safeAreaChanged", bump);
         tg.onEvent("contentSafeAreaChanged", bump);
         tg.onEvent("fullscreenChanged", bump);
+        tg.onEvent("viewportChanged", bump);
+        tg.onEvent("activated", bump);
       }
     } catch (_e) {}
     try {
@@ -2242,6 +2707,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     try { return !!(navigator && navigator.maxTouchPoints); } catch (_e) { return false; }
   }
   var ptrRoot: any = wrap || canvas;
+  updateDesktopLanguage();
   resize();
   window.addEventListener("resize", resize);
   document.addEventListener("fullscreenchange", function () {
@@ -2270,10 +2736,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var onTouch = function (e: any) { audioUnlock(); noScroll(e); };
   canvas.addEventListener("touchstart", onTouch, { passive: false });
   if (ptrRoot !== canvas) ptrRoot.addEventListener("touchstart", noScroll, { passive: false });
-  loadGameTranslations(PROFILE.apiOrigin(), function () { if (running) updateDesktopLanguage(); });
-  (window as any).__tgReady?.then(function () { if (running) updateDesktopLanguage(); });
   raf = requestAnimationFrame(frame);
 
+  try { if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.apiOrigin) loadGameTranslations(PROFILE.apiOrigin(), function () { if (running) { updateDesktopLanguage(); resize(); } }); } catch (_e) {}
   return {
     destroy: function () {
       running = false;
@@ -2300,11 +2765,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getPhase: function () { return phase; },
     dbgToast: function (s: string) { if (world) { world.toast = s; world.toastT = 70; } },
     getWorld: function () { return world; },
+    heroPose: function () { var p0 = world && world.players[0]; var a = p0 && animSt && animSt.get(p0); return a ? a.pose : null; },
     net: NET,
     profile: typeof PROFILE !== "undefined" ? PROFILE : null,
     getSave: function () { return save; },
     getFlash: function () { return flash; },
-    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, viewTopPad: VIEW_TOPPAD, hudInset: HUD_INSET, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    hopInfo: function () { return lastHop; },
     tap: function (id: string) { activate(id); },
     audioUnlock: function () { audioUnlock(); },
     sfxPlay: function (k: string) { hopSfx(k); },
@@ -2361,6 +2828,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var cv = pixelizeImage(img);
       return cv ? cv.toDataURL("image/png") : "";
     },
+    hold: function (on: boolean) { simHold = !!on; acc = 0; },
     pause: function (on: boolean) { paused = !!on; manualPause = !!on; acc = 0; uiAcc = 0; lastT = -1; },
     warp: function (m: number) {
       if (!world) return;
@@ -2481,10 +2949,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       NET.room = { code: "1234", you: 1, host: 1, map: "city", players: [
         { pid: 1, slot: 0, name: "ROMAN", kind: 1, ready: true, on: true },
         { pid: 2, slot: 1, name: "АННА", kind: 0, ready: true, on: true },
-        { pid: 3, slot: 2, name: t('lobby.bot'), kind: 2, ready: true, on: true, bot: true },
+        { pid: 3, slot: 2, name: "БОТ", kind: 2, ready: true, on: true, bot: true },
         { pid: 4, slot: 3, name: "МИРА", kind: 3, ready: false, on: true }
       ] };
-      NET.session = { rounds: [{ round: 1 }, { round: 2 }, { round: 3 }, { round: 4 }, { round: 5 }], names: { 1: "ROMAN", 2: "АННА", 3: t('lobby.bot'), 4: "МИРА" }, wins: { 1: 2, 2: 1, 3: 1, 4: 1 }, best: { 1: 10, 2: 9, 3: 8, 4: 7 } };
+      NET.session = { rounds: [{ round: 1 }, { round: 2 }, { round: 3 }, { round: 4 }, { round: 5 }], names: { 1: "ROMAN", 2: "АННА", 3: "БОТ", 4: "МИРА" }, wins: { 1: 2, 2: 1, 3: 1, 4: 1 }, best: { 1: 10, 2: 9, 3: 8, 4: 7 } };
       screenLay = [];
       hits = [];
       NET.draw(netApi);
@@ -2537,7 +3005,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var w = createWorld(seed, "solo", 0, makeLook(0, "base", "none"), mapId || save.bg);
       generateUntil(w, -toM * PX_PER_M - 200);
       return {
-        jumpH: JUMP_H, gapCap: GAP_CAP, rowSep: ROW_SEP, xSep: X_SEP,
+        jumpH: JUMP_H, gapCap: GAP_CAP, rowSep: ROW_SEP, xSep: X_SEP, lw: LW,
         platforms: w.platforms.map(function (p: any) { return { x: p.x, y: p.y, w: p.w, type: p.type, spring: p.spring, row: p.row, vx: p.vx }; }),
         monsters: w.monsters.map(function (m: any) { return { kind: m.kind, x: m.x, y: m.y, w: m.w, h: m.h, b: m.b, topY: m.topY, home: !!m.home }; }),
         unsupported: unsupportedMobs(w),

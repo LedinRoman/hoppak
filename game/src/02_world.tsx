@@ -43,10 +43,36 @@ function ensureReach(w: any, row: any[], y: number) {
     }
     if (ok) continue;
     var pw = 36;
-    var x = Math.round(prev[a].x + prev[a].w / 2 - pw / 2);
-    while (x < 2) x += LW;
-    while (x + pw > LW - 2) x -= LW;
-    if (x < 2) x = 2;
+    var x0 = Math.round(prev[a].x + prev[a].w / 2 - pw / 2);
+    /* v1.0: never overlap a platform of this row (X_SEP clear, wrap-aware). Search outward from the
+       ideal spot, keep it within reach of the previous platform. No RNG, so seeds stay deterministic. */
+    var x = -1;
+    for (var dxs = 0; dxs <= LW && x < 0; dxs++) {
+      for (var sg = 0; sg < (dxs ? 2 : 1); sg++) {
+        var cx = x0 + (sg ? -dxs : dxs);
+        while (cx < 2) cx += LW;
+        while (cx + pw > LW - 2) cx -= LW;
+        if (cx < 2) continue;
+        if (edgeGap(prev[a].x, prev[a].w, cx, pw) > reach + 0.01) continue;
+        var free = true;
+        for (var oi = 0; oi < row.length; oi++) if (edgeGap(cx, pw, row[oi].x, row[oi].w) < X_SEP) { free = false; break; }
+        if (free) { x = cx; break; }
+      }
+    }
+    if (x < 0) {
+      /* No free spot in reach: make the nearest reachable platform of this row stable instead. */
+      var bestP: any = null, bestG = 1e9;
+      for (var ri = 0; ri < row.length; ri++) {
+        var gg = edgeGap(prev[a].x, prev[a].w, row[ri].x, row[ri].w);
+        if (gg < bestG) { bestG = gg; bestP = row[ri]; }
+      }
+      if (bestP && bestG <= reach + 0.01) {
+        bestP.type = "normal"; bestP.broken = false;
+        stable.push(bestP);
+        continue;
+      }
+      x = Math.max(2, Math.min(LW - pw - 2, x0));
+    }
     var np = mkPlat(x, y, pw, "normal", row.length ? row[0].row : w.rowN);
     row.push(np);
     w.platforms.push(stampPlat(w, np));
@@ -170,7 +196,7 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
       var canHang = false;
       for (var hi = 0; hi < row.length; hi++) {
         var hp = row[hi];
-        if (!isPerm(hp.type) || hp.broken || hp.w < M.w + 4) continue;
+        if (!isPerm(hp.type) || hp.broken || hp.spring || hp.type === "bounce" || hp.w < M.w + 4) continue;
         if (spaceBelow(w, hp, hp.x + 2, M.w) >= 22) { canHang = true; break; }
       }
       if (!canHang) continue;
@@ -198,7 +224,7 @@ function spawnMob(w: any, row: any[], y: number, gap: number, m: number, d: numb
   var M2 = MOBS[kind];
   w.lastMobRow[kind] = w.rowN;
   if (M2.b === "snake") {
-    var hangs = row.filter(function (p: any) { return isPerm(p.type) && !p.broken && p.w >= M2.w + 4 && spaceBelow(w, p, p.x + 2, M2.w) >= 22; });
+    var hangs = row.filter(function (p: any) { return isPerm(p.type) && !p.broken && !p.spring && p.type !== "bounce" && p.w >= M2.w + 4 && spaceBelow(w, p, p.x + 2, M2.w) >= 22; });
     if (!hangs.length) return false;
     var hs = hangs[Math.floor(r() * hangs.length)];
     var sx = hs.x + randInt(r, 1, Math.max(1, hs.w - M2.w - 1));
@@ -343,7 +369,11 @@ function genRow(w: any) {
   if (minG > maxG) minG = maxG;
   var gap = randInt(r, minG, maxG);
 
-  var pMon = m < 180 ? 0 : m < 400 ? 0.045 : lerp(0.07, 0.26, d);
+  var pMon = m < 120 ? 0 : m < 400 ? 0.085 : lerp(0.13, 0.26, d);
+  /* City lost the mid-air jellyfish; trash (platform-only from 400 m) and bat from 800 m
+     would otherwise spawn fewer mobs than before. Boost attempts after 400 m so city
+     density stays at or above the previous table. */
+  if (mapInfo(w.map).id === "city" && m >= 400) pMon *= 1.18;
   var mob = r() < pMon ? spawnMob(w, row, y, gap, m, d, isMove) : false;
   var bonus = false;
   if (!mob && m >= w.nextBonusM && gap >= 26) {
@@ -387,7 +417,7 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     bias: [0, -14, 14, 6][i], react: [1, 3, 4, 5][i], tgt: null, botDir: 0,
     abCharge: CHARS[kind].need, abFx: 0, hookT: 0, hookN: 0, hx0: 0, hy0: 0, htx: 0, hty: 0, hookPl: null, hookCoin: null,
     teleT: 0, teleN: 0, tx0: 0, ty0: 0, ttx: 0, tty: 0,
-    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, stallT: 0, stallH: 0
+    domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, ramFx: 0, stallT: 0, stallH: 0
   };
 }
 function createWorld(seed: number, mode: string, humanKind: number, humanLook: any, mapId?: string) {
@@ -400,7 +430,7 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
   w.platforms.push(stampPlat(w, mkPlat(8, 0, LW - 16, "normal", 0)));
-  var xs = mode === "squad" ? [74, 22, 124, 48] : [74];
+  var xs = mode === "squad" ? [74, 22, 124, 48] : [Math.round(LW / 2) - 6];
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
   if (mode === "squad") {
     var bk = botKinds(humanKind);
@@ -531,14 +561,15 @@ function grabPlayer(w: any, p: any, mo: any) {
   p.grabT = 45; p.grabMob = mo; mo.cool = 160;
   if (p.id === 0) toast(w, t('play.snake_caught'));
 }
-function toast(w: any, s: string) { w.toast = s; w.toastT = 70; }
+/* v1.0: in-game floating/intro hint texts are off (break, ability names, pickups…). */
+function toast(w: any, _s: string) { /* no-op */ }
 function hasLandablePlat(w: any, p: any) {
   var feet = p.y + PH, reach = 28;
   for (var i = 0; i < w.platforms.length; i++) {
     var q = w.platforms[i];
     if (q.broken) continue;
     if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) continue;
-    if (q.y + 3 >= (p.prevY + PH) - 2 && q.y <= feet + reach && overlapsX(p.x + 1, PW - 2, q.x, q.w)) return true;
+    if (q.y + 3 >= (p.prevY + PH) - 2 && q.y <= feet + reach && overlapsX(p.x + LAND_PAD_X, PW - LAND_PAD_X * 2, q.x, q.w)) return true;
   }
   return false;
 }
@@ -546,7 +577,7 @@ function landOn(w: any, p: any, pl: any) {
   p.y = pl.y - PH;
   p.baseY = pl.y;
   p.squash = 7;
-  var spr = pl.spring && overlapsX(p.x + 2, PW - 4, pl.x + pl.w / 2 - 5, 10);
+  var spr = pl.spring && overlapsX(p.x + LAND_PAD_X, PW - LAND_PAD_X * 2, pl.x + pl.w / 2 - 5, 10);
   if (spr) {
     p.vy = SPRING_V;
     pl.springT = 10;
@@ -588,6 +619,7 @@ function landOn(w: any, p: any, pl: any) {
   }
   if (p.poundT > 0) {
     p.poundT = 0;
+    p.ramFx = 20; /* render-only: knight impact / launch frames */
     p.vy = Math.min(p.vy, JUMP_V * 1.42); /* risk -> reward: ~2x normal jump height */
     if (p.id === 0) w.shake = 7;
     spawnParts(w, p.x + 6, pl.y, 14, "#ffd046", 3, 0.1, 2);
@@ -867,6 +899,7 @@ function tickWorld(w: any, inputs: any) {
     if (p.dashT > 0) p.dashT--;
     var inp = inputs[p.id] || { dir: 0, ax: 0 };
     if (p.teleFx > 0) p.teleFx--;
+    if (p.ramFx > 0) p.ramFx--;
     if (p.wallT > 0) { p.wallT--; if (p.wallT === 0) p.wall = 0; }
     /* ninja on a wall: tap the ability button or press away from the wall -> kick up and away */
     if (p.wall && (inp.ab || (inp.dir || 0) === -p.wall || (inp.ax && Math.sign(inp.ax) === -p.wall && Math.abs(inp.ax) > 0.3))) {
@@ -959,13 +992,18 @@ function tickWorld(w: any, inputs: any) {
         continue;
       }
       if (h.b !== "pull" || p.rocketT > 0 || mobFrozen) continue;
-      var hx = wrapDx(h.x + 7 - (p.x + PW / 2)), hy = h.y + 7 - (p.y + PH / 2);
+      var isHole = h.kind === "hole";
+      var crx = (h.w || (isHole ? HOLE_W : 14)) / 2, cry = (h.h || (isHole ? HOLE_H : 14)) / 2;
+      var hx = wrapDx(h.x + crx - (p.x + PW / 2)), hy = h.y + cry - (p.y + PH / 2);
       var dist = Math.sqrt(hx * hx + hy * hy);
-      if (dist < 6) { hurt(w, p, "hole", h); if (!p.alive) break; continue; }
-      if (dist < 36 && !invuln(p)) {
-        var fpull = 0.11 * (1 - dist / 36);
+      var killR = isHole ? HOLE_KILL_RADIUS : 6;
+      var pullR = isHole ? crx * HOLE_PULL_RANGE_MUL : 36;
+      if (dist < killR) { hurt(w, p, "hole", h); if (!p.alive) break; continue; }
+      if (dist < pullR && !invuln(p)) {
+        var fpull = (isHole ? HOLE_PULL_ACCEL : 0.11) * (1 - dist / pullR);
+        if (isHole && fpull > HOLE_PULL_ACCEL_CAP) fpull = HOLE_PULL_ACCEL_CAP;
         p.vx += (hx / dist) * fpull;
-        p.vy += (hy / dist) * fpull * 0.6;
+        p.vy += (hy / dist) * fpull * (isHole ? HOLE_PULL_VY : 0.6);
       }
     }
     if (!p.alive) continue;
@@ -996,7 +1034,7 @@ function tickWorld(w: any, inputs: any) {
         var q = w.platforms[k];
         if (q.broken) continue;
         if (q.y > p.camY + LH) continue;
-        if (pf <= q.y + 3 && feet >= q.y && overlapsX(p.x + 1, PW - 2, q.x, q.w)) {
+        if (pf <= q.y + 3 && feet >= q.y && overlapsX(p.x + LAND_PAD_X, PW - LAND_PAD_X * 2, q.x, q.w)) {
           if (p.poundT > 0 && (q.type === "break" || q.type === "cloud")) { q.broken = true; q.breakT = 14; if (w.net && q.type === "break") q.netTell = 1; spawnParts(w, q.x + q.w / 2, q.y + 2, 12, C.brk, 2.6, 0.22, 2); if (p.id === 0) w.shake = 3; continue; }
           landOn(w, p, q); break;
         }
@@ -1013,7 +1051,7 @@ function tickWorld(w: any, inputs: any) {
         if (threat) m2.warnT = 18;
       }
       var bb = mobBox(m2);
-      if (overlapsX(p.x + 2, PW - 4, bb[0] + 1, bb[2] - 2) && p.y + 4 < bb[1] + bb[3] && p.y + PH > bb[1]) {
+      if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bb[0] + 1, bb[2] - 2) && p.y + HURT_PAD_Y < bb[1] + bb[3] && p.y + PH > bb[1]) {
         if (p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0) { killMob(w, m2, p, true); continue; }
         if (mobFrozen) { if (p.vy > 0 && p.prevY + PH <= bb[1] + 5) killMob(w, m2, p); continue; }
         var stompable = !(m2.b === "puff" && m2.big);
@@ -1026,7 +1064,7 @@ function tickWorld(w: any, inputs: any) {
     for (k = 0; k < w.bullets.length; k++) {
       var bl = w.bullets[k];
       if (bl.life <= 0) continue;
-      if (overlapsX(p.x + 2, PW - 4, bl.x - 1, 3) && bl.y + 4 > p.y + 2 && bl.y < p.y + PH) {
+      if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bl.x - 1, 3) && bl.y + 4 > p.y + 2 && bl.y < p.y + PH) {
         if (invuln(p)) { bl.life = 0; continue; }
         bl.life = 0;
         if (bl.kind === "ice") freezePlayer(w, p);

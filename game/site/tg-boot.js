@@ -16,36 +16,44 @@
   }
   if (!insideTelegram()) { done(false); return; }
   var opened = false;
-  /* One call, only from the SDK script's onload. ready/expand/fullscreen
-     before that races an undefined WebApp. */
+  /* ready/expand before the SDK onload races an undefined WebApp. If initData is
+     still empty on first onload, retry — otherwise expand/disableVerticalSwipes never run
+     and the Mini App stays a short sheet with a pullable bottom bar. */
   function openMiniApp() {
-    if (opened) return;
     var tg = window.Telegram && window.Telegram.WebApp;
-    if (!tg) return;
+    if (!tg) return false;
     var data = typeof tg.initData === "string" ? tg.initData : "";
     var platform = typeof tg.platform === "string" ? tg.platform : "";
-    if (!data && (!platform || platform === "unknown")) return;
+    if (!data && (!platform || platform === "unknown")) return false;
     opened = true;
     try { tg.ready(); } catch (e) {}
     try { tg.expand(); } catch (e) {}
-    /* Fullscreen and swipe lock only on phones. Desktop and web clients stay in their window. */
-    if (platform === "ios" || platform === "android") {
+    /* disableVerticalSwipes: Telegram's swipe-to-collapse only (Bot API 7.7+).
+       The in-game upward swipe for the hero ability is handled by the game and is left alone. */
+    try {
       var atLeast = function (v) {
-        try { return !!(tg.isVersionAtLeast && tg.isVersionAtLeast(v)); } catch (e) { return false; }
+        try { return !(tg.isVersionAtLeast) || tg.isVersionAtLeast(v); } catch (e) { return true; }
       };
-      if (atLeast("8.0")) {
-        try { if (tg.requestFullscreen) tg.requestFullscreen(); } catch (e) {}
+      if (atLeast("7.7") && tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+      if ((platform === "ios" || platform === "android") && atLeast("8.0") && tg.requestFullscreen) {
+        try { tg.requestFullscreen(); } catch (e2) {}
       }
-      if (atLeast("7.7")) {
-        try { if (tg.disableVerticalSwipes) tg.disableVerticalSwipes(); } catch (e) {}
-      }
-    }
+    } catch (e) {}
+    try {
+      if (tg.onEvent) tg.onEvent("viewportChanged", function () { try { tg.expand(); } catch (e3) {} });
+    } catch (e4) {}
+    return true;
+  }
+  var tries = 0;
+  function tryOpen() {
+    try { if (openMiniApp()) return; } catch (e) {}
+    if (++tries < 20) setTimeout(tryOpen, 200);
   }
   var s = document.createElement("script");
   s.src = "https://telegram.org/js/telegram-web-app.js";
   s.async = true;
   s.onload = function () {
-    try { openMiniApp(); } catch (e) {}
+    try { tryOpen(); } catch (e) {}
     done(true);
   };
   s.onerror = function () { done(false); };

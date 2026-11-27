@@ -1,0 +1,92 @@
+name: Deploy staging client
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - 'game/**'
+      - 'scripts/deploy-stage.sh'
+      - 'deploy/caddy/**'
+      - '.github/workflows/deploy-staging.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hoppak-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install esbuild
+        run: |
+          mkdir -p /tmp/esb
+          npm --prefix /tmp/esb install esbuild@0.25.0
+
+      - name: Build site
+        env:
+          HOP_SERVER: https://staging.76-13-250-251.sslip.io
+          HOP_VER_LABEL: v1.0-w18
+        run: |
+          export ESB=/tmp/esb/node_modules/.bin/esbuild
+          bash game/build.sh site
+          grep -q "staging.76-13-250-251.sslip.io" game/site/hoppak.js
+          grep -q "Хоппак v1.0-w18" game/site/index.html
+
+      - name: Configure SSH
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Publish /stage/ on the VPS
+        run: |
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          SHA=$(git rev-parse --short=12 HEAD)
+          TAR=/tmp/hoppak-stage-site.tgz
+          tar -C game/site -czf "$TAR" .
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "set -euo pipefail
+             mkdir -p /srv/hopper-staging/backups /srv/hopper-staging/site"
+          scp -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$TAR" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/hoppak-stage-site.tgz"
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "set -euo pipefail
+             NEXT=/srv/hopper-staging/site/stage.next
+             rm -rf \$NEXT
+             mkdir -p \$NEXT
+             tar xzf /tmp/hoppak-stage-site.tgz -C \$NEXT
+             rm -f /tmp/hoppak-stage-site.tgz
+             if [ -f /srv/hopper-staging/site/stage/index.html ]; then
+               mkdir -p /srv/hopper-staging/backups/site-stage-$STAMP
+               cp -a /srv/hopper-staging/site/stage /srv/hopper-staging/backups/site-stage-$STAMP/stage
+             fi
+             rm -rf /srv/hopper-staging/site/stage.prev
+             if [ -d /srv/hopper-staging/site/stage ]; then mv /srv/hopper-staging/site/stage /srv/hopper-staging/site/stage.prev; fi
+             mv \$NEXT /srv/hopper-staging/site/stage
+             printf '%s\n' '$SHA' 'https://staging.76-13-250-251.sslip.io' \"\$(date -u +%Y-%m-%dT%H:%M:%SZ)\" > /srv/hopper-staging/site/stage/DEPLOYED"
+
+      - name: Verify /stage/
+        run: |
+          set -e
+          code=$(curl -sS -m 20 -o /tmp/stage.html -w '%{http_code}' https://staging.76-13-250-251.sslip.io/stage/)
+          test "$code" = 200
+          grep -q '<title>Хоппак' /tmp/stage.html
+          curl -sfS -m 20 https://staging.76-13-250-251.sslip.io/api/health >/dev/null
+
+      - name: Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/known_hosts

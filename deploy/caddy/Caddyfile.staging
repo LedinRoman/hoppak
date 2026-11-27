@@ -1,0 +1,117 @@
+# Hoppak STAGING Caddy (plain HTTP inside docker; TLS terminates in prod Caddy).
+# Active slot lives in active_slot.caddy (rewritten by /srv/hopper-staging/deploy.sh).
+#
+# 2026-11-27: one staging Mini App at /stage/ (branch `staging`).
+# / and /v/1.0/ redirect there. Other /v/* stay as an archive.
+# Profile API routes stay before handle /api/*.
+{
+	auto_https off
+	admin localhost:2019
+}
+
+:80 {
+	encode zstd gzip
+
+	# /internal/* must never be reachable from outside
+	handle /internal/* {
+		respond 404
+	}
+	handle /internal {
+		respond 404
+	}
+
+	handle /ws/blue {
+		rewrite * /ws
+		reverse_proxy game_blue:8787 {
+			stream_close_delay 30m
+		}
+	}
+	handle /ws/green {
+		rewrite * /ws
+		reverse_proxy game_green:8787 {
+			stream_close_delay 30m
+		}
+	}
+	handle /ws {
+		import /etc/caddy/active_slot.caddy
+	}
+
+	# Profile API (hs-profile). Must stay before handle /api/*.
+	@profile_api path /api/profile /api/profile/* /api/run/* /api/auth/* /api/translations
+	handle @profile_api {
+		reverse_proxy profile:8787
+	}
+
+	handle /api/* {
+		header Access-Control-Allow-Origin *
+		import /etc/caddy/active_slot.caddy
+	}
+	handle /health {
+		header Access-Control-Allow-Origin *
+		rewrite * /api/health
+		import /etc/caddy/active_slot.caddy
+	}
+
+	# Current staging app (branch `staging`)
+	# Exact /stage only (path /stage would also match /stage/ and loop).
+	@stage_exact path_regexp ^/stage$
+	handle @stage_exact {
+		redir * /stage/ 302
+	}
+	handle /stage/* {
+		@stage_shell path /stage /stage/ /stage/index.html /stage/hoppak.js /stage/tg-boot.js
+		header @stage_shell Cache-Control no-cache
+		root * /srv/site
+		try_files {path} /stage/index.html
+		file_server
+	}
+
+	# Old v1 Mini App path and leftover v0.58 root → /stage/
+	handle /v/1.0 {
+		redir * /stage/ 302
+	}
+	handle /v/1.0/* {
+		redir * /stage/ 302
+	}
+	handle / {
+		redir * /stage/ 302
+	}
+	handle /index.html {
+		redir * /stage/ 302
+	}
+	handle /hoppak.js {
+		redir * /stage/hoppak.js 302
+	}
+
+	# Telegram safe-area debug page (exp/tg-safearea @ 826ce5c, static, archive)
+	handle /tgdebug {
+		redir * /tgdebug/ 302
+	}
+	handle /tgdebug/* {
+		header Cache-Control no-cache
+		root * /srv/site
+		file_server
+	}
+	handle /versions {
+		header Cache-Control no-cache
+		root * /srv/site
+		rewrite * /versions/index.html
+		file_server
+	}
+	handle /v {
+		redir * /v/ 302
+	}
+	handle_path /v/* {
+		@shell path / /*/ *.html *.json
+		header @shell Cache-Control no-cache
+		root * /srv/site/v
+		file_server
+	}
+	handle {
+		@shell path / /index.html /hoppak.js
+		header @shell Cache-Control no-cache
+		root * /srv/site
+		try_files {path} /index.html
+		file_server
+	}
+}

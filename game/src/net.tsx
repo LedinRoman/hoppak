@@ -1,17 +1,18 @@
 function roomErrorText(code: string) {
-    switch (code) {
-      case 'BUSY': return t('err.busy');
-      case 'NOT_FOUND': return t('err.not_found');
-      case 'IN_GAME': return t('err.in_game');
-      case 'FULL': return t('err.full');
-      case 'NOT_HOST': return t('err.not_host');
-      case 'BAD_PID': return t('err.bad_pid');
-      case 'BAD_MAP': return t('err.bad_map');
-      case 'NOT_READY': return t('err.not_ready');
-      case 'NO_ROOM': return t('err.no_room');
-      case 'INTERNAL': return t('err.internal');
-      default: return t('err.generic');
-    }
+  switch (code) {
+    case "BUSY": return t('err.busy');
+    case "NOT_FOUND": return t('err.not_found');
+    case "IN_GAME": return t('err.in_game');
+    case "FULL": return t('err.full');
+    case "NOT_HOST": return t('err.not_host');
+    case "BAD_PID": return t('err.bad_pid');
+    case "BAD_MAP": return t('err.bad_map');
+    case "NOT_READY": return t('err.not_ready');
+    case "NO_ROOM": return t('err.no_room');
+    case "INTERNAL": return t('err.internal');
+    case "NO_SESSION": return t('err.room_closed');
+    default: return t('err.generic');
+  }
 }
 
 
@@ -26,11 +27,12 @@ function roomErrorText(code: string) {
 /* Must match server PROTOCOL_VERSION in net @ 2e6bfc0 (hello { v, s }). */
 var NET_PROTO = 1;
 /* Room generation. 0.59 clients omit this and only meet each other. */
-var NET_GEN = "0.6";
+var NET_GEN = "1.0"; /* v1.0: 180-wide field + new generator; rooms never mix with 0.6rc (server GEN check) */
 var NET_SEND_MS = 66; /* own state ~15 Hz */
 var NET_DELAY_MS = 150; /* interpolation buffer */
 var NET_GRACE_MS = 10000;
 var NET_XS = [74, 22, 124, 48]; /* start x by slot (same as the bot squad) */
+var NET_TAGS: any = { get host() { return t('net.host'); }, get ready() { return t('net.ready'); }, get wait() { return t('net.wait'); }, get off() { return t('err.connection'); } };
 
 var NET: any = (function () {
   var N: any = {
@@ -241,7 +243,7 @@ var NET: any = (function () {
 
   function onMsg(ev: string, d: any) {
     if (ev === "pong") {
-      var t = now(), rtt = t - d.c, off = d.s + rtt / 2 - t;
+      var tNow = now(), rtt = tNow - d.c, off = d.s + rtt / 2 - tNow;
       if (!N.rtt || rtt < N.rtt * 1.5) N.off = N.rtt ? N.off * 0.7 + off * 0.3 : off;
       N.rtt = N.rtt ? N.rtt * 0.8 + rtt * 0.2 : rtt;
     } else if (ev === "hello") {
@@ -288,7 +290,7 @@ var NET: any = (function () {
         N.sub = "update";
         return;
       }
-      N.err = roomErrorText(d.code);
+      N.err = (d.code ? roomErrorText(d.code) : (d.msg || t('err.generic')));
       if (d.code === "NO_SESSION") giveUp(t('err.room_closed'));
       if (N.api) N.api.say(cleanText(N.err, 24) || t('err.generic'));
     } else if (ev === "replaced") {
@@ -332,7 +334,7 @@ var NET: any = (function () {
       if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
     } catch (_e2) {}
     if (tok) N.sessTok = tok; /* the login this socket belongs to */
-    return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
+    return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "1.0", p: plat };
   }
   function screenNow() {
     var w = N.api && N.api.world && N.api.world();
@@ -425,7 +427,7 @@ var NET: any = (function () {
       var pid = pids[off + i2], nm = drawableChars(String(S.names[pid] || t('lobby.player'))).slice(0, 10);
       var lineY = y + 12 + i2 * 9;
       drawText(ctx, nm || "HOPP", x + 6, lineY, C.cream, 1, "left");
-      drawText(ctx, t('results.summary', { wins: S.wins[pid] || 0, best: S.best[pid] || 0 }), x + 146, lineY, C.cream, 1, "right");
+      drawText(ctx, t('results.summary', { wins: (S.wins[pid] || 0), meters: (S.best[pid] || 0) }), x + 146, lineY, C.cream, 1, "right");
     }
     if (maxOff > 0 && N.api && N.api.btn) {
       N.api.btn("net:evup", x + 132, y + 1, 18, 11, "#1a1430", "↑", C.cream);
@@ -497,10 +499,10 @@ var NET: any = (function () {
   /** Per frame, after the local ticks: send own state, place remote heroes, apply relayed events, end the round. */
   N.frame = function (w: any) {
     if (!w || !w.net) return;
-    var tickNow = now(), me0 = w.players[0];
-    if (tickNow - N.pingT > 2000) ping();
-    if (!w.netDead && tickNow - N.lastSend >= NET_SEND_MS && w.tick > 0) {
-      N.lastSend = tickNow;
+    var tNow = now(), me0 = w.players[0];
+    if (tNow - N.pingT > 2000) ping();
+    if (!w.netDead && tNow - N.lastSend >= NET_SEND_MS && w.tick > 0) {
+      N.lastSend = tNow;
       send("st", { x: Math.round(me0.x * 10) / 10, y: Math.round(me0.y * 10) / 10, vx: Math.round(me0.vx * 100) / 100, vy: Math.round(me0.vy * 100) / 100, f: me0.face, a: me0.alive ? 1 : 0, m: Math.round(me0.maxH), ps: flags(me0), tk: w.tick });
     }
     if (!me0.alive && !w.netDead) {
@@ -508,8 +510,8 @@ var NET: any = (function () {
       send("st", { x: me0.x, y: me0.y, vx: 0, vy: me0.vy, f: me0.face, a: 0, m: Math.round(me0.maxH), ps: 0, tk: w.tick });
       send("ev", { e: "dead", m: metersOf(me0), why: me0.why });
     }
-    if (N.isHost() && tickNow - N.lastBot >= NET_SEND_MS && w.tick > 0) {
-      N.lastBot = tickNow;
+    if (N.isHost() && tNow - N.lastBot >= NET_SEND_MS && w.tick > 0) {
+      N.lastBot = tNow;
       var rows: any[] = [];
       for (var bpi = 0; bpi < w.players.length; bpi++) {
         var bp2 = w.players[bpi];
@@ -617,7 +619,7 @@ var NET: any = (function () {
         box(ctx, LW / 2 - 64, 24, 128, 22, C.navy, C.cream);
         if (N.api && N.api.markBox) N.api.markBox("watch", LW / 2 - 64, 24, 128, 22);
         drawText(ctx, t('play.spectating', { name: wn }), LW / 2, 27, C.cream, 1, "center");
-        drawText(ctx, t('unit.meters', { n: w.watchM || 0 }), LW / 2, 36, C.gold, 1, "center");
+        drawText(ctx, t('unit.meters', { n: (w.watchM || 0) }), LW / 2, 36, C.gold, 1, "center");
       } else {
         box(ctx, LW / 2 - 64, 24, 128, 13, C.navy, C.cream);
         drawText(ctx, t('play.waiting'), LW / 2, 27, C.cream, 1, "center");
@@ -720,25 +722,26 @@ var NET: any = (function () {
     drawText(ctx, t('lobby.share_code'), LW / 2, y0 + 38, "#9a8ab8", 1, "center");
     var sorted = R.players.slice().sort(function (a: any, b: any) { return a.slot - b.slot; });
     var row0 = y0 + 50;
-    /* Keep 23px rows so the evening table still fits 6 names. Portrait is a 1:1 21×21 crop, no scale. */
+    /* 36px rows like the bot lobby: full 32 px portrait with 2 px padding, no crop. Evening table already scrolls. */
+    var slotH = 36, slotGap = 2, slotStep = slotH + slotGap;
     for (var i = 0; i < 4; i++) {
-      var y = row0 + i * 26, p = sorted[i];
+      var y = row0 + i * slotStep, p = sorted[i];
       if (!p) {
-        if (host) api.btn("net:addbot", x, y, 152, 23, "#1a1430", t('lobby.add_bot'), C.cream);
-        else { box(ctx, x, y, 152, 23, "#141030", "#3a3450"); drawText(ctx, t('lobby.empty'), LW / 2, y + 8, "#5a4c82", 1, "center"); }
+        if (host) api.btn("net:addbot", x, y, 152, slotH, "#1a1430", t('lobby.add_bot'), C.cream);
+        else { box(ctx, x, y, 152, slotH, "#141030", "#3a3450"); drawText(ctx, t('lobby.empty'), LW / 2, y + 14, "#5a4c82", 1, "center"); }
         continue;
       }
       var isMe = p.pid === N.you;
       var rim = isMe ? C.gold : p.ready || p.bot ? C.mint : !p.on ? C.red : C.cream;
-      box(ctx, x, y, 152, 23, isMe ? "#2a2050" : C.navy, rim);
-      if (api.markBox) api.markBox("slot" + i, x, y, 152, 23);
-      drawPortraitCrop(ctx, p.kind, x + 1, y + 1, 21);
+      box(ctx, x, y, 152, slotH, isMe ? "#2a2050" : C.navy, rim);
+      if (api.markBox) api.markBox("slot" + i, x, y, 152, slotH);
+      drawPortrait(ctx, p.kind, x + 2, y + 2, 1);
       var heroNm = (CHARS[p.kind] && CHARS[p.kind].name || "").toUpperCase();
-      var slotLab = p.bot ? slotLabel(t('lobby.bot'), heroNm, host ? 84 : 104) : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
-      drawText(ctx, slotLab, x + 26, y + 8, C.cream, 1, "left");
-      if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
+      var slotLab = p.bot ? slotLabel(p.name || t('lobby.bot'), heroNm, host ? 84 : 104) : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
+      drawText(ctx, slotLab, x + 40, y + 14, C.cream, 1, "left");
+      if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 10, 18, 15, "#1a1430", "X", C.cream);
     }
-    var my = row0 + 4 * 26 + 4;
+    var my = row0 + 4 * slotStep + 4;
     if (host) {
       api.btn("net:mprev", x, my, 20, 18, "#1a1430", "<", C.cream);
       api.btn("net:mnext", x + 132, my, 20, 18, "#1a1430", ">", C.cream);

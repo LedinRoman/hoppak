@@ -12,6 +12,15 @@
 #       Default HOP_SERVER for the site target is https://76-13-250-251.sslip.io
 set -e
 cd "$(dirname "$0")"
+# Build-time version for Settings (and versions.json). Label is v1.0; sha is short HEAD.
+# Override with HOP_BUILD_LABEL / HOP_BUILD_SHA if needed. Not hardcoded in game source.
+BUILD_LABEL="${HOP_BUILD_LABEL:-v1.0}"
+BUILD_SHA="${HOP_BUILD_SHA:-$(git -C .. rev-parse --short HEAD 2>/dev/null || true)}"
+export BUILD_LABEL BUILD_SHA
+BUILD_DEFS=""
+if [ -n "${BUILD_LABEL}" ]; then BUILD_DEFS="${BUILD_DEFS} --define:HOP_BUILD_LABEL=\"${BUILD_LABEL}\""; fi
+if [ -n "${BUILD_SHA}" ]; then BUILD_DEFS="${BUILD_DEFS} --define:HOP_BUILD_SHA=\"${BUILD_SHA}\""; fi
+echo "build version ${BUILD_LABEL} · ${BUILD_SHA:-?}"
 ESB=/tmp/esb/node_modules/.bin/esbuild
 python3 - << 'I18N'
 import json
@@ -23,7 +32,7 @@ parts = [header, "var GAME_I18N_BUILTIN = " + json.dumps(catalog, ensure_ascii=F
          Path("src/00_i18n.tsx").read_text(encoding="utf-8").replace(
              "declare const GAME_I18N_BUILTIN: Record<GameLanguage, GameDictionary>;\n", ""), core]
 parts.extend(Path(f"src/{name}.tsx").read_text(encoding="utf-8")
-             for name in ("02_world", "03_draw", "net", "profile", "04_shell"))
+             for name in ("01b_art64", "01c_draw64", "02_world", "03_draw", "net", "profile", "04_shell"))
 Path("hoppak.page.tsx").write_text("\n".join(parts), encoding="utf-8")
 I18N
 python3 - << 'PY'
@@ -32,7 +41,7 @@ game = src.split("/* @@APP */")[0]
 game = game.split("\n", 1)[1]  # drop grok/canvas import
 open("/tmp/hoppak.game.ts", "w", encoding="utf-8").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
 PY
-$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 ${HOP_I18N_DEV:+--define:HOP_I18N_DEV=true} --outfile=hoppak.js --log-level=warning
+$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 ${HOP_I18N_DEV:+--define:HOP_I18N_DEV=true} ${BUILD_DEFS} --outfile=hoppak.js --log-level=warning
 sed -i '1i /* Хоппак v0.6 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
 $ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --outfile=/tmp/hop.min.tsx --log-level=warning
@@ -62,24 +71,26 @@ open("page-build/hop.canvas.tsx", "w", encoding="utf-8").write("// @ts-nocheck\n
 print("page bytes", len(t.encode()))
 PY
 node --check hoppak.js && echo "js ok $(wc -c < hoppak.js) bytes"
+python3 -c 'import json,os; from pathlib import Path; Path("versions.json").write_text(json.dumps({"version": os.environ["BUILD_LABEL"], "sha": os.environ.get("BUILD_SHA",""), "label": os.environ["BUILD_LABEL"]}, indent=2)+"\n"); print("versions.json", os.environ["BUILD_LABEL"], os.environ.get("BUILD_SHA",""))'
 
 if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
   SITE_ORIGIN="${HOP_SERVER:-https://76-13-250-251.sslip.io}"
   mkdir -p site
+  if [ -f versions.json ]; then cp versions.json site/versions.json; fi
   DEFS="--define:HOP_SERVER=\"${SITE_ORIGIN}\""
   HTML_SRC="index.html"
   if [ -n "${HOP_API:-}" ]; then DEFS="${DEFS} --define:HOP_API=\"${HOP_API}\""; fi
   # tg-boot.js loads telegram.org only inside Telegram. HOP_STAGING is the alpha toggle, not login.
   # The visible label is v0.6 on the prod page and v0.6rc on staging. Room admission
   # stays NET_GEN ("0.6") and NET_PROTO (1); this label is not that check.
-  VER_LABEL="v0.6"
+  VER_LABEL="${HOP_VER_LABEL:-v0.6}"
   if [ "${1:-}" = "staging" ]; then
     DEFS="${DEFS} --define:HOP_STAGING=true"
     HTML_SRC="index.staging.html"
-    VER_LABEL="v0.6rc"
+    VER_LABEL="${HOP_VER_LABEL:-v0.6rc}"
   fi
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
-    ${DEFS} \
+    ${DEFS} ${BUILD_DEFS} \
     --outfile=site/hoppak.js --log-level=warning
   sed -i "1i /* Хоппак ${VER_LABEL} site — HOP_SERVER baked in, do not edit */" site/hoppak.js
   python3 - << PY
@@ -120,10 +131,12 @@ PY
   rm -rf site/audio
   mkdir -p site/audio
   cp -R audio/. site/audio/
-  mkdir -p site/ui/tab site/ui/grid site/ui/portrait
+  mkdir -p site/ui/tab site/ui/grid site/ui/portrait site/ui/menu site/ui/map_thumbs
   cp -R ui/tab/. site/ui/tab/
   cp -R ui/grid/. site/ui/grid/
   cp -R ui/portrait/. site/ui/portrait/
+  cp -R ui/menu/. site/ui/menu/
+  if [ -d ui/map_thumbs ]; then cp -R ui/map_thumbs/. site/ui/map_thumbs/; fi
   node --check site/hoppak.js && echo "site js ok $(wc -c < site/hoppak.js) bytes"
   # confirm the origin string is baked in
   grep -o "${SITE_ORIGIN}" site/hoppak.js | head -1 | sed "s/^/baked: /"
