@@ -1,6 +1,6 @@
 /* Хоппак v0.6 — generated from hoppak.page.tsx by build.sh, do not edit */
 (() => {
-  var GAME_I18N_BUILTIN = { "ru": { "campaign.reach": "\u0414\u041E\u0419\u0414\u0418 \u0414\u041E \u0426\u0415\u041B\u0418 \u2192", "campaign.title": "\u041A\u0410\u041C\u041F\u0410\u041D\u0418\u042F", "campaign.unlock": "\u041E\u0422\u041A\u0420\u041E\u0419 \u0417\u0410 \u041C\u041E\u041D\u0415\u0422\u042B", "common.back": "\u041D\u0410\u0417\u0410\u0414", "common.close": "\u0417\u0410\u041A\u0420\u042B\u0422\u042C", "common.menu": "\u041C\u0415\u041D\u042E", "common.off": "\u0412\u042B\u041A\u041B", "common.on": "\u0412\u041A\u041B", "common.retry": "\u0415\u0429\u0401 \u0420\u0410\u0417", "common.soon": "\u0421\u041A\u041E\u0420\u041E", "death.black_hole": "\u0414\u042B\u0420\u0410", "death.detail": "{name} \xB7 {n} \u041C", "death.fall": "\u0421\u041E\u0420\u0412\u0410\u041B\u0421\u042F \xB7 {n} \u041C", "death.hole": "\u0417\u0410\u0422\u042F\u041D\u0423\u041B\u0410 \u0414\u042B\u0420\u0410 \xB7 {n} \u041C", "death.left": "\u0412\u042B\u0428\u0415\u041B \xB7 {n} \u041C", "death.mob": "\u041C\u041E\u0411", "death.mob_f": "\u0421\u0411\u0418\u041B\u0410 {name} \xB7 {n} \u041C", "death.mob_m": "\u0421\u0411\u0418\u041B {name} \xB7 {n} \u041C", "death.shot": "\u0421\u0411\u0418\u041B \u0412\u042B\u0421\u0422\u0420\u0415\u041B \xB7 {n} \u041C", "death.spirit": "\u0414\u0423\u0425", "death.vine": "\u041B\u0418\u0410\u041D\u0410", "debug.font": "\u0428\u0420\u0418\u0424\u0422", "err.bad_map": "\u041D\u0415\u0422 \u0422\u0410\u041A\u041E\u0419 \u041A\u0410\u0420\u0422\u042B", "err.bad_pid": "\u041D\u0415\u041A\u041E\u0413\u041E \u0412\u042B\u0413\u041D\u0410\u0422\u042C", "err.busy": "\u0421\u0415\u0420\u0412\u0415\u0420 \u0417\u0410\u041D\u042F\u0422", "err.connection": "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418", "err.connection_lost": "\u0421\u0412\u042F\u0417\u042C \u041F\u041E\u0422\u0415\u0420\u042F\u041D\u0410", "err.full": "\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041F\u041E\u041B\u041D\u0415\u041D\u0410", "err.generic": "\u041E\u0428\u0418\u0411\u041A\u0410", "err.in_game": "\u0417\u0410\u0411\u0415\u0413 \u0423\u0416\u0415 \u0418\u0414\u0401\u0422", "err.internal": "\u041E\u0428\u0418\u0411\u041A\u0410 \u0421\u0415\u0420\u0412\u0415\u0420\u0410", "err.invalid_name": "\u0422\u0410\u041A\u0418\u0415 \u0411\u0423\u041A\u0412\u042B \u041D\u0415 \u041F\u041E\u0414\u0425\u041E\u0414\u042F\u0422", "err.kicked": "\u0422\u0415\u0411\u042F \u0412\u042B\u0413\u041D\u0410\u041B\u0418", "err.no_connection": "\u041D\u0415\u0422 \u0421\u0415\u0422\u0418", "err.no_room": "\u0422\u042B \u041D\u0415 \u0412 \u041A\u041E\u041C\u041D\u0410\u0422\u0415", "err.not_found": "\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u041D\u0415 \u041D\u0410\u0419\u0414\u0415\u041D\u0410", "err.not_host": "\u0422\u041E\u041B\u042C\u041A\u041E \u0425\u041E\u0421\u0422", "err.not_ready": "\u041D\u0415 \u0412\u0421\u0415 \u0413\u041E\u0422\u041E\u0412\u042B", "err.reload": "\u041E\u0411\u041D\u041E\u0412\u0418 \u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423", "err.reload_line1": "\u041E\u0411\u041D\u041E\u0412\u0418", "err.reload_line2": "\u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423", "err.room_closed": "\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410", "err.unsupported": "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", "err.unsupported_line1": "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D", "err.unsupported_line2": "\u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", "floor.break": "\u041B\u041E\u041C\u0410\u0415\u0422\u0421\u042F \u041F\u041E\u0421\u041B\u0415 \u041F\u0420\u042B\u0416\u041A\u0410", "floor.goal": "\u0414\u041E\u041F\u0420\u042B\u0413\u041D\u0418 \u0414\u041E \u0426\u0415\u041B\u0418", "floor.record": "\u0422\u0412\u041E\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 - \u041F\u041E\u0411\u0415\u0419!", "hero.knight.ability": "\u0422\u0410\u0420\u0410\u041D", "hero.knight.description1": "\u041F\u0418\u041A\u0415 \u0429\u0418\u0422\u041E\u041C \u0412\u041D\u0418\u0417,", "hero.knight.description2": "\u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u0421\u0423\u041F\u0415\u0420\u041F\u0420\u042B\u0416\u041E\u041A", "hero.knight.destination": "\u0420\u042B\u0426\u0410\u0420\u042F", "hero.knight.name": "\u0420\u044B\u0446\u0430\u0440\u044C", "hero.knight.type": "\u0410\u0422\u0410\u041A\u0410", "hero.mage.ability": "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", "hero.mage.description1": "\u041C\u0418\u0413\u041E\u041C \u041D\u0410 \u041D\u0410\u0414\u0401\u0416\u041D\u0423\u042E", "hero.mage.description2": "\u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0423 \u0412\u042B\u0428\u0415", "hero.mage.destination": "\u041C\u0410\u0413\u0410", "hero.mage.name": "\u041C\u0430\u0433", "hero.mage.type": "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", "hero.ninja.ability": "\u0421\u0422\u0415\u041D\u042B", "hero.ninja.description1": "6 \u0421\u0415\u041A \u0426\u0415\u041F\u041B\u042F\u0415\u0422\u0421\u042F \u0417\u0410 \u041A\u0420\u0410\u0419,", "hero.ninja.description2": "\u0422\u0410\u041F - \u041F\u0420\u042B\u0416\u041E\u041A \u041E\u0422 \u0421\u0422\u0415\u041D\u042B", "hero.ninja.destination": "\u041D\u0418\u041D\u0414\u0417\u042F", "hero.ninja.name": "\u041D\u0438\u043D\u0434\u0437\u044F", "hero.ninja.type": "\u041F\u0410\u0420\u041A\u0423\u0420", "hero.pilot.ability": "\u0420\u042B\u0412\u041E\u041A", "hero.pilot.description1": "\u041A\u041E\u0420\u041E\u0422\u041A\u0418\u0419 \u0411\u042B\u0421\u0422\u0420\u042B\u0419", "hero.pilot.description2": "\u0412\u0417\u041B\u0401\u0422 \u041D\u0410 \u0420\u0410\u041D\u0426\u0415", "hero.pilot.destination": "\u041A\u0410\u041F\u0418\u0422\u0410\u041D\u0410", "hero.pilot.name": "\u041A\u0430\u043F\u0438\u0442\u0430\u043D", "hero.pilot.type": "\u0411\u0410\u0417\u041E\u0412\u042B\u0419", "hero.pirate.ability": "\u041A\u0420\u042E\u041A", "hero.pirate.description1": "\u041A\u0420\u042E\u041A \u041A \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0415", "hero.pirate.description2": "\u0418\u041B\u0418 \u041C\u041E\u041D\u0415\u0422\u0415, \u0411\u042C\u0401\u0422 \u041C\u041E\u0411\u041E\u0412", "hero.pirate.destination": "\u041F\u0418\u0420\u0410\u0422\u0410", "hero.pirate.name": "\u041F\u0438\u0440\u0430\u0442", "hero.pirate.type": "\u041C\u0410\u041D\u0401\u0412\u0420", "hero.robot.ability": "\u0429\u0418\u0422", "hero.robot.description1": "\u0429\u0418\u0422 10 \u0421\u0415\u041A, \u0413\u0410\u0421\u0418\u0422", "hero.robot.description2": "\u0423\u0414\u0410\u0420 \u0418\u041B\u0418 \u041F\u0410\u0414\u0415\u041D\u0418\u0415", "hero.robot.destination": "\u0420\u041E\u0411\u041E\u0422\u0410", "hero.robot.name": "\u0420\u043E\u0431\u043E\u0442", "hero.robot.type": "\u0417\u0410\u0429\u0418\u0422\u0410", "kick.locked1": "\u0412\u0425\u041E\u0414 \u0412\u042B\u041F\u041E\u041B\u041D\u0415\u041D", "kick.locked2": "\u0421 \u0414\u0420\u0423\u0413\u041E\u0413\u041E \u0423\u0421\u0422\u0420\u041E\u0419\u0421\u0422\u0412\u0410", "kick.takeover1": "\u041F\u0415\u0420\u0415\u041A\u041B\u042E\u0427\u0418\u0422\u042C\u0421\u042F", "kick.takeover2": "\u041D\u0410 \u042D\u0422\u041E \u0423\u0421\u0422\u0420\u041E\u0419\u0421\u0422\u0412\u041E", "kick.open_telegram": "\u041E\u0422\u041A\u0420\u041E\u0419\u0422\u0415 \u0412 \u0422\u0415\u041B\u0415\u0413\u0420\u0410\u041C\u0415", "kick.retry": "\u041F\u0415\u0420\u0415\u041E\u0422\u041A\u0420\u041E\u0419\u0422\u0415 \u0412 \u0422\u0415\u041B\u0415\u0413\u0420\u0410\u041C\u0415", "lobby.add_bot": "\u0411\u041E\u0422 +", "lobby.bot": "\u0411\u041E\u0422", "lobby.bot_number": "\u0411\u041E\u0422 {n}", "lobby.create": "\u0421\u041E\u0417\u0414\u0410\u0422\u042C \u041A\u041E\u041C\u041D\u0410\u0422\u0423", "lobby.empty": "\u0421\u0412\u041E\u0411\u041E\u0414\u041D\u041E", "lobby.enter_code": "\u0412\u041E\u0419\u0422\u0418 \u041F\u041E \u041A\u041E\u0414\u0423", "lobby.hero": "\u0413\u0415\u0420\u041E\u0419: {name} \u25B6", "lobby.join": "\u0412\u041E\u0419\u0422\u0418", "lobby.leave": "\u0412\u042B\u0419\u0422\u0418", "lobby.map": "\u041A\u0410\u0420\u0422\u0410: {name}", "lobby.max_players": "\u0414\u041E 4 \u0418\u0413\u0420\u041E\u041A\u041E\u0412 \u041D\u0410 \u041A\u0410\u0420\u0422\u0415", "lobby.name": "\u0418\u041C\u042F: {name}", "lobby.name_prompt": "\u0418\u043C\u044F \u0434\u043B\u044F \u0434\u0440\u0443\u0437\u0435\u0439 (\u0434\u043E 10 \u0431\u0443\u043A\u0432)", "lobby.player": "\u0418\u0413\u0420\u041E\u041A", "lobby.ready": "\u0413\u041E\u0422\u041E\u0412 \u2713", "lobby.room": "\u041A\u041E\u041C\u041D\u0410\u0422\u0410", "lobby.room_code": "\u041A\u041E\u0414 \u041A\u041E\u041C\u041D\u0410\u0422\u042B", "lobby.round": "\u0420\u0410\u0423\u041D\u0414 {n}", "lobby.set_ready": "\u042F \u0413\u041E\u0422\u041E\u0412", "lobby.share_code": "\u0421\u041A\u0410\u0416\u0418 \u041A\u041E\u0414 \u0414\u0420\u0423\u0417\u042C\u042F\u041C", "lobby.start": "\u041D\u0410\u0427\u0410\u0422\u042C", "lobby.start_solo": "\u041D\u0410\u0427\u0410\u0422\u042C \u041E\u0414\u041D\u041E\u041C\u0423", "lobby.waiting_ready": "\u0416\u0414\u0401\u041C \u0413\u041E\u0422\u041E\u0412\u041D\u041E\u0421\u0422\u0418", "lobby.with_bots": "\u0417\u0410\u0411\u0415\u0413 \u0421 \u0411\u041E\u0422\u0410\u041C\u0418", "lobby.you": "\u0422\u042B", "map.aqua.destination": "\u041E\u041A\u0415\u0410\u041D\u0410", "map.aqua.location": "\u0412 \u041E\u041A\u0415\u0410\u041D\u0415", "map.aqua.name": "\u041E\u041A\u0415\u0410\u041D", "map.city.destination": "\u0413\u041E\u0420\u041E\u0414\u0410", "map.city.location": "\u0412 \u0413\u041E\u0420\u041E\u0414\u0415", "map.city.name": "\u0413\u041E\u0420\u041E\u0414", "map.effect_bounce": "\u041F\u0420\u0423\u0416\u0418\u041D\u042B \u0427\u0410\u0429\u0415", "map.effect_bubble": "\u041F\u0423\u0417\u042B\u0420\u0418", "map.effect_gravity": "\u0421\u041B\u0410\u0411\u0410\u042F \u0413\u0420\u0410\u0412\u0418\u0422\u0410\u0426\u0418\u042F", "map.effect_ice": "\u041B\u0401\u0414: \u0421\u041A\u041E\u041B\u042C\u0417\u041A\u041E", "map.effect_lava": "\u0416\u0410\u0420\u041A\u0418\u0415 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B", "map.goal_prev": "{n} \u041C \u041D\u0410 \u041F\u0420\u0415\u0414\u042B\u0414\u0423\u0429\u0415\u0419 \u041A\u0410\u0420\u0422\u0415", "map.ice.destination": "\u041B\u0415\u0414\u041D\u0418\u041A\u0410", "map.ice.location": "\u0412 \u041B\u0415\u0414\u041D\u0418\u041A\u0415", "map.ice.name": "\u041B\u0415\u0414\u041D\u0418\u041A", "map.jungle.destination": "\u0414\u0416\u0423\u041D\u0413\u041B\u0415\u0419", "map.jungle.location": "\u0412 \u0414\u0416\u0423\u041D\u0413\u041B\u042F\u0425", "map.jungle.name": "\u0414\u0416\u0423\u041D\u0413\u041B\u0418", "map.jungle.opened": "\u0414\u0416\u0423\u041D\u0413\u041B\u0418 \u041E\u0422\u041A\u0420\u042B\u0422\u042B!", "map.lava.destination": "\u0412\u0423\u041B\u041A\u0410\u041D\u0410", "map.lava.location": "\u041D\u0410 \u0412\u0423\u041B\u041A\u0410\u041D\u0415", "map.lava.name": "\u0412\u0423\u041B\u041A\u0410\u041D", "map.locked": "???", "map.opened": "{name} \u041E\u0422\u041A\u0420\u042B\u0422!", "map.space.destination": "\u041A\u041E\u0421\u041C\u041E\u0421\u0410", "map.space.location": "\u0412 \u041A\u041E\u0421\u041C\u041E\u0421\u0415", "map.space.name": "\u041A\u041E\u0421\u041C\u041E\u0421", "map.unlock_first": "\u0421\u041D\u0410\u0427\u0410\u041B\u0410 \u041E\u0422\u041A\u0420\u041E\u0419 \u041F\u0420\u0415\u0414\u042B\u0414\u0423\u0429\u0423\u042E \u041A\u0410\u0420\u0422\u0423", "menu.choose_hero": "\u0412\u042B\u0411\u0420\u0410\u0422\u042C \u0413\u0415\u0420\u041E\u042F", "menu.friends": "\u0414\u0420\u0423\u0417\u042C\u042F", "menu.friends_soon": "\u0421\u043A\u043E\u0440\u043E \u0432 0.9", "menu.home": "\u0413\u041B\u0410\u0412\u041D\u0410\u042F", "menu.leagues": "\u041B\u0418\u0413\u0418", "menu.leagues_soon": "\u0421\u043A\u043E\u0440\u043E \u0432 0.8", "menu.map_best": "{name} \xB7 {n} \u041C", "menu.map_progress": "{name} \xB7 {n}/{goal} \u041C", "menu.maps": "\u041A\u0410\u0420\u0422\u042B", "menu.multiplayer": "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", "menu.options": "\u041E\u041F\u0426\u0418\u0418", "menu.play": "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", "menu.quests_soon": "\u0417\u0410\u0414\u0410\u041D\u0418\u042F \xB7 \u0421\u041A\u041E\u0420\u041E", "menu.tagline": "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", "menu.title": "\u0425\u041E\u041F\u041F\u0410\u041A", "mob.alien": "\u041F\u0420\u0418\u0428\u0415\u041B\u0415\u0426", "mob.bat": "\u041C\u042B\u0428\u042C", "mob.blob": "\u0421\u041B\u0418\u0417\u0415\u041D\u042C", "mob.bob": "\u041C\u0415\u0414\u0423\u0417\u0410", "mob.comet": "\u041A\u041E\u041C\u0415\u0422\u0410", "mob.crab": "\u041A\u0420\u0410\u0411", "mob.ember": "\u041E\u0413\u041D\u0415\u0428\u0410\u0420", "mob.firebat": "\u041E\u0413\u041D\u0415\u041C\u042B\u0428\u042C", "mob.frog": "\u041B\u042F\u0413\u0423\u0428\u041A\u0410", "mob.frost": "\u041B\u0415\u0414\u042F\u041D\u041E\u0419 \u0414\u0423\u0425", "mob.hole": "\u0427\u0401\u0420\u041D\u0410\u042F \u0414\u042B\u0420\u0410", "mob.magma": "\u041B\u0410\u0412\u041E\u0421\u041B\u0418\u0417\u042C", "mob.monkey": "\u041E\u0411\u0415\u0417\u042C\u042F\u041D\u0410", "mob.owl": "\u0421\u041E\u0412\u0410", "mob.parrot": "\u041F\u041E\u041F\u0423\u0413\u0410\u0419", "mob.penguin": "\u041F\u0418\u041D\u0413\u0412\u0418\u041D", "mob.puffer": "\u0420\u042B\u0411\u0410-\u0401\u0416", "mob.ray": "\u0421\u041A\u0410\u0422", "mob.snake": "\u0417\u041C\u0415\u042F-\u041B\u0418\u0410\u041D\u0410", "mob.spitter": "\u041F\u041B\u0415\u0412\u0423\u041D", "mob.ufo": "\u041D\u041B\u041E", "mob.whirl": "\u0412\u041E\u0414\u041E\u0412\u041E\u0420\u041E\u0422", "mob.wind": "\u0412\u042C\u042E\u0413\u0410", "net.connecting": "\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", "net.online": "\u0421\u0415\u0420\u0412\u0415\u0420 \u041D\u0410 \u0421\u0412\u042F\u0417\u0418", "net.host": "\u0425\u041E\u0421\u0422", "net.ready": "\u0413\u041E\u0422\u041E\u0412", "net.wait": "\u0416\u0414\u0401\u041C", "net.reconnecting": "\u041F\u0415\u0420\u0415\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", "pickup.collected": "{name}!", "pickup.magnet": "\u041C\u0410\u0413\u041D\u0418\u0422", "pickup.rocket": "\u0420\u0410\u041A\u0415\u0422\u0410", "pickup.shield": "\u0429\u0418\u0422", "pickup.treasure": "\u041A\u041B\u0410\u0414 +{n}", "play.desktop_ability_hint": "\u2190 \u2192 / A D \u2014 \u0434\u0432\u0438\u0436\u0435\u043D\u0438\u0435 \xB7 \u2191 / \u041F\u0440\u043E\u0431\u0435\u043B \u2014 \u0441\u043F\u043E\u0441\u043E\u0431\u043D\u043E\u0441\u0442\u044C \xB7 F \u2014 \u043A\u0438\u043D\u043E \xB7 Esc \u2014 \u043F\u0430\u0443\u0437\u0430", "play.desktop_hint": "\u2190 \u2192 / A D \u2014 \u0434\u0432\u0438\u0436\u0435\u043D\u0438\u0435 \xB7 F \u2014 \u043A\u0438\u043D\u043E \xB7 Esc \u2014 \u043F\u0430\u0443\u0437\u0430", "play.dome_saved": "\u041A\u041E\u0421\u041C\u041E\u0429\u0418\u0422 \u0421\u041F\u0410\u0421!", "play.eliminated": "\u0412\u042B\u0411\u042B\u041B", "play.frozen": "\u0417\u0410\u041C\u041E\u0420\u041E\u0417\u041A\u0410!", "play.go": "\u0412\u041F\u0415\u0420\u0401\u0414", "play.no_platform": "\u041D\u0415\u0422 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B", "play.no_target": "\u041D\u0415\u0422 \u0426\u0415\u041B\u0418", "play.pause": "\u041F\u0410\u0423\u0417\u0410", "play.player_eliminated": "{name} \u0412\u042B\u0411\u042B\u041B", "play.resume": "\u041F\u0420\u041E\u0414\u041E\u041B\u0416\u0418\u0422\u042C", "play.rotate": "\u041F\u041E\u0412\u0415\u0420\u041D\u0418 \u0422\u0415\u041B\u0415\u0424\u041E\u041D", "play.shield_saved": "\u0429\u0418\u0422 \u0421\u041F\u0410\u0421!", "play.snake_caught": "\u0417\u041C\u0415\u042F \u0421\u0425\u0412\u0410\u0422\u0418\u041B\u0410!", "play.spectating": "\u0421\u041C\u041E\u0422\u0420\u0418\u041C {name}", "play.waiting": "\u0416\u0414\u0401\u041C \u041E\u0421\u0422\u0410\u041B\u042C\u041D\u042B\u0425", "profile.guest": "\u0412\u0425\u041E\u0414: \u0413\u041E\u0421\u0422\u0415\u0412\u041E\u0419", "profile.local_progress": "\u041F\u0420\u041E\u0413\u0420\u0415\u0421\u0421 \u041D\u0410 \u0423\u0421\u0422\u0420\u041E\u0419\u0421\u0422\u0412\u0415", "profile.merged": "\u041F\u0420\u041E\u0413\u0420\u0415\u0421\u0421 \u041E\u0411\u042A\u0415\u0414\u0418\u041D\u0401\u041D", "profile.telegram": "\u0412\u0425\u041E\u0414: TELEGRAM", "profile.title": "\u041F\u0420\u041E\u0424\u0418\u041B\u042C", "results.again": "\u0415\u0429\u0401 \u0420\u0410\u0417 \u25B6", "results.collected": "\u0421\u041E\u0411\u0420\u0410\u041D\u041E", "results.height": "\u0412\u042B\u0421\u041E\u0422\u0410 {n} \u041C", "results.hero_available": "\u0425\u0412\u0410\u0422\u0410\u0415\u0422 \u041D\u0410 {name}!", "results.hero_progress": "\u0414\u041E {name} \u25CF {n}", "results.hero_remaining": "\u0414\u041E {name} \u041E\u0421\u0422\u0410\u041B\u041E\u0421\u042C \u25CF {n}", "results.map_available": "\u041C\u041E\u0416\u041D\u041E \u041E\u0422\u041A\u0420\u042B\u0422\u042C \u0421\u041B\u0415\u0414\u0423\u042E\u0429\u0423\u042E", "results.map_progress": "\u0421\u041B\u0415\u0414\u0423\u042E\u0429\u0410\u042F {n}/{goal}", "results.map_record": "\u0420\u0415\u041A\u041E\u0420\u0414 \u041A\u0410\u0420\u0422\u042B {n} \u041C", "results.new_record": "\u041D\u041E\u0412\u042B\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 \u041A\u0410\u0420\u0422\u042B {n} \u041C", "results.next_map": "\u0414\u041E \u0421\u041B\u0415\u0414\u0423\u042E\u0429\u0415\u0419 \u041A\u0410\u0420\u0422\u042B", "results.rematch": "\u0420\u0415\u0412\u0410\u041D\u0428 \u25B6", "results.round": "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 \u0420\u0410\u0423\u041D\u0414 {n}", "results.round_short": "\u0421\u0427\u0401\u0422 \xB7 \u0420\u0410\u0423\u041D\u0414 {n}", "results.runs_left": { "one": "\u0415\u0429\u0401 {n} \u0417\u0410\u0411\u0415\u0413", "few": "\u0415\u0429\u0401 {n} \u0417\u0410\u0411\u0415\u0413\u0410", "many": "\u0415\u0429\u0401 {n} \u0417\u0410\u0411\u0415\u0413\u041E\u0412", "other": "\u0415\u0429\u0401 {n} \u0417\u0410\u0411\u0415\u0413\u041E\u0412" }, "results.summary": "{wins}\u041F  {best}\u041C", "results.title": "\u0418\u0422\u041E\u0413\u0418", "results.treasures": "\u041A\u041B\u0410\u0414\u042B", "results.you": " (\u0422\u042B)", "reward.bonus_cap": "\u0411\u041E\u041D\u0423\u0421 \u0421\u0420\u0415\u0417\u0410\u041D", "reward.coins_cap": "\u041C\u041E\u041D\u0415\u0422\u042B \u0421\u0420\u0415\u0417\u0410\u041D\u042B", "reward.duplicate": "\u0423\u0416\u0415 \u0417\u0410\u0421\u0427\u0418\u0422\u0410\u041D", "reward.fast": "\u0421\u041B\u0418\u0428\u041A\u041E\u041C \u0411\u042B\u0421\u0422\u0420\u041E", "reward.height_cap": "\u0412\u042B\u0421\u041E\u0422\u0410 \u0421\u0420\u0415\u0417\u0410\u041D\u0410", "reward.height_min": "\u0417\u0410 \u0412\u042B\u0421\u041E\u0422\u0423 \xB7 \u0421 100 \u041C", "reward.rejected": "\u041D\u0415 \u041F\u0420\u0418\u041D\u042F\u0422\u041E", "score.goal": "\u0426\u0415\u041B\u042C {n} \u041C", "score.record": "\u0420\u0415\u041A\u041E\u0420\u0414 {n} \u041C", "score.record_line": "\u0420\u0415\u041A\u041E\u0420\u0414 {n}", "settings.cinema": "\u041A\u0438\u043D\u043E", "settings.en": "EN", "settings.language": "\u042F\u0417\u042B\u041A: {mode}", "settings.ru": "RU", "settings.tilt": "\u041D\u0410\u041A\u041B\u041E\u041D: {state}", "settings.tilt_unavailable": "\u041D\u0410\u041A\u041B\u041E\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D", "settings.title": "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", "settings.vibration": "\u0412\u0418\u0411\u0420\u041E: {state}", "settings.volume": "\u0413\u0420\u041E\u041C\u041A\u041E\u0421\u0422\u042C", "shop.buy": "\u041A\u0423\u041F\u0418\u0422\u042C \u25CF {n}", "shop.charge": "\u0417\u0410\u0420\u042F\u0414: ", "shop.confirm": "\u0422\u041E\u0427\u041D\u041E? \u25CF {n}", "shop.need": "\u041D\u0423\u0416\u041D\u041E \u0415\u0429\u0401 \u25CF {n}", "shop.purchased": "\u041A\u0423\u041F\u041B\u0415\u041D\u041E!", "shop.select": "\u0412\u042B\u0411\u0420\u0410\u0422\u042C", "shop.selected": "\u0412\u042B\u0411\u0420\u0410\u041D", "shop.title": "\u041C\u0410\u0413\u0410\u0417\u0418\u041D", "unit.coins": { "one": "{n} \u041C\u041E\u041D\u0415\u0422\u0410", "few": "{n} \u041C\u041E\u041D\u0415\u0422\u042B", "many": "{n} \u041C\u041E\u041D\u0415\u0422", "other": "{n} \u041C\u041E\u041D\u0415\u0422" }, "unit.meter_progress": "{n}/{goal} \u041C", "unit.meters": "{n} \u041C", "unit.mobs": { "one": "{n} \u041C\u041E\u0411", "few": "{n} \u041C\u041E\u0411\u0410", "many": "{n} \u041C\u041E\u0411\u041E\u0412", "other": "{n} \u041C\u041E\u0411\u041E\u0412" }, "unit.seconds": "{n} \u0421\u0415\u041A", "menu.play_label": "\u0418\u0413\u0420\u0410\u0422\u042C", "mob.trash": "\u0411\u0410\u0427\u041E\u041A", "menu.encyclopedia": "\u0421\u041F\u0420\u0410\u0412\u041E\u0427\u041D\u0418\u041A", "ency.title": "\u0421\u041F\u0420\u0410\u0412\u041E\u0427\u041D\u0418\u041A", "ency.heroes": "\u0413\u0415\u0420\u041E\u0418", "ency.mobs": "\u041C\u041E\u0411\u042B", "ency.maps": "\u041A\u0410\u0420\u0422\u042B", "ency.appears": "{name} \xB7 \u0421 {n} \u041C", "ency.mob.blob": "\u041F\u041E\u041B\u0417\u0410\u0415\u0422 \u041F\u041E \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0410\u041C. \u041F\u0420\u042B\u0413\u0410\u0419 \u0421\u0412\u0415\u0420\u0425\u0423", "ency.mob.trash": "\u0421\u0422\u041E\u0418\u0422 \u041D\u0410 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0415. \u041E\u0411\u0425\u041E\u0414\u0418 \u0421\u0411\u041E\u041A\u0423", "ency.mob.bat": "\u041B\u0415\u0422\u0410\u0415\u0422 \u0412\u041B\u0415\u0412\u041E-\u0412\u041F\u0420\u0410\u0412\u041E. \u041F\u0420\u042B\u0413\u0410\u0419 \u0421\u0412\u0415\u0420\u0425\u0423", "ency.mob.hole": "\u0417\u0410\u0422\u042F\u0413\u0418\u0412\u0410\u0415\u0422, \u0415\u0421\u041B\u0418 \u041F\u041E\u0414\u041E\u0419\u0422\u0418. \u0414\u0415\u0420\u0416\u0418\u0421\u042C \u041D\u0410 \u0420\u0410\u0421\u0421\u0422\u041E\u042F\u041D\u0418\u0418", "ency.mob.ufo": "\u041B\u0415\u0422\u0410\u0415\u0422 \u0418 \u0421\u0422\u0420\u0415\u041B\u042F\u0415\u0422 \u0412\u041D\u0418\u0417. \u041F\u0420\u042B\u0413\u0410\u0419 \u0421\u0412\u0415\u0420\u0425\u0423", "ency.mob.frog": "\u041F\u0420\u042B\u0413\u0410\u0415\u0422 \u041F\u041E \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0410\u041C. \u041F\u0420\u042B\u0413\u0410\u0419 \u0421\u0412\u0415\u0420\u0425\u0423", "ency.mob.parrot": "\u041B\u0415\u0422\u0410\u0415\u0422 \u0418 \u041F\u0418\u041A\u0418\u0420\u0423\u0415\u0422. \u041F\u0420\u042B\u0413\u0410\u0419 \u0421\u0412\u0415\u0420\u0425\u0423", "ency.mob.snake": "\u0421\u0412\u0418\u0421\u0410\u0415\u0422 \u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u0418 \u0425\u0412\u0410\u0422\u0410\u0415\u0422. \u0411\u0415\u0419 \u0421\u0412\u0415\u0420\u0425\u0423", "ency.mob.monkey": "\u041A\u0418\u0414\u0410\u0415\u0422 \u041E\u0420\u0415\u0425\u0418 \u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B. \u041F\u0420\u042B\u0413\u0410\u0419 \u0421\u0412\u0415\u0420\u0425\u0423", "ency.map.city": "\u041F\u0415\u0420\u0412\u0410\u042F \u041A\u0410\u0420\u0422\u0410. \u0423\u041B\u0418\u0426\u042B \u0418 \u041A\u0420\u042B\u0428\u0418", "ency.map.jungle": "\u041F\u0420\u0423\u0416\u0418\u041D\u042B \u0412\u0421\u0422\u0420\u0415\u0427\u0410\u042E\u0422\u0421\u042F \u0427\u0410\u0429\u0415", "ency.opened": "\u041E\u0422\u041A\u0420\u042B\u0422\u041E {n}/{total}", "ency.meet": "\u0412\u0421\u0422\u0420\u0415\u0422\u042C \u0412 \u0418\u0413\u0420\u0415, \u0427\u0422\u041E\u0411\u042B \u041E\u0422\u041A\u0420\u042B\u0422\u042C", "ency.map.need_m": "{n} \u041C", "ency.map.need_prev": "\u041D\u0410 \u041F\u0420\u041E\u0428\u041B\u041E\u0419 \u041A\u0410\u0420\u0422\u0415", "ency.more": "\u0415\u0429\u0401" }, "en": { "campaign.reach": "REACH THE GOAL \u2192", "campaign.title": "CAMPAIGN", "campaign.unlock": "UNLOCK WITH COINS", "common.back": "BACK", "common.close": "CLOSE", "common.menu": "MENU", "common.off": "OFF", "common.on": "ON", "common.retry": "RETRY", "common.soon": "SOON", "death.black_hole": "HOLE", "death.detail": "{name} \xB7 {n} M", "death.fall": "FELL \xB7 {n} M", "death.hole": "BLACK HOLE \xB7 {n} M", "death.left": "LEFT \xB7 {n} M", "death.mob": "MOB", "death.mob_f": "HIT BY {name} \xB7 {n} M", "death.mob_m": "HIT BY {name} \xB7 {n} M", "death.shot": "SHOT \xB7 {n} M", "death.spirit": "SPIRIT", "death.vine": "VINE", "debug.font": "FONT", "err.bad_map": "UNKNOWN MAP", "err.bad_pid": "NO PLAYER TO KICK", "err.busy": "SERVER BUSY", "err.connection": "NO CONNECTION", "err.connection_lost": "CONNECTION LOST", "err.full": "ROOM FULL", "err.generic": "ERROR", "err.in_game": "RACE IN PROGRESS", "err.internal": "SERVER ERROR", "err.invalid_name": "INVALID LETTERS", "err.kicked": "YOU WERE KICKED", "err.no_connection": "OFFLINE", "err.no_room": "NOT IN A ROOM", "err.not_found": "ROOM NOT FOUND", "err.not_host": "HOST ONLY", "err.not_ready": "PLAYERS NOT READY", "err.reload": "RELOAD THE PAGE", "err.reload_line1": "RELOAD", "err.reload_line2": "THE PAGE", "err.room_closed": "ROOM CLOSED", "err.unsupported": "MULTIPLAYER UNAVAILABLE IN THIS VERSION", "err.unsupported_line1": "MULTIPLAYER UNAVAILABLE", "err.unsupported_line2": "IN THIS VERSION", "floor.break": "BREAKS AFTER A JUMP", "floor.goal": "REACH THE GOAL", "floor.record": "BEAT YOUR RECORD!", "hero.knight.ability": "SLAM", "hero.knight.description1": "DIVE WITH SHIELD", "hero.knight.description2": "THEN SUPER JUMP", "hero.knight.destination": "KNIGHT", "hero.knight.name": "Knight", "hero.knight.type": "ATTACK", "hero.mage.ability": "TELEPORT", "hero.mage.description1": "WARP TO A SAFE", "hero.mage.description2": "PLATFORM ABOVE", "hero.mage.destination": "MAGE", "hero.mage.name": "Mage", "hero.mage.type": "TELEPORT", "hero.ninja.ability": "WALLS", "hero.ninja.description1": "GRAB LEDGES FOR 6S", "hero.ninja.description2": "TAP TO WALL JUMP", "hero.ninja.destination": "NINJA", "hero.ninja.name": "Ninja", "hero.ninja.type": "PARKOUR", "hero.pilot.ability": "DASH", "hero.pilot.description1": "SHORT FAST BOOST", "hero.pilot.description2": "WITH A JETPACK", "hero.pilot.destination": "CAPTAIN", "hero.pilot.name": "Captain", "hero.pilot.type": "BASIC", "hero.pirate.ability": "HOOK", "hero.pirate.description1": "HOOK A PLATFORM", "hero.pirate.description2": "OR COIN, HITS MOBS", "hero.pirate.destination": "PIRATE", "hero.pirate.name": "Pirate", "hero.pirate.type": "MOBILITY", "hero.robot.ability": "SHIELD", "hero.robot.description1": "10S SHIELD, ABSORBS", "hero.robot.description2": "A HIT OR A FALL", "hero.robot.destination": "ROBOT", "hero.robot.name": "Robot", "hero.robot.type": "DEFENSE", "kick.locked1": "SIGNED IN", "kick.locked2": "ON ANOTHER DEVICE", "kick.takeover1": "SWITCH TO", "kick.takeover2": "THIS DEVICE", "kick.open_telegram": "OPEN IN TELEGRAM", "kick.retry": "REOPEN IN TELEGRAM", "lobby.add_bot": "BOT +", "lobby.bot": "BOT", "lobby.bot_number": "BOT {n}", "lobby.create": "CREATE ROOM", "lobby.empty": "EMPTY", "lobby.enter_code": "JOIN WITH CODE", "lobby.hero": "HERO: {name} \u25B6", "lobby.join": "JOIN", "lobby.leave": "LEAVE", "lobby.map": "MAP: {name}", "lobby.max_players": "UP TO 4 PLAYERS", "lobby.name": "NAME: {name}", "lobby.name_prompt": "Name for friends (up to 10 letters)", "lobby.player": "PLAYER", "lobby.ready": "READY \u2713", "lobby.room": "ROOM", "lobby.room_code": "ROOM CODE", "lobby.round": "ROUND {n}", "lobby.set_ready": "I AM READY", "lobby.share_code": "SHARE CODE WITH FRIENDS", "lobby.start": "START", "lobby.start_solo": "START SOLO", "lobby.waiting_ready": "WAITING FOR READY", "lobby.with_bots": "BOT RACE", "lobby.you": "YOU", "map.aqua.destination": "OCEAN", "map.aqua.location": "IN OCEAN", "map.aqua.name": "OCEAN", "map.city.destination": "CITY", "map.city.location": "IN CITY", "map.city.name": "CITY", "map.effect_bounce": "MORE SPRINGS", "map.effect_bubble": "BUBBLES", "map.effect_gravity": "LOW GRAVITY", "map.effect_ice": "SLIPPERY ICE", "map.effect_lava": "HOT PLATFORMS", "map.goal_prev": "REACH {n} M ON THE PREVIOUS MAP", "map.ice.destination": "GLACIER", "map.ice.location": "IN GLACIER", "map.ice.name": "GLACIER", "map.jungle.destination": "JUNGLE", "map.jungle.location": "IN JUNGLE", "map.jungle.name": "JUNGLE", "map.jungle.opened": "JUNGLE UNLOCKED!", "map.lava.destination": "VOLCANO", "map.lava.location": "ON VOLCANO", "map.lava.name": "VOLCANO", "map.locked": "???", "map.opened": "{name} UNLOCKED!", "map.space.destination": "SPACE", "map.space.location": "IN SPACE", "map.space.name": "SPACE", "map.unlock_first": "UNLOCK THE PREVIOUS MAP FIRST", "menu.choose_hero": "CHOOSE HERO", "menu.friends": "FRIENDS", "menu.friends_soon": "Soon in 0.9", "menu.home": "HOME", "menu.leagues": "LEAGUES", "menu.leagues_soon": "Soon in 0.8", "menu.map_best": "{name} \xB7 {n} M", "menu.map_progress": "{name} \xB7 {n}/{goal} M", "menu.maps": "MAPS", "menu.multiplayer": "MULTIPLAYER", "menu.options": "OPTIONS", "menu.play": "PLAY \u25B6", "menu.quests_soon": "QUESTS \xB7 SOON", "menu.tagline": "JUMP THE HIGHEST", "menu.title": "HOPPAK", "mob.alien": "ALIEN", "mob.bat": "BAT", "mob.blob": "SLIME", "mob.bob": "JELLYFISH", "mob.comet": "COMET", "mob.crab": "CRAB", "mob.ember": "FIREBALL", "mob.firebat": "FIREBAT", "mob.frog": "FROG", "mob.frost": "ICE SPIRIT", "mob.hole": "BLACK HOLE", "mob.magma": "LAVA SLIME", "mob.monkey": "MONKEY", "mob.owl": "OWL", "mob.parrot": "PARROT", "mob.penguin": "PENGUIN", "mob.puffer": "PUFFER", "mob.ray": "RAY", "mob.snake": "VINE SNAKE", "mob.spitter": "SPITTER", "mob.ufo": "UFO", "mob.whirl": "WHIRLPOOL", "mob.wind": "BLIZZARD", "net.connecting": "CONNECTING...", "net.online": "SERVER ONLINE", "net.host": "HOST", "net.ready": "READY", "net.wait": "WAIT", "net.reconnecting": "RECONNECTING...", "pickup.collected": "{name}!", "pickup.magnet": "MAGNET", "pickup.rocket": "ROCKET", "pickup.shield": "SHIELD", "pickup.treasure": "TREASURE +{n}", "play.desktop_ability_hint": "\u2190 \u2192 / A D \u2014 move \xB7 \u2191 / Space \u2014 ability \xB7 F \u2014 cinema \xB7 Esc \u2014 pause", "play.desktop_hint": "\u2190 \u2192 / A D \u2014 move \xB7 F \u2014 cinema \xB7 Esc \u2014 pause", "play.dome_saved": "SHIELD SAVED YOU!", "play.eliminated": "OUT", "play.frozen": "FROZEN!", "play.go": "GO", "play.no_platform": "NO PLATFORM", "play.no_target": "NO TARGET", "play.pause": "PAUSE", "play.player_eliminated": "{name} IS OUT", "play.resume": "RESUME", "play.rotate": "ROTATE PHONE", "play.shield_saved": "SHIELD SAVED YOU!", "play.snake_caught": "SNAKE CAUGHT YOU!", "play.spectating": "WATCHING {name}", "play.waiting": "WAITING FOR OTHERS", "profile.guest": "LOGIN: GUEST", "profile.local_progress": "PROGRESS ON DEVICE", "profile.merged": "PROGRESS MERGED", "profile.telegram": "LOGIN: TELEGRAM", "profile.title": "PROFILE", "results.again": "AGAIN \u25B6", "results.collected": "COLLECTED", "results.height": "HEIGHT {n} M", "results.hero_available": "CAN BUY {name}!", "results.hero_progress": "TO {name} \u25CF {n}", "results.hero_remaining": "{name}: \u25CF {n} LEFT", "results.map_available": "NEXT MAP CAN UNLOCK", "results.map_progress": "NEXT MAP {n}/{goal}", "results.map_record": "MAP BEST {n} M", "results.new_record": "MAP BEST: {n} M", "results.next_map": "TO THE NEXT MAP", "results.rematch": "REMATCH \u25B6", "results.round": "SCORES \xB7 ROUND {n}", "results.round_short": "SCORES \xB7 ROUND {n}", "results.runs_left": { "one": "{n} RUN LEFT", "other": "{n} RUNS LEFT" }, "results.summary": "{wins}W  {best}M", "results.title": "RESULTS", "results.treasures": "TREASURES", "results.you": " (YOU)", "reward.bonus_cap": "BONUS CAPPED", "reward.coins_cap": "COINS CAPPED", "reward.duplicate": "ALREADY COUNTED", "reward.fast": "TOO FAST", "reward.height_cap": "HEIGHT CAPPED", "reward.height_min": "HEIGHT BONUS AT 100 M", "reward.rejected": "REJECTED", "score.goal": "GOAL {n} M", "score.record": "BEST {n} M", "score.record_line": "BEST {n}", "settings.cinema": "Cinema", "settings.en": "EN", "settings.language": "LANGUAGE: {mode}", "settings.ru": "RU", "settings.tilt": "TILT: {state}", "settings.tilt_unavailable": "TILT UNAVAILABLE", "settings.title": "SETTINGS", "settings.vibration": "VIBRATE: {state}", "settings.volume": "VOLUME", "shop.buy": "BUY \u25CF {n}", "shop.charge": "CHARGE: ", "shop.confirm": "SURE? \u25CF {n}", "shop.need": "NEED \u25CF {n} MORE", "shop.purchased": "BOUGHT!", "shop.select": "SELECT", "shop.selected": "SELECTED", "shop.title": "SHOP", "unit.coins": { "one": "{n} COIN", "other": "{n} COINS" }, "unit.meter_progress": "{n}/{goal} M", "unit.meters": "{n} M", "unit.mobs": { "one": "{n} MOB", "other": "{n} MOBS" }, "unit.seconds": "{n} SEC", "menu.play_label": "PLAY", "mob.trash": "TRASH CAN", "menu.encyclopedia": "GUIDE", "ency.title": "GUIDE", "ency.heroes": "HEROES", "ency.mobs": "MOBS", "ency.maps": "MAPS", "ency.appears": "{name} \xB7 FROM {n} M", "ency.mob.blob": "CRAWLS ALONG PLATFORMS. STOMP FROM ABOVE", "ency.mob.trash": "STANDS STILL ON A PLATFORM. GO AROUND IT", "ency.mob.bat": "FLIES BACK AND FORTH. STOMP FROM ABOVE", "ency.mob.hole": "PULLS YOU IN UP CLOSE. KEEP YOUR DISTANCE", "ency.mob.ufo": "FLIES AND SHOOTS DOWNWARD. STOMP FROM ABOVE", "ency.mob.frog": "HOPS BETWEEN PLATFORMS. STOMP FROM ABOVE", "ency.mob.parrot": "FLIES AND DIVES DOWN. STOMP FROM ABOVE", "ency.mob.snake": "HANGS FROM A PLATFORM AND SNATCHES. STOMP THE HEAD", "ency.mob.monkey": "THROWS NUTS FROM A PLATFORM. STOMP FROM ABOVE", "ency.map.city": "THE FIRST MAP. STREETS AND ROOFS", "ency.map.jungle": "SPRINGS SHOW UP MORE OFTEN", "ency.opened": "OPEN {n}/{total}", "ency.meet": "MEET IT IN A RUN TO UNLOCK", "ency.map.need_m": "{n} M", "ency.map.need_prev": "ON THE PREVIOUS MAP", "ency.more": "MORE" } };
+  var GAME_I18N_BUILTIN = { "ru": { "campaign.reach": "\u0414\u041E\u0419\u0414\u0418 \u0414\u041E \u0426\u0415\u041B\u0418 \u2192", "campaign.title": "\u041A\u0410\u041C\u041F\u0410\u041D\u0418\u042F", "campaign.unlock": "\u041E\u0422\u041A\u0420\u041E\u0419 \u0417\u0410 \u041C\u041E\u041D\u0415\u0422\u042B", "common.back": "\u041D\u0410\u0417\u0410\u0414", "common.close": "\u0417\u0410\u041A\u0420\u042B\u0422\u042C", "common.menu": "\u041C\u0415\u041D\u042E", "common.off": "\u0412\u042B\u041A\u041B", "common.on": "\u0412\u041A\u041B", "common.retry": "\u0415\u0429\u0401 \u0420\u0410\u0417", "common.soon": "\u0421\u041A\u041E\u0420\u041E", "death.black_hole": "\u0414\u042B\u0420\u0410", "death.detail": "{name} \xB7 {n} \u041C", "death.fall": "\u0421\u041E\u0420\u0412\u0410\u041B\u0421\u042F \xB7 {n} \u041C", "death.hole": "\u0417\u0410\u0422\u042F\u041D\u0423\u041B\u0410 \u0414\u042B\u0420\u0410 \xB7 {n} \u041C", "death.left": "\u0412\u042B\u0428\u0415\u041B \xB7 {n} \u041C", "death.mob": "\u041C\u041E\u0411", "death.mob_f": "\u0421\u0411\u0418\u041B\u0410 {name} \xB7 {n} \u041C", "death.mob_m": "\u0421\u0411\u0418\u041B {name} \xB7 {n} \u041C", "death.shot": "\u0421\u0411\u0418\u041B \u0412\u042B\u0421\u0422\u0420\u0415\u041B \xB7 {n} \u041C", "death.spirit": "\u0414\u0423\u0425", "death.vine": "\u041B\u0418\u0410\u041D\u0410", "debug.font": "\u0428\u0420\u0418\u0424\u0422", "err.bad_map": "\u041D\u0415\u0422 \u0422\u0410\u041A\u041E\u0419 \u041A\u0410\u0420\u0422\u042B", "err.bad_pid": "\u041D\u0415\u041A\u041E\u0413\u041E \u0412\u042B\u0413\u041D\u0410\u0422\u042C", "err.busy": "\u0421\u0415\u0420\u0412\u0415\u0420 \u0417\u0410\u041D\u042F\u0422", "err.connection": "\u041D\u0415\u0422 \u0421\u0412\u042F\u0417\u0418", "err.connection_lost": "\u0421\u0412\u042F\u0417\u042C \u041F\u041E\u0422\u0415\u0420\u042F\u041D\u0410", "err.full": "\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041F\u041E\u041B\u041D\u0415\u041D\u0410", "err.generic": "\u041E\u0428\u0418\u0411\u041A\u0410", "err.in_game": "\u0417\u0410\u0411\u0415\u0413 \u0423\u0416\u0415 \u0418\u0414\u0401\u0422", "err.internal": "\u041E\u0428\u0418\u0411\u041A\u0410 \u0421\u0415\u0420\u0412\u0415\u0420\u0410", "err.invalid_name": "\u0422\u0410\u041A\u0418\u0415 \u0411\u0423\u041A\u0412\u042B \u041D\u0415 \u041F\u041E\u0414\u0425\u041E\u0414\u042F\u0422", "err.kicked": "\u0422\u0415\u0411\u042F \u0412\u042B\u0413\u041D\u0410\u041B\u0418", "err.no_connection": "\u041D\u0415\u0422 \u0421\u0415\u0422\u0418", "err.no_room": "\u0422\u042B \u041D\u0415 \u0412 \u041A\u041E\u041C\u041D\u0410\u0422\u0415", "err.not_found": "\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u041D\u0415 \u041D\u0410\u0419\u0414\u0415\u041D\u0410", "err.not_host": "\u0422\u041E\u041B\u042C\u041A\u041E \u0425\u041E\u0421\u0422", "err.not_ready": "\u041D\u0415 \u0412\u0421\u0415 \u0413\u041E\u0422\u041E\u0412\u042B", "err.reload": "\u041E\u0411\u041D\u041E\u0412\u0418 \u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423", "err.reload_line1": "\u041E\u0411\u041D\u041E\u0412\u0418", "err.reload_line2": "\u0421\u0422\u0420\u0410\u041D\u0418\u0426\u0423", "err.room_closed": "\u041A\u041E\u041C\u041D\u0410\u0422\u0410 \u0417\u0410\u041A\u0420\u042B\u0422\u0410", "err.unsupported": "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D \u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", "err.unsupported_line1": "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420 \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D", "err.unsupported_line2": "\u0412 \u042D\u0422\u041E\u0419 \u0412\u0415\u0420\u0421\u0418\u0418", "floor.break": "\u041B\u041E\u041C\u0410\u0415\u0422\u0421\u042F \u041F\u041E\u0421\u041B\u0415 \u041F\u0420\u042B\u0416\u041A\u0410", "floor.goal": "\u0414\u041E\u041F\u0420\u042B\u0413\u041D\u0418 \u0414\u041E \u0426\u0415\u041B\u0418", "floor.record": "\u0422\u0412\u041E\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 - \u041F\u041E\u0411\u0415\u0419!", "hero.knight.ability": "\u0422\u0410\u0420\u0410\u041D", "hero.knight.description1": "\u041F\u0418\u041A\u0415 \u0412\u041D\u0418\u0417, \u0414\u041E 2 \u0417\u0410\u0420\u042F\u0414\u041E\u0412,", "hero.knight.description2": "\u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u0421\u0423\u041F\u0415\u0420\u041F\u0420\u042B\u0416\u041E\u041A", "hero.knight.destination": "\u0420\u042B\u0426\u0410\u0420\u042F", "hero.knight.name": "\u0420\u044B\u0446\u0430\u0440\u044C", "hero.knight.type": "\u0410\u0422\u0410\u041A\u0410", "hero.mage.ability": "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", "hero.mage.description1": "\u041C\u0418\u0413\u041E\u041C \u041D\u0410 \u041D\u0410\u0414\u0401\u0416\u041D\u0423\u042E", "hero.mage.description2": "\u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0423 \u0412\u042B\u0428\u0415", "hero.mage.destination": "\u041C\u0410\u0413\u0410", "hero.mage.name": "\u041C\u0430\u0433", "hero.mage.type": "\u0422\u0415\u041B\u0415\u041F\u041E\u0420\u0422", "hero.ninja.ability": "\u0421\u0422\u0415\u041D\u042B", "hero.ninja.description1": "6 \u0421\u0415\u041A \u0426\u0415\u041F\u041B\u042F\u0415\u0422\u0421\u042F \u0417\u0410 \u041A\u0420\u0410\u0419,", "hero.ninja.description2": "\u0422\u0410\u041F - \u041F\u0420\u042B\u0416\u041E\u041A \u041E\u0422 \u0421\u0422\u0415\u041D\u042B", "hero.ninja.destination": "\u041D\u0418\u041D\u0414\u0417\u042F", "hero.ninja.name": "\u041D\u0438\u043D\u0434\u0437\u044F", "hero.ninja.type": "\u041F\u0410\u0420\u041A\u0423\u0420", "hero.pilot.ability": "\u0420\u042B\u0412\u041E\u041A", "hero.pilot.description1": "\u041A\u041E\u0420\u041E\u0422\u041A\u0418\u0419 \u0411\u042B\u0421\u0422\u0420\u042B\u0419", "hero.pilot.description2": "\u0412\u0417\u041B\u0401\u0422 \u041D\u0410 \u0420\u0410\u041D\u0426\u0415", "hero.pilot.destination": "\u041A\u0410\u041F\u0418\u0422\u0410\u041D\u0410", "hero.pilot.name": "\u041A\u0430\u043F\u0438\u0442\u0430\u043D", "hero.pilot.type": "\u0411\u0410\u0417\u041E\u0412\u042B\u0419", "hero.pirate.ability": "\u041A\u0420\u042E\u041A", "hero.pirate.description1": "\u041A\u0420\u042E\u041A \u041A \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u0415", "hero.pirate.description2": "\u0418\u041B\u0418 \u041C\u041E\u041D\u0415\u0422\u0415, \u0411\u042C\u0401\u0422 \u041C\u041E\u0411\u041E\u0412", "hero.pirate.destination": "\u041F\u0418\u0420\u0410\u0422\u0410", "hero.pirate.name": "\u041F\u0438\u0440\u0430\u0442", "hero.pirate.type": "\u041C\u0410\u041D\u0401\u0412\u0420", "hero.robot.ability": "\u0429\u0418\u0422", "hero.robot.description1": "\u0412\u041A\u041B\u042E\u0427\u0410\u0415\u0422 \u0429\u0418\u0422,", "hero.robot.description2": "\u041A\u0410\u041A \u0411\u041E\u041D\u0423\u0421", "hero.robot.destination": "\u0420\u041E\u0411\u041E\u0422\u0410", "hero.robot.name": "\u0420\u043E\u0431\u043E\u0442", "hero.robot.type": "\u0417\u0410\u0429\u0418\u0422\u0410", "kick.locked1": "\u0412\u0425\u041E\u0414 \u0412\u042B\u041F\u041E\u041B\u041D\u0415\u041D", "kick.locked2": "\u0421 \u0414\u0420\u0423\u0413\u041E\u0413\u041E \u0423\u0421\u0422\u0420\u041E\u0419\u0421\u0422\u0412\u0410", "kick.takeover1": "\u041F\u0415\u0420\u0415\u041A\u041B\u042E\u0427\u0418\u0422\u042C\u0421\u042F", "kick.takeover2": "\u041D\u0410 \u042D\u0422\u041E \u0423\u0421\u0422\u0420\u041E\u0419\u0421\u0422\u0412\u041E", "kick.open_telegram": "\u041E\u0422\u041A\u0420\u041E\u0419\u0422\u0415 \u0412 \u0422\u0415\u041B\u0415\u0413\u0420\u0410\u041C\u0415", "kick.retry": "\u041F\u0415\u0420\u0415\u041E\u0422\u041A\u0420\u041E\u0419\u0422\u0415 \u0412 \u0422\u0415\u041B\u0415\u0413\u0420\u0410\u041C\u0415", "lobby.add_bot": "\u0411\u041E\u0422 +", "lobby.bot": "\u0411\u041E\u0422", "lobby.bot_number": "\u0411\u041E\u0422 {n}", "lobby.create": "\u0421\u041E\u0417\u0414\u0410\u0422\u042C \u041A\u041E\u041C\u041D\u0410\u0422\u0423", "lobby.empty": "\u0421\u0412\u041E\u0411\u041E\u0414\u041D\u041E", "lobby.enter_code": "\u0412\u041E\u0419\u0422\u0418 \u041F\u041E \u041A\u041E\u0414\u0423", "lobby.hero": "\u0413\u0415\u0420\u041E\u0419: {name} \u25B6", "lobby.join": "\u0412\u041E\u0419\u0422\u0418", "lobby.leave": "\u0412\u042B\u0419\u0422\u0418", "lobby.map": "\u041A\u0410\u0420\u0422\u0410: {name}", "lobby.max_players": "\u0414\u041E 4 \u0418\u0413\u0420\u041E\u041A\u041E\u0412 \u041D\u0410 \u041A\u0410\u0420\u0422\u0415", "lobby.name": "\u0418\u041C\u042F: {name}", "lobby.name_prompt": "\u0418\u043C\u044F \u0434\u043B\u044F \u0434\u0440\u0443\u0437\u0435\u0439 (\u0434\u043E 10 \u0431\u0443\u043A\u0432)", "lobby.player": "\u0418\u0413\u0420\u041E\u041A", "lobby.ready": "\u0413\u041E\u0422\u041E\u0412 \u2713", "lobby.room": "\u041A\u041E\u041C\u041D\u0410\u0422\u0410", "lobby.room_code": "\u041A\u041E\u0414 \u041A\u041E\u041C\u041D\u0410\u0422\u042B", "lobby.round": "\u0420\u0410\u0423\u041D\u0414 {n}", "lobby.set_ready": "\u042F \u0413\u041E\u0422\u041E\u0412", "lobby.share_code": "\u0421\u041A\u0410\u0416\u0418 \u041A\u041E\u0414 \u0414\u0420\u0423\u0417\u042C\u042F\u041C", "lobby.start": "\u041D\u0410\u0427\u0410\u0422\u042C", "lobby.start_solo": "\u041D\u0410\u0427\u0410\u0422\u042C \u041E\u0414\u041D\u041E\u041C\u0423", "lobby.waiting_ready": "\u0416\u0414\u0401\u041C \u0413\u041E\u0422\u041E\u0412\u041D\u041E\u0421\u0422\u0418", "lobby.with_bots": "\u0417\u0410\u0411\u0415\u0413 \u0421 \u0411\u041E\u0422\u0410\u041C\u0418", "lobby.you": "\u0422\u042B", "map.aqua.destination": "\u041E\u041A\u0415\u0410\u041D\u0410", "map.aqua.location": "\u0412 \u041E\u041A\u0415\u0410\u041D\u0415", "map.aqua.name": "\u041E\u041A\u0415\u0410\u041D", "map.city.destination": "\u0413\u041E\u0420\u041E\u0414\u0410", "map.city.location": "\u0412 \u0413\u041E\u0420\u041E\u0414\u0415", "map.city.name": "\u0413\u041E\u0420\u041E\u0414", "map.effect_bounce": "\u041F\u0420\u0423\u0416\u0418\u041D\u042B \u0427\u0410\u0429\u0415", "map.effect_bubble": "\u041F\u0423\u0417\u042B\u0420\u0418", "map.effect_gravity": "\u0421\u041B\u0410\u0411\u0410\u042F \u0413\u0420\u0410\u0412\u0418\u0422\u0410\u0426\u0418\u042F", "map.effect_ice": "\u041B\u0401\u0414: \u0421\u041A\u041E\u041B\u042C\u0417\u041A\u041E", "map.effect_lava": "\u0416\u0410\u0420\u041A\u0418\u0415 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B", "map.goal_prev": "{n} \u041C \u041D\u0410 \u041F\u0420\u0415\u0414\u042B\u0414\u0423\u0429\u0415\u0419 \u041A\u0410\u0420\u0422\u0415", "map.ice.destination": "\u041B\u0415\u0414\u041D\u0418\u041A\u0410", "map.ice.location": "\u0412 \u041B\u0415\u0414\u041D\u0418\u041A\u0415", "map.ice.name": "\u041B\u0415\u0414\u041D\u0418\u041A", "map.jungle.destination": "\u0414\u0416\u0423\u041D\u0413\u041B\u0415\u0419", "map.jungle.location": "\u0412 \u0414\u0416\u0423\u041D\u0413\u041B\u042F\u0425", "map.jungle.name": "\u0414\u0416\u0423\u041D\u0413\u041B\u0418", "map.jungle.opened": "\u0414\u0416\u0423\u041D\u0413\u041B\u0418 \u041E\u0422\u041A\u0420\u042B\u0422\u042B!", "map.lava.destination": "\u0412\u0423\u041B\u041A\u0410\u041D\u0410", "map.lava.location": "\u041D\u0410 \u0412\u0423\u041B\u041A\u0410\u041D\u0415", "map.lava.name": "\u0412\u0423\u041B\u041A\u0410\u041D", "map.locked": "???", "map.opened": "{name} \u041E\u0422\u041A\u0420\u042B\u0422!", "map.space.destination": "\u041A\u041E\u0421\u041C\u041E\u0421\u0410", "map.space.location": "\u0412 \u041A\u041E\u0421\u041C\u041E\u0421\u0415", "map.space.name": "\u041A\u041E\u0421\u041C\u041E\u0421", "map.unlock_first": "\u0421\u041D\u0410\u0427\u0410\u041B\u0410 \u041E\u0422\u041A\u0420\u041E\u0419 \u041F\u0420\u0415\u0414\u042B\u0414\u0423\u0429\u0423\u042E \u041A\u0410\u0420\u0422\u0423", "menu.choose_hero": "\u0412\u042B\u0411\u0420\u0410\u0422\u042C \u0413\u0415\u0420\u041E\u042F", "menu.friends": "\u0414\u0420\u0423\u0417\u042C\u042F", "menu.friends_soon": "\u0421\u043A\u043E\u0440\u043E \u0432 0.9", "menu.home": "\u0413\u041B\u0410\u0412\u041D\u0410\u042F", "menu.leagues": "\u041B\u0418\u0413\u0418", "menu.leagues_soon": "\u0421\u043A\u043E\u0440\u043E \u0432 0.8", "menu.map_best": "{name} \xB7 {n} \u041C", "menu.map_progress": "{name} \xB7 {n}/{goal} \u041C", "menu.maps": "\u041A\u0410\u0420\u0422\u042B", "menu.multiplayer": "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", "menu.options": "\u041E\u041F\u0426\u0418\u0418", "menu.play": "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", "menu.quests_soon": "\u0417\u0410\u0414\u0410\u041D\u0418\u042F \xB7 \u0421\u041A\u041E\u0420\u041E", "menu.tagline": "\u041F\u0420\u042B\u0413\u0410\u0419 \u0412\u042B\u0428\u0415 \u0412\u0421\u0415\u0425", "menu.title": "\u0425\u041E\u041F\u041F\u0410\u041A", "mob.alien": "\u041F\u0420\u0418\u0428\u0415\u041B\u0415\u0426", "mob.bat": "\u041C\u042B\u0428\u042C", "mob.blob": "\u0421\u041B\u0418\u0417\u0415\u041D\u042C", "mob.bob": "\u041C\u0415\u0414\u0423\u0417\u0410", "mob.comet": "\u041A\u041E\u041C\u0415\u0422\u0410", "mob.crab": "\u041A\u0420\u0410\u0411", "mob.ember": "\u041E\u0413\u041D\u0415\u0428\u0410\u0420", "mob.firebat": "\u041E\u0413\u041D\u0415\u041C\u042B\u0428\u042C", "mob.frog": "\u041B\u042F\u0413\u0423\u0428\u041A\u0410", "mob.frost": "\u041B\u0415\u0414\u042F\u041D\u041E\u0419 \u0414\u0423\u0425", "mob.hole": "\u0427\u0401\u0420\u041D\u0410\u042F \u0414\u042B\u0420\u0410", "mob.magma": "\u041B\u0410\u0412\u041E\u0421\u041B\u0418\u0417\u042C", "mob.monkey": "\u041E\u0411\u0415\u0417\u042C\u042F\u041D\u0410", "mob.owl": "\u0421\u041E\u0412\u0410", "mob.parrot": "\u041F\u041E\u041F\u0423\u0413\u0410\u0419", "mob.penguin": "\u041F\u0418\u041D\u0413\u0412\u0418\u041D", "mob.puffer": "\u0420\u042B\u0411\u0410-\u0401\u0416", "mob.ray": "\u0421\u041A\u0410\u0422", "mob.snake": "\u0417\u041C\u0415\u042F-\u041B\u0418\u0410\u041D\u0410", "mob.spitter": "\u041F\u041B\u0415\u0412\u0423\u041D", "mob.ufo": "\u041D\u041B\u041E", "mob.whirl": "\u0412\u041E\u0414\u041E\u0412\u041E\u0420\u041E\u0422", "mob.wind": "\u0412\u042C\u042E\u0413\u0410", "net.connecting": "\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", "net.online": "\u0421\u0415\u0420\u0412\u0415\u0420 \u041D\u0410 \u0421\u0412\u042F\u0417\u0418", "net.host": "\u0425\u041E\u0421\u0422", "net.ready": "\u0413\u041E\u0422\u041E\u0412", "net.wait": "\u0416\u0414\u0401\u041C", "net.reconnecting": "\u041F\u0415\u0420\u0415\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", "pickup.collected": "{name}!", "pickup.magnet": "\u041C\u0410\u0413\u041D\u0418\u0422", "pickup.rocket": "\u0420\u0410\u041A\u0415\u0422\u0410", "pickup.shield": "\u0429\u0418\u0422", "pickup.treasure": "\u041A\u041B\u0410\u0414 +{n}", "play.desktop_ability_hint": "\u2190 \u2192 / A D \u2014 \u0434\u0432\u0438\u0436\u0435\u043D\u0438\u0435 \xB7 \u2191 / \u041F\u0440\u043E\u0431\u0435\u043B \u2014 \u0441\u043F\u043E\u0441\u043E\u0431\u043D\u043E\u0441\u0442\u044C \xB7 F \u2014 \u043A\u0438\u043D\u043E \xB7 Esc \u2014 \u043F\u0430\u0443\u0437\u0430", "play.desktop_hint": "\u2190 \u2192 / A D \u2014 \u0434\u0432\u0438\u0436\u0435\u043D\u0438\u0435 \xB7 F \u2014 \u043A\u0438\u043D\u043E \xB7 Esc \u2014 \u043F\u0430\u0443\u0437\u0430", "play.dome_saved": "\u041A\u041E\u0421\u041C\u041E\u0429\u0418\u0422 \u0421\u041F\u0410\u0421!", "play.eliminated": "\u0412\u042B\u0411\u042B\u041B", "play.frozen": "\u0417\u0410\u041C\u041E\u0420\u041E\u0417\u041A\u0410!", "play.go": "\u0412\u041F\u0415\u0420\u0401\u0414", "play.no_platform": "\u041D\u0415\u0422 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B", "play.no_target": "\u041D\u0415\u0422 \u0426\u0415\u041B\u0418", "play.pause": "\u041F\u0410\u0423\u0417\u0410", "play.player_eliminated": "{name} \u0412\u042B\u0411\u042B\u041B", "play.resume": "\u041F\u0420\u041E\u0414\u041E\u041B\u0416\u0418\u0422\u042C", "play.rotate": "\u041F\u041E\u0412\u0415\u0420\u041D\u0418 \u0422\u0415\u041B\u0415\u0424\u041E\u041D", "play.shield_saved": "\u0429\u0418\u0422 \u0421\u041F\u0410\u0421!", "play.snake_caught": "\u0417\u041C\u0415\u042F \u0421\u0425\u0412\u0410\u0422\u0418\u041B\u0410!", "play.spectating": "\u0421\u041C\u041E\u0422\u0420\u0418\u041C {name}", "play.waiting": "\u0416\u0414\u0401\u041C \u041E\u0421\u0422\u0410\u041B\u042C\u041D\u042B\u0425", "profile.guest": "\u0412\u0425\u041E\u0414: \u0413\u041E\u0421\u0422\u0415\u0412\u041E\u0419", "profile.local_progress": "\u041F\u0420\u041E\u0413\u0420\u0415\u0421\u0421 \u041D\u0410 \u0423\u0421\u0422\u0420\u041E\u0419\u0421\u0422\u0412\u0415", "profile.merged": "\u041F\u0420\u041E\u0413\u0420\u0415\u0421\u0421 \u041E\u0411\u042A\u0415\u0414\u0418\u041D\u0401\u041D", "profile.telegram": "\u0412\u0425\u041E\u0414: TELEGRAM", "profile.title": "\u041F\u0420\u041E\u0424\u0418\u041B\u042C", "results.again": "\u0415\u0429\u0401 \u0420\u0410\u0417 \u25B6", "results.collected": "\u0421\u041E\u0411\u0420\u0410\u041D\u041E", "results.height": "\u0412\u042B\u0421\u041E\u0422\u0410 {n} \u041C", "results.hero_available": "\u0425\u0412\u0410\u0422\u0410\u0415\u0422 \u041D\u0410 {name}!", "results.hero_progress": "\u0414\u041E {name} \u25CF {n}", "results.hero_remaining": "\u0414\u041E {name} \u041E\u0421\u0422\u0410\u041B\u041E\u0421\u042C \u25CF {n}", "results.map_available": "\u041C\u041E\u0416\u041D\u041E \u041E\u0422\u041A\u0420\u042B\u0422\u042C \u0421\u041B\u0415\u0414\u0423\u042E\u0429\u0423\u042E", "results.map_progress": "\u0421\u041B\u0415\u0414\u0423\u042E\u0429\u0410\u042F {n}/{goal}", "results.map_record": "\u0420\u0415\u041A\u041E\u0420\u0414 \u041A\u0410\u0420\u0422\u042B {n} \u041C", "results.new_record": "\u041D\u041E\u0412\u042B\u0419 \u0420\u0415\u041A\u041E\u0420\u0414 \u041A\u0410\u0420\u0422\u042B {n} \u041C", "results.next_map": "\u0414\u041E \u0421\u041B\u0415\u0414\u0423\u042E\u0429\u0415\u0419 \u041A\u0410\u0420\u0422\u042B", "results.rematch": "\u0420\u0415\u0412\u0410\u041D\u0428 \u25B6", "results.round": "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 \u0420\u0410\u0423\u041D\u0414 {n}", "results.round_short": "\u0421\u0427\u0401\u0422 \xB7 \u0420\u0410\u0423\u041D\u0414 {n}", "results.runs_left": { "one": "\u0415\u0429\u0401 {n} \u0417\u0410\u0411\u0415\u0413", "few": "\u0415\u0429\u0401 {n} \u0417\u0410\u0411\u0415\u0413\u0410", "many": "\u0415\u0429\u0401 {n} \u0417\u0410\u0411\u0415\u0413\u041E\u0412", "other": "\u0415\u0429\u0401 {n} \u0417\u0410\u0411\u0415\u0413\u041E\u0412" }, "results.summary": "{wins}\u041F  {best}\u041C", "results.title": "\u0418\u0422\u041E\u0413\u0418", "results.treasures": "\u041A\u041B\u0410\u0414\u042B", "results.you": " (\u0422\u042B)", "reward.bonus_cap": "\u0411\u041E\u041D\u0423\u0421 \u0421\u0420\u0415\u0417\u0410\u041D", "reward.coins_cap": "\u041C\u041E\u041D\u0415\u0422\u042B \u0421\u0420\u0415\u0417\u0410\u041D\u042B", "reward.duplicate": "\u0423\u0416\u0415 \u0417\u0410\u0421\u0427\u0418\u0422\u0410\u041D", "reward.fast": "\u0421\u041B\u0418\u0428\u041A\u041E\u041C \u0411\u042B\u0421\u0422\u0420\u041E", "reward.height_cap": "\u0412\u042B\u0421\u041E\u0422\u0410 \u0421\u0420\u0415\u0417\u0410\u041D\u0410", "reward.height_min": "\u0417\u0410 \u0412\u042B\u0421\u041E\u0422\u0423 \xB7 \u0421 100 \u041C", "reward.rejected": "\u041D\u0415 \u041F\u0420\u0418\u041D\u042F\u0422\u041E", "score.goal": "\u0426\u0415\u041B\u042C {n} \u041C", "score.record": "\u0420\u0415\u041A\u041E\u0420\u0414 {n} \u041C", "score.record_line": "\u0420\u0415\u041A\u041E\u0420\u0414 {n}", "settings.cinema": "\u041A\u0438\u043D\u043E", "settings.en": "EN", "settings.language": "\u042F\u0417\u042B\u041A: {mode}", "settings.ru": "RU", "settings.tilt": "\u041D\u0410\u041A\u041B\u041E\u041D: {state}", "settings.tilt_unavailable": "\u041D\u0410\u041A\u041B\u041E\u041D \u041D\u0415\u0414\u041E\u0421\u0422\u0423\u041F\u0415\u041D", "settings.title": "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418", "settings.vibration": "\u0412\u0418\u0411\u0420\u041E: {state}", "settings.volume": "\u0413\u0420\u041E\u041C\u041A\u041E\u0421\u0422\u042C", "shop.buy": "\u041A\u0423\u041F\u0418\u0422\u042C \u25CF {n}", "shop.charge": "\u0417\u0410\u0420\u042F\u0414: ", "shop.confirm": "\u0422\u041E\u0427\u041D\u041E? \u25CF {n}", "shop.need": "\u041D\u0423\u0416\u041D\u041E \u0415\u0429\u0401 \u25CF {n}", "shop.purchased": "\u041A\u0423\u041F\u041B\u0415\u041D\u041E!", "shop.select": "\u0412\u042B\u0411\u0420\u0410\u0422\u042C", "shop.selected": "\u0412\u042B\u0411\u0420\u0410\u041D", "shop.title": "\u041C\u0410\u0413\u0410\u0417\u0418\u041D", "unit.coins": { "one": "{n} \u041C\u041E\u041D\u0415\u0422\u0410", "few": "{n} \u041C\u041E\u041D\u0415\u0422\u042B", "many": "{n} \u041C\u041E\u041D\u0415\u0422", "other": "{n} \u041C\u041E\u041D\u0415\u0422" }, "unit.meter_progress": "{n}/{goal} \u041C", "unit.meters": "{n} \u041C", "unit.mobs": { "one": "{n} \u041C\u041E\u0411", "few": "{n} \u041C\u041E\u0411\u0410", "many": "{n} \u041C\u041E\u0411\u041E\u0412", "other": "{n} \u041C\u041E\u0411\u041E\u0412" }, "unit.seconds": "{n} \u0421\u0415\u041A", "menu.play_label": "\u0418\u0413\u0420\u0410\u0422\u042C", "mob.trash": "\u0411\u0410\u0427\u041E\u041A", "menu.encyclopedia": "\u0421\u041F\u0420\u0410\u0412\u041E\u0427\u041D\u0418\u041A", "ency.title": "\u0421\u041F\u0420\u0410\u0412\u041E\u0427\u041D\u0418\u041A", "ency.heroes": "\u0413\u0415\u0420\u041E\u0418", "ency.mobs": "\u041C\u041E\u0411\u042B", "ency.maps": "\u041A\u0410\u0420\u0422\u042B", "ency.appears": "{name} \xB7 \u0421 {n} \u041C", "ency.opened": "\u041E\u0422\u041A\u0420\u042B\u0422\u041E {n}/{total}", "ency.meet": "\u0412\u0421\u0422\u0420\u0415\u0422\u042C \u0412 \u0418\u0413\u0420\u0415, \u0427\u0422\u041E\u0411\u042B \u041E\u0422\u041A\u0420\u042B\u0422\u042C", "ency.map.need_m": "{n} \u041C", "ency.map.need_prev": "\u041D\u0410 \u041F\u0420\u041E\u0428\u041B\u041E\u0419 \u041A\u0410\u0420\u0422\u0415" }, "en": { "campaign.reach": "REACH THE GOAL \u2192", "campaign.title": "CAMPAIGN", "campaign.unlock": "UNLOCK WITH COINS", "common.back": "BACK", "common.close": "CLOSE", "common.menu": "MENU", "common.off": "OFF", "common.on": "ON", "common.retry": "RETRY", "common.soon": "SOON", "death.black_hole": "HOLE", "death.detail": "{name} \xB7 {n} M", "death.fall": "FELL \xB7 {n} M", "death.hole": "BLACK HOLE \xB7 {n} M", "death.left": "LEFT \xB7 {n} M", "death.mob": "MOB", "death.mob_f": "HIT BY {name} \xB7 {n} M", "death.mob_m": "HIT BY {name} \xB7 {n} M", "death.shot": "SHOT \xB7 {n} M", "death.spirit": "SPIRIT", "death.vine": "VINE", "debug.font": "FONT", "err.bad_map": "UNKNOWN MAP", "err.bad_pid": "NO PLAYER TO KICK", "err.busy": "SERVER BUSY", "err.connection": "NO CONNECTION", "err.connection_lost": "CONNECTION LOST", "err.full": "ROOM FULL", "err.generic": "ERROR", "err.in_game": "RACE IN PROGRESS", "err.internal": "SERVER ERROR", "err.invalid_name": "INVALID LETTERS", "err.kicked": "YOU WERE KICKED", "err.no_connection": "OFFLINE", "err.no_room": "NOT IN A ROOM", "err.not_found": "ROOM NOT FOUND", "err.not_host": "HOST ONLY", "err.not_ready": "PLAYERS NOT READY", "err.reload": "RELOAD THE PAGE", "err.reload_line1": "RELOAD", "err.reload_line2": "THE PAGE", "err.room_closed": "ROOM CLOSED", "err.unsupported": "MULTIPLAYER UNAVAILABLE IN THIS VERSION", "err.unsupported_line1": "MULTIPLAYER UNAVAILABLE", "err.unsupported_line2": "IN THIS VERSION", "floor.break": "BREAKS AFTER A JUMP", "floor.goal": "REACH THE GOAL", "floor.record": "BEAT YOUR RECORD!", "hero.knight.ability": "SLAM", "hero.knight.description1": "SHIELD DIVE, UP TO 2 CHARGES", "hero.knight.description2": "THEN SUPER JUMP", "hero.knight.destination": "KNIGHT", "hero.knight.name": "Knight", "hero.knight.type": "ATTACK", "hero.mage.ability": "TELEPORT", "hero.mage.description1": "WARP TO A SAFE", "hero.mage.description2": "PLATFORM ABOVE", "hero.mage.destination": "MAGE", "hero.mage.name": "Mage", "hero.mage.type": "TELEPORT", "hero.ninja.ability": "WALLS", "hero.ninja.description1": "GRAB LEDGES FOR 6S", "hero.ninja.description2": "TAP TO WALL JUMP", "hero.ninja.destination": "NINJA", "hero.ninja.name": "Ninja", "hero.ninja.type": "PARKOUR", "hero.pilot.ability": "DASH", "hero.pilot.description1": "SHORT FAST BOOST", "hero.pilot.description2": "WITH A JETPACK", "hero.pilot.destination": "CAPTAIN", "hero.pilot.name": "Captain", "hero.pilot.type": "BASIC", "hero.pirate.ability": "HOOK", "hero.pirate.description1": "HOOK A PLATFORM", "hero.pirate.description2": "OR COIN, HITS MOBS", "hero.pirate.destination": "PIRATE", "hero.pirate.name": "Pirate", "hero.pirate.type": "MOBILITY", "hero.robot.ability": "SHIELD", "hero.robot.description1": "TURNS ON THE SHIELD,", "hero.robot.description2": "SAME AS THE BONUS", "hero.robot.destination": "ROBOT", "hero.robot.name": "Robot", "hero.robot.type": "DEFENSE", "kick.locked1": "SIGNED IN", "kick.locked2": "ON ANOTHER DEVICE", "kick.takeover1": "SWITCH TO", "kick.takeover2": "THIS DEVICE", "kick.open_telegram": "OPEN IN TELEGRAM", "kick.retry": "REOPEN IN TELEGRAM", "lobby.add_bot": "BOT +", "lobby.bot": "BOT", "lobby.bot_number": "BOT {n}", "lobby.create": "CREATE ROOM", "lobby.empty": "EMPTY", "lobby.enter_code": "JOIN WITH CODE", "lobby.hero": "HERO: {name} \u25B6", "lobby.join": "JOIN", "lobby.leave": "LEAVE", "lobby.map": "MAP: {name}", "lobby.max_players": "UP TO 4 PLAYERS", "lobby.name": "NAME: {name}", "lobby.name_prompt": "Name for friends (up to 10 letters)", "lobby.player": "PLAYER", "lobby.ready": "READY \u2713", "lobby.room": "ROOM", "lobby.room_code": "ROOM CODE", "lobby.round": "ROUND {n}", "lobby.set_ready": "I AM READY", "lobby.share_code": "SHARE CODE WITH FRIENDS", "lobby.start": "START", "lobby.start_solo": "START SOLO", "lobby.waiting_ready": "WAITING FOR READY", "lobby.with_bots": "BOT RACE", "lobby.you": "YOU", "map.aqua.destination": "OCEAN", "map.aqua.location": "IN OCEAN", "map.aqua.name": "OCEAN", "map.city.destination": "CITY", "map.city.location": "IN CITY", "map.city.name": "CITY", "map.effect_bounce": "MORE SPRINGS", "map.effect_bubble": "BUBBLES", "map.effect_gravity": "LOW GRAVITY", "map.effect_ice": "SLIPPERY ICE", "map.effect_lava": "HOT PLATFORMS", "map.goal_prev": "REACH {n} M ON THE PREVIOUS MAP", "map.ice.destination": "GLACIER", "map.ice.location": "IN GLACIER", "map.ice.name": "GLACIER", "map.jungle.destination": "JUNGLE", "map.jungle.location": "IN JUNGLE", "map.jungle.name": "JUNGLE", "map.jungle.opened": "JUNGLE UNLOCKED!", "map.lava.destination": "VOLCANO", "map.lava.location": "ON VOLCANO", "map.lava.name": "VOLCANO", "map.locked": "???", "map.opened": "{name} UNLOCKED!", "map.space.destination": "SPACE", "map.space.location": "IN SPACE", "map.space.name": "SPACE", "map.unlock_first": "UNLOCK THE PREVIOUS MAP FIRST", "menu.choose_hero": "CHOOSE HERO", "menu.friends": "FRIENDS", "menu.friends_soon": "Soon in 0.9", "menu.home": "HOME", "menu.leagues": "LEAGUES", "menu.leagues_soon": "Soon in 0.8", "menu.map_best": "{name} \xB7 {n} M", "menu.map_progress": "{name} \xB7 {n}/{goal} M", "menu.maps": "MAPS", "menu.multiplayer": "MULTIPLAYER", "menu.options": "OPTIONS", "menu.play": "PLAY \u25B6", "menu.quests_soon": "QUESTS \xB7 SOON", "menu.tagline": "JUMP THE HIGHEST", "menu.title": "HOPPAK", "mob.alien": "ALIEN", "mob.bat": "BAT", "mob.blob": "SLIME", "mob.bob": "JELLYFISH", "mob.comet": "COMET", "mob.crab": "CRAB", "mob.ember": "FIREBALL", "mob.firebat": "FIREBAT", "mob.frog": "FROG", "mob.frost": "ICE SPIRIT", "mob.hole": "BLACK HOLE", "mob.magma": "LAVA SLIME", "mob.monkey": "MONKEY", "mob.owl": "OWL", "mob.parrot": "PARROT", "mob.penguin": "PENGUIN", "mob.puffer": "PUFFER", "mob.ray": "RAY", "mob.snake": "VINE SNAKE", "mob.spitter": "SPITTER", "mob.ufo": "UFO", "mob.whirl": "WHIRLPOOL", "mob.wind": "BLIZZARD", "net.connecting": "CONNECTING...", "net.online": "SERVER ONLINE", "net.host": "HOST", "net.ready": "READY", "net.wait": "WAIT", "net.reconnecting": "RECONNECTING...", "pickup.collected": "{name}!", "pickup.magnet": "MAGNET", "pickup.rocket": "ROCKET", "pickup.shield": "SHIELD", "pickup.treasure": "TREASURE +{n}", "play.desktop_ability_hint": "\u2190 \u2192 / A D \u2014 move \xB7 \u2191 / Space \u2014 ability \xB7 F \u2014 cinema \xB7 Esc \u2014 pause", "play.desktop_hint": "\u2190 \u2192 / A D \u2014 move \xB7 F \u2014 cinema \xB7 Esc \u2014 pause", "play.dome_saved": "SHIELD SAVED YOU!", "play.eliminated": "OUT", "play.frozen": "FROZEN!", "play.go": "GO", "play.no_platform": "NO PLATFORM", "play.no_target": "NO TARGET", "play.pause": "PAUSE", "play.player_eliminated": "{name} IS OUT", "play.resume": "RESUME", "play.rotate": "ROTATE PHONE", "play.shield_saved": "SHIELD SAVED YOU!", "play.snake_caught": "SNAKE CAUGHT YOU!", "play.spectating": "WATCHING {name}", "play.waiting": "WAITING FOR OTHERS", "profile.guest": "LOGIN: GUEST", "profile.local_progress": "PROGRESS ON DEVICE", "profile.merged": "PROGRESS MERGED", "profile.telegram": "LOGIN: TELEGRAM", "profile.title": "PROFILE", "results.again": "AGAIN \u25B6", "results.collected": "COLLECTED", "results.height": "HEIGHT {n} M", "results.hero_available": "CAN BUY {name}!", "results.hero_progress": "TO {name} \u25CF {n}", "results.hero_remaining": "{name}: \u25CF {n} LEFT", "results.map_available": "NEXT MAP CAN UNLOCK", "results.map_progress": "NEXT MAP {n}/{goal}", "results.map_record": "MAP BEST {n} M", "results.new_record": "MAP BEST: {n} M", "results.next_map": "TO THE NEXT MAP", "results.rematch": "REMATCH \u25B6", "results.round": "SCORES \xB7 ROUND {n}", "results.round_short": "SCORES \xB7 ROUND {n}", "results.runs_left": { "one": "{n} RUN LEFT", "other": "{n} RUNS LEFT" }, "results.summary": "{wins}W  {best}M", "results.title": "RESULTS", "results.treasures": "TREASURES", "results.you": " (YOU)", "reward.bonus_cap": "BONUS CAPPED", "reward.coins_cap": "COINS CAPPED", "reward.duplicate": "ALREADY COUNTED", "reward.fast": "TOO FAST", "reward.height_cap": "HEIGHT CAPPED", "reward.height_min": "HEIGHT BONUS AT 100 M", "reward.rejected": "REJECTED", "score.goal": "GOAL {n} M", "score.record": "BEST {n} M", "score.record_line": "BEST {n}", "settings.cinema": "Cinema", "settings.en": "EN", "settings.language": "LANGUAGE: {mode}", "settings.ru": "RU", "settings.tilt": "TILT: {state}", "settings.tilt_unavailable": "TILT UNAVAILABLE", "settings.title": "SETTINGS", "settings.vibration": "VIBRATE: {state}", "settings.volume": "VOLUME", "shop.buy": "BUY \u25CF {n}", "shop.charge": "CHARGE: ", "shop.confirm": "SURE? \u25CF {n}", "shop.need": "NEED \u25CF {n} MORE", "shop.purchased": "BOUGHT!", "shop.select": "SELECT", "shop.selected": "SELECTED", "shop.title": "SHOP", "unit.coins": { "one": "{n} COIN", "other": "{n} COINS" }, "unit.meter_progress": "{n}/{goal} M", "unit.meters": "{n} M", "unit.mobs": { "one": "{n} MOB", "other": "{n} MOBS" }, "unit.seconds": "{n} SEC", "menu.play_label": "PLAY", "mob.trash": "TRASH CAN", "menu.encyclopedia": "GUIDE", "ency.title": "GUIDE", "ency.heroes": "HEROES", "ency.mobs": "MOBS", "ency.maps": "MAPS", "ency.appears": "{name} \xB7 FROM {n} M", "ency.opened": "OPEN {n}/{total}", "ency.meet": "MEET IT IN A RUN TO UNLOCK", "ency.map.need_m": "{n} M", "ency.map.need_prev": "ON THE PREVIOUS MAP" } };
   var gameLanguageKey = "hoppak.language";
   var gameLanguageChoice;
   try {
@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("87dd043") return String("87dd043");
+      if ("1b21506") return String("1b21506");
     } catch (_e) {
     }
     return "";
@@ -255,7 +255,7 @@
       return t("hero.knight.type");
     }, get abDesc() {
       return [t("hero.knight.description1"), t("hero.knight.description2")];
-    }, charge: "kills", need: 1 }
+    }, charge: "kills", need: 1, charges: 2 }
   ];
   var SPR_CW = 36;
   var SPR_CH = 32;
@@ -2239,6 +2239,73 @@
     }
     return w;
   }
+  var ENCY_BLURB = {
+    ru: {
+      hero: {
+        pilot: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        pirate: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        ninja: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        robot: "\u0412\u041A\u041B\u042E\u0427\u0410\u0415\u0422 \u0429\u0418\u0422, \u041A\u0410\u041A \u0411\u041E\u041D\u0423\u0421.",
+        mage: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        knight: "\u041F\u0418\u041A\u0415 \u0429\u0418\u0422\u041E\u041C \u0412\u041D\u0418\u0417. \u0414\u041E \u0414\u0412\u0423\u0425 \u0417\u0410\u0420\u042F\u0414\u041E\u0412. \u0421 \u041F\u041B\u0410\u0422\u0424\u041E\u0420\u041C\u042B \u2014 \u0421\u0423\u041F\u0415\u0420\u041F\u0420\u042B\u0416\u041E\u041A."
+      },
+      mob: {
+        blob: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        trash: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        bat: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        hole: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        ufo: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        frog: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        parrot: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        snake: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        monkey: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410."
+      },
+      map: {
+        city: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        jungle: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        ice: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        lava: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        aqua: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410.",
+        space: "\u041F\u041E\u041A\u0410 \u0417\u0410\u0413\u041B\u0423\u0428\u041A\u0410. \u0417\u0414\u0415\u0421\u042C \u0411\u0423\u0414\u0415\u0422 \u0418\u0421\u0422\u041E\u0420\u0418\u042F \u0418 \u0428\u0423\u0422\u041A\u0410."
+      }
+    },
+    en: {
+      hero: {
+        pilot: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        pirate: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        ninja: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        robot: "TURNS ON THE SHIELD, SAME AS THE BONUS.",
+        mage: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        knight: "DIVE WITH THE SHIELD. UP TO TWO CHARGES. SUPER JUMP FROM A PLATFORM."
+      },
+      mob: {
+        blob: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        trash: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        bat: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        hole: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        ufo: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        frog: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        parrot: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        snake: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        monkey: "PLACEHOLDER. LORE AND A JOKE GO HERE."
+      },
+      map: {
+        city: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        jungle: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        ice: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        lava: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        aqua: "PLACEHOLDER. LORE AND A JOKE GO HERE.",
+        space: "PLACEHOLDER. LORE AND A JOKE GO HERE."
+      }
+    }
+  };
+  function encyBlurbText(kind, id) {
+    var lang = typeof gameLanguage === "function" ? gameLanguage() : "ru";
+    var pack = ENCY_BLURB[lang] || ENCY_BLURB.ru;
+    var group = pack && pack[kind];
+    return group && group[id] || "";
+  }
+  var MAGNET_RADIUS = 119;
   function isPerm(t2) {
     return t2 === "normal" || t2 === "move" || t2 === "ice" || t2 === "bounce" || t2 === "grav";
   }
@@ -3216,12 +3283,18 @@
     if (mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
     return [mo.x, mo.y, mo.w, mo.h];
   }
+  function abCharges(H) {
+    return H && H.charges > 1 ? H.charges | 0 : 1;
+  }
+  function abChargeCap(H) {
+    return H.need * abCharges(H);
+  }
   function abReady(p) {
     return p.abCharge >= CHARS[p.kind].need;
   }
   function addCharge(p, kind, n) {
     var H = CHARS[p.kind];
-    if (H.charge === kind) p.abCharge = Math.min(H.need, p.abCharge + n);
+    if (H.charge === kind) p.abCharge = Math.min(abChargeCap(H), p.abCharge + n);
   }
   function hookTarget(w, p) {
     var cx = p.x + PW / 2, cy = p.y + PH / 2, best = null, bd = 1e9, i;
@@ -3311,11 +3384,7 @@
       p.dashT = 14;
       p.grabT = 0;
       spawnParts(w, p.x + 6, p.y + PH, 12, "#7ad8ff", 2.4, 0.08, 2);
-    } else if (H.ab === "dome") {
-      p.domeT = 200;
-      p.domeSave = true;
-      spawnParts(w, p.x + 6, p.y + 8, 14, "#c89bff", 2.6, 0, 1);
-    } else if (H.ab === "shield") {
+    } else if (H.ab === "dome" || H.ab === "shield") {
       giveBonus(w, p, "shield");
     } else if (H.ab === "pound") {
       p.poundT = 1;
@@ -3323,8 +3392,8 @@
       p.grabT = 0;
       spawnParts(w, p.x + 6, p.y, 8, "#ffd046", 2, -0.05, 1);
     }
-    p.abCharge = 0;
-    p.abFx = 16;
+    p.abCharge = Math.max(0, p.abCharge - H.need);
+    if (H.ab !== "shield" && H.ab !== "dome") p.abFx = 16;
     if (p.id === 0) toast(w, H.abName + "!");
     return true;
   }
@@ -3855,7 +3924,7 @@
           if (cn.taken) continue;
           if (p.magnetT > 0) {
             var mdx = wrapDx(pcx - (cn.x + 3)), mdy = pcy - (cn.y + 3), md = Math.sqrt(mdx * mdx + mdy * mdy);
-            if (md < 70 && md > 0.5) {
+            if (md < MAGNET_RADIUS && md > 0.5) {
               var ms = Math.min(md, 3.4);
               cn.x += mdx / md * ms;
               cn.y += mdy / md * ms;
@@ -3917,17 +3986,7 @@
         }
       }
       if (w.tick > 80 && ep.vy >= 0 && ep.y > ep.camY + LH) {
-        if (ep.domeT > 0 && ep.domeSave) {
-          ep.domeSave = false;
-          ep.y = ep.camY + LH - PH - 12;
-          ep.vy = SPRING_V;
-          ep.invT = 40;
-          spawnParts(w, ep.x + 6, ep.y + 8, 16, "#a8f4ff", 3, -0.03, 2);
-          if (ep.id === 0) toast(w, t("play.dome_saved"));
-        } else if (useShield(w, ep)) {
-          ep.y = ep.camY + LH - PH - 12;
-          ep.vy = SPRING_V;
-        } else killPlayer(w, ep, "fall");
+        killPlayer(w, ep, "fall");
       }
     }
     if (w.warnSfxT > 0) w.warnSfxT--;
@@ -7881,6 +7940,7 @@
     var campCard = -1;
     var encyTab = "heroes";
     var encyCard = -1;
+    var encyPage = 0;
     var encyScroll = 0;
     var encyScrollMax = 0;
     var encyDrag = null;
@@ -8398,7 +8458,7 @@
       if (!(typeof drawCoin64Ui === "function" && drawCoin64Ui(ctx, x0, cy))) {
         drawCoin(ctx, x0 + Math.round((cw - 6) / 2), y, 0);
       }
-      drawText(ctx, s, x0 + cw + gap, y - 0.5, TYPECOL.accent, TYPE.M, "left");
+      drawTextO(ctx, s, x0 + cw + gap, Math.round(y), TYPECOL.accent, "left", "#1a1030");
     }
     function menuTop() {
       return Math.round(insetTopCss() / Math.max(0.01, cssScale || 1)) + (testInsetTop || 0);
@@ -8667,8 +8727,6 @@
       var x = LW - 4 - w;
       var coinX = x - 3;
       var rowY = 1 + top;
-      rect(ctx, x - 3, rowY, w + 6, CHIP, INK);
-      rect(ctx, x - 2, rowY + 1, w + 4, CHIP - 2, C.navy);
       coinsLabel(LW - 4, rowY + 3, save.coins, "right");
       var linked = telegramLinked();
       var photo = accountPhoto();
@@ -8923,12 +8981,14 @@
         showProf = false;
         phase = "ency";
         encyCard = -1;
+        encyPage = 0;
         encyScroll = 0;
         return;
       }
       if (id.indexOf("ency:tab:") === 0) {
         encyTab = id.slice(9);
         encyCard = -1;
+        encyPage = 0;
         encyScroll = 0;
         return;
       }
@@ -9198,7 +9258,7 @@
         return;
       }
       if (phase === "results") coinSkip = true;
-      if (phase === "ency" && encyCard < 0) {
+      if (phase === "ency" && encyCard < 0 && id !== "back" && !(id && id.indexOf("ency:tab:") === 0)) {
         encyDrag = { y: loc.y, s0: encyScroll, moved: false };
       }
       if (phase !== "play") return;
@@ -9561,7 +9621,7 @@
     function menuFrame() {
       var top = menuTop();
       var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
-      var playGap = 10, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
+      var playGap = 10, playH = 34, pickH = 22, gridH = 26, tabH = 36, gridGap = 4;
       var logoSc = TYPE.XL;
       function stack() {
         var tabY = LH - bot - tabH;
@@ -9588,7 +9648,7 @@
       }
       if (gap() < need()) {
         gridGap = 2;
-        pickH = 16;
+        pickH = 20;
         L = stack();
       }
       var g = Math.max(16, gap());
@@ -9663,7 +9723,7 @@
       if (!drawNineSlice(ctx, "menu_btn_sec_" + pickSt, pickX, L.pickY, pickW, L.pickH, UI_SLICE.btn_sec)) {
         btn("hero:menu", pickX, L.pickY, pickW, L.pickH, "#1a1430", "", TYPECOL.primary, TYPE.M, C.gold);
       }
-      drawText(ctx, t("menu.choose_hero"), LW / 2, L.pickY + Math.round((L.pickH - 7) / 2) + (pickSt === "pressed" ? 1 : 0), TYPECOL.primary, TYPE.M, "center");
+      drawText(ctx, t("menu.choose_hero"), LW / 2, L.pickY + Math.floor((L.pickH - 7) / 2) + (pickSt === "pressed" ? 1 : 0), TYPECOL.primary, TYPE.M, "center");
       var playSt = pressId === "start" ? "pressed" : "idle";
       addHit("start", x, L.playY, 152, L.playH);
       markBox("start", x, L.playY, 152, L.playH);
@@ -9769,19 +9829,20 @@
       }
     }
     function drawMapThumb(x, y, w, h, id, locked) {
-      var key = "mapthumb_" + id + (locked ? "_locked" : "_open");
-      var im = UI_IMGS[key];
+      x = Math.round(x);
+      y = Math.round(y);
+      w = Math.round(w);
+      h = Math.round(h);
+      var im = UI_IMGS["mapthumb_" + id + (locked ? "_locked" : "_open")] || null;
       if (im && im.complete && im.naturalWidth) {
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(x, y, w, h);
-        ctx.clip();
         ctx.imageSmoothingEnabled = false;
+        if (ctx.webkitImageSmoothingEnabled !== void 0) ctx.webkitImageSmoothingEnabled = false;
         var sw = im.naturalWidth, sh = im.naturalHeight;
         var k = Math.max(1, Math.floor(Math.min(w / sw, h / sh) + 1e-6));
         var dw = sw * k, dh = sh * k;
         var dx = x + Math.floor((w - dw) / 2), dy = y + Math.floor((h - dh) / 2);
-        ctx.drawImage(im, dx, dy, dw, dh);
+        ctx.drawImage(im, 0, 0, sw, sh, dx, dy, dw, dh);
         ctx.restore();
         return;
       }
@@ -9989,7 +10050,8 @@
         markBox("map" + i, x, y, 152, rh - 3);
         box(ctx, x, y, 152, rh - 3, open ? save.bg === M.id ? "#2a2050" : C.navy : "#120c1c", bd);
         if (open) {
-          drawMapThumb(x + 3, y + 3, 20, rh - 9, M.id, false);
+          var thumbY = y + Math.round((rh - 3 - 29) / 2);
+          drawMapThumb(x + 3, thumbY, 20, 29, M.id, false);
           drawText(ctx, i + 1 + ". " + M.name, x + 28, y + 3, TYPECOL.primary, TYPE.M, "left");
           var b = mapBest(i);
           if (M.goal) {
@@ -9998,7 +10060,8 @@
             bar(x + 28, y + rh - 11, 107, 5, b / M.goal, b >= M.goal ? C.mint : C.gold);
           } else drawText(ctx, t("score.record", { n: b }), x + 28, y + 15, TYPECOL.accent, TYPE.M, "left");
         } else {
-          drawMapThumb(x + 3, y + 3, 20, rh - 9, M.id, true);
+          var thumbYl = y + Math.round((rh - 3 - 29) / 2);
+          drawMapThumb(x + 3, thumbYl, 20, 29, M.id, true);
           drawText(ctx, i + 1 + ". " + t("map.locked"), x + 28, y + 3, TYPECOL.muted, TYPE.M, "left");
           if (can) {
             drawBuy("camp:open:" + i, x + 28, y + rh - 20, 120, 16, M.price);
@@ -10026,22 +10089,8 @@
       encyEnsure();
       return !!save.ency.mobs[kind];
     }
-    function encyMobDesc(kind) {
-      if (kind === "blob") return t("ency.mob.blob");
-      if (kind === "trash") return t("ency.mob.trash");
-      if (kind === "bat") return t("ency.mob.bat");
-      if (kind === "hole") return t("ency.mob.hole");
-      if (kind === "ufo") return t("ency.mob.ufo");
-      if (kind === "frog") return t("ency.mob.frog");
-      if (kind === "parrot") return t("ency.mob.parrot");
-      if (kind === "snake") return t("ency.mob.snake");
-      if (kind === "monkey") return t("ency.mob.monkey");
-      return "";
-    }
-    function encyMapDesc(id) {
-      if (id === "city") return t("ency.map.city");
-      if (id === "jungle") return t("ency.map.jungle");
-      return "";
+    function encyDesc(kind, id) {
+      return typeof encyBlurbText === "function" ? encyBlurbText(kind, id) : "";
     }
     function encyAppearances(kind) {
       var out = [];
@@ -10208,6 +10257,55 @@
       for (i = 0; i < items.length; i++) if (items[i].open) n++;
       return n;
     }
+    var ENCY_COLS = 2, ENCY_PAD = 6;
+    function encyHintMode() {
+      try {
+        var m = window.__encyScrollHint;
+        if (m === "A" || m === "B" || m === "C" || m === "D" || m === "BD" || m === "E" || m === "F" || m === "G") return m;
+      } catch (_e) {
+      }
+      return "B";
+    }
+    function encyNudgePx() {
+      try {
+        var n = window.__encyNudge;
+        if (typeof n === "number" && isFinite(n)) return Math.round(n);
+      } catch (_e) {
+      }
+      return 0;
+    }
+    function encyForcedScroll() {
+      try {
+        var n = window.__encyScroll;
+        if (typeof n === "number" && isFinite(n)) return Math.round(n);
+      } catch (_e) {
+      }
+      return null;
+    }
+    function drawEncyScrollBar(x, top, viewH) {
+      var bx = x + 153, bh = viewH, by = top;
+      rect(ctx, bx, by, 2, bh, "#1A1030");
+      var ratio = viewH / (viewH + encyScrollMax);
+      var thumbH = Math.max(8, Math.round(bh * ratio));
+      var thumbY = by;
+      if (encyScrollMax > 0) thumbY = by + Math.round((bh - thumbH) * (encyScroll / encyScrollMax));
+      rect(ctx, bx, thumbY, 2, thumbH, HUDCOL.secondary);
+    }
+    function drawEncyPeekFade(x, bot, w) {
+      var i, bands = 5, band2 = 2;
+      for (i = 0; i < bands; i++) {
+        ctx.fillStyle = "rgba(18,14,44," + (0.1 + i * 0.11) + ")";
+        ctx.fillRect(x, bot - (bands - i) * band2, w, band2);
+      }
+    }
+    function drawEncyChevron(cx, cy) {
+      var col = HUDCOL.secondary, dx, dy, row;
+      var rows = [[-3, -2, -1, 0, 1, 2, 3], [-2, -1, 0, 1, 2], [-1, 0, 1], [0]];
+      for (dy = 0; dy < rows.length; dy++) {
+        row = rows[dy];
+        for (dx = 0; dx < row.length; dx++) rect(ctx, cx + row[dx], cy + dy, 1, 1, col);
+      }
+    }
     function drawEncyCard(it, i, x, y, w, h, nameBand) {
       var open = !!it.open;
       var hid = "ency:card:" + i;
@@ -10215,11 +10313,17 @@
       markBox(hid, x, y, w, h);
       box(ctx, x, y, w, h, open ? C.navy : "#120c1c", open ? C.cream : "#4a3a6a");
       var artH = Math.max(20, h - nameBand);
-      var scale = 1;
-      if (it.type === "hero") encyDrawArt(encyHeroCanvas(it.i, scale, !open), x + 2, y + 2, w - 4, artH - 2, 2);
-      else encyDrawArt(encyMobCanvas(it.kind, scale, !open), x + 2, y + 2, w - 4, artH - 2, 2);
-      var name = open ? it.type === "hero" ? CHARS[it.i].name : MOBS[it.kind].name : t("map.locked");
-      var lines = hudLines(name, "S", w - 4);
+      var innerX = x + ENCY_PAD, innerY = y + ENCY_PAD;
+      var innerW = w - ENCY_PAD * 2, innerArt = Math.max(8, artH - ENCY_PAD);
+      if (it.type === "map") {
+        drawMapThumb(x + 2, y + 2, w - 4, Math.max(8, artH - 2), it.M.id, !open);
+      } else {
+        var scale = 1;
+        var cv = it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
+        encyDrawArt(cv, innerX, innerY, innerW, innerArt, 0);
+      }
+      var name = open ? it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name : t("map.locked");
+      var lines = hudLines(name, "S", w - ENCY_PAD * 2);
       var ny = y + artH + 1;
       var li, col = open ? HUDCOL.main : HUDCOL.secondary;
       ctx.save();
@@ -10233,89 +10337,82 @@
     }
     function drawEncyGrid(x, top, bot) {
       var items = encyItems();
-      var cols = 2, gap = 4;
+      var cols = ENCY_COLS, gap = 4;
       var cw = Math.floor((152 - gap) / 2);
-      var twoLine = encyTab === "mobs";
-      var nameBand = twoLine ? HUD_S.line * 2 + 2 : HUD_S.line + 3;
-      var ch = 2 + ENCY_ART + 2 + nameBand;
-      var rows = Math.max(1, Math.ceil(items.length / cols));
+      var nameBand = encyTab === "maps" ? HUD_S.line + 3 : HUD_S.line * 2 + 2;
       var viewH = bot - top;
-      var fit = Math.floor((viewH - (rows - 1) * gap) / rows);
-      if (fit >= ENCY_ART + HUD_S.line + 2 && fit < ch) ch = fit;
-      var contentH = rows * ch + Math.max(0, rows - 1) * gap;
+      var totalRows = Math.max(1, Math.ceil(items.length / cols));
+      var hint = encyHintMode();
+      var peek = 0;
+      if (totalRows > 3) {
+        if (hint === "A") peek = 8;
+        else if (hint === "B" || hint === "BD") peek = 22;
+        else if (hint === "C") peek = 12;
+        else if (hint === "D") peek = 16;
+        else peek = 16;
+      }
+      var ch = Math.floor((viewH - peek - 2 * gap) / 3);
+      if (ch < nameBand + 20) ch = nameBand + 20;
+      var contentH = totalRows * ch + Math.max(0, totalRows - 1) * gap;
       encyScrollMax = Math.max(0, contentH - viewH);
+      var forced = encyForcedScroll();
+      if (forced != null) encyScroll = forced;
       if (encyScroll > encyScrollMax) encyScroll = encyScrollMax;
+      if (encyScroll < 0) encyScroll = 0;
+      var nudge = encyNudgePx();
+      var scroll = encyScroll + nudge;
       ctx.save();
       ctx.beginPath();
-      ctx.rect(x, top, 152, viewH);
+      ctx.rect(x, top, 152, Math.max(viewH, LH - top));
       ctx.clip();
-      var lastRow = rows - 1, lastCount = items.length - lastRow * cols;
-      var more = false;
-      for (var i = 0; i < items.length; i++) {
-        var col = i % cols, row = i / cols | 0;
-        var cx = x + col * (cw + gap);
-        if (row === lastRow && lastCount === 1) cx = x + Math.round((152 - cw) / 2);
-        var cy = top + row * (ch + gap) - encyScroll;
-        if (cy + ch > bot + 0.5) {
-          more = true;
-          continue;
+      var i, col, row, cx, cy;
+      var visA = -1, visB = -1;
+      for (i = 0; i < items.length; i++) {
+        col = i % cols;
+        row = i / cols | 0;
+        cx = x + col * (cw + gap);
+        cy = top + row * (ch + gap) - scroll;
+        if (cy + ch <= top || cy >= bot) continue;
+        if (cy >= top - 2 && cy + ch <= bot + 2) {
+          if (visA < 0) visA = i;
+          visB = i;
+        } else if (cy < bot && cy + ch > top) {
+          var shown = Math.min(bot, cy + ch) - Math.max(top, cy);
+          if (shown >= ch * 0.5) {
+            if (visA < 0) visA = i;
+            visB = i;
+          }
         }
-        if (cy < top - 0.5) continue;
         drawEncyCard(items[i], i, cx, cy, cw, ch, nameBand);
       }
       ctx.restore();
-      if (encyScrollMax > 0 && (more || encyScroll < encyScrollMax)) {
-        hudText(ctx, t("ency.more"), LW / 2, bot - HUD_S.height, HUDCOL.secondary, "S", "center");
+      window.__encyVis = { a: visA, b: visB, n: items.length, rows: totalRows, ch, gap, scroll };
+      if (encyScrollMax > 0 || hint === "F") {
+        if (hint === "A") drawEncyScrollBar(x, top, viewH);
+        if (hint === "B" || hint === "BD") drawEncyPeekFade(x, bot, 152);
+        if (hint === "C") drawEncyChevron(x + 76, bot - 7);
+        if (hint === "F") drawEncyDots(x, top, viewH, totalRows, ch, gap, scroll);
       }
     }
-    function drawEncyMaps(x, top, bot) {
-      var items = encyMapItems();
-      var gap = 3, th = 24;
-      var rh = Math.max(HUD_M.height + HUD_S.line * 2 + 8, th + 8);
-      var contentH = items.length * (rh + gap) - gap;
-      var viewH = bot - top;
-      encyScrollMax = Math.max(0, contentH - viewH);
-      if (encyScroll > encyScrollMax) encyScroll = encyScrollMax;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x, top, 152, viewH);
-      ctx.clip();
-      var more = false;
-      for (var i = 0; i < items.length; i++) {
-        var it = items[i], M = it.M, open = !!it.open, soon = !!it.soon;
-        var y = top + i * (rh + gap) - encyScroll;
-        if (y + rh > bot + 0.5) {
-          more = true;
-          continue;
+    function drawEncyDots(x, top, viewH, totalRows, ch, gap, scroll) {
+      var bx = x + 154, i, cur;
+      var step = ch + gap;
+      cur = step > 0 ? Math.round(scroll / step) : 0;
+      if (cur < 0) cur = 0;
+      if (cur > totalRows - 1) cur = totalRows - 1;
+      var dh = 3, sp = 5;
+      var totalH = totalRows * sp - (sp - dh);
+      var y0 = top + Math.round((viewH - totalH) / 2);
+      for (i = 0; i < totalRows; i++) {
+        var dy = y0 + i * sp;
+        var on = i === cur;
+        rect(ctx, bx, dy, dh, dh, on ? HUDCOL.accent : HUDCOL.secondary);
+        if (on) {
+          rect(ctx, bx - 1, dy, 1, dh, HUDCOL.outline);
+          rect(ctx, bx + dh, dy, 1, dh, HUDCOL.outline);
+          rect(ctx, bx, dy - 1, dh, 1, HUDCOL.outline);
+          rect(ctx, bx, dy + dh, dh, 1, HUDCOL.outline);
         }
-        if (y < top - 0.5) continue;
-        addHit("ency:card:" + i, x, y, 152, rh);
-        markBox("ency:map" + i, x, y, 152, rh);
-        box(ctx, x, y, 152, rh, open ? C.navy : "#120c1c", open ? C.cream : "#4a3a6a");
-        drawMapThumb(x + 3, y + Math.round((rh - th) / 2), 20, th, M.id, !open);
-        var tx = x + 28, tw = 152 - 32;
-        if (open) {
-          hudText(ctx, i + 1 + ". " + M.name, tx, y + 3, HUDCOL.main, "M", "left");
-          var desc = encyMapDesc(M.id);
-          var dLines = hudLines(desc, "S", tw);
-          for (var di = 0; di < dLines.length && di < 2; di++) {
-            hudText(ctx, dLines[di], tx, y + 3 + HUD_M.line + di * HUD_S.line, HUDCOL.accent, "S", "left");
-          }
-        } else {
-          hudText(ctx, i + 1 + ". " + t("map.locked"), tx, y + 3, HUDCOL.secondary, "M", "left");
-          if (soon) hudText(ctx, t("common.soon"), tx, y + 3 + HUD_M.line, HUDCOL.secondary, "S", "left");
-          else if (i > 0) {
-            var need = hudLines(t("ency.map.need_m", { n: MAPS[i - 1].goal }), "S", tw);
-            need = need.concat(hudLines(t("ency.map.need_prev"), "S", tw));
-            for (var ni = 0; ni < need.length && ni < 2; ni++) {
-              hudText(ctx, need[ni], tx, y + 3 + HUD_M.line + ni * HUD_S.line, HUDCOL.secondary, "S", "left");
-            }
-          }
-        }
-      }
-      ctx.restore();
-      if (encyScrollMax > 0 && (more || encyScroll < encyScrollMax)) {
-        hudText(ctx, t("ency.more"), LW / 2, bot - HUD_S.height, HUDCOL.secondary, "S", "center");
       }
     }
     function drawEncyDetail(x, top, bot) {
@@ -10326,60 +10423,60 @@
         return;
       }
       var open = !!it.open;
-      var scale = open && it.type !== "map" ? 2 : 1;
-      var artCv = null;
-      if (it.type === "hero") artCv = encyHeroCanvas(it.i, scale, !open);
-      else if (it.type === "mob") artCv = encyMobCanvas(it.kind, scale, !open);
-      var artW = 40, artH = 40;
-      if (it.type !== "map" && artCv) {
-        var bb = encyBBox(artCv, 0);
-        var ap = 4;
-        artW = Math.min(144, (bb ? bb.w : artCv.width) + ap * 2);
-        artH = Math.min(bot - top - 60, (bb ? bb.h : artCv.height) + ap * 2);
-      }
+      var h = bot - top;
+      box(ctx, x, top, 152, h, open ? "#1a1430" : "#120c1c", open ? C.cream : "#4a3a6a");
+      markBox("encyDetail", x, top, 152, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, top, 152, h);
+      ctx.clip();
+      var pad = ENCY_PAD, gap = 4;
       var name = !open ? t("map.locked") : it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name;
-      var nameLines = hudLines(name, "M", 144);
+      var nameLines = hudLines(name, "M", 152 - pad * 2);
       var body = [], extra = [], bi;
       if (!open) {
         if (it.type === "map") {
-          if (it.soon) body = hudLines(t("common.soon"), "S", 144);
+          if (it.soon) body = hudLines(t("common.soon"), "S", 152 - pad * 2);
           else if (it.i > 0) {
-            body = hudLines(t("ency.map.need_m", { n: MAPS[it.i - 1].goal }), "S", 144);
-            extra = hudLines(t("ency.map.need_prev"), "S", 144);
+            body = hudLines(t("ency.map.need_m", { n: MAPS[it.i - 1].goal }), "S", 152 - pad * 2);
+            extra = hudLines(t("ency.map.need_prev"), "S", 152 - pad * 2);
           }
         } else if (it.type === "mob") {
-          body = hudLines(t("ency.meet"), "S", 144);
+          body = hudLines(t("ency.meet"), "S", 152 - pad * 2);
         }
       } else if (it.type === "hero") {
         var H = CHARS[it.i];
-        body = hudLines(H.type + " \xB7 " + H.abName, "S", 144);
-        var blob = (H.abDesc[0] || "") + " " + (H.abDesc[1] || "");
-        extra = hudLines(blob, "S", 144);
+        body = hudLines(H.type + " \xB7 " + H.abName, "S", 152 - pad * 2);
+        extra = hudLines(encyDesc("hero", H.id), "S", 152 - pad * 2);
       } else if (it.type === "mob") {
-        body = hudLines(encyMobDesc(it.kind), "S", 144);
+        body = hudLines(encyDesc("mob", it.kind), "S", 152 - pad * 2);
         var apps = encyAppearances(it.kind);
         for (bi = 0; bi < apps.length; bi++) extra.push(t("ency.appears", { name: apps[bi].name, n: apps[bi].h }));
       } else {
-        var md = encyMapDesc(it.M.id);
-        if (md) body = hudLines(md, "S", 144);
+        var md = encyDesc("map", it.M.id);
+        if (md) body = hudLines(md, "S", 152 - pad * 2);
         if (it.M.goal) extra.push(t("score.goal", { n: it.M.goal }));
         extra.push(t("score.record", { n: mapBest(it.i) }));
-        if (it.i > 0 && !it.soon) {
-          extra = extra.concat(hudLines(t("ency.map.need_m", { n: MAPS[it.i - 1].goal }) + " " + t("ency.map.need_prev"), "S", 144));
-        }
       }
-      var pad = 6, gap = 4;
-      var h = pad + artH + gap + nameLines.length * HUD_M.line + body.length * HUD_S.line + extra.length * HUD_S.line + pad;
-      if (extra.length) h += 2;
-      if (h > bot - top) h = bot - top;
-      var py = top;
-      box(ctx, x, py, 152, h, open ? "#1a1430" : "#120c1c", open ? C.cream : "#4a3a6a");
-      markBox("encyDetail", x, py, 152, h);
-      var artY = py + pad;
-      if (it.type === "hero") encyDrawArt(artCv, x + Math.round((152 - artW) / 2), artY, artW, artH, 2);
-      else if (it.type === "mob") encyDrawArt(artCv, x + Math.round((152 - artW) / 2), artY, artW, artH, 2);
-      else drawMapThumb(x + Math.round((152 - 40) / 2), artY, 40, 40, it.M.id, !open);
-      var ty = artY + artH + gap, li;
+      var textH = nameLines.length * HUD_M.line + body.length * HUD_S.line + extra.length * HUD_S.line + (extra.length ? 2 : 0);
+      var artBoxH = Math.max(40, h - pad - gap - textH - pad);
+      var artBoxW = 152 - pad * 2;
+      var artY = top + pad;
+      if (it.type === "map") {
+        drawMapThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
+      } else {
+        var want = open ? 2 : 1;
+        var probe = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
+        var bb = probe ? encyBBox(probe, 0) : null;
+        var bw = bb ? bb.w : 64, bh = bb ? bb.h : 64;
+        var scale = want;
+        while (scale > 1 && (bw * scale + 0 > artBoxW || bh * scale + 0 > artBoxH)) scale--;
+        var artCv = scale === 1 ? probe : it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
+        var aw = Math.min(artBoxW, bb ? bb.w * scale : artBoxW);
+        var ah = Math.min(artBoxH, bb ? bb.h * scale : artBoxH);
+        encyDrawArt(artCv, x + pad + Math.round((artBoxW - aw) / 2), artY + Math.round((artBoxH - ah) / 2), aw, ah, 0);
+      }
+      var ty = artY + artBoxH + gap, li;
       for (li = 0; li < nameLines.length; li++) {
         hudText(ctx, nameLines[li], LW / 2, ty + li * HUD_M.line, open ? HUDCOL.main : HUDCOL.secondary, "M", "center");
       }
@@ -10391,6 +10488,7 @@
       for (li = 0; li < extra.length; li++) {
         hudText(ctx, extra[li], LW / 2, ty + li * HUD_S.line, HUDCOL.accent, "S", "center");
       }
+      ctx.restore();
     }
     function drawEncy() {
       applyBgContrast(ctx, function() {
@@ -10425,20 +10523,32 @@
       }
       var items = encyItems();
       var top = tabY + tabH + 4;
+      var hint = encyHintMode();
       if (encyCard < 0) {
-        hudText(ctx, t("ency.opened", { n: encyOpenCount(items), total: items.length }), LW / 2, top, HUDCOL.secondary, "S", "center");
+        if (hint === "G") {
+          var vis = window.__encyVis;
+          var ga = vis && vis.a >= 0 ? vis.a + 1 : 1;
+          var gb = vis && vis.b >= 0 ? vis.b + 1 : Math.min(6, items.length);
+          hudText(ctx, ga + "-" + gb + " " + (gameLanguage() === "en" ? "OF" : "\u0418\u0417") + " " + items.length, LW / 2, top, HUDCOL.secondary, "S", "center");
+        } else {
+          hudText(ctx, t("ency.opened", { n: encyOpenCount(items), total: items.length }), LW / 2, top, HUDCOL.secondary, "S", "center");
+        }
         top += HUD_S.line + 2;
+        if (hint === "E" && items.length > 6) {
+          var ew = hudWidth("\u0415\u0429\u0401", "S");
+          hudText(ctx, "\u0415\u0429\u0401", LW / 2 - 4, top, HUDCOL.secondary, "S", "center");
+          drawEncyChevron(LW / 2 + Math.round(ew / 2) + 1, top + 2);
+          top += HUD_S.line + 1;
+        }
       }
       var btnH = 22;
-      var btnY = LH - btnH - 6;
-      var bot = btnY - 4;
-      if (encyCard >= 0) {
-        encyScrollMax = 0;
-        encyScroll = 0;
-        drawEncyDetail(x, top, bot);
-      } else if (encyTab === "maps") drawEncyMaps(x, top, bot);
+      var barLip = 3;
+      var barY = LH - btnH - 6 - barLip;
+      var barH = LH - barY;
+      var bot = barY;
+      if (encyCard >= 0) drawEncyDetail(x, top, bot);
       else drawEncyGrid(x, top, bot);
-      encyBtn("back", x + 26, btnY, 100, btnH, t("common.back"));
+      encyBtn("back", x, barY, 152, barH, t("common.back"));
       drawFlash();
     }
     function drawLobby() {
@@ -10970,7 +11080,6 @@
       if (!p.alive) return;
       var cx = Math.round(p.x + 6), cy = Math.round(sy + 6);
       if (p.shieldT > 0) drawShieldAura(ctx, p, sy, tick);
-      drawDome(p, cx, cy, tick);
       if (p.freezeT > 0) {
         ctx.globalAlpha = 0.45;
         rect(ctx, p.x - 2, sy - 6, PW + 4, PH + 6, "#c8f8ff");
@@ -11154,6 +11263,23 @@
       ctx.globalAlpha = ready || active || rf > 0 ? 1 : 0.55;
       drawAbIcon(H.ab, cx - 6, cy - 6);
       ctx.globalAlpha = 1;
+      var pips = H.charges > 1 ? H.charges | 0 : 0;
+      if (pips > 1) drawAbPips(b.x + b.w + 2, cy, pips, me.abCharge, H.need);
+    }
+    function drawAbPips(x, cy, n, charge, need) {
+      var i, px, py, on, fill, edge;
+      var size = 3, pad = 2, out = 1;
+      var box2 = size + out * 2;
+      py = Math.round(cy - box2 / 2);
+      x = Math.round(x);
+      for (i = 0; i < n; i++) {
+        px = x + i * (box2 + pad);
+        on = charge >= need * (i + 1);
+        fill = on ? "#4e8a58" : "#1a1430";
+        edge = on ? C.cream : "#5a5668";
+        rect(ctx, px, py, box2, box2, edge);
+        rect(ctx, px + out, py + out, size, size, fill);
+      }
     }
     function whyText(p) {
       var m = metersOf(p), w = p.why || "";
