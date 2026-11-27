@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "grok/canvas";
-var GAME_I18N_BUILTIN = {"ru": {"campaign.reach": "ДОЙДИ ДО ЦЕЛИ →", "campaign.title": "КАМПАНИЯ", "campaign.unlock": "ОТКРОЙ ЗА МОНЕТЫ", "common.back": "НАЗАД", "common.close": "ЗАКРЫТЬ", "common.menu": "МЕНЮ", "common.off": "ВЫКЛ", "common.on": "ВКЛ", "common.retry": "ЕЩЁ РАЗ", "common.soon": "СКОРО", "death.black_hole": "ДЫРА", "death.detail": "{name} · {n} М", "death.fall": "СОРВАЛСЯ · {n} М", "death.hole": "ЗАТЯНУЛА ДЫРА · {n} М", "death.left": "ВЫШЕЛ · {n} М", "death.mob": "МОБ", "death.mob_f": "СБИЛА {name} · {n} М", "death.mob_m": "СБИЛ {name} · {n} М", "death.shot": "СБИЛ ВЫСТРЕЛ · {n} М", "death.spirit": "ДУХ", "death.vine": "ЛИАНА", "debug.font": "ШРИФТ", "err.bad_map": "НЕТ ТАКОЙ КАРТЫ", "err.bad_pid": "НЕКОГО ВЫГНАТЬ", "err.busy": "СЕРВЕР ЗАНЯТ", "err.connection": "НЕТ СВЯЗИ", "err.connection_lost": "СВЯЗЬ ПОТЕРЯНА", "err.full": "КОМНАТА ЗАПОЛНЕНА", "err.generic": "ОШИБКА", "err.in_game": "ЗАБЕГ УЖЕ ИДЁТ", "err.internal": "ОШИБКА СЕРВЕРА", "err.invalid_name": "ТАКИЕ БУКВЫ НЕ ПОДХОДЯТ", "err.kicked": "ТЕБЯ ВЫГНАЛИ", "err.no_connection": "НЕТ СЕТИ", "err.no_room": "ТЫ НЕ В КОМНАТЕ", "err.not_found": "КОМНАТА НЕ НАЙДЕНА", "err.not_host": "ТОЛЬКО ХОСТ", "err.not_ready": "НЕ ВСЕ ГОТОВЫ", "err.reload": "ОБНОВИ СТРАНИЦУ", "err.reload_line1": "ОБНОВИ", "err.reload_line2": "СТРАНИЦУ", "err.room_closed": "КОМНАТА ЗАКРЫТА", "err.unsupported": "МУЛЬТИПЛЕЕР НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ", "err.unsupported_line1": "МУЛЬТИПЛЕЕР НЕДОСТУПЕН", "err.unsupported_line2": "В ЭТОЙ ВЕРСИИ", "floor.break": "ЛОМАЕТСЯ ПОСЛЕ ПРЫЖКА", "floor.goal": "ДОПРЫГНИ ДО ЦЕЛИ", "floor.record": "ТВОЙ РЕКОРД - ПОБЕЙ!", "hero.knight.ability": "ТАРАН", "hero.knight.description1": "ПИКЕ ЩИТОМ ВНИЗ,", "hero.knight.description2": "С ПЛАТФОРМЫ СУПЕРПРЫЖОК", "hero.knight.destination": "РЫЦАРЯ", "hero.knight.name": "Рыцарь", "hero.knight.type": "АТАКА", "hero.mage.ability": "ТЕЛЕПОРТ", "hero.mage.description1": "МИГОМ НА НАДЁЖНУЮ", "hero.mage.description2": "ПЛАТФОРМУ ВЫШЕ", "hero.mage.destination": "МАГА", "hero.mage.name": "Маг", "hero.mage.type": "ТЕЛЕПОРТ", "hero.ninja.ability": "СТЕНЫ", "hero.ninja.description1": "6 СЕК ЦЕПЛЯЕТСЯ ЗА КРАЙ,", "hero.ninja.description2": "ТАП - ПРЫЖОК ОТ СТЕНЫ", "hero.ninja.destination": "НИНДЗЯ", "hero.ninja.name": "Ниндзя", "hero.ninja.type": "ПАРКУР", "hero.pilot.ability": "РЫВОК", "hero.pilot.description1": "КОРОТКИЙ БЫСТРЫЙ", "hero.pilot.description2": "ВЗЛЁТ НА РАНЦЕ", "hero.pilot.destination": "КАПИТАНА", "hero.pilot.name": "Капитан", "hero.pilot.type": "БАЗОВЫЙ", "hero.pirate.ability": "КРЮК", "hero.pirate.description1": "КРЮК К ПЛАТФОРМЕ", "hero.pirate.description2": "ИЛИ МОНЕТЕ, БЬЁТ МОБОВ", "hero.pirate.destination": "ПИРАТА", "hero.pirate.name": "Пират", "hero.pirate.type": "МАНЁВР", "hero.robot.ability": "ЩИТ", "hero.robot.description1": "ЩИТ 10 СЕК, ГАСИТ", "hero.robot.description2": "УДАР ИЛИ ПАДЕНИЕ", "hero.robot.destination": "РОБОТА", "hero.robot.name": "Робот", "hero.robot.type": "ЗАЩИТА", "kick.line1": "АККАУНТ ОТКРЫТ", "kick.line2": "НА ДРУГОМ УСТРОЙСТВЕ", "lobby.add_bot": "БОТ +", "lobby.bot": "БОТ", "lobby.bot_number": "БОТ {n}", "lobby.create": "СОЗДАТЬ КОМНАТУ", "lobby.empty": "СВОБОДНО", "lobby.enter_code": "ВОЙТИ ПО КОДУ", "lobby.hero": "ГЕРОЙ: {name} ▶", "lobby.join": "ВОЙТИ", "lobby.leave": "ВЫЙТИ", "lobby.map": "КАРТА: {name}", "lobby.max_players": "ДО 4 ИГРОКОВ НА КАРТЕ", "lobby.name": "ИМЯ: {name}", "lobby.name_prompt": "Имя для друзей (до 10 букв)", "lobby.player": "ИГРОК", "lobby.ready": "ГОТОВ ✓", "lobby.room": "КОМНАТА", "lobby.room_code": "КОД КОМНАТЫ", "lobby.round": "РАУНД {n}", "lobby.set_ready": "Я ГОТОВ", "lobby.share_code": "СКАЖИ КОД ДРУЗЬЯМ", "lobby.start": "НАЧАТЬ", "lobby.start_solo": "НАЧАТЬ ОДНОМУ", "lobby.waiting_ready": "ЖДЁМ ГОТОВНОСТИ", "lobby.with_bots": "ЗАБЕГ С БОТАМИ", "lobby.you": "ТЫ", "map.aqua.destination": "ОКЕАНА", "map.aqua.location": "В ОКЕАНЕ", "map.aqua.name": "ОКЕАН", "map.city.destination": "ГОРОДА", "map.city.location": "В ГОРОДЕ", "map.city.name": "ГОРОД", "map.effect_bounce": "ПРУЖИНЫ ЧАЩЕ", "map.effect_bubble": "ПУЗЫРИ", "map.effect_gravity": "СЛАБАЯ ГРАВИТАЦИЯ", "map.effect_ice": "ЛЁД: СКОЛЬЗКО", "map.effect_lava": "ЖАРКИЕ ПЛАТФОРМЫ", "map.goal_prev": "{n} М НА ПРЕДЫДУЩЕЙ КАРТЕ", "map.ice.destination": "ЛЕДНИКА", "map.ice.location": "В ЛЕДНИКЕ", "map.ice.name": "ЛЕДНИК", "map.jungle.destination": "ДЖУНГЛЕЙ", "map.jungle.location": "В ДЖУНГЛЯХ", "map.jungle.name": "ДЖУНГЛИ", "map.jungle.opened": "ДЖУНГЛИ ОТКРЫТЫ!", "map.lava.destination": "ВУЛКАНА", "map.lava.location": "НА ВУЛКАНЕ", "map.lava.name": "ВУЛКАН", "map.locked": "???", "map.opened": "{name} ОТКРЫТ!", "map.space.destination": "КОСМОСА", "map.space.location": "В КОСМОСЕ", "map.space.name": "КОСМОС", "map.unlock_first": "СНАЧАЛА ОТКРОЙ ПРЕДЫДУЩУЮ КАРТУ", "menu.choose_hero": "ВЫБРАТЬ ГЕРОЯ", "menu.friends": "ДРУЗЬЯ", "menu.friends_soon": "Скоро в 0.9", "menu.home": "ГЛАВНАЯ", "menu.leagues": "ЛИГИ", "menu.leagues_soon": "Скоро в 0.8", "menu.map_best": "{name} · {n} М", "menu.map_progress": "{name} · {n}/{goal} М", "menu.maps": "КАРТЫ", "menu.multiplayer": "МУЛЬТИПЛЕЕР", "menu.options": "ОПЦИИ", "menu.play": "ИГРАТЬ ▶", "menu.quests_soon": "ЗАДАНИЯ · СКОРО", "menu.tagline": "ПРЫГАЙ ВЫШЕ ВСЕХ", "menu.title": "ХОППАК", "mob.alien": "ПРИШЕЛЕЦ", "mob.bat": "МЫШЬ", "mob.blob": "СЛИЗЕНЬ", "mob.bob": "МЕДУЗА", "mob.comet": "КОМЕТА", "mob.crab": "КРАБ", "mob.ember": "ОГНЕШАР", "mob.firebat": "ОГНЕМЫШЬ", "mob.frog": "ЛЯГУШКА", "mob.frost": "ЛЕДЯНОЙ ДУХ", "mob.hole": "ЧЁРНАЯ ДЫРА", "mob.magma": "ЛАВОСЛИЗЬ", "mob.monkey": "ОБЕЗЬЯНА", "mob.owl": "СОВА", "mob.parrot": "ПОПУГАЙ", "mob.penguin": "ПИНГВИН", "mob.puffer": "РЫБА-ЁЖ", "mob.ray": "СКАТ", "mob.snake": "ЗМЕЯ-ЛИАНА", "mob.spitter": "ПЛЕВУН", "mob.ufo": "НЛО", "mob.whirl": "ВОДОВОРОТ", "mob.wind": "ВЬЮГА", "net.connecting": "ПОДКЛЮЧАЕМСЯ...", "net.online": "СЕРВЕР НА СВЯЗИ", "net.host": "ХОСТ", "net.ready": "ГОТОВ", "net.wait": "ЖДЁМ", "net.reconnecting": "ПЕРЕПОДКЛЮЧАЕМСЯ...", "pickup.collected": "{name}!", "pickup.magnet": "МАГНИТ", "pickup.rocket": "РАКЕТА", "pickup.shield": "ЩИТ", "pickup.treasure": "КЛАД +{n}", "play.desktop_ability_hint": "← → / A D — движение · ↑ / Пробел — способность · F — кино · Esc — пауза", "play.desktop_hint": "← → / A D — движение · F — кино · Esc — пауза", "play.dome_saved": "КОСМОЩИТ СПАС!", "play.eliminated": "ВЫБЫЛ", "play.frozen": "ЗАМОРОЗКА!", "play.go": "ВПЕРЁД", "play.no_platform": "НЕТ ПЛАТФОРМЫ", "play.no_target": "НЕТ ЦЕЛИ", "play.pause": "ПАУЗА", "play.player_eliminated": "{name} ВЫБЫЛ", "play.resume": "ПРОДОЛЖИТЬ", "play.rotate": "ПОВЕРНИ ТЕЛЕФОН", "play.shield_saved": "ЩИТ СПАС!", "play.snake_caught": "ЗМЕЯ СХВАТИЛА!", "play.spectating": "СМОТРИМ {name}", "play.waiting": "ЖДЁМ ОСТАЛЬНЫХ", "profile.guest": "ВХОД: ГОСТЕВОЙ", "profile.local_progress": "ПРОГРЕСС НА УСТРОЙСТВЕ", "profile.merged": "ПРОГРЕСС ОБЪЕДИНЁН", "profile.telegram": "ВХОД: TELEGRAM", "profile.title": "ПРОФИЛЬ", "results.again": "ЕЩЁ РАЗ ▶", "results.collected": "СОБРАНО", "results.height": "ВЫСОТА {n} М", "results.hero_available": "ХВАТАЕТ НА {name}!", "results.hero_progress": "ДО {name} ● {n}", "results.hero_remaining": "ДО {name} ОСТАЛОСЬ ● {n}", "results.map_available": "МОЖНО ОТКРЫТЬ СЛЕДУЮЩУЮ", "results.map_progress": "СЛЕДУЮЩАЯ {n}/{goal}", "results.map_record": "РЕКОРД КАРТЫ {n} М", "results.new_record": "НОВЫЙ РЕКОРД КАРТЫ {n} М", "results.next_map": "ДО СЛЕДУЮЩЕЙ КАРТЫ", "results.rematch": "РЕВАНШ ▶", "results.round": "СЧЁТ ВЕЧЕРА · РАУНД {n}", "results.round_short": "СЧЁТ · РАУНД {n}", "results.runs_left": {"one": "ЕЩЁ {n} ЗАБЕГ", "few": "ЕЩЁ {n} ЗАБЕГА", "many": "ЕЩЁ {n} ЗАБЕГОВ", "other": "ЕЩЁ {n} ЗАБЕГОВ"}, "results.summary": "{wins}П  {best}М", "results.title": "ИТОГИ", "results.treasures": "КЛАДЫ", "results.you": " (ТЫ)", "reward.bonus_cap": "БОНУС СРЕЗАН", "reward.coins_cap": "МОНЕТЫ СРЕЗАНЫ", "reward.duplicate": "УЖЕ ЗАСЧИТАН", "reward.fast": "СЛИШКОМ БЫСТРО", "reward.height_cap": "ВЫСОТА СРЕЗАНА", "reward.height_min": "ЗА ВЫСОТУ · С 100 М", "reward.rejected": "НЕ ПРИНЯТО", "score.goal": "ЦЕЛЬ {n} М", "score.record": "РЕКОРД {n} М", "score.record_line": "РЕКОРД {n}", "settings.cinema": "Кино", "settings.en": "EN", "settings.language": "ЯЗЫК: {mode}", "settings.ru": "RU", "settings.tilt": "НАКЛОН: {state}", "settings.tilt_unavailable": "НАКЛОН НЕДОСТУПЕН", "settings.title": "НАСТРОЙКИ", "settings.vibration": "ВИБРО: {state}", "settings.volume": "ГРОМКОСТЬ", "shop.buy": "КУПИТЬ ● {n}", "shop.charge": "ЗАРЯД: ", "shop.confirm": "ТОЧНО? ● {n}", "shop.need": "НУЖНО ЕЩЁ ● {n}", "shop.purchased": "КУПЛЕНО!", "shop.select": "ВЫБРАТЬ", "shop.selected": "ВЫБРАН", "shop.title": "МАГАЗИН", "unit.coins": {"one": "{n} МОНЕТА", "few": "{n} МОНЕТЫ", "many": "{n} МОНЕТ", "other": "{n} МОНЕТ"}, "unit.meter_progress": "{n}/{goal} М", "unit.meters": "{n} М", "unit.mobs": {"one": "{n} МОБ", "few": "{n} МОБА", "many": "{n} МОБОВ", "other": "{n} МОБОВ"}, "unit.seconds": "{n} СЕК", "menu.play_label": "ИГРАТЬ", "mob.trash": "БАЧОК", "menu.encyclopedia": "СПРАВОЧНИК", "ency.title": "СПРАВОЧНИК", "ency.heroes": "ГЕРОИ", "ency.mobs": "МОБЫ", "ency.maps": "КАРТЫ", "ency.appears": "{name} · С {n} М", "ency.mob.blob": "ПОЛЗАЕТ ПО ПЛАТФОРМАМ", "ency.mob.trash": "СТОИТ НА ПЛАТФОРМЕ И НЕ ХОДИТ", "ency.mob.bat": "ЛЕТАЕТ ИЗ СТОРОНЫ В СТОРОНУ", "ency.mob.hole": "ТЯНЕТ К СЕБЕ, ЕСЛИ ПОДОЙТИ БЛИЗКО", "ency.mob.ufo": "ЛЕТАЕТ И СТРЕЛЯЕТ ВНИЗ", "ency.mob.frog": "ПРЫГАЕТ С ПЛАТФОРМЫ НА ПЛАТФОРМУ", "ency.mob.parrot": "ЛЕТАЕТ И ПИКИРУЕТ ВНИЗ", "ency.mob.snake": "СВИСАЕТ С ПЛАТФОРМЫ И ХВАТАЕТ", "ency.mob.monkey": "КИДАЕТ ОРЕХИ С ПЛАТФОРМЫ", "ency.map.city": "ПЕРВАЯ КАРТА. УЛИЦЫ И КРЫШИ", "ency.map.jungle": "ПРУЖИНЫ ВСТРЕЧАЮТСЯ ЧАЩЕ"}, "en": {"campaign.reach": "REACH THE GOAL →", "campaign.title": "CAMPAIGN", "campaign.unlock": "UNLOCK WITH COINS", "common.back": "BACK", "common.close": "CLOSE", "common.menu": "MENU", "common.off": "OFF", "common.on": "ON", "common.retry": "RETRY", "common.soon": "SOON", "death.black_hole": "HOLE", "death.detail": "{name} · {n} M", "death.fall": "FELL · {n} M", "death.hole": "BLACK HOLE · {n} M", "death.left": "LEFT · {n} M", "death.mob": "MOB", "death.mob_f": "HIT BY {name} · {n} M", "death.mob_m": "HIT BY {name} · {n} M", "death.shot": "SHOT · {n} M", "death.spirit": "SPIRIT", "death.vine": "VINE", "debug.font": "FONT", "err.bad_map": "UNKNOWN MAP", "err.bad_pid": "NO PLAYER TO KICK", "err.busy": "SERVER BUSY", "err.connection": "NO CONNECTION", "err.connection_lost": "CONNECTION LOST", "err.full": "ROOM FULL", "err.generic": "ERROR", "err.in_game": "RACE IN PROGRESS", "err.internal": "SERVER ERROR", "err.invalid_name": "INVALID LETTERS", "err.kicked": "YOU WERE KICKED", "err.no_connection": "OFFLINE", "err.no_room": "NOT IN A ROOM", "err.not_found": "ROOM NOT FOUND", "err.not_host": "HOST ONLY", "err.not_ready": "PLAYERS NOT READY", "err.reload": "RELOAD THE PAGE", "err.reload_line1": "RELOAD", "err.reload_line2": "THE PAGE", "err.room_closed": "ROOM CLOSED", "err.unsupported": "MULTIPLAYER UNAVAILABLE IN THIS VERSION", "err.unsupported_line1": "MULTIPLAYER UNAVAILABLE", "err.unsupported_line2": "IN THIS VERSION", "floor.break": "BREAKS AFTER A JUMP", "floor.goal": "REACH THE GOAL", "floor.record": "BEAT YOUR RECORD!", "hero.knight.ability": "SLAM", "hero.knight.description1": "DIVE WITH SHIELD", "hero.knight.description2": "THEN SUPER JUMP", "hero.knight.destination": "KNIGHT", "hero.knight.name": "Knight", "hero.knight.type": "ATTACK", "hero.mage.ability": "TELEPORT", "hero.mage.description1": "WARP TO A SAFE", "hero.mage.description2": "PLATFORM ABOVE", "hero.mage.destination": "MAGE", "hero.mage.name": "Mage", "hero.mage.type": "TELEPORT", "hero.ninja.ability": "WALLS", "hero.ninja.description1": "GRAB LEDGES FOR 6S", "hero.ninja.description2": "TAP TO WALL JUMP", "hero.ninja.destination": "NINJA", "hero.ninja.name": "Ninja", "hero.ninja.type": "PARKOUR", "hero.pilot.ability": "DASH", "hero.pilot.description1": "SHORT FAST BOOST", "hero.pilot.description2": "WITH A JETPACK", "hero.pilot.destination": "CAPTAIN", "hero.pilot.name": "Captain", "hero.pilot.type": "BASIC", "hero.pirate.ability": "HOOK", "hero.pirate.description1": "HOOK A PLATFORM", "hero.pirate.description2": "OR COIN, HITS MOBS", "hero.pirate.destination": "PIRATE", "hero.pirate.name": "Pirate", "hero.pirate.type": "MOBILITY", "hero.robot.ability": "SHIELD", "hero.robot.description1": "10S SHIELD, ABSORBS", "hero.robot.description2": "A HIT OR A FALL", "hero.robot.destination": "ROBOT", "hero.robot.name": "Robot", "hero.robot.type": "DEFENSE", "kick.line1": "ACCOUNT OPEN", "kick.line2": "ON ANOTHER DEVICE", "lobby.add_bot": "BOT +", "lobby.bot": "BOT", "lobby.bot_number": "BOT {n}", "lobby.create": "CREATE ROOM", "lobby.empty": "EMPTY", "lobby.enter_code": "JOIN WITH CODE", "lobby.hero": "HERO: {name} ▶", "lobby.join": "JOIN", "lobby.leave": "LEAVE", "lobby.map": "MAP: {name}", "lobby.max_players": "UP TO 4 PLAYERS", "lobby.name": "NAME: {name}", "lobby.name_prompt": "Name for friends (up to 10 letters)", "lobby.player": "PLAYER", "lobby.ready": "READY ✓", "lobby.room": "ROOM", "lobby.room_code": "ROOM CODE", "lobby.round": "ROUND {n}", "lobby.set_ready": "I AM READY", "lobby.share_code": "SHARE CODE WITH FRIENDS", "lobby.start": "START", "lobby.start_solo": "START SOLO", "lobby.waiting_ready": "WAITING FOR READY", "lobby.with_bots": "BOT RACE", "lobby.you": "YOU", "map.aqua.destination": "OCEAN", "map.aqua.location": "IN OCEAN", "map.aqua.name": "OCEAN", "map.city.destination": "CITY", "map.city.location": "IN CITY", "map.city.name": "CITY", "map.effect_bounce": "MORE SPRINGS", "map.effect_bubble": "BUBBLES", "map.effect_gravity": "LOW GRAVITY", "map.effect_ice": "SLIPPERY ICE", "map.effect_lava": "HOT PLATFORMS", "map.goal_prev": "REACH {n} M ON THE PREVIOUS MAP", "map.ice.destination": "GLACIER", "map.ice.location": "IN GLACIER", "map.ice.name": "GLACIER", "map.jungle.destination": "JUNGLE", "map.jungle.location": "IN JUNGLE", "map.jungle.name": "JUNGLE", "map.jungle.opened": "JUNGLE UNLOCKED!", "map.lava.destination": "VOLCANO", "map.lava.location": "ON VOLCANO", "map.lava.name": "VOLCANO", "map.locked": "???", "map.opened": "{name} UNLOCKED!", "map.space.destination": "SPACE", "map.space.location": "IN SPACE", "map.space.name": "SPACE", "map.unlock_first": "UNLOCK THE PREVIOUS MAP FIRST", "menu.choose_hero": "CHOOSE HERO", "menu.friends": "FRIENDS", "menu.friends_soon": "Soon in 0.9", "menu.home": "HOME", "menu.leagues": "LEAGUES", "menu.leagues_soon": "Soon in 0.8", "menu.map_best": "{name} · {n} M", "menu.map_progress": "{name} · {n}/{goal} M", "menu.maps": "MAPS", "menu.multiplayer": "MULTIPLAYER", "menu.options": "OPTIONS", "menu.play": "PLAY ▶", "menu.quests_soon": "QUESTS · SOON", "menu.tagline": "JUMP THE HIGHEST", "menu.title": "HOPPAK", "mob.alien": "ALIEN", "mob.bat": "BAT", "mob.blob": "SLIME", "mob.bob": "JELLYFISH", "mob.comet": "COMET", "mob.crab": "CRAB", "mob.ember": "FIREBALL", "mob.firebat": "FIREBAT", "mob.frog": "FROG", "mob.frost": "ICE SPIRIT", "mob.hole": "BLACK HOLE", "mob.magma": "LAVA SLIME", "mob.monkey": "MONKEY", "mob.owl": "OWL", "mob.parrot": "PARROT", "mob.penguin": "PENGUIN", "mob.puffer": "PUFFER", "mob.ray": "RAY", "mob.snake": "VINE SNAKE", "mob.spitter": "SPITTER", "mob.ufo": "UFO", "mob.whirl": "WHIRLPOOL", "mob.wind": "BLIZZARD", "net.connecting": "CONNECTING...", "net.online": "SERVER ONLINE", "net.host": "HOST", "net.ready": "READY", "net.wait": "WAIT", "net.reconnecting": "RECONNECTING...", "pickup.collected": "{name}!", "pickup.magnet": "MAGNET", "pickup.rocket": "ROCKET", "pickup.shield": "SHIELD", "pickup.treasure": "TREASURE +{n}", "play.desktop_ability_hint": "← → / A D — move · ↑ / Space — ability · F — cinema · Esc — pause", "play.desktop_hint": "← → / A D — move · F — cinema · Esc — pause", "play.dome_saved": "SHIELD SAVED YOU!", "play.eliminated": "OUT", "play.frozen": "FROZEN!", "play.go": "GO", "play.no_platform": "NO PLATFORM", "play.no_target": "NO TARGET", "play.pause": "PAUSE", "play.player_eliminated": "{name} IS OUT", "play.resume": "RESUME", "play.rotate": "ROTATE PHONE", "play.shield_saved": "SHIELD SAVED YOU!", "play.snake_caught": "SNAKE CAUGHT YOU!", "play.spectating": "WATCHING {name}", "play.waiting": "WAITING FOR OTHERS", "profile.guest": "LOGIN: GUEST", "profile.local_progress": "PROGRESS ON DEVICE", "profile.merged": "PROGRESS MERGED", "profile.telegram": "LOGIN: TELEGRAM", "profile.title": "PROFILE", "results.again": "AGAIN ▶", "results.collected": "COLLECTED", "results.height": "HEIGHT {n} M", "results.hero_available": "CAN BUY {name}!", "results.hero_progress": "TO {name} ● {n}", "results.hero_remaining": "{name}: ● {n} LEFT", "results.map_available": "NEXT MAP CAN UNLOCK", "results.map_progress": "NEXT MAP {n}/{goal}", "results.map_record": "MAP BEST {n} M", "results.new_record": "MAP BEST: {n} M", "results.next_map": "TO THE NEXT MAP", "results.rematch": "REMATCH ▶", "results.round": "SCORES · ROUND {n}", "results.round_short": "SCORES · ROUND {n}", "results.runs_left": {"one": "{n} RUN LEFT", "other": "{n} RUNS LEFT"}, "results.summary": "{wins}W  {best}M", "results.title": "RESULTS", "results.treasures": "TREASURES", "results.you": " (YOU)", "reward.bonus_cap": "BONUS CAPPED", "reward.coins_cap": "COINS CAPPED", "reward.duplicate": "ALREADY COUNTED", "reward.fast": "TOO FAST", "reward.height_cap": "HEIGHT CAPPED", "reward.height_min": "HEIGHT BONUS AT 100 M", "reward.rejected": "REJECTED", "score.goal": "GOAL {n} M", "score.record": "BEST {n} M", "score.record_line": "BEST {n}", "settings.cinema": "Cinema", "settings.en": "EN", "settings.language": "LANGUAGE: {mode}", "settings.ru": "RU", "settings.tilt": "TILT: {state}", "settings.tilt_unavailable": "TILT UNAVAILABLE", "settings.title": "SETTINGS", "settings.vibration": "VIBRATE: {state}", "settings.volume": "VOLUME", "shop.buy": "BUY ● {n}", "shop.charge": "CHARGE: ", "shop.confirm": "SURE? ● {n}", "shop.need": "NEED ● {n} MORE", "shop.purchased": "BOUGHT!", "shop.select": "SELECT", "shop.selected": "SELECTED", "shop.title": "SHOP", "unit.coins": {"one": "{n} COIN", "other": "{n} COINS"}, "unit.meter_progress": "{n}/{goal} M", "unit.meters": "{n} M", "unit.mobs": {"one": "{n} MOB", "other": "{n} MOBS"}, "unit.seconds": "{n} SEC", "menu.play_label": "PLAY", "mob.trash": "TRASH CAN", "menu.encyclopedia": "GUIDE", "ency.title": "GUIDE", "ency.heroes": "HEROES", "ency.mobs": "MOBS", "ency.maps": "MAPS", "ency.appears": "{name} · FROM {n} M", "ency.mob.blob": "CRAWLS ALONG PLATFORMS", "ency.mob.trash": "STANDS ON A PLATFORM AND NEVER MOVES", "ency.mob.bat": "FLIES BACK AND FORTH", "ency.mob.hole": "PULLS YOU IN IF YOU GET CLOSE", "ency.mob.ufo": "FLIES AND SHOOTS DOWNWARD", "ency.mob.frog": "HOPS FROM PLATFORM TO PLATFORM", "ency.mob.parrot": "FLIES AND DIVES DOWN", "ency.mob.snake": "HANGS FROM A PLATFORM AND SNATCHES", "ency.mob.monkey": "THROWS NUTS FROM A PLATFORM", "ency.map.city": "THE FIRST MAP. STREETS AND ROOFS", "ency.map.jungle": "SPRINGS SHOW UP MORE OFTEN"}};
+var GAME_I18N_BUILTIN = {"ru": {"campaign.reach": "ДОЙДИ ДО ЦЕЛИ →", "campaign.title": "КАМПАНИЯ", "campaign.unlock": "ОТКРОЙ ЗА МОНЕТЫ", "common.back": "НАЗАД", "common.close": "ЗАКРЫТЬ", "common.menu": "МЕНЮ", "common.off": "ВЫКЛ", "common.on": "ВКЛ", "common.retry": "ЕЩЁ РАЗ", "common.soon": "СКОРО", "death.black_hole": "ДЫРА", "death.detail": "{name} · {n} М", "death.fall": "СОРВАЛСЯ · {n} М", "death.hole": "ЗАТЯНУЛА ДЫРА · {n} М", "death.left": "ВЫШЕЛ · {n} М", "death.mob": "МОБ", "death.mob_f": "СБИЛА {name} · {n} М", "death.mob_m": "СБИЛ {name} · {n} М", "death.shot": "СБИЛ ВЫСТРЕЛ · {n} М", "death.spirit": "ДУХ", "death.vine": "ЛИАНА", "debug.font": "ШРИФТ", "err.bad_map": "НЕТ ТАКОЙ КАРТЫ", "err.bad_pid": "НЕКОГО ВЫГНАТЬ", "err.busy": "СЕРВЕР ЗАНЯТ", "err.connection": "НЕТ СВЯЗИ", "err.connection_lost": "СВЯЗЬ ПОТЕРЯНА", "err.full": "КОМНАТА ЗАПОЛНЕНА", "err.generic": "ОШИБКА", "err.in_game": "ЗАБЕГ УЖЕ ИДЁТ", "err.internal": "ОШИБКА СЕРВЕРА", "err.invalid_name": "ТАКИЕ БУКВЫ НЕ ПОДХОДЯТ", "err.kicked": "ТЕБЯ ВЫГНАЛИ", "err.no_connection": "НЕТ СЕТИ", "err.no_room": "ТЫ НЕ В КОМНАТЕ", "err.not_found": "КОМНАТА НЕ НАЙДЕНА", "err.not_host": "ТОЛЬКО ХОСТ", "err.not_ready": "НЕ ВСЕ ГОТОВЫ", "err.reload": "ОБНОВИ СТРАНИЦУ", "err.reload_line1": "ОБНОВИ", "err.reload_line2": "СТРАНИЦУ", "err.room_closed": "КОМНАТА ЗАКРЫТА", "err.unsupported": "МУЛЬТИПЛЕЕР НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ", "err.unsupported_line1": "МУЛЬТИПЛЕЕР НЕДОСТУПЕН", "err.unsupported_line2": "В ЭТОЙ ВЕРСИИ", "floor.break": "ЛОМАЕТСЯ ПОСЛЕ ПРЫЖКА", "floor.goal": "ДОПРЫГНИ ДО ЦЕЛИ", "floor.record": "ТВОЙ РЕКОРД - ПОБЕЙ!", "hero.knight.ability": "ТАРАН", "hero.knight.description1": "ПИКЕ ЩИТОМ ВНИЗ,", "hero.knight.description2": "С ПЛАТФОРМЫ СУПЕРПРЫЖОК", "hero.knight.destination": "РЫЦАРЯ", "hero.knight.name": "Рыцарь", "hero.knight.type": "АТАКА", "hero.mage.ability": "ТЕЛЕПОРТ", "hero.mage.description1": "МИГОМ НА НАДЁЖНУЮ", "hero.mage.description2": "ПЛАТФОРМУ ВЫШЕ", "hero.mage.destination": "МАГА", "hero.mage.name": "Маг", "hero.mage.type": "ТЕЛЕПОРТ", "hero.ninja.ability": "СТЕНЫ", "hero.ninja.description1": "6 СЕК ЦЕПЛЯЕТСЯ ЗА КРАЙ,", "hero.ninja.description2": "ТАП - ПРЫЖОК ОТ СТЕНЫ", "hero.ninja.destination": "НИНДЗЯ", "hero.ninja.name": "Ниндзя", "hero.ninja.type": "ПАРКУР", "hero.pilot.ability": "РЫВОК", "hero.pilot.description1": "КОРОТКИЙ БЫСТРЫЙ", "hero.pilot.description2": "ВЗЛЁТ НА РАНЦЕ", "hero.pilot.destination": "КАПИТАНА", "hero.pilot.name": "Капитан", "hero.pilot.type": "БАЗОВЫЙ", "hero.pirate.ability": "КРЮК", "hero.pirate.description1": "КРЮК К ПЛАТФОРМЕ", "hero.pirate.description2": "ИЛИ МОНЕТЕ, БЬЁТ МОБОВ", "hero.pirate.destination": "ПИРАТА", "hero.pirate.name": "Пират", "hero.pirate.type": "МАНЁВР", "hero.robot.ability": "ЩИТ", "hero.robot.description1": "ЩИТ 10 СЕК, ГАСИТ", "hero.robot.description2": "УДАР ИЛИ ПАДЕНИЕ", "hero.robot.destination": "РОБОТА", "hero.robot.name": "Робот", "hero.robot.type": "ЗАЩИТА", "kick.locked1": "ВХОД ВЫПОЛНЕН", "kick.locked2": "С ДРУГОГО УСТРОЙСТВА", "kick.takeover1": "ПЕРЕКЛЮЧИТЬСЯ", "kick.takeover2": "НА ЭТО УСТРОЙСТВО", "kick.open_telegram": "ОТКРОЙТЕ В ТЕЛЕГРАМЕ", "kick.retry": "ПЕРЕОТКРОЙТЕ В ТЕЛЕГРАМЕ", "lobby.add_bot": "БОТ +", "lobby.bot": "БОТ", "lobby.bot_number": "БОТ {n}", "lobby.create": "СОЗДАТЬ КОМНАТУ", "lobby.empty": "СВОБОДНО", "lobby.enter_code": "ВОЙТИ ПО КОДУ", "lobby.hero": "ГЕРОЙ: {name} ▶", "lobby.join": "ВОЙТИ", "lobby.leave": "ВЫЙТИ", "lobby.map": "КАРТА: {name}", "lobby.max_players": "ДО 4 ИГРОКОВ НА КАРТЕ", "lobby.name": "ИМЯ: {name}", "lobby.name_prompt": "Имя для друзей (до 10 букв)", "lobby.player": "ИГРОК", "lobby.ready": "ГОТОВ ✓", "lobby.room": "КОМНАТА", "lobby.room_code": "КОД КОМНАТЫ", "lobby.round": "РАУНД {n}", "lobby.set_ready": "Я ГОТОВ", "lobby.share_code": "СКАЖИ КОД ДРУЗЬЯМ", "lobby.start": "НАЧАТЬ", "lobby.start_solo": "НАЧАТЬ ОДНОМУ", "lobby.waiting_ready": "ЖДЁМ ГОТОВНОСТИ", "lobby.with_bots": "ЗАБЕГ С БОТАМИ", "lobby.you": "ТЫ", "map.aqua.destination": "ОКЕАНА", "map.aqua.location": "В ОКЕАНЕ", "map.aqua.name": "ОКЕАН", "map.city.destination": "ГОРОДА", "map.city.location": "В ГОРОДЕ", "map.city.name": "ГОРОД", "map.effect_bounce": "ПРУЖИНЫ ЧАЩЕ", "map.effect_bubble": "ПУЗЫРИ", "map.effect_gravity": "СЛАБАЯ ГРАВИТАЦИЯ", "map.effect_ice": "ЛЁД: СКОЛЬЗКО", "map.effect_lava": "ЖАРКИЕ ПЛАТФОРМЫ", "map.goal_prev": "{n} М НА ПРЕДЫДУЩЕЙ КАРТЕ", "map.ice.destination": "ЛЕДНИКА", "map.ice.location": "В ЛЕДНИКЕ", "map.ice.name": "ЛЕДНИК", "map.jungle.destination": "ДЖУНГЛЕЙ", "map.jungle.location": "В ДЖУНГЛЯХ", "map.jungle.name": "ДЖУНГЛИ", "map.jungle.opened": "ДЖУНГЛИ ОТКРЫТЫ!", "map.lava.destination": "ВУЛКАНА", "map.lava.location": "НА ВУЛКАНЕ", "map.lava.name": "ВУЛКАН", "map.locked": "???", "map.opened": "{name} ОТКРЫТ!", "map.space.destination": "КОСМОСА", "map.space.location": "В КОСМОСЕ", "map.space.name": "КОСМОС", "map.unlock_first": "СНАЧАЛА ОТКРОЙ ПРЕДЫДУЩУЮ КАРТУ", "menu.choose_hero": "ВЫБРАТЬ ГЕРОЯ", "menu.friends": "ДРУЗЬЯ", "menu.friends_soon": "Скоро в 0.9", "menu.home": "ГЛАВНАЯ", "menu.leagues": "ЛИГИ", "menu.leagues_soon": "Скоро в 0.8", "menu.map_best": "{name} · {n} М", "menu.map_progress": "{name} · {n}/{goal} М", "menu.maps": "КАРТЫ", "menu.multiplayer": "МУЛЬТИПЛЕЕР", "menu.options": "ОПЦИИ", "menu.play": "ИГРАТЬ ▶", "menu.quests_soon": "ЗАДАНИЯ · СКОРО", "menu.tagline": "ПРЫГАЙ ВЫШЕ ВСЕХ", "menu.title": "ХОППАК", "mob.alien": "ПРИШЕЛЕЦ", "mob.bat": "МЫШЬ", "mob.blob": "СЛИЗЕНЬ", "mob.bob": "МЕДУЗА", "mob.comet": "КОМЕТА", "mob.crab": "КРАБ", "mob.ember": "ОГНЕШАР", "mob.firebat": "ОГНЕМЫШЬ", "mob.frog": "ЛЯГУШКА", "mob.frost": "ЛЕДЯНОЙ ДУХ", "mob.hole": "ЧЁРНАЯ ДЫРА", "mob.magma": "ЛАВОСЛИЗЬ", "mob.monkey": "ОБЕЗЬЯНА", "mob.owl": "СОВА", "mob.parrot": "ПОПУГАЙ", "mob.penguin": "ПИНГВИН", "mob.puffer": "РЫБА-ЁЖ", "mob.ray": "СКАТ", "mob.snake": "ЗМЕЯ-ЛИАНА", "mob.spitter": "ПЛЕВУН", "mob.ufo": "НЛО", "mob.whirl": "ВОДОВОРОТ", "mob.wind": "ВЬЮГА", "net.connecting": "ПОДКЛЮЧАЕМСЯ...", "net.online": "СЕРВЕР НА СВЯЗИ", "net.host": "ХОСТ", "net.ready": "ГОТОВ", "net.wait": "ЖДЁМ", "net.reconnecting": "ПЕРЕПОДКЛЮЧАЕМСЯ...", "pickup.collected": "{name}!", "pickup.magnet": "МАГНИТ", "pickup.rocket": "РАКЕТА", "pickup.shield": "ЩИТ", "pickup.treasure": "КЛАД +{n}", "play.desktop_ability_hint": "← → / A D — движение · ↑ / Пробел — способность · F — кино · Esc — пауза", "play.desktop_hint": "← → / A D — движение · F — кино · Esc — пауза", "play.dome_saved": "КОСМОЩИТ СПАС!", "play.eliminated": "ВЫБЫЛ", "play.frozen": "ЗАМОРОЗКА!", "play.go": "ВПЕРЁД", "play.no_platform": "НЕТ ПЛАТФОРМЫ", "play.no_target": "НЕТ ЦЕЛИ", "play.pause": "ПАУЗА", "play.player_eliminated": "{name} ВЫБЫЛ", "play.resume": "ПРОДОЛЖИТЬ", "play.rotate": "ПОВЕРНИ ТЕЛЕФОН", "play.shield_saved": "ЩИТ СПАС!", "play.snake_caught": "ЗМЕЯ СХВАТИЛА!", "play.spectating": "СМОТРИМ {name}", "play.waiting": "ЖДЁМ ОСТАЛЬНЫХ", "profile.guest": "ВХОД: ГОСТЕВОЙ", "profile.local_progress": "ПРОГРЕСС НА УСТРОЙСТВЕ", "profile.merged": "ПРОГРЕСС ОБЪЕДИНЁН", "profile.telegram": "ВХОД: TELEGRAM", "profile.title": "ПРОФИЛЬ", "results.again": "ЕЩЁ РАЗ ▶", "results.collected": "СОБРАНО", "results.height": "ВЫСОТА {n} М", "results.hero_available": "ХВАТАЕТ НА {name}!", "results.hero_progress": "ДО {name} ● {n}", "results.hero_remaining": "ДО {name} ОСТАЛОСЬ ● {n}", "results.map_available": "МОЖНО ОТКРЫТЬ СЛЕДУЮЩУЮ", "results.map_progress": "СЛЕДУЮЩАЯ {n}/{goal}", "results.map_record": "РЕКОРД КАРТЫ {n} М", "results.new_record": "НОВЫЙ РЕКОРД КАРТЫ {n} М", "results.next_map": "ДО СЛЕДУЮЩЕЙ КАРТЫ", "results.rematch": "РЕВАНШ ▶", "results.round": "СЧЁТ ВЕЧЕРА · РАУНД {n}", "results.round_short": "СЧЁТ · РАУНД {n}", "results.runs_left": {"one": "ЕЩЁ {n} ЗАБЕГ", "few": "ЕЩЁ {n} ЗАБЕГА", "many": "ЕЩЁ {n} ЗАБЕГОВ", "other": "ЕЩЁ {n} ЗАБЕГОВ"}, "results.summary": "{wins}П  {best}М", "results.title": "ИТОГИ", "results.treasures": "КЛАДЫ", "results.you": " (ТЫ)", "reward.bonus_cap": "БОНУС СРЕЗАН", "reward.coins_cap": "МОНЕТЫ СРЕЗАНЫ", "reward.duplicate": "УЖЕ ЗАСЧИТАН", "reward.fast": "СЛИШКОМ БЫСТРО", "reward.height_cap": "ВЫСОТА СРЕЗАНА", "reward.height_min": "ЗА ВЫСОТУ · С 100 М", "reward.rejected": "НЕ ПРИНЯТО", "score.goal": "ЦЕЛЬ {n} М", "score.record": "РЕКОРД {n} М", "score.record_line": "РЕКОРД {n}", "settings.cinema": "Кино", "settings.en": "EN", "settings.language": "ЯЗЫК: {mode}", "settings.ru": "RU", "settings.tilt": "НАКЛОН: {state}", "settings.tilt_unavailable": "НАКЛОН НЕДОСТУПЕН", "settings.title": "НАСТРОЙКИ", "settings.vibration": "ВИБРО: {state}", "settings.volume": "ГРОМКОСТЬ", "shop.buy": "КУПИТЬ ● {n}", "shop.charge": "ЗАРЯД: ", "shop.confirm": "ТОЧНО? ● {n}", "shop.need": "НУЖНО ЕЩЁ ● {n}", "shop.purchased": "КУПЛЕНО!", "shop.select": "ВЫБРАТЬ", "shop.selected": "ВЫБРАН", "shop.title": "МАГАЗИН", "unit.coins": {"one": "{n} МОНЕТА", "few": "{n} МОНЕТЫ", "many": "{n} МОНЕТ", "other": "{n} МОНЕТ"}, "unit.meter_progress": "{n}/{goal} М", "unit.meters": "{n} М", "unit.mobs": {"one": "{n} МОБ", "few": "{n} МОБА", "many": "{n} МОБОВ", "other": "{n} МОБОВ"}, "unit.seconds": "{n} СЕК", "menu.play_label": "ИГРАТЬ", "mob.trash": "БАЧОК", "menu.encyclopedia": "СПРАВОЧНИК", "ency.title": "СПРАВОЧНИК", "ency.heroes": "ГЕРОИ", "ency.mobs": "МОБЫ", "ency.maps": "КАРТЫ", "ency.appears": "{name} · С {n} М", "ency.mob.blob": "ПОЛЗАЕТ ПО ПЛАТФОРМАМ", "ency.mob.trash": "СТОИТ НА ПЛАТФОРМЕ И НЕ ХОДИТ", "ency.mob.bat": "ЛЕТАЕТ ИЗ СТОРОНЫ В СТОРОНУ", "ency.mob.hole": "ТЯНЕТ К СЕБЕ, ЕСЛИ ПОДОЙТИ БЛИЗКО", "ency.mob.ufo": "ЛЕТАЕТ И СТРЕЛЯЕТ ВНИЗ", "ency.mob.frog": "ПРЫГАЕТ С ПЛАТФОРМЫ НА ПЛАТФОРМУ", "ency.mob.parrot": "ЛЕТАЕТ И ПИКИРУЕТ ВНИЗ", "ency.mob.snake": "СВИСАЕТ С ПЛАТФОРМЫ И ХВАТАЕТ", "ency.mob.monkey": "КИДАЕТ ОРЕХИ С ПЛАТФОРМЫ", "ency.map.city": "ПЕРВАЯ КАРТА. УЛИЦЫ И КРЫШИ", "ency.map.jungle": "ПРУЖИНЫ ВСТРЕЧАЮТСЯ ЧАЩЕ"}, "en": {"campaign.reach": "REACH THE GOAL →", "campaign.title": "CAMPAIGN", "campaign.unlock": "UNLOCK WITH COINS", "common.back": "BACK", "common.close": "CLOSE", "common.menu": "MENU", "common.off": "OFF", "common.on": "ON", "common.retry": "RETRY", "common.soon": "SOON", "death.black_hole": "HOLE", "death.detail": "{name} · {n} M", "death.fall": "FELL · {n} M", "death.hole": "BLACK HOLE · {n} M", "death.left": "LEFT · {n} M", "death.mob": "MOB", "death.mob_f": "HIT BY {name} · {n} M", "death.mob_m": "HIT BY {name} · {n} M", "death.shot": "SHOT · {n} M", "death.spirit": "SPIRIT", "death.vine": "VINE", "debug.font": "FONT", "err.bad_map": "UNKNOWN MAP", "err.bad_pid": "NO PLAYER TO KICK", "err.busy": "SERVER BUSY", "err.connection": "NO CONNECTION", "err.connection_lost": "CONNECTION LOST", "err.full": "ROOM FULL", "err.generic": "ERROR", "err.in_game": "RACE IN PROGRESS", "err.internal": "SERVER ERROR", "err.invalid_name": "INVALID LETTERS", "err.kicked": "YOU WERE KICKED", "err.no_connection": "OFFLINE", "err.no_room": "NOT IN A ROOM", "err.not_found": "ROOM NOT FOUND", "err.not_host": "HOST ONLY", "err.not_ready": "PLAYERS NOT READY", "err.reload": "RELOAD THE PAGE", "err.reload_line1": "RELOAD", "err.reload_line2": "THE PAGE", "err.room_closed": "ROOM CLOSED", "err.unsupported": "MULTIPLAYER UNAVAILABLE IN THIS VERSION", "err.unsupported_line1": "MULTIPLAYER UNAVAILABLE", "err.unsupported_line2": "IN THIS VERSION", "floor.break": "BREAKS AFTER A JUMP", "floor.goal": "REACH THE GOAL", "floor.record": "BEAT YOUR RECORD!", "hero.knight.ability": "SLAM", "hero.knight.description1": "DIVE WITH SHIELD", "hero.knight.description2": "THEN SUPER JUMP", "hero.knight.destination": "KNIGHT", "hero.knight.name": "Knight", "hero.knight.type": "ATTACK", "hero.mage.ability": "TELEPORT", "hero.mage.description1": "WARP TO A SAFE", "hero.mage.description2": "PLATFORM ABOVE", "hero.mage.destination": "MAGE", "hero.mage.name": "Mage", "hero.mage.type": "TELEPORT", "hero.ninja.ability": "WALLS", "hero.ninja.description1": "GRAB LEDGES FOR 6S", "hero.ninja.description2": "TAP TO WALL JUMP", "hero.ninja.destination": "NINJA", "hero.ninja.name": "Ninja", "hero.ninja.type": "PARKOUR", "hero.pilot.ability": "DASH", "hero.pilot.description1": "SHORT FAST BOOST", "hero.pilot.description2": "WITH A JETPACK", "hero.pilot.destination": "CAPTAIN", "hero.pilot.name": "Captain", "hero.pilot.type": "BASIC", "hero.pirate.ability": "HOOK", "hero.pirate.description1": "HOOK A PLATFORM", "hero.pirate.description2": "OR COIN, HITS MOBS", "hero.pirate.destination": "PIRATE", "hero.pirate.name": "Pirate", "hero.pirate.type": "MOBILITY", "hero.robot.ability": "SHIELD", "hero.robot.description1": "10S SHIELD, ABSORBS", "hero.robot.description2": "A HIT OR A FALL", "hero.robot.destination": "ROBOT", "hero.robot.name": "Robot", "hero.robot.type": "DEFENSE", "kick.locked1": "SIGNED IN", "kick.locked2": "ON ANOTHER DEVICE", "kick.takeover1": "SWITCH TO", "kick.takeover2": "THIS DEVICE", "kick.open_telegram": "OPEN IN TELEGRAM", "kick.retry": "REOPEN IN TELEGRAM", "lobby.add_bot": "BOT +", "lobby.bot": "BOT", "lobby.bot_number": "BOT {n}", "lobby.create": "CREATE ROOM", "lobby.empty": "EMPTY", "lobby.enter_code": "JOIN WITH CODE", "lobby.hero": "HERO: {name} ▶", "lobby.join": "JOIN", "lobby.leave": "LEAVE", "lobby.map": "MAP: {name}", "lobby.max_players": "UP TO 4 PLAYERS", "lobby.name": "NAME: {name}", "lobby.name_prompt": "Name for friends (up to 10 letters)", "lobby.player": "PLAYER", "lobby.ready": "READY ✓", "lobby.room": "ROOM", "lobby.room_code": "ROOM CODE", "lobby.round": "ROUND {n}", "lobby.set_ready": "I AM READY", "lobby.share_code": "SHARE CODE WITH FRIENDS", "lobby.start": "START", "lobby.start_solo": "START SOLO", "lobby.waiting_ready": "WAITING FOR READY", "lobby.with_bots": "BOT RACE", "lobby.you": "YOU", "map.aqua.destination": "OCEAN", "map.aqua.location": "IN OCEAN", "map.aqua.name": "OCEAN", "map.city.destination": "CITY", "map.city.location": "IN CITY", "map.city.name": "CITY", "map.effect_bounce": "MORE SPRINGS", "map.effect_bubble": "BUBBLES", "map.effect_gravity": "LOW GRAVITY", "map.effect_ice": "SLIPPERY ICE", "map.effect_lava": "HOT PLATFORMS", "map.goal_prev": "REACH {n} M ON THE PREVIOUS MAP", "map.ice.destination": "GLACIER", "map.ice.location": "IN GLACIER", "map.ice.name": "GLACIER", "map.jungle.destination": "JUNGLE", "map.jungle.location": "IN JUNGLE", "map.jungle.name": "JUNGLE", "map.jungle.opened": "JUNGLE UNLOCKED!", "map.lava.destination": "VOLCANO", "map.lava.location": "ON VOLCANO", "map.lava.name": "VOLCANO", "map.locked": "???", "map.opened": "{name} UNLOCKED!", "map.space.destination": "SPACE", "map.space.location": "IN SPACE", "map.space.name": "SPACE", "map.unlock_first": "UNLOCK THE PREVIOUS MAP FIRST", "menu.choose_hero": "CHOOSE HERO", "menu.friends": "FRIENDS", "menu.friends_soon": "Soon in 0.9", "menu.home": "HOME", "menu.leagues": "LEAGUES", "menu.leagues_soon": "Soon in 0.8", "menu.map_best": "{name} · {n} M", "menu.map_progress": "{name} · {n}/{goal} M", "menu.maps": "MAPS", "menu.multiplayer": "MULTIPLAYER", "menu.options": "OPTIONS", "menu.play": "PLAY ▶", "menu.quests_soon": "QUESTS · SOON", "menu.tagline": "JUMP THE HIGHEST", "menu.title": "HOPPAK", "mob.alien": "ALIEN", "mob.bat": "BAT", "mob.blob": "SLIME", "mob.bob": "JELLYFISH", "mob.comet": "COMET", "mob.crab": "CRAB", "mob.ember": "FIREBALL", "mob.firebat": "FIREBAT", "mob.frog": "FROG", "mob.frost": "ICE SPIRIT", "mob.hole": "BLACK HOLE", "mob.magma": "LAVA SLIME", "mob.monkey": "MONKEY", "mob.owl": "OWL", "mob.parrot": "PARROT", "mob.penguin": "PENGUIN", "mob.puffer": "PUFFER", "mob.ray": "RAY", "mob.snake": "VINE SNAKE", "mob.spitter": "SPITTER", "mob.ufo": "UFO", "mob.whirl": "WHIRLPOOL", "mob.wind": "BLIZZARD", "net.connecting": "CONNECTING...", "net.online": "SERVER ONLINE", "net.host": "HOST", "net.ready": "READY", "net.wait": "WAIT", "net.reconnecting": "RECONNECTING...", "pickup.collected": "{name}!", "pickup.magnet": "MAGNET", "pickup.rocket": "ROCKET", "pickup.shield": "SHIELD", "pickup.treasure": "TREASURE +{n}", "play.desktop_ability_hint": "← → / A D — move · ↑ / Space — ability · F — cinema · Esc — pause", "play.desktop_hint": "← → / A D — move · F — cinema · Esc — pause", "play.dome_saved": "SHIELD SAVED YOU!", "play.eliminated": "OUT", "play.frozen": "FROZEN!", "play.go": "GO", "play.no_platform": "NO PLATFORM", "play.no_target": "NO TARGET", "play.pause": "PAUSE", "play.player_eliminated": "{name} IS OUT", "play.resume": "RESUME", "play.rotate": "ROTATE PHONE", "play.shield_saved": "SHIELD SAVED YOU!", "play.snake_caught": "SNAKE CAUGHT YOU!", "play.spectating": "WATCHING {name}", "play.waiting": "WAITING FOR OTHERS", "profile.guest": "LOGIN: GUEST", "profile.local_progress": "PROGRESS ON DEVICE", "profile.merged": "PROGRESS MERGED", "profile.telegram": "LOGIN: TELEGRAM", "profile.title": "PROFILE", "results.again": "AGAIN ▶", "results.collected": "COLLECTED", "results.height": "HEIGHT {n} M", "results.hero_available": "CAN BUY {name}!", "results.hero_progress": "TO {name} ● {n}", "results.hero_remaining": "{name}: ● {n} LEFT", "results.map_available": "NEXT MAP CAN UNLOCK", "results.map_progress": "NEXT MAP {n}/{goal}", "results.map_record": "MAP BEST {n} M", "results.new_record": "MAP BEST: {n} M", "results.next_map": "TO THE NEXT MAP", "results.rematch": "REMATCH ▶", "results.round": "SCORES · ROUND {n}", "results.round_short": "SCORES · ROUND {n}", "results.runs_left": {"one": "{n} RUN LEFT", "other": "{n} RUNS LEFT"}, "results.summary": "{wins}W  {best}M", "results.title": "RESULTS", "results.treasures": "TREASURES", "results.you": " (YOU)", "reward.bonus_cap": "BONUS CAPPED", "reward.coins_cap": "COINS CAPPED", "reward.duplicate": "ALREADY COUNTED", "reward.fast": "TOO FAST", "reward.height_cap": "HEIGHT CAPPED", "reward.height_min": "HEIGHT BONUS AT 100 M", "reward.rejected": "REJECTED", "score.goal": "GOAL {n} M", "score.record": "BEST {n} M", "score.record_line": "BEST {n}", "settings.cinema": "Cinema", "settings.en": "EN", "settings.language": "LANGUAGE: {mode}", "settings.ru": "RU", "settings.tilt": "TILT: {state}", "settings.tilt_unavailable": "TILT UNAVAILABLE", "settings.title": "SETTINGS", "settings.vibration": "VIBRATE: {state}", "settings.volume": "VOLUME", "shop.buy": "BUY ● {n}", "shop.charge": "CHARGE: ", "shop.confirm": "SURE? ● {n}", "shop.need": "NEED ● {n} MORE", "shop.purchased": "BOUGHT!", "shop.select": "SELECT", "shop.selected": "SELECTED", "shop.title": "SHOP", "unit.coins": {"one": "{n} COIN", "other": "{n} COINS"}, "unit.meter_progress": "{n}/{goal} M", "unit.meters": "{n} M", "unit.mobs": {"one": "{n} MOB", "other": "{n} MOBS"}, "unit.seconds": "{n} SEC", "menu.play_label": "PLAY", "mob.trash": "TRASH CAN", "menu.encyclopedia": "GUIDE", "ency.title": "GUIDE", "ency.heroes": "HEROES", "ency.mobs": "MOBS", "ency.maps": "MAPS", "ency.appears": "{name} · FROM {n} M", "ency.mob.blob": "CRAWLS ALONG PLATFORMS", "ency.mob.trash": "STANDS ON A PLATFORM AND NEVER MOVES", "ency.mob.bat": "FLIES BACK AND FORTH", "ency.mob.hole": "PULLS YOU IN IF YOU GET CLOSE", "ency.mob.ufo": "FLIES AND SHOOTS DOWNWARD", "ency.mob.frog": "HOPS FROM PLATFORM TO PLATFORM", "ency.mob.parrot": "FLIES AND DIVES DOWN", "ency.mob.snake": "HANGS FROM A PLATFORM AND SNATCHES", "ency.mob.monkey": "THROWS NUTS FROM A PLATFORM", "ency.map.city": "THE FIRST MAP. STREETS AND ROOFS", "ency.map.jungle": "SPRINGS SHOW UP MORE OFTEN"}};
 /* Built-in dictionaries are inserted here by build.sh. */
 type GameLanguage = "ru" | "en";
 type GameMessage = string | Record<string, string>;
@@ -1019,11 +1019,37 @@ function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: 
   return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
 }
 
-/* v1.0 contrast knobs, percent of full (100 = unchanged). One object so a later
-   admin/server payload can overwrite the values. No Settings slider; bg stays 80. */
-var VISUAL_CONTRAST: any = { bg: 80, plat: 92, hero: 92, mob: 88, coin: 85, shield: 95 };
+/* Percent of the original colors. These defaults also apply to offline play.
+   shield is local (95 = -5 from 100). Admin payload uses platforms/mobs/coins;
+   the original five keys must all be valid to apply it, shield is optional. */
+var VISUAL_CONTRAST: any = { bg: 80, platforms: 92, hero: 92, mobs: 88, coins: 85, shield: 95 };
+
+function loadVisualContrast(origin: string): Promise<void> {
+  if (typeof fetch === "undefined") return Promise.resolve();
+  return new Promise(function (resolve) {
+    var settled = false;
+    var timer = setTimeout(finish, 1500);
+    function finish(data?: any) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      var required = ["bg", "platforms", "hero", "mobs", "coins"];
+      if (data && required.every(function (key) {
+        return Number.isInteger(data[key]) && data[key] >= 50 && data[key] <= 110;
+      })) {
+        for (var i = 0; i < required.length; i++) VISUAL_CONTRAST[required[i]] = data[required[i]];
+        if (Number.isInteger(data.shield) && data.shield >= 50 && data.shield <= 110) VISUAL_CONTRAST.shield = data.shield;
+      }
+      resolve();
+    }
+    fetch(origin + "/api/config/visual", { cache: "no-cache" }).then(function (response) {
+      return response.ok ? response.json() : null;
+    }).then(finish, function () { finish(); });
+  });
+}
+
 function applyContrast(ctx: Ctx, pct: number, fn: any) {
-  if (!(pct < 100)) { fn(); return; }
+  if (pct === 100) { fn(); return; }
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.filter = "saturate(" + pct + "%) contrast(" + pct + "%)";
@@ -1031,10 +1057,10 @@ function applyContrast(ctx: Ctx, pct: number, fn: any) {
   ctx.restore();
 }
 function applyBgContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.bg, fn); }
-function applyPlatContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.plat, fn); }
+function applyPlatContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.platforms, fn); }
 function applyHeroContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.hero, fn); }
-function applyMobContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.mob, fn); }
-function applyCoinContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.coin, fn); }
+function applyMobContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.mobs, fn); }
+function applyCoinContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.coins, fn); }
 function applyShieldContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.shield, fn); }
 function tinyLines(s: string, maxW: number) {
   s = tinyChars(s);
@@ -4952,13 +4978,14 @@ var PROFILE: any = (function () {
   var QUEUE_KEY = "hoppak_profile_queue";
   var BUYS_KEY = "hoppak_profile_buys";
   var CACHE_KEY = "hoppak_profile_cache";
+  var LOCK_KEY = "hoppak_profile_locked";
   var REQ_MS = 5000;
   var RUN_HEIGHT_MAX = 20000;
   var RUN_COINS_MAX = 15801;
   var RUN_BONUS_MAX = 2500;
   var HEIGHT_AWARD_MIN = 100;
   var P: any = {
-    st: "idle", /* idle | syncing | ready | offline | unavailable */
+    st: "idle", /* idle | syncing | ready | offline | unavailable | locked */
     profile: null as any,
     api: null as any,
     queue: null as any,
@@ -5092,6 +5119,7 @@ var PROFILE: any = (function () {
   }
 
   function tryTelegramAuth(token: string): Promise<any> {
+    if (isLocked()) return Promise.resolve(null);
     if (P.tgPending) return P.tgPending;
     if (P.tgTried) return Promise.resolve(null);
     var run = function () { return tryTelegramAuthNow(token); };
@@ -5100,13 +5128,18 @@ var PROFILE: any = (function () {
   }
 
   function tryTelegramAuthNow(token: string): Promise<any> {
-    if (P.tgTried) return Promise.resolve(null);
+    if (P.tgTried || isLocked()) return Promise.resolve(null);
     var initData = readInitData();
     if (!initData || !token) return Promise.resolve(null);
     P.tgTried = true;
+    return telegramAuth(initData, token);
+  }
+
+  function telegramAuth(initData: string, token: string) {
     return req("POST", "/api/auth/telegram", { initData: initData }, token).then(function (res: any) {
-      if (!res || !res.ok || !res.data || !res.data.ok || !res.data.profile) return null;
-      if (res.data.token) setToken(res.data.token);
+      if (!res.ok || !res.data || !res.data.ok || !res.data.profile || !res.data.token) return null;
+      setToken(res.data.token);
+      lsSet(LOCK_KEY, "");
       P.st = "ready";
       applyProfile(res.data.profile);
       if (P.api && P.api.sessionOk) P.api.sessionOk();
@@ -5199,7 +5232,10 @@ var PROFILE: any = (function () {
     return fetch(base + path, opts).then(function (r: any) {
       clearTimeout(to);
       return r.json().catch(function () { return null; }).then(function (data: any) {
-        if (r.status === 401 && data && data.error === "SESSION_REPLACED") noteReplaced(token || "");
+        if (replaced(r.status, data) || (r.status === 401 && data && data.error === "UNAUTHORIZED"
+          && token && P.profile && P.profile.telegramId)) {
+          noteReplaced(token || "", data.profile);
+        }
         return { status: r.status, ok: !!r.ok, data: data };
       });
     }).catch(function () {
@@ -5208,33 +5244,53 @@ var PROFILE: any = (function () {
     });
   }
 
-  /* SESSION_REPLACED = this token was rotated by a login somewhere else.
-     - The stored token is newer than the one used: another tab of this same browser already logged in again.
-       Same client, not a second device: no banner, the next request just uses the stored token.
-     - The page has not established a session yet (the app was just opened with an old token): opening it is an
-       explicit take-over, so log in again quietly (ensureProfile does) and show nothing.
-     - Only a session that was running and then got replaced shows the banner. */
-  function noteReplaced(usedTok: string) {
-    var cur = getToken();
-    if (usedTok && cur && cur !== usedTok) return;
-    if (!P.live) return;
-    if (P.replaced) return;
-    P.replaced = true;
-    var tok = getToken();
-    if (P.api && P.api.sessionReplaced) P.api.sessionReplaced();
-    var done = tok ? flushRunsStep(tok, true) : Promise.resolve(null);
-    Promise.resolve(done).then(function () { dropToken(tok); return ensureProfile(); }).then(function () { P.replaced = false; }, function () { P.replaced = false; });
+  function isLocked(): boolean { return P.st === "locked"; }
+
+  function replaced(status: number, data: any): boolean {
+    return !!data && ((status === 409 && data.error === "DEVICE_REPLACED")
+      || (status === 401 && data.error === "SESSION_REPLACED"));
   }
-  /* The game server refused a socket because its login was replaced (another device took the account). */
+
+  function noteReplaced(usedTok: string, profile?: any) {
+    if (usedTok && usedTok !== getToken()) return;
+    var wasLocked = isLocked();
+    P.st = "locked";
+    lsSet(LOCK_KEY, "1");
+    if (P.retryTimer) { clearTimeout(P.retryTimer); P.retryTimer = 0; }
+    var preserved = profile || P.profile || readJson(CACHE_KEY, null);
+    if (preserved) applyProfile(preserved);
+    if (!wasLocked && P.api && P.api.sessionReplaced) P.api.sessionReplaced();
+  }
+
   P.serverSaysReplaced = function () {
-    if (!P.live || P.replaced) return false;
     noteReplaced(getToken());
     return true;
   };
+
+  P.takeOver = function () {
+    if (!isLocked() || P.takingOver) return Promise.resolve(null);
+    P.takingOver = true;
+    return enqueue(function () {
+      return waitTelegramSdk().then(function () {
+        var initData = readInitData();
+        if (!initData) {
+          if (P.api && P.api.say) P.api.say(t('kick.open_telegram'));
+          return null;
+        }
+        return telegramAuth(initData, getToken()).then(function (auth: any) {
+          if (!auth) {
+            if (P.api && P.api.say) P.api.say(t('kick.retry'));
+            return null;
+          }
+          return flushAll(false);
+        });
+      });
+    }).finally(function () { P.takingOver = false; });
+  };
   /* Coming back to the app (a suspended phone Mini App): ask the server once whether this login is still the active one.
-     A replaced login answers SESSION_REPLACED and shows the banner, instead of staying silent until the next request. */
+     A replaced login returns a replacement error and shows the banner, instead of staying silent until the next request. */
   P.recheck = function () {
-    if (!P.live || P.replaced) return;
+    if (!P.live || isLocked()) return;
     var tok = getToken();
     var nowMs = Date.now();
     if (!tok || nowMs - (P.lastCheck || 0) < 3000) return;
@@ -5242,21 +5298,21 @@ var PROFILE: any = (function () {
     req("GET", "/api/profile", undefined, tok);
   };
   /* Presence: while a session is live and the page is visible, a heartbeat every 25 s keeps last_seen_at / "online" fresh on the server.
-     A replaced login answers SESSION_REPLACED, so the first device also finds out here (banner through req). Hiding or closing the page
+     A replaced login returns a replacement error, so the first device also finds out here (banner through req). Hiding or closing the page
      sends an exit beacon (fetch keepalive); the next heartbeat makes the player online again. */
   var BEAT_MS = 25000;
   function tgPlatform() {
     try { var w: any = window; return w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.platform ? String(w.Telegram.WebApp.platform).slice(0, 16) : "web"; } catch (_e) { return "web"; }
   }
   P.beat = function () {
-    if (!P.live || P.replaced) return;
+    if (!P.live || isLocked()) return;
     var tok = getToken();
     if (!tok) return;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     req("POST", "/api/profile/seen", { v: "0.6rc", p: tgPlatform() }, tok);
   };
   P.exit = function () {
-    if (!P.live || P.replaced) return;
+    if (!P.live || isLocked()) return;
     var tok = getToken();
     var base = apiOrigin();
     if (!tok || !base || typeof fetch === "undefined") return;
@@ -5290,6 +5346,7 @@ var PROFILE: any = (function () {
   }
 
   function handleStatus(res: any): boolean {
+    if (isLocked() && (!res.ok || !res.data || !res.data.ok)) return false;
     if (res.status === 503 || (res.data && res.data.error === "PROFILE_UNAVAILABLE")) {
       P.st = "unavailable";
       return false;
@@ -5302,7 +5359,7 @@ var PROFILE: any = (function () {
   }
 
   function scheduleRetry(delayMs: number) {
-    if (typeof setTimeout === "undefined") return;
+    if (isLocked() || typeof setTimeout === "undefined") return;
     if (P.retryTimer) { clearTimeout(P.retryTimer); P.retryTimer = 0; }
     var d = Math.max(250, delayMs);
     P.retryTimer = setTimeout(function () {
@@ -5322,6 +5379,7 @@ var PROFILE: any = (function () {
   function syncCampaign(token: string, fallback: any, bodySnap?: any) {
     var body = bodySnap || localCampaign();
     return req("POST", "/api/profile/campaign", body, token).then(function (res: any) {
+      if (isLocked()) return null;
       if (!handleStatus(res) || !res.data || !res.data.profile) {
         if (fallback) { P.st = "ready"; applyProfile(fallback); }
         return fallback;
@@ -5332,6 +5390,7 @@ var PROFILE: any = (function () {
     });
   }
   function syncMigrate(token: string, prof: any, coinSnap?: number) {
+    if (isLocked()) return Promise.resolve(null);
     var s = P.api && P.api.save ? P.api.save() : null;
     var rawCoins = typeof coinSnap === "number"
       ? coinSnap
@@ -5347,7 +5406,7 @@ var PROFILE: any = (function () {
         return res.data.profile;
       });
     return step.then(function (ready: any) {
-      if (!ready) return null;
+      if (!ready || isLocked()) return null;
       return syncCampaign(token, ready);
     });
   }
@@ -5364,6 +5423,7 @@ var PROFILE: any = (function () {
     });
   }
   function ensureProfile(deferCoins: boolean) {
+    if (isLocked()) return Promise.resolve(null);
     var base = apiOrigin();
     if (!base || typeof fetch === "undefined") {
       P.st = "offline";
@@ -5376,12 +5436,19 @@ var PROFILE: any = (function () {
     };
     if (tok) {
       return req("GET", "/api/profile", undefined, tok).then(function (res: any) {
-        if (res.status === 401) {
+        if (isLocked()) return null;
+        if (replaced(res.status, res.data) || res.status === 401) {
           var newer = getToken();
           if (newer && newer !== tok && !P.adopted) {
             /* Another tab of this browser logged in again meanwhile: use its token, don't make a second guest. */
             P.adopted = true;
             return ensureProfile(deferCoins);
+          }
+          if (replaced(res.status, res.data)) return null;
+          var cached = P.profile || readJson(CACHE_KEY, null);
+          if (cached && cached.telegramId) {
+            noteReplaced(tok, cached);
+            return null;
           }
           dropToken(tok);
           return createGuest().then(function (made: any) {
@@ -5400,19 +5467,21 @@ var PROFILE: any = (function () {
   }
 
   function syncRecords(tok: string): Promise<void> {
-    if (!tok) return Promise.resolve();
+    if (!tok || isLocked()) return Promise.resolve();
     return req("POST", "/api/profile/campaign", localCampaign(), tok).then(function (res: any) {
+      if (isLocked()) return;
       if (res.status === 404 || res.status === 405 || res.status === 501) return;
       if (!handleStatus(res) || !res.data || !res.data.profile) return;
       applyProfile(res.data.profile);
     }, function () { return; });
   }
   function flushBuysOnce(tok: string): Promise<void> {
-    if (P.buySupported === false) return Promise.resolve();
+    if (isLocked() || P.buySupported === false) return Promise.resolve();
     var buys = getPendingBuys();
     if (!buys.length || !tok) return Promise.resolve();
     var item = buys[0];
     return req("POST", "/api/profile/buy", { key: item.key }, tok).then(function (res: any) {
+      if (isLocked() || replaced(res.status, res.data)) return;
       if (res.status === 404 || res.status === 405 || res.status === 501) {
         P.buySupported = false;
         return;
@@ -5469,6 +5538,7 @@ var PROFILE: any = (function () {
       if (startDone[head.runId]) { markStarted(head.runId); return "ok"; }
       if (res && (res.status === 404 || res.status === 405 || res.status === 501)) return "skip";
       if (res && res.status === 401) return "auth";
+      if (isLocked()) return "locked";
       if (!tok) return "later";
       return postStart(head.runId, head.map || "", head.hero, tok).then(function (again: any) {
         if (startDone[head.runId]) { markStarted(head.runId); return "ok"; }
@@ -5504,10 +5574,12 @@ var PROFILE: any = (function () {
     if (head.mode) body.mode = head.mode;
     if (head.map) body.map = head.map;
     if (head.ver) body.ver = head.ver;
+    if (head.cause) body.cause = head.cause;
     if (head.hero != null) body.hero = head.hero;
 
-    return ensureStart(head, tok).then(function (started: string) {
-      if (started === "later") {
+    var start = isLocked() ? Promise.resolve("locked") : ensureStart(head, tok);
+    return start.then(function (started: string) {
+      if (started === "later" && !isLocked()) {
         markRun(head, "OFFLINE");
         var waitS = P.backoffMs;
         P.backoffMs = Math.min(60000, P.backoffMs * 2);
@@ -5516,8 +5588,9 @@ var PROFILE: any = (function () {
       }
       return req("POST", "/api/run/finish", body, tok);
     }).then(function (res: any) {
-      if (!res) return null;
+      if (!res || replaced(res.status, res.data)) return null;
       if (res.status === 401) {
+        if (isLocked()) return null;
         dropToken(tok);
         if (!authRetried) {
           return ensureProfile().then(function () {
@@ -5540,6 +5613,7 @@ var PROFILE: any = (function () {
         if (head && head.runId) delete runRefs[head.runId];
         return dropped.length ? flushRunsStep(tok, authRetried) : null;
       }
+      if (isLocked() && (!res.ok || !res.data || !res.data.ok)) return null;
       if (!handleStatus(res)) {
         markRun(head, "OFFLINE");
         var wait = P.backoffMs;
@@ -5552,7 +5626,7 @@ var PROFILE: any = (function () {
       if (curQ.length && curQ[0].runId === head.runId) curQ.shift();
       else curQ = curQ.filter(function (x: any) { return x && x.runId !== head.runId; });
       setRunQueue(curQ);
-      P.st = "ready";
+      if (!isLocked()) P.st = "ready";
       var done = worldOf(head);
       if (head && head.runId) delete runRefs[head.runId];
       applyProfile(res.data.profile, done, res.data.awarded, res.data.limited || "");
@@ -5562,6 +5636,7 @@ var PROFILE: any = (function () {
   }
 
   function flushAll(allowInit: boolean) {
+    if (isLocked()) return getToken() ? flushRunsStep(getToken(), true) : Promise.resolve(null);
     var base = apiOrigin();
     if (!base || typeof fetch === "undefined") {
       P.st = "offline";
@@ -5598,15 +5673,30 @@ var PROFILE: any = (function () {
   P.init = function (api: any) {
     P.api = api;
     /* Visible before the queued ensureProfile runs, so a waiter does not treat "idle" as ready. */
-    if (apiOrigin()) P.st = "syncing";
+    if (apiOrigin() && !isLocked()) P.st = "syncing";
     if (!P.onlineBound && typeof window !== "undefined" && window.addEventListener) {
       P.onlineBound = true;
       window.addEventListener("online", function () {
         P.backoffMs = 5000;
         P.flush();
       });
+      window.addEventListener("storage", function (event) {
+        if (event.key !== TOKEN_KEY || !event.newValue || !isLocked() || lsGet(LOCK_KEY)) return;
+        enqueue(function () {
+          if (!isLocked() || lsGet(LOCK_KEY)) return;
+          var token = getToken();
+          return req("GET", "/api/profile", undefined, token).then(function (res: any) {
+            if (!res.ok || !res.data || !res.data.profile || getToken() !== token) return;
+            P.st = "ready";
+            applyProfile(res.data.profile);
+            if (P.api && P.api.sessionOk) P.api.sessionOk();
+          });
+        });
+      });
     }
     return enqueue(function () {
+      if (getToken() && lsGet(LOCK_KEY)) noteReplaced(getToken());
+      if (isLocked()) return flushAll(false);
       var deferCoins = !!readInitData();
       var coinSnap = 0;
       var campSnap: any = null;
@@ -5616,6 +5706,7 @@ var PROFILE: any = (function () {
         campSnap = localCampaign();
       } catch (_eSnap) {}
       return ensureProfile(deferCoins).then(function (prof: any) {
+        if (isLocked()) return flushAll(false);
         if (!prof) {
           var cached = readJson(CACHE_KEY, null);
           if (cached) P.profile = cached;
@@ -5625,6 +5716,8 @@ var PROFILE: any = (function () {
           return null;
         }
         return flushAll(false).then(function () {
+          if (isLocked()) return null;
+          if (prof.telegramId) return syncMigrate(getToken(), P.profile || prof, coinSnap);
           return tryTelegramAuth(getToken()).then(function (auth: any) {
             /* A merge already moved the guest server wallet. Do not also add the local coin cache. */
             if (auth && auth.merged) return syncCampaign(getToken(), auth.profile || P.profile, campSnap);
@@ -5636,6 +5729,7 @@ var PROFILE: any = (function () {
   };
 
   P.beginRun = function (map: string, hero: number) {
+    if (isLocked()) return "";
     var id = makeRunId();
     var tok = getToken();
     if (tok) startInflight[id] = postStart(id, map || "", hero, tok);
@@ -5655,7 +5749,8 @@ var PROFILE: any = (function () {
       bonusCoins: b,
       mode: (meta && meta.mode) || "solo",
       map: (meta && meta.map) || "",
-      ver: (meta && meta.ver) || "0.6",
+      ver: (meta && meta.ver) || "",
+      cause: (meta && meta.cause) || "",
       estAward: pre,
       createdAt: Date.now()
     };
@@ -5670,7 +5765,7 @@ var PROFILE: any = (function () {
   };
 
   P.buy = function (key: string, price: number) {
-    if (!key) return Promise.resolve(null);
+    if (!key || isLocked()) return Promise.resolve(null);
     var buys = getPendingBuys();
     var found = false;
     for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key === key) { found = true; break; }
@@ -5832,6 +5927,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return false;
   }
   function cinemaAllowed() {
+    if (sessionNote) return false;
     try {
       var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
       if (tg && tg.initData) return false;
@@ -6227,8 +6323,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function accountName(full: boolean) {
     if (telegramLinked()) {
+      var state = typeof PROFILE !== "undefined" && PROFILE && PROFILE.getState();
+      var profile = state && state.profile;
       var u = tgUser() || {};
-      var raw = u.first_name || u.username || tgName();
+      var raw = (profile && profile.displayName) || u.first_name || u.username || tgName();
       return glyphsOf(raw, full ? 16 : 24);
     }
     var tag = guestTag();
@@ -6418,11 +6516,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     startRun(seed != null ? seed : (((Date.now() + ((room && room.round) || 0) * 40503) >>> 0)));
   }
   function startNet(info: any) { /* net: synchronized online run, seed + map come from the server */
+    if (sessionNote) return;
     mode = "solo"; resize();
     startRun(info.seed, info.map);
     NET.attachWorld(world, info);
   }
   function startRun(seed?: number, mapId?: string) {
+    if (sessionNote) return;
     /* Menus may be taller than 346 on tall phones; the field is always FIELD_W×346 before the world exists. */
     phase = "play"; fieldLocked = false; resize();
     var s = seed != null ? seed : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
@@ -6431,7 +6531,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.recM = mapBest(mi);
     world.goalM = MAPS[mi].goal || 0;
     phase = "play";
-    sessionNote = false;
     rankY = {};
     paused = false;
     landPause = false;
@@ -6478,19 +6577,30 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     world.best = save.best;
     writeSave(save);
     if (typeof PROFILE !== "undefined" && PROFILE) {
-      if (mtr > 0 || runC > 0 || bonC > 0) {
-        PROFILE.finishRun(mtr, runC, bonC, world, {
-          mode: world.net ? "online" : mode,
-          map: world.map,
-          ver: "0.6rc",
-          awarded: world.earned,
-          runId: world.runId || "",
-          hero: save.char
-        });
-      }
+      PROFILE.finishRun(mtr, runC, bonC, world, {
+        mode: world.net ? "online" : mode,
+        map: world.map,
+        ver: "1.0",
+        awarded: world.earned,
+        runId: world.runId || "",
+        hero: me ? me.kind : save.char,
+        cause: me && me.why ? me.why : (me && me.alive ? "exit" : "fall")
+      });
     }
   }
   var sessionNote = false;
+  function onSessionReplaced() {
+    sessionNote = true;
+    pressId = null;
+    held.kl = held.kr = false;
+    NET.leave();
+    goMenu();
+  }
+  function onSessionOk() {
+    if (!sessionNote) return;
+    sessionNote = false;
+    resize();
+  }
   function goMenu() {
     /* Same payout as a finished run: map record, profile best, and the usual coins. No second pay once world.paid. */
     if (phase === "play" && world && !world.paid) payout();
@@ -6510,6 +6620,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
   function activate(id: string | null) {
     if (!id) return;
+    if (sessionNote) {
+      if (id === "session:takeover" && typeof PROFILE !== "undefined" && PROFILE) PROFILE.takeOver();
+      return;
+    }
     if (id.indexOf("net:") === 0) { NET.tap(id, netApi); return; }
     if (world && world.netRound && (id === "rematch" || id === "menu")) { if (id === "menu") { NET.leave(); goMenu(); } else NET.tap("net:rematch", netApi); return; }
     if (id === "start") { mode = "solo"; startRun(); return; }
@@ -6705,6 +6819,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   }
   function onKey(e: any, down: boolean) {
     var k = e.key;
+    if (sessionNote) {
+      if (down && !e.repeat && (k === "Enter" || k === " ")) activate("session:takeover");
+      return;
+    }
     if ((k === "f" || k === "F" || k === "а" || k === "А") && !typingTarget(e)) {
       if (down && cinemaAllowed()) { toggleCinema(); e.preventDefault(); }
       return;
@@ -6772,11 +6890,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return { x: x, y: y, w: w, h: h, bottom: y + h };
   }
   function drawSessionNote() {
-    var y = belowBand();
-    box(ctx, colX(), y, 152, 26, C.navy, C.gold);
-    drawText(ctx, t('kick.line1'), LW / 2, y + 3, TYPECOL.accent, TYPE.M, "center");
-    drawText(ctx, t('kick.line2'), LW / 2, y + 14, TYPECOL.accent, TYPE.M, "center");
-    markBox("session", colX(), y, 152, 26);
+    hits = [];
+    dimView(ctx, "rgba(8,6,20,0.78)");
+    var w = Math.min(176, LW - 8);
+    var x = Math.round((LW - w) / 2);
+    var y = Math.round(LH / 2 - 42);
+    box(ctx, x, y, w, 84, C.navy, C.gold);
+    drawText(ctx, t('kick.locked1'), LW / 2, y + 8, TYPECOL.accent, TYPE.M, "center");
+    drawText(ctx, t('kick.locked2'), LW / 2, y + 19, TYPECOL.accent, TYPE.M, "center");
+    drawText(ctx, accountName(true), LW / 2, y + 34, TYPECOL.primary, TYPE.M, "center");
+    btn("session:takeover", x + 8, y + 50, w - 16, 28, C.navy, "");
+    drawText(ctx, t('kick.takeover1'), LW / 2, y + 55, TYPECOL.primary, TYPE.M, "center");
+    drawText(ctx, t('kick.takeover2'), LW / 2, y + 66, TYPECOL.primary, TYPE.M, "center");
+    drawFlash();
   }
   function drawFlash() {
     if (flashT <= 0) return;
@@ -6810,7 +6936,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     addHit("prof:out", -40, -40, LW + 80, LH + 80);
     var x = colX();
     var linked = telegramLinked();
-    var u = tgUser() || {};
     var h = linked ? 118 : 132;
     var y = Math.max(belowBand(), menuTop() + 28, 70);
     addHit("prof:card", x, y, 152, h);
@@ -6834,11 +6959,6 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     rect(ctx, x + 8 + av - 1, y + 22, 1, av, "#1a1030");
     var name = accountName(true);
     drawText(ctx, name, x + 40, y + 24, TYPECOL.primary, TYPE.M, "left");
-    var lineY = y + 36;
-    if (linked && u.username) {
-      drawText(ctx, glyphsOf(String(u.username), 14), x + 40, lineY, TYPECOL.muted, TYPE.M, "left");
-      lineY += 12;
-    }
     var entryY = y + 54;
     drawText(ctx, linked ? t('profile.telegram') : t('profile.guest'), x + 8, entryY, TYPECOL.primary, TYPE.M, "left");
     if (!linked) drawText(ctx, t('profile.local_progress'), x + 8, entryY + 12, TYPECOL.muted, TYPE.M, "left");
@@ -8573,7 +8693,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.imageSmoothingEnabled = false;
     hits = [];
     screenLay = [];
-    if (phase === "menu") { drawMenu(); if (sessionNote) drawSessionNote(); }
+    if (phase === "menu") drawMenu();
     else if (phase === "shop") drawShop();
     else if (phase === "camp") drawCamp();
     else if (phase === "ency") drawEncy();
@@ -8584,7 +8704,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (phase !== "play") drawWallet();
     else { drawPlay(); if (world && world.net) NET.overlay(netApi, world); }
     if (showProf && phase !== "play") drawProfileCard();
-    if (phoneLand && phase !== "play") {
+    if (sessionNote) drawSessionNote();
+    else if (phoneLand && phase !== "play") {
       dimView(ctx, "rgba(8,6,20,0.55)");
       box(ctx, colX(), LH / 2 - 28, 152, 40, C.navy, C.gold);
       drawText(ctx, t('play.rotate'), LW / 2, LH / 2 - 14, TYPECOL.primary, TYPE.M, "center");
@@ -8605,22 +8726,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   /* net: what the online module may use from the shell */
   var netApi: any = {
     ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned, accountName: accountName, relayout: function () { resize(); },
-    sessionReplaced: function () { sessionNote = true; goMenu(); },
-    sessionOk: function () { sessionNote = false; },
+    sessionReplaced: onSessionReplaced,
+    sessionOk: onSessionOk,
     bg: function () { applyBgContrast(ctx, function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); }); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
     world: function () { return world; }, phase: function () { return phase; },
-    setPhase: function (p: string) { phase = p; }, goMenu: goMenu,
+    setPhase: function (p: string) { if (!sessionNote) phase = p; }, goMenu: goMenu,
     bots: function () { activate("mp"); }, startNet: startNet
   };
   NET.bind(netApi);
-  NET.tryResume(netApi);
   var profileApi: any = {
     save: function () { return save; },
     saveNow: function () { writeSave(save); },
     say: function (s: string) { say(s); },
-    sessionReplaced: function () { sessionNote = true; goMenu(); },
-    sessionOk: function () { sessionNote = false; },
+    sessionReplaced: onSessionReplaced,
+    sessionOk: onSessionOk,
     apply: function (prof: any, wRef?: any, awarded?: number, effectiveCoins?: number, limited?: string) {
       if (!prof) return;
       if (typeof effectiveCoins === "number" && effectiveCoins >= 0) save.coins = effectiveCoins;
@@ -8658,7 +8778,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       writeSave(save);
     }
   };
-  if (typeof PROFILE !== "undefined" && PROFILE) PROFILE.init(profileApi);
+  if (typeof PROFILE !== "undefined" && PROFILE) {
+    PROFILE.init(profileApi).then(function () {
+      if (running && !sessionNote) NET.tryResume(netApi);
+    });
+  } else NET.tryResume(netApi);
   function onVis() {
     acc = 0; uiAcc = 0; lastT = -1;
     if (!document.hidden && audioUnlocked) {
@@ -8810,7 +8934,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   var onTouch = function (e: any) { audioUnlock(); noScroll(e); };
   canvas.addEventListener("touchstart", onTouch, { passive: false });
   if (ptrRoot !== canvas) ptrRoot.addEventListener("touchstart", noScroll, { passive: false });
-  raf = requestAnimationFrame(frame);
+  var configOrigin = typeof PROFILE !== "undefined" && PROFILE && PROFILE.apiOrigin();
+  if (configOrigin) {
+    loadVisualContrast(configOrigin).then(function () {
+      if (running && !driving) raf = requestAnimationFrame(frame);
+    });
+  } else raf = requestAnimationFrame(frame);
 
   try { if (typeof PROFILE !== "undefined" && PROFILE && PROFILE.apiOrigin) loadGameTranslations(PROFILE.apiOrigin(), function () { if (running) { updateDesktopLanguage(); resize(); } }); } catch (_e) {}
   return {
