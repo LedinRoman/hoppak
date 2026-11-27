@@ -675,6 +675,41 @@ function trashFrame(m: any) {
   var u = (m.t || 0) % 131;
   return u >= 125 ? 1 : 0;
 }
+/* Stomp death, code-only, no new art. 16 ticks, integer steps, nearest-neighbour only.
+   0-3: squash onto the feet; then the lid pops up and the body falls, fading in 4 alpha steps. */
+function drawTrashDeath(ctx: Ctx, m: any, cam: number) {
+  var spr = MOB_SPRITES.trash;
+  if (!spr || !spr.src || m.squish <= 0) return false;
+  var cv = mobSprCache.trash;
+  if (cv === undefined) cv = mobSprCache.trash = (pngToCanvas(spr.src) || null);
+  if (!cv) return false;
+  var age = 16 - m.squish;
+  if (age < 0) age = 0;
+  var x = Math.round(m.x), y = Math.round(m.y - cam);
+  var dx = x + (spr.ox || 0), dy = y + (spr.oy || 0);
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  if (age <= 3) {
+    var sh = [32, 26, 22, 18][age];
+    ctx.drawImage(cv, 0, 0, 64, 64, dx, dy + (32 - sh), 32, sh);
+  } else {
+    var a = 1;
+    if (age >= 8) {
+      var left = 16 - age;
+      a = left <= 0 ? 0 : left <= 2 ? 0.25 : left <= 4 ? 0.5 : left <= 6 ? 0.75 : 1;
+    }
+    if (a > 0) {
+      ctx.globalAlpha = a;
+      var pop = Math.min(18, (age - 3) * 2);
+      var wob = (age >> 1) & 1;
+      ctx.drawImage(cv, 0, 18, 64, 12, dx + wob, dy + 9 - pop, 32, 6);
+      ctx.drawImage(cv, 0, 30, 64, 34, dx, dy + 15 + (age - 3) * 2, 32, 17);
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.restore();
+  return true;
+}
 
 function frogFrame(m: any) {
   /* sit / jump / squish1 / squish2. Hitbox 12×8 and hop behaviour unchanged. */
@@ -712,7 +747,7 @@ function drawMob(ctx: Ctx, m: any, cam: number, mapId?: string, frozen?: boolean
     if (m.kind === "bat" && drawMobSprite(ctx, "bat", x, y, batFrame(m), (m.vx || 0) < 0)) return;
     if (m.kind === "ufo" && drawMobSprite(ctx, "ufo", x, y, ufoFrame(m), (m.vx || 0) < 0)) return;
     if (m.kind === "hole" && drawMobSprite(ctx, "hole", x, y, holeFrame(m), false)) return;
-    if (m.kind === "trash" && drawMobSprite(ctx, "trash", x, y, 0, false)) return;
+    if (m.kind === "trash" && drawTrashDeath(ctx, m, cam)) return;
     if (m.kind === "frog" && drawMobSprite(ctx, "frog", x, y, frogFrame(m), (m.dir || 1) < 0)) return;
     if (m.kind === "parrot" && drawMobSprite(ctx, "parrot", x, y, parrotFrame(m), (m.vx || 0) < 0)) return;
     if (m.kind === "monkey" && drawMobSprite(ctx, "monkey", x, y, monkeyFrame(m), (m.dir || 1) < 0)) return;

@@ -725,20 +725,37 @@ function landOn(w: any, p: any, pl: any) {
 function killMob(w: any, mo: any, p: any, noBounce?: boolean) {
   if (!mo.alive) return;
   mo.alive = false;
-  mo.squish = 10;
+  /* Trash gets a longer death so the lid-pop / fall can play (16 ticks). Others stay at 10. */
+  mo.squish = mo.kind === "trash" ? 16 : 10;
   if (!noBounce) { p.vy = STOMP_V; p.y = mo.y - PH; }
   p.kills++;
   /* Knight charge is "1 kill". A mid-slam/dash kill must not refund the ability. */
   if (!(p.poundT > 0 || p.dashT > 0)) addCharge(p, "kills", 1);
   var pal = MOBPAL[mo.kind] || ["#ffd070"];
-  spawnParts(w, mo.x + mo.w / 2, mo.y + 4, 12, pal[0], 2.6, 0.15);
+  var cx = mo.x + mo.w / 2, cy = mo.y + 4;
+  if (mo.kind === "trash") {
+    spawnParts(w, cx, cy, 8, pal[0], 2.4, 0.18, 2);
+    spawnParts(w, cx, cy, 5, pal[1], 2.0, 0.18, 1);
+    spawnParts(w, cx, cy, 4, pal[2], 2.8, 0.12, 1);
+  } else spawnParts(w, cx, cy, 12, pal[0], 2.6, 0.15);
   if (p.id === 0) { w.shake = 5; hopSfx("hit"); }
+}
+function bumpOffTrash(w: any, p: any, mo: any) {
+  /* Side or below: knock the player away, can stays. Brief cool so the overlap doesn't retrigger. */
+  if (mo.cool > 0) return;
+  var s = wrapDx((p.x + PW / 2) - (mo.x + mo.w / 2)) >= 0 ? 1 : -1;
+  p.vx = s * 2.4;
+  if (p.vy > -2) p.vy = -2.2;
+  p.x += s * 3;
+  mo.cool = 10;
+  if (p.id === 0) w.shake = 2;
 }
 function mobBox(mo: any) {
   if (mo.b === "snake") return snakeHeadBox(mo);
   if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
-  /* slimes: slightly tighter box so a graze at the edge is not a hit */
-  if (mo.kind === "blob" || mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
+  /* Slimes: sides stay inset so a graze is not a hit. Blob top is +4 px so a stomp is fair. */
+  if (mo.kind === "blob") return [mo.x + 2, mo.y - 3, mo.w - 4, mo.h + 2];
+  if (mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
   return [mo.x, mo.y, mo.w, mo.h];
 }
 /* motion envelope of a mob (for tests: must not cross platforms) */
@@ -1157,6 +1174,9 @@ function tickWorld(w: any, inputs: any) {
       }
       var bb = mobBox(m2);
       if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bb[0] + 1, bb[2] - 2) && p.y + HURT_PAD_Y < bb[1] + bb[3] && p.y + PH > bb[1]) {
+        var mid = bb[1] + bb[3] / 2;
+        var fromAbove = p.vy > 0 && ((p.y + PH <= mid) || (p.prevY + PH <= mid) || p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5);
+        if (m2.kind === "trash" && !fromAbove) { bumpOffTrash(w, p, m2); continue; }
         if (p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0) { killMob(w, m2, p, true); continue; }
         if (mobFrozen) { if (p.vy > 0 && p.prevY + PH <= bb[1] + 5) killMob(w, m2, p); continue; }
         var stompable = !(m2.b === "puff" && m2.big);
@@ -1164,7 +1184,6 @@ function tickWorld(w: any, inputs: any) {
         if (stompable && p.vy > 0) {
           if (m2.b === "snake") {
             /* Falling, feet at or above the head centre: stomp. Side or below: existing grab. */
-            var mid = bb[1] + bb[3] / 2;
             stomped = (p.y + PH <= mid) || (p.prevY + PH <= mid);
           } else {
             stomped = (p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5);
