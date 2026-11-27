@@ -1405,46 +1405,63 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
     var shopBot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
     var backY = LH - 34 - shopBot;
-    var y0 = heroY + rows * pw + (rows - 1) * gap + 4, ch = Math.max(90, backY - 6 - y0);
-    markBox("card", x, y0, 152, ch);
-    box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
-    /* Shop hero size comes from the card box, not a leftover after a fixed 69-px text block.
-       On a tall iPhone (LW=160, pScale≈8) that leftover was only ~36 game px, so heroFitHop
-       picked k=2 / sc≈0.5 — half the in-game size — and the platform stayed a fixed 72-px bar.
-       Target a hero around 30–40% of the card (at least the in-game sc=1 size when it fits),
-       integer device-px per art-px, and a platform just wider than the sprite. */
-    var btnH = 22, btnPad = 6, platH = menuPlatBelow() + 2;
-    var chrome = 4 + btnH + btnPad + platH + 2;
-    var minTextH = 38;
+    /* v1.0 w14: pack hero + platform + text as a group and size the card to that
+       group, so a tall slot does not leave a navy void above a bottom-aligned hero.
+       k is the largest whole device-px-per-art-px size that still fits after the
+       type-scale text block and a visible hop reserve. If k is capped, shrink the
+       card to the content and centre it between the grid and the back button. */
+    var slotTop = heroY + rows * pw + (rows - 1) * gap + 4;
+    var slotBot = backY - 6;
+    var slotH = Math.max(90, slotBot - slotTop);
+    var btnH = 22, platH = menuPlatBelow() + 2;
+    var padTop = 4, padMid = 4, padBot = 4;
+    var descRole = "M";
+    function shopTextH(descR: string) {
+      return typeH("L") + 1 + (typeH("M") + 4) + 1 + typeH(descR) + 1 + typeH(descR) + 2 + typeH("M");
+    }
+    var textH = shopTextH(descRole);
     var aShop = menuScaleA();
     if (pScale && pScale > aShop) aShop = pScale;
     if (!(aShop > 0)) aShop = 1;
     var fhShop = heroCellH();
-    var avail = Math.max(16, ch - minTextH - chrome);
-    /* minHop 10 still leaves a visible jump; 16 used to force a half-size hero on iPhone. */
-    var minHop = 10, targetHop = 26;
-    var maxH = Math.min(avail - minHop, Math.max(8, Math.round(ch * 0.40)));
-    var wantH = Math.round(ch * 0.35);
-    if (wantH > maxH) wantH = maxH;
-    var ingameH = fhShop * 0.5;
-    if (ingameH <= maxH && wantH < ingameH) wantH = ingameH;
-    var kCap = Math.max(1, Math.round(aShop * 0.5 * 2));
+    var hi: number;
+    for (hi = 0; hi < CHARS.length; hi++) {
+      try {
+        var sprI = heroSprite(CHARS[hi].id);
+        var sH = sprI ? (sprI.naturalHeight || sprI.height || 0) : 0;
+        if (sH > fhShop) fhShop = sH;
+      } catch (_e) {}
+    }
+    if (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.h) fhShop = Math.max(ART64.cell.h, fhShop);
     function shopHh(kShop: number) { return fhShop * kShop / aShop; }
-    var kShop = kCap;
-    while (kShop > 1 && shopHh(kShop) > maxH) kShop--;
-    /* Never pick a k smaller than what actually fits in the card. */
-    while (kShop < kCap && shopHh(kShop + 1) <= maxH && shopHh(kShop + 1) + minHop <= avail) kShop++;
+    function shopChrome(tH: number) { return padTop + platH + padMid + tH + padMid + btnH + padBot; }
+    var minHop = 10, targetHop = 26;
+    var avail = slotH - shopChrome(textH);
+    if (avail < shopHh(1) + minHop) {
+      descRole = "S";
+      textH = shopTextH(descRole);
+      avail = slotH - shopChrome(textH);
+    }
+    avail = Math.max(16, avail);
+    var maxHeroH = Math.min(avail - minHop, Math.max(8, Math.round(slotH * 0.45)));
+    var kShop = 1;
+    while (shopHh(kShop + 1) <= maxHeroH && shopHh(kShop + 1) + minHop <= avail) kShop++;
     var hopRoom = Math.min(targetHop, Math.max(minHop, avail - shopHh(kShop)));
-    if (shopHh(kShop) + hopRoom > avail) hopRoom = Math.max(8, avail - shopHh(kShop));
+    if (shopHh(kShop) + hopRoom > avail) hopRoom = Math.max(minHop, avail - shopHh(kShop));
     var fit = { sc: (2 * kShop) / aShop, k: kShop, h: shopHh(kShop), hop: hopRoom };
-    var band = fit.h + hopRoom + 2;
-    var textH = Math.min(42, Math.max(minTextH, ch - chrome - band));
-    var byb = y0 + ch - btnH - btnPad;
-    var textTop = byb - 4 - textH;
-    var platTop = textTop - platH;
+    var contentH = shopChrome(textH) + fit.h + hopRoom;
+    var ch = Math.min(slotH, contentH);
+    var y0 = slotTop + Math.round((slotH - ch) / 2);
+    markBox("card", x, y0, 152, ch);
+    box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
+    var byb = y0 + ch - btnH - padBot;
+    var groupH = hopRoom + fit.h + platH + padMid + textH;
+    var groupSpace = byb - padMid - (y0 + padTop);
+    var groupTop = y0 + padTop;
+    if (groupSpace > groupH) groupTop = y0 + padTop + Math.round((groupSpace - groupH) / 2);
+    var platTop = groupTop + hopRoom + fit.h;
+    var textTop = platTop + platH + padMid;
     var budget = platTop - (y0 + 1);
-    if (budget > fit.h + hopRoom) hopRoom = Math.min(targetHop, budget - fit.h);
-    if (hopRoom < 8 && budget > fit.h) hopRoom = Math.max(8, budget - fit.h);
     var cellW = (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.w) ? ART64.cell.w : 72;
     var heroW = cellW * 0.5 * fit.sc;
     var platW = Math.round(Math.min(152 - 16, Math.max(20, heroW + 6)));
@@ -1453,21 +1470,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var mh = demoHop(makeLook(i, save.color, save.hat), hopRoom), pose = mh.pose, hop = mh.hop;
     if (hop > hopRoom) hop = hopRoom;
     drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, fit.sc), platTop - 16 * fit.sc - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, fit.sc, true);
-    lastHop = { where: "shop", hop: hop, room: hopRoom, sc: fit.sc, k: fit.k, h: fit.h, platY: platTop, budget: budget, platW: platW };
-    /* Card type is fixed: name TYPE.M, ability + description TYPE.S (tiny), charge TYPE.M muted.
-       No larger title on wide screens — the hero keeps the leftover space. */
-    var ny = textTop + 1;
-    var by0 = ny + typeH("M") + 1;
-    var badgeH = typeH("S") + 4;
-    var tw = uiWidth(H2.abName, "S") + 10;
+    lastHop = { where: "shop", hop: hop, room: hopRoom, sc: fit.sc, k: fit.k, h: fit.h, platY: platTop, budget: budget, platW: platW, y0: y0, ch: ch, textH: textH, desc: descRole, slotH: slotH };
+    var ny = textTop;
+    var by0 = ny + typeH("L") + 1;
+    var badgeH = typeH("M") + 4;
+    var tw = uiWidth(H2.abName, "M") + 10;
     box(ctx, Math.round(LW / 2 - tw / 2), by0, tw, badgeH, "#3a4ac8", C.cream);
-    uiText(ctx, H2.name, LW / 2, ny, TYPECOL.primary, "M", "center");
-    uiText(ctx, H2.abName, LW / 2, by0 + 2, TYPECOL.primary, "S", "center");
+    uiText(ctx, H2.name, LW / 2, ny, TYPECOL.primary, "L", "center");
+    uiText(ctx, H2.abName, LW / 2, by0 + 2, TYPECOL.primary, "M", "center");
     var desc1 = by0 + badgeH + 1;
-    var desc2 = desc1 + typeH("S") + 1;
-    uiText(ctx, H2.abDesc[0], LW / 2, desc1, TYPECOL.primary, "S", "center");
-    uiText(ctx, H2.abDesc[1], LW / 2, desc2, TYPECOL.primary, "S", "center");
-    var chgY = Math.min(textTop + textH - typeH("M") - 1, desc2 + typeH("S") + 2);
+    var desc2 = desc1 + typeH(descRole) + 1;
+    uiText(ctx, H2.abDesc[0], LW / 2, desc1, TYPECOL.primary, descRole, "center");
+    uiText(ctx, H2.abDesc[1], LW / 2, desc2, TYPECOL.primary, descRole, "center");
+    var chgY = Math.min(textTop + textH - typeH("M") - 1, desc2 + typeH(descRole) + 2);
     drawChargeLine(LW / 2, chgY, H2, TYPECOL.muted);
     markBox("cardText", x + 4, textTop, 144, textH);
     markBox("cardBtn", x + 10, byb, 132, btnH);
