@@ -353,8 +353,18 @@ async function admin(base, body) {
         window.__hoppak.tap('hero:act'); // confirm buy ninja (200)
       });
       await waitCoins(pg, 50, '2b purchase settles', '', 240);
+      await waitForState(pg, '2b char:2 appears in server purchases and local owned', () => {
+        const g = window.__hoppak;
+        const state = g.profile.getState();
+        return state?.profile?.purchases?.['char:2'] === 1 && g.getSave().owned?.['char:2'] === 1;
+      });
       await pg.reload();
       await waitCoins(pg, 50, '2b purchased hero balance survives reload', '', 240);
+      await waitForState(pg, '2b char:2 purchase survives reload', () => {
+        const g = window.__hoppak;
+        const state = g.profile.getState();
+        return state?.profile?.purchases?.['char:2'] === 1 && g.getSave().owned?.['char:2'] === 1;
+      });
       const v06st = await pg.evaluate(() => ({
         st: window.__hoppak.profile.getState(),
         save: window.__hoppak.getSave(),
