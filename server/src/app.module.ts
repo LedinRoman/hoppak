@@ -1,4 +1,5 @@
 import { Controller, Get, Module } from '@nestjs/common';
+import { TranslationsController } from './translations.controller';
 import { GameGateway } from './game.gateway';
 import { RoomsService, stats } from './rooms.service';
 import { DbModule } from './db/db.module';
@@ -18,5 +19,5 @@ export class HealthController {
   }
 }
 
-@Module({ imports: [DbModule.forRoot(), ProfileModule.forRoot()], controllers: [HealthController], providers: [RoomsService, GameGateway, AccountKickBus] })
+@Module({ imports: [DbModule.forRoot(), ProfileModule.forRoot()], controllers: [HealthController, TranslationsController], providers: [RoomsService, GameGateway, AccountKickBus] })
 export class AppModule {}

@@ -84,12 +84,12 @@ var TYPECOL: any = {
 /* Heroes: look + ability. Each ability has its own TYPE (no repeats) and its own CHARGE:
    charge: time (ticks, 50/s) | coins (coins picked) | height (metres climbed) | kills (mobs stomped) */
 var CHARS: any[] = [
-  { id: "pilot", name: "Капитан", hood: "#2c3a5c", price: 0, ab: "dash", abName: "РЫВОК", type: "БАЗОВЫЙ", abDesc: ["КОРОТКИЙ БЫСТРЫЙ", "ВЗЛЁТ НА РАНЦЕ"], charge: "time", need: 400 },
-  { id: "pirate", name: "Пират", hood: "#a8282c", price: 150, ab: "hook", abName: "КРЮК", type: "МАНЁВР", abDesc: ["КРЮК К ПЛАТФОРМЕ", "ИЛИ МОНЕТЕ, БЬЁТ МОБОВ"], charge: "time", need: 400 },
-  { id: "ninja", name: "Ниндзя", hood: "#26305a", price: 200, ab: "wall", abName: "СТЕНЫ", type: "ПАРКУР", abDesc: ["6 СЕК ЦЕПЛЯЕТСЯ ЗА КРАЙ,", "ТАП - ПРЫЖОК ОТ СТЕНЫ"], charge: "time", need: 500 },
-  { id: "robot", name: "Робот", hood: "#d8dce8", price: 240, ab: "dome", abName: "КОСМОЩИТ", type: "ЗАЩИТА", abDesc: ["ЩИТ 4 СЕК, СПАСЁТ", "ОТ ПАДЕНИЯ"], charge: "height", need: 200 },
-  { id: "mage", name: "Маг", hood: "#7a3ac8", price: 280, ab: "tele", abName: "ТЕЛЕПОРТ", type: "ТЕЛЕПОРТ", abDesc: ["МИГОМ НА НАДЁЖНУЮ", "ПЛАТФОРМУ ВЫШЕ"], charge: "coins", need: 5 },
-  { id: "knight", name: "Рыцарь", hood: "#c02a2a", price: 320, ab: "pound", abName: "ТАРАН", type: "АТАКА", abDesc: ["ПИКЕ ЩИТОМ ВНИЗ,", "С ПЛАТФОРМЫ СУПЕРПРЫЖОК"], charge: "kills", need: 1 }
+  { id: "pilot", get name() { return t('hero.pilot.name'); }, hood: "#2c3a5c", price: 0, ab: "dash", get abName() { return t('hero.pilot.ability'); }, get type() { return t('hero.pilot.type'); }, get abDesc() { return [t('hero.pilot.description1'), t('hero.pilot.description2')]; }, charge: "time", need: 400 },
+  { id: "pirate", get name() { return t('hero.pirate.name'); }, hood: "#a8282c", price: 150, ab: "hook", get abName() { return t('hero.pirate.ability'); }, get type() { return t('hero.pirate.type'); }, get abDesc() { return [t('hero.pirate.description1'), t('hero.pirate.description2')]; }, charge: "time", need: 400 },
+  { id: "ninja", get name() { return t('hero.ninja.name'); }, hood: "#26305a", price: 200, ab: "wall", get abName() { return t('hero.ninja.ability'); }, get type() { return t('hero.ninja.type'); }, get abDesc() { return [t('hero.ninja.description1'), t('hero.ninja.description2')]; }, charge: "time", need: 500 },
+  { id: "robot", get name() { return t('hero.robot.name'); }, hood: "#d8dce8", price: 240, ab: "dome", get abName() { return t('hero.robot.ability'); }, get type() { return t('hero.robot.type'); }, get abDesc() { return [t('hero.robot.description1'), t('hero.robot.description2')]; }, charge: "height", need: 200 },
+  { id: "mage", get name() { return t('hero.mage.name'); }, hood: "#7a3ac8", price: 280, ab: "tele", get abName() { return t('hero.mage.ability'); }, get type() { return t('hero.mage.type'); }, get abDesc() { return [t('hero.mage.description1'), t('hero.mage.description2')]; }, charge: "coins", need: 5 },
+  { id: "knight", get name() { return t('hero.knight.name'); }, hood: "#c02a2a", price: 320, ab: "pound", get abName() { return t('hero.knight.ability'); }, get type() { return t('hero.knight.type'); }, get abDesc() { return [t('hero.knight.description1'), t('hero.knight.description2')]; }, charge: "kills", need: 1 }
 ];
 /* Hero sprite sheets (made by /workspace/jumper/sprites_tool: make_sheet.py + unify.py).
    One row of 7 cells: idle, squash (landing), up, fall, ability, ko, blink. Facing RIGHT, hard alpha.
@@ -376,10 +376,10 @@ function fx64Sheet(key: string) {
   return fx64Cache[key];
 }
 var BONUSES: any[] = [
-  { id: "bigcoin", name: "КЛАД", wt: 25 },
-  { id: "shield", name: "ЩИТ", wt: 22, t: 500 },
-  { id: "magnet", name: "МАГНИТ", wt: 20, t: 450 },
-  { id: "rocket", name: "РАКЕТА", wt: 15, t: 85 }
+  { id: "bigcoin", wt: 25 },
+  { id: "shield", get name() { return t('pickup.shield'); }, wt: 22, t: 500 },
+  { id: "magnet", get name() { return t('pickup.magnet'); }, wt: 20, t: 450 },
+  { id: "rocket", get name() { return t('pickup.rocket'); }, wt: 15, t: 85 }
 ];
 var BIGCOIN = 25;
 /* Visual-only bubble around floating pickups. Pickup hitbox stays it.x-2 / 14 × it.y-2 / 14.
@@ -399,38 +399,38 @@ var BUBBLE = {
 /* Campaign maps: open the next one by reaching `goal` m here AND paying its price.
    mobs: [kind, from metres] */
 var MAPS: any[] = [
-  { id: "city", name: "ГОРОД", price: 0, goal: 2000, special: "", mobs: [["blob", 120], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
-  { id: "jungle", name: "ДЖУНГЛИ", price: 80, goal: 2000, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
-  { id: "ice", name: "ЛЕДНИК", price: 100, goal: 2000, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
-  { id: "lava", name: "ВУЛКАН", price: 120, goal: 2000, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
-  { id: "aqua", name: "ОКЕАН", price: 140, goal: 2000, special: "bubble", mobs: [["crab", 120], ["ray", 350], ["bob", 700], ["puffer", 1100], ["whirl", 1600]] },
-  { id: "space", name: "КОСМОС", price: 160, goal: 0, special: "grav", mobs: [["alien", 120], ["ufo", 400], ["comet", 800], ["hole", 1300]] }
+  { id: "city", get name() { return t('map.city.name'); }, price: 0, goal: 2000, special: "", mobs: [["blob", 120], ["bat", 400], ["bob", 800], ["hole", 1500], ["ufo", 2200]] },
+  { id: "jungle", get name() { return t('map.jungle.name'); }, price: 80, goal: 2000, special: "bounce", mobs: [["frog", 100], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
+  { id: "ice", get name() { return t('map.ice.name'); }, price: 100, goal: 2000, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
+  { id: "lava", get name() { return t('map.lava.name'); }, price: 120, goal: 2000, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
+  { id: "aqua", get name() { return t('map.aqua.name'); }, price: 140, goal: 2000, special: "bubble", mobs: [["crab", 120], ["ray", 350], ["bob", 700], ["puffer", 1100], ["whirl", 1600]] },
+  { id: "space", get name() { return t('map.space.name'); }, price: 160, goal: 0, special: "grav", mobs: [["alien", 120], ["ufo", 400], ["comet", 800], ["hole", 1300]] }
 ];
 /* mob kinds. b = behaviour; plat = stands on a platform; gap = min vertical gap (px) it needs */
 var MOBS: any = {
-  blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.16, name: "СЛИЗЕНЬ", g: "m" },
-  magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, name: "ЛАВОСЛИЗЬ", g: "f" },
-  penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, name: "ПИНГВИН", g: "m" },
-  crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, name: "КРАБ", g: "m" },
-  alien: { b: "walk", w: 12, h: 9, gap: 0, plat: true, sp: 0.3, name: "ПРИШЕЛЕЦ", g: "m" },
-  frog: { b: "hop", w: 12, h: 8, gap: 31, plat: true, name: "ЛЯГУШКА", g: "f" },
-  monkey: { b: "throw", w: 12, h: 11, gap: 0, plat: true, name: "ОБЕЗЬЯНА", g: "f" },
-  spitter: { b: "spit", w: 12, h: 10, gap: 0, plat: true, name: "ПЛЕВУН", g: "m" },
-  bat: { b: "fly", w: 14, h: 10, gap: 34, name: "МЫШЬ", g: "f" },
-  parrot: { b: "fly", w: 14, h: 10, gap: 38, dive: true, name: "ПОПУГАЙ", g: "m" },
-  owl: { b: "fly", w: 14, h: 10, gap: 34, name: "СОВА", g: "f" },
-  firebat: { b: "fly", w: 14, h: 10, gap: 34, name: "ОГНЕМЫШЬ", g: "f" },
-  ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, name: "СКАТ", g: "m" },
-  bob: { b: "sway", w: 12, h: 12, gap: 34, name: "МЕДУЗА", g: "f" },
-  ember: { b: "sway", w: 12, h: 12, gap: 34, name: "ОГНЕШАР", g: "m" },
-  snake: { b: "snake", w: 10, h: 8, gap: 38, name: "ЗМЕЯ-ЛИАНА", g: "f" },
-  puffer: { b: "puff", w: 12, h: 12, gap: 40, name: "РЫБА-ЁЖ", g: "f" },
-  hole: { b: "pull", w: 14, h: 14, gap: 44, name: "ЧЁРНАЯ ДЫРА", g: "f" },
-  whirl: { b: "pull", w: 14, h: 14, gap: 44, name: "ВОДОВОРОТ", g: "m" },
-  wind: { b: "wind", w: 24, h: 10, gap: 40, name: "ВЬЮГА", g: "f" },
-  ufo: { b: "shoot", w: 14, h: 8, gap: 34, name: "НЛО", g: "m" },
-  frost: { b: "shoot", w: 12, h: 12, gap: 38, freeze: true, name: "ЛЕДЯНОЙ ДУХ", g: "m" },
-  comet: { b: "comet", w: 12, h: 8, gap: 34, name: "КОМЕТА", g: "f" }
+  blob: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.16, get name() { return t('mob.blob'); }, g: "m" },
+  magma: { b: "walk", w: 12, h: 8, gap: 0, plat: true, sp: 0.3, get name() { return t('mob.magma'); }, g: "f" },
+  penguin: { b: "walk", w: 10, h: 11, gap: 0, plat: true, sp: 0.55, get name() { return t('mob.penguin'); }, g: "m" },
+  crab: { b: "walk", w: 14, h: 8, gap: 0, plat: true, sp: 0.42, get name() { return t('mob.crab'); }, g: "m" },
+  alien: { b: "walk", w: 12, h: 9, gap: 0, plat: true, sp: 0.3, get name() { return t('mob.alien'); }, g: "m" },
+  frog: { b: "hop", w: 12, h: 8, gap: 31, plat: true, get name() { return t('mob.frog'); }, g: "f" },
+  monkey: { b: "throw", w: 12, h: 11, gap: 0, plat: true, get name() { return t('mob.monkey'); }, g: "f" },
+  spitter: { b: "spit", w: 12, h: 10, gap: 0, plat: true, get name() { return t('mob.spitter'); }, g: "m" },
+  bat: { b: "fly", w: 14, h: 10, gap: 34, get name() { return t('mob.bat'); }, g: "f" },
+  parrot: { b: "fly", w: 14, h: 10, gap: 38, dive: true, get name() { return t('mob.parrot'); }, g: "m" },
+  owl: { b: "fly", w: 14, h: 10, gap: 34, get name() { return t('mob.owl'); }, g: "f" },
+  firebat: { b: "fly", w: 14, h: 10, gap: 34, get name() { return t('mob.firebat'); }, g: "f" },
+  ray: { b: "fly", w: 16, h: 8, gap: 34, dive: true, get name() { return t('mob.ray'); }, g: "m" },
+  bob: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.bob'); }, g: "f" },
+  ember: { b: "sway", w: 12, h: 12, gap: 34, get name() { return t('mob.ember'); }, g: "m" },
+  snake: { b: "snake", w: 10, h: 8, gap: 38, get name() { return t('mob.snake'); }, g: "f" },
+  puffer: { b: "puff", w: 12, h: 12, gap: 40, get name() { return t('mob.puffer'); }, g: "f" },
+  hole: { b: "pull", w: 14, h: 14, gap: 44, get name() { return t('mob.hole'); }, g: "f" },
+  whirl: { b: "pull", w: 14, h: 14, gap: 44, get name() { return t('mob.whirl'); }, g: "m" },
+  wind: { b: "wind", w: 24, h: 10, gap: 40, get name() { return t('mob.wind'); }, g: "f" },
+  ufo: { b: "shoot", w: 14, h: 8, gap: 34, get name() { return t('mob.ufo'); }, g: "m" },
+  frost: { b: "shoot", w: 12, h: 12, gap: 38, freeze: true, get name() { return t('mob.frost'); }, g: "m" },
+  comet: { b: "comet", w: 12, h: 8, gap: 34, get name() { return t('mob.comet'); }, g: "f" }
 };
 
 var FONT: any = {
@@ -546,10 +546,7 @@ function loadSave() {
   s.music = s.vol; s.sfxVol = s.vol; s.musicOn = s.audioOn; s.sfx = s.audioOn;
   masterVol = s.vol; audioOn = !!s.audioOn;
   sfxVol = masterVol; musicVol = masterVol; sfxOn = audioOn; musicOn = audioOn;
-  /* TEMPORARY: background contrast (Settings). Invalid / missing → 83. */
-  if (typeof s.bgContrast !== "number") s.bgContrast = 83;
-  s.bgContrast = snapBgContrast(s.bgContrast);
-  bgContrastPct = s.bgContrast;
+  if (s.bgContrast != null) delete s.bgContrast;
   return s;
 }
 function writeSave(s: any) { storageSet("hoppak_save", JSON.stringify(s)); }
@@ -800,9 +797,9 @@ function readAudioProbe() {
 }
 
 var FIRST_TOAST: any = {
-  break: "ЛОМАЕТСЯ ПОСЛЕ ПРЫЖКА",
-  goal: "ДОПРЫГНИ ДО ЦЕЛИ",
-  record: "ТВОЙ РЕКОРД - ПОБЕЙ!"
+  get break() { return t('floor.break'); },
+  get goal() { return t('floor.goal'); },
+  get record() { return t('floor.record'); }
 };
 
 
@@ -877,40 +874,26 @@ function uiText(ctx: Ctx, s: string, x: number, y: number, color: string, role: 
   return drawText(ctx, s, x, y, color, TYPE[role] || 1, align);
 }
 
-/* TEMPORARY (Nov 2026): Settings "Контраст фона" / Background contrast.
-   Roman wants to try quieter backgrounds. Remove once the test is done.
-   Affects only drawBg layers (sky, parallax, horizons, floor). Heroes and UI
-   stay untouched. Default 83. Platforms and mobs use a separate 95% pass. */
-var BG_CONTRAST_STEPS = [40, 55, 70, 83, 100];
-var bgContrastPct = 83;
-var SPRITE_CONTRAST = 95;
-function applyBgContrast(ctx: Ctx, fn: any) {
-  var p = bgContrastPct;
-  if (!(p < 100)) { fn(); return; }
+/* v1.0 contrast knobs, percent of full (100 = unchanged). Easy to tweak.
+   Background is hardcoded at 80 (no Settings slider). Platforms 95, hero 90, mobs 90, coins 88. */
+var BG_CONTRAST = 80;
+var PLAT_CONTRAST = 95;
+var HERO_CONTRAST = 90;
+var MOB_CONTRAST = 90;
+var COIN_CONTRAST = 88;
+function applyContrast(ctx: Ctx, pct: number, fn: any) {
+  if (!(pct < 100)) { fn(); return; }
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.filter = "saturate(" + p + "%) contrast(" + p + "%)";
+  ctx.filter = "saturate(" + pct + "%) contrast(" + pct + "%)";
   fn();
   ctx.restore();
 }
-function applySpriteContrast(ctx: Ctx, fn: any) {
-  var p = SPRITE_CONTRAST;
-  if (!(p < 100)) { fn(); return; }
-  ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  ctx.filter = "saturate(" + p + "%) contrast(" + p + "%)";
-  fn();
-  ctx.restore();
-}
-function snapBgContrast(pct: number) {
-  var best = 83, bd = 1e9;
-  for (var i = 0; i < BG_CONTRAST_STEPS.length; i++) {
-    var d = Math.abs(BG_CONTRAST_STEPS[i] - pct);
-    if (d < bd) { bd = d; best = BG_CONTRAST_STEPS[i]; }
-  }
-  return best;
-}
-
+function applyBgContrast(ctx: Ctx, fn: any) { applyContrast(ctx, BG_CONTRAST, fn); }
+function applyPlatContrast(ctx: Ctx, fn: any) { applyContrast(ctx, PLAT_CONTRAST, fn); }
+function applyHeroContrast(ctx: Ctx, fn: any) { applyContrast(ctx, HERO_CONTRAST, fn); }
+function applyMobContrast(ctx: Ctx, fn: any) { applyContrast(ctx, MOB_CONTRAST, fn); }
+function applyCoinContrast(ctx: Ctx, fn: any) { applyContrast(ctx, COIN_CONTRAST, fn); }
 function tinyLines(s: string, maxW: number) {
   s = tinyChars(s);
   if (tinyWidth(s) <= maxW) return [s];
@@ -1069,6 +1052,9 @@ function makeLook(kind: number, _color?: string, _hat?: string) {
   return { id: b.id, name: b.name, hood: b.hood, kind: kind };
 }
 function drawJumper(ctx: Ctx, x: number, y: number, lk: any, face: number, pose: string, blink: boolean, alive: boolean, sc?: number, fine?: boolean) {
+  applyHeroContrast(ctx, function () { drawJumperRaw(ctx, x, y, lk, face, pose, blink, alive, sc, fine); });
+}
+function drawJumperRaw(ctx: Ctx, x: number, y: number, lk: any, face: number, pose: string, blink: boolean, alive: boolean, sc?: number, fine?: boolean) {
   var s = sc || 1;
   var mt: any = fine && ctx.getTransform ? ctx.getTransform() : null;
   if (!mt || !(mt.a > 0) || !(mt.d > 0) || mt.b || mt.c) { mt = null; x = Math.round(x); y = Math.round(y); }

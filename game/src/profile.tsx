@@ -169,7 +169,7 @@ var PROFILE: any = (function () {
       P.st = "ready";
       applyProfile(res.data.profile);
       if (P.api && P.api.sessionOk) P.api.sessionOk();
-      if (res.data.merged && P.api && P.api.say) P.api.say("ПРОГРЕСС ОБЪЕДИНЁН");
+      if (res.data.merged && P.api && P.api.say) P.api.say(t('profile.merged'));
       return res.data;
     });
   }
@@ -295,9 +295,9 @@ var PROFILE: any = (function () {
   P.recheck = function () {
     if (!P.live || P.replaced) return;
     var tok = getToken();
-    var t = Date.now();
-    if (!tok || t - (P.lastCheck || 0) < 3000) return;
-    P.lastCheck = t;
+    var nowMs = Date.now();
+    if (!tok || nowMs - (P.lastCheck || 0) < 3000) return;
+    P.lastCheck = nowMs;
     req("GET", "/api/profile", undefined, tok);
   };
   /* Presence: while a session is live and the page is visible, a heartbeat every 25 s keeps last_seen_at / "online" fresh on the server.

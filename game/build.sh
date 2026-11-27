@@ -13,20 +13,32 @@
 set -e
 cd "$(dirname "$0")"
 ESB=/tmp/esb/node_modules/.bin/esbuild
-cat src/01_core.tsx src/01b_art64.tsx src/01c_draw64.tsx src/02_world.tsx src/03_draw.tsx src/net.tsx src/profile.tsx src/04_shell.tsx > hoppak.page.tsx
+python3 - << 'I18N'
+import json
+from pathlib import Path
+core = Path("src/01_core.tsx").read_text(encoding="utf-8")
+header, core = core.split("\n", 1)
+catalog = {lang: json.loads(Path(f"i18n/{lang}.json").read_text(encoding="utf-8")) for lang in ("ru", "en")}
+parts = [header, "var GAME_I18N_BUILTIN = " + json.dumps(catalog, ensure_ascii=False) + ";",
+         Path("src/00_i18n.tsx").read_text(encoding="utf-8").replace(
+             "declare const GAME_I18N_BUILTIN: Record<GameLanguage, GameDictionary>;\n", ""), core]
+parts.extend(Path(f"src/{name}.tsx").read_text(encoding="utf-8")
+             for name in ("01b_art64", "01c_draw64", "02_world", "03_draw", "net", "profile", "04_shell"))
+Path("hoppak.page.tsx").write_text("\n".join(parts), encoding="utf-8")
+I18N
 python3 - << 'PY'
-src = open("hoppak.page.tsx").read()
+src = open("hoppak.page.tsx", encoding="utf-8").read()
 game = src.split("/* @@APP */")[0]
 game = game.split("\n", 1)[1]  # drop grok/canvas import
-open("/tmp/hoppak.game.ts", "w").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
+open("/tmp/hoppak.game.ts", "w", encoding="utf-8").write(game + "\n;(function(){var c=document.getElementById('c');if(c){window.__hoppak=startHoppak(c);}})();\n")
 PY
-$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 --outfile=hoppak.js --log-level=warning
+$ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 ${HOP_I18N_DEV:+--define:HOP_I18N_DEV=true} --outfile=hoppak.js --log-level=warning
 sed -i '1i /* Хоппак v0.6 — generated from hoppak.page.tsx by build.sh, do not edit */' hoppak.js
 mkdir -p page-build
 $ESB hoppak.page.tsx --minify --line-limit=900 --charset=utf8 --format=esm --jsx=preserve --loader:.tsx=tsx --target=es2017 --define:HOP_PAGE=true --outfile=/tmp/hop.min.tsx --log-level=warning
 python3 - << 'PY'
 import re
-t = open("/tmp/hop.min.tsx").read().strip()
+t = open("/tmp/hop.min.tsx", encoding="utf-8").read().strip()
 m = re.search(r"export\{([A-Za-z_$][\w$]*) as default\};?\s*$", t)
 t = t[:m.start()] + "export default " + m.group(1) + ";"
 # esbuild --line-limit wraps strings with backslash+newline. The Canvas TSX
@@ -46,7 +58,7 @@ while i < len(lines):
     out.append(line)
     i += 1
 t = "\n".join(out)
-open("page-build/hop.canvas.tsx", "w").write("// @ts-nocheck\n" + t + "\n")
+open("page-build/hop.canvas.tsx", "w", encoding="utf-8").write("// @ts-nocheck\n" + t + "\n")
 print("page bytes", len(t.encode()))
 PY
 node --check hoppak.js && echo "js ok $(wc -c < hoppak.js) bytes"
