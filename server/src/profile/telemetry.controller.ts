@@ -39,7 +39,7 @@ export class TelemetryController {
       ), causes AS (
         SELECT cause, COUNT(*) AS n FROM selected WHERE cause IS NOT NULL GROUP BY cause
       ), heroes AS (
-        SELECT hero, COUNT(*) AS n, ROUND(100 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS pct
+        SELECT hero, COUNT(*) AS n, ROUND(100::numeric * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS pct
         FROM selected WHERE hero IS NOT NULL GROUP BY hero
       )
       SELECT

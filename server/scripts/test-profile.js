@@ -619,6 +619,36 @@ async function testAwardSeries() {
 }
 
 async function testMigrationSql() {
+  const { RunTelemetry1795660000000 } = require('../dist/db/migrations/1795660000000-RunTelemetry');
+  const { GameSettings1795670000000 } = require('../dist/db/migrations/1795670000000-GameSettings');
+  const telemetryUp = [];
+  const telemetryDown = [];
+  const telemetry = new RunTelemetry1795660000000();
+  await telemetry.up({ query: async (q) => telemetryUp.push(q) });
+  await telemetry.down({ query: async (q) => telemetryDown.push(q) });
+  for (const column of ['height_m', 'cause', 'map', 'hero', 'mode', 'duration_s', 'client_version', 'finished_at']) {
+    assert.match(telemetryUp[0], new RegExp('ADD COLUMN ' + column + '\\b'));
+    assert.match(telemetryDown[1], new RegExp('DROP COLUMN ' + column + '\\b'));
+  }
+  assert.match(telemetryUp[1], /CREATE INDEX player_run_finished_at_idx.*WHERE finished_at IS NOT NULL/);
+  assert.match(telemetryDown[0], /DROP INDEX player_run_finished_at_idx/);
+  console.log('PASS run telemetry migration SQL');
+
+  const settingsUp = [];
+  const settingsDown = [];
+  const settings = new GameSettings1795670000000();
+  await settings.up({ query: async (q) => settingsUp.push(q) });
+  await settings.down({ query: async (q) => settingsDown.push(q) });
+  assert.match(settingsUp[0], /CREATE TABLE game_settings/);
+  assert.match(settingsUp[0], /value jsonb NOT NULL/);
+  assert.match(settingsUp[0], /updated_at timestamptz NOT NULL DEFAULT now\(\)/);
+  assert.match(settingsUp[0], /updated_by varchar\(64\) NOT NULL/);
+  const visualSeed = /'visual_contrast', '([^']+)', 'migration'/.exec(settingsUp[1]);
+  assert.ok(visualSeed, 'visual contrast seed');
+  assert.deepStrictEqual(JSON.parse(visualSeed[1]), { bg: 80, platforms: 92, hero: 92, mobs: 88, coins: 85 });
+  assert.match(settingsDown[0], /DROP TABLE game_settings/);
+  console.log('PASS visual settings migration SQL');
+
   const m = new AddBestBuyRunId1795642000000();
   const upSql = [];
   const downSql = [];

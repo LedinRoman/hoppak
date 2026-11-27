@@ -167,6 +167,7 @@ function openWs(port) {
     for (const [runId, height, cause, hero, timestamp] of [
       ['utc-before', 10, 'left', 5, '2026-11-26T23:59:59.999Z'],
       ['utc-start', 0, 'exit', 0, '2026-11-27T00:00:00.000Z'],
+      ['utc-middle', 90, 'exit', 3, '2026-11-27T12:00:00.000Z'],
       ['utc-end', 180, 'mob:bat', 3, '2026-11-27T23:59:59.999Z'],
       ['utc-after', 10, 'left', 5, '2026-11-28T00:00:00.000Z'],
     ]) {
@@ -179,9 +180,9 @@ function openWs(port) {
     const report = await api(PROFILE_PORT, 'GET', reportPath, undefined, ADMIN);
     assert.strictEqual(report.status, 200);
     assert.deepStrictEqual(report.data, {
-      days: [{ date: '2026-11-27', runs: 2, avgHeight: 90 }],
-      causes: [{ cause: 'exit', n: 1 }, { cause: 'mob:bat', n: 1 }],
-      heroes: [{ hero: 0, n: 1, pct: 50 }, { hero: 3, n: 1, pct: 50 }],
+      days: [{ date: '2026-11-27', runs: 3, avgHeight: 90 }],
+      causes: [{ cause: 'exit', n: 2 }, { cause: 'mob:bat', n: 1 }],
+      heroes: [{ hero: 0, n: 1, pct: 33.33 }, { hero: 3, n: 2, pct: 66.67 }],
     });
     console.log('PASS telemetry aggregates and UTC date boundaries');
 
