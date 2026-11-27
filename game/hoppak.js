@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("8a3d0ce") return String("8a3d0ce");
+      if ("a9e45c2") return String("a9e45c2");
     } catch (_e) {
     }
     return "";
@@ -1572,7 +1572,7 @@
       loadUiImage("mapdetail_" + mapIds[i] + "_locked", "ui/map_detail/" + mapIds[i] + "_locked.png");
       loadUiImage("mapdetail_" + mapIds[i] + "_open", "ui/map_detail/" + mapIds[i] + "_open.png");
     }
-    var encyIds = ["pilot", "pirate", "ninja", "robot", "mage", "knight", "blob", "frog", "parrot", "bat"];
+    var encyIds = ["pilot", "pirate", "ninja", "robot", "mage", "knight", "blob", "frog", "parrot", "bat", "trash", "hole", "ufo", "snake", "monkey"];
     for (i = 0; i < encyIds.length; i++) loadUiImage("ency_" + encyIds[i], "ui/ency/" + encyIds[i] + ".png");
   }
   warmUiImages();
@@ -10719,23 +10719,32 @@
       dh = Math.max(1, Math.min(maxH, sh));
       return { dw, dh };
     }
-    function encyDrawArt(cv, x, y, w, h, pad, align) {
+    var ENCY_ART_SCALE = 1;
+    function encyDrawArt(cv, x, y, w, h, pad, _align) {
       if (!cv) return;
       if (pad == null) pad = 0;
-      if (!align) align = "center";
       var innerW = Math.max(1, w - pad * 2), innerH = Math.max(1, h - pad * 2);
+      var scale = ENCY_ART_SCALE;
+      var sw = cv.width, sh = cv.height;
+      var dw = sw * scale, dh = sh * scale;
+      if (dw > innerW || dh > innerH) {
+        var div = 2;
+        while (div <= 8 && (Math.floor(sw / div) * scale > innerW || Math.floor(sh / div) * scale > innerH)) div++;
+        if (div <= 8) {
+          sw = Math.max(1, Math.floor(sw / div));
+          sh = Math.max(1, Math.floor(sh / div));
+          dw = sw * scale;
+          dh = sh * scale;
+        }
+      }
+      var dx = x + pad + Math.floor((innerW - dw) / 2);
+      var dy = y + pad + Math.floor((innerH - dh) / 2);
       ctx.save();
       ctx.beginPath();
       ctx.rect(x, y, w, h);
       ctx.clip();
       encyNoSmooth(ctx);
-      var bb = encyBBox(cv, 0);
-      var sx = bb ? bb.x : 0, sy = bb ? bb.y : 0;
-      var sw = bb ? bb.w : cv.width, sh = bb ? bb.h : cv.height;
-      var fit = encyIntegerFit(sw, sh, innerW, innerH);
-      var dx = x + pad + Math.floor((innerW - fit.dw) / 2);
-      var dy = align === "bottom" ? y + pad + (innerH - fit.dh) : y + pad + Math.floor((innerH - fit.dh) / 2);
-      ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, fit.dw, fit.dh);
+      ctx.drawImage(cv, 0, 0, cv.width, cv.height, dx, dy, dw, dh);
       ctx.restore();
     }
     function encyBtn(id, x, y, w, h, label) {
@@ -10851,14 +10860,6 @@
         else peek = 16;
       }
       var ch = Math.floor((viewH - peek - 2 * gap) / 3);
-      if (encyTab !== "maps") {
-        var minArt = 76;
-        var minCh = nameBand + minArt;
-        if (ch < minCh) {
-          peek = Math.min(18, Math.max(peek, 12));
-          ch = Math.floor((viewH - peek - gap) / 2);
-        }
-      }
       if (ch < nameBand + 20) ch = nameBand + 20;
       var contentH = totalRows * ch + Math.max(0, totalRows - 1) * gap;
       encyScrollMax = Math.max(0, contentH - viewH);
