@@ -12,15 +12,19 @@ import { PlayerStats } from './player-stats.entity';
 import { PlayerPresence } from './player-presence.entity';
 import { OnlineSnapshot } from './online-snapshot.entity';
 import { ProfileController } from './profile.controller';
+import { TelemetryController } from './telemetry.controller';
 import { ProfileService } from './profile.service';
+import { GameSetting } from '../db/game-setting.entity';
+import { VisualConfigController } from '../admin/visual-config.controller';
+import { AdminPageController } from '../admin/admin-page.controller';
 import { OnlineService } from '../online.service';
 
-const ENTITIES = [Player, PlayerRun, PlayerTelegram, PlayerGeo, RunStart, RulesPlausibility, SuspiciousRun, PlayerAuth, PlayerStats, PlayerPresence, OnlineSnapshot];
+const ENTITIES = [Player, PlayerRun, PlayerTelegram, PlayerGeo, RunStart, RulesPlausibility, SuspiciousRun, PlayerAuth, PlayerStats, PlayerPresence, OnlineSnapshot, GameSetting];
 
 @Module({})
 export class ProfileModule {
   static forRoot(): DynamicModule {
-    const controllers = [ProfileController];
+    const controllers = [ProfileController, TelemetryController, VisualConfigController, AdminPageController];
     if (!process.env.DATABASE_URL) {
       return {
         module: ProfileModule,

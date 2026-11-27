@@ -1,14 +1,15 @@
 /** Avoid a ProfileService ↔ RoomsService cycle. Rooms registers the kick. */
-let kickFn: (playerId: string, sessionId?: string) => void = () => {};
+type Kick = (playerId: string, keepSession?: string, replacedSession?: string) => void;
+let kickFn: Kick = () => {};
 
-export function setAccountKick(fn: (playerId: string, sessionId?: string) => void) {
+export function setAccountKick(fn: Kick) {
   kickFn = fn;
 }
 
-/** Close sockets of this account. sessionId, when set, is the new login and is left open. */
-export function kickAccount(playerId: string, sessionId?: string) {
+/** A rotation targets the session it replaced, even if its notification arrives late. */
+export function kickAccount(playerId: string, keepSession?: string, replacedSession?: string) {
   if (!playerId) return;
-  try { kickFn(playerId, sessionId); } catch (err) {
+  try { kickFn(playerId, keepSession, replacedSession); } catch {
     console.error('session kick failed');
   }
 }

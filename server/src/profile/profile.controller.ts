@@ -26,12 +26,10 @@ export class ProfileController {
   async guest(@Req() req: Request, @Headers('authorization') auth?: string) {
     const token = bearerToken(auth);
     if (token) {
-      const existing = await this.profiles.findByToken(token).catch(() => null);
-      if (existing) {
-        await this.geo(existing.id, req);
-        this.seen(existing.id);
-        return { ok: true, token, profile: this.profiles.toPublic(existing) };
-      }
+      const existing = await this.profiles.requireByToken(token);
+      await this.geo(existing.id, req);
+      this.seen(existing.id);
+      return { ok: true, token, profile: this.profiles.toPublic(existing) };
     }
     const created = await this.profiles.createGuest();
     await this.geo(created.profile.id, req);
@@ -49,7 +47,7 @@ export class ProfileController {
 
   /**
    * Client heartbeat (every ~25 s while the game is visible) and exit beacon (pagehide).
-   * A rotated-out token gets 401 SESSION_REPLACED here, so the first device learns about a takeover quickly.
+   * A rotated-out token gets 409 DEVICE_REPLACED here, so the first device learns about a takeover quickly.
    */
   @Post('profile/seen')
   async seenPing(
@@ -103,11 +101,12 @@ export class ProfileController {
   @Post('run/finish')
   async finish(
     @Headers('authorization') auth?: string,
-    @Body() body?: { height?: number; runCoins?: number; bonusCoins?: number; runId?: string; map?: string; hero?: number; ver?: string },
+    @Body() body?: { height?: number; runCoins?: number; bonusCoins?: number; runId?: string; map?: string; hero?: number; ver?: string; cause?: string; mode?: string },
   ) {
     const p = await this.profiles.requireByToken(bearerToken(auth), { allowPrevious: true });
     const result = await this.profiles.finishRun(
       p, body?.height, body?.runCoins, body?.bonusCoins, body?.runId, body?.map, body?.hero, body?.ver,
+      body?.cause, body?.mode,
     );
     return { ok: true, awarded: result.awarded, profile: result.profile, limited: result.limited, duplicate: result.duplicate };
   }

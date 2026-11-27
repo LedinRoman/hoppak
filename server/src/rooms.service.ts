@@ -70,7 +70,7 @@ export class RoomsService implements OnModuleDestroy {
   private sweeper = setInterval(() => this.sweep(), 2000);
 
   constructor() {
-    setAccountKick((id, sessionId) => this.kickAccount(id, sessionId));
+    setAccountKick((id, keepSession, replacedSession) => this.kickAccount(id, keepSession, replacedSession));
   }
 
   onModuleDestroy() {
@@ -131,11 +131,12 @@ export class RoomsService implements OnModuleDestroy {
     const t = String(name ?? '').trim().slice(0, 16);
     return t || 'HOPP';
   }
-  kickAccount(accountId: string, keepSession?: string) {
+  kickAccount(accountId: string, keepSession?: string, replacedSession?: string) {
     if (!accountId) return;
     for (const r of [...this.rooms.values()]) {
       for (const p of [...r.players]) {
         if (p.accountId !== accountId) continue;
+        if (replacedSession && p.sessionId !== replacedSession) continue;
         if (keepSession && p.sessionId === keepSession) continue;
         this.log.log(`room ${r.code}: account ${accountId.slice(0, 8)} replaced by a new login (session ${String(keepSession || '').slice(0, 6)}), ${p.name} dropped`);
         this.dropReplaced(r, p);

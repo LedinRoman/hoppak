@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Хоппак — версии</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.55 system-ui, sans-serif; background: #141123; color: #f2eaff; }
+    body { margin: auto; max-width: 58rem; padding: 2rem 1rem; }
+    .channels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: .9rem; }
+    article, details { background: #211a36; border: 1px solid #504267; border-radius: .5rem; padding: 1rem; }
+    details { margin-block: .75rem; }
+    h1, h2, h3 { line-height: 1.2; }
+    h2, h3, p { margin-block: 0 .75rem; }
+    h2 { margin-top: 1.5rem; }
+    .channels h2 { margin-top: 0; }
+    .meta { color: #d2c3ec; overflow-wrap: anywhere; }
+    a { color: #e4cfff; }
+    .open { display: inline-block; margin-top: .5rem; padding: .35rem .7rem; border-radius: .3rem; background: #eddf9d; color: #211a36; font-weight: bold; }
+    li { margin-block: .35rem; }
+    img { display: block; max-inline-size: 100%; block-size: auto; margin-top: .4rem; }
+  </style>
+</head>
+<body>
+  <h1>Версии Хоппака</h1>
+  <p id="status" role="status">Загрузка списка сборок…</p>
+  <main id="catalog"></main>
+  <script>
+    const catalog = document.getElementById('catalog');
+    const status = document.getElementById('status');
+    const channels = [
+      ['stable', 'Стабильная'],
+      ['staging', 'Стейдж'],
+      ['rc', 'Релиз-кандидат'],
+    ];
+
+    function add(parent, tag, value) {
+      const node = document.createElement(tag);
+      if (value) node.textContent = value;
+      parent.append(node);
+      return node;
+    }
+
+    function versionLink(path) {
+      const url = new URL(path, location.origin);
+      if (url.origin === location.origin || url.origin === 'https://76-13-250-251.sslip.io') return url.href;
+      throw new Error('Неизвестный адрес сборки');
+    }
+
+    function addInfo(target, version) {
+      const metadata = add(target, 'div', version.date);
+      metadata.className = 'meta';
+      if (version.client) add(metadata, 'div', 'Клиент ' + version.client);
+      if (version.server) add(metadata, 'div', 'Сервер ' + version.server);
+      if (version.bundle) add(metadata, 'div', 'Сборка ' + version.bundle);
+      const open = add(target, 'a', 'Открыть');
+      open.className = 'open';
+      open.href = versionLink(version.path);
+    }
+
+    function addChanges(target, version) {
+      for (const section of version.sections || []) {
+        add(target, 'h3', section.title);
+        const list = add(target, 'ul');
+        for (const item of section.items) {
+          const li = add(list, 'li', item.text);
+          for (const path of item.images || []) {
+            const image = add(li, 'img');
+            image.src = versionLink(path);
+            image.alt = item.text;
+            image.loading = 'lazy';
+          }
+        }
+      }
+      if (version.changes && version.changes.length) {
+        const list = add(target, 'ul');
+        for (const change of version.changes) add(list, 'li', change);
+      }
+    }
+
+    fetch('/v/versions.json', { cache: 'no-cache' }).then((response) => {
+      if (!response.ok) throw new Error('Каталог недоступен');
+      return response.json();
+    }).then((versions) => {
+      const cards = add(catalog, 'div');
+      cards.className = 'channels';
+      for (const [channel, label] of channels) {
+        const version = versions.find((entry) => entry.channel === channel);
+        if (!version) continue;
+        const card = add(cards, 'article');
+        add(card, 'h2', (version.label || label) + ' ' + version.version);
+        addInfo(card, version);
+      }
+
+      const history = [...versions].reverse().filter((version) => version.sections || version.changes);
+      if (history.length) add(catalog, 'h2', 'История изменений');
+      for (const version of history) {
+        const entry = add(catalog, 'details');
+        add(entry, 'summary', (version.label ? version.label + ' ' : '') + version.version);
+        addInfo(entry, version);
+        addChanges(entry, version);
+      }
+      status.textContent = '';
+    }).catch(() => { status.textContent = 'Не удалось загрузить каталог сборок.'; });
+  </script>
+</body>
+</html>
