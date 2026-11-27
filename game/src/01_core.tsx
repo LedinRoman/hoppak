@@ -94,10 +94,10 @@ var TYPECOL: any = {
   mint: C.mint,
   danger: C.red
 };
-/* Injected at build time by build.sh (--define HOP_BUILD_LABEL / HOP_BUILD_SHA). Fallback is v1.0 with no sha. */
+/* Injected at build time by build.sh (--define HOP_BUILD_LABEL / HOP_BUILD_SHA). Fallback is v0.9 with no sha. */
 function buildLabel() {
   try { if (typeof HOP_BUILD_LABEL !== "undefined" && HOP_BUILD_LABEL) return String(HOP_BUILD_LABEL); } catch (_e) {}
-  return "v1.0";
+  return "v0.9";
 }
 function buildSha() {
   try { if (typeof HOP_BUILD_SHA !== "undefined" && HOP_BUILD_SHA) return String(HOP_BUILD_SHA); } catch (_e) {}
@@ -564,6 +564,8 @@ function loadSave() {
   if (s.sfx !== false) s.sfx = true; else s.sfx = false;
   if (s.vib !== false) s.vib = true; else s.vib = false;
   if (!s.seen || typeof s.seen !== "object") s.seen = {};
+  if (!s.ency || typeof s.ency !== "object") s.ency = {};
+  if (!s.ency.mobs || typeof s.ency.mobs !== "object") s.ency.mobs = {};
   vibOn = !!s.vib;
   /* One slider. Old music and sfx volumes become the louder of the two. */
   if (typeof s.vol !== "number") {

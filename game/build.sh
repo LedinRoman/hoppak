@@ -12,9 +12,9 @@
 #       Default HOP_SERVER for the site target is https://76-13-250-251.sslip.io
 set -e
 cd "$(dirname "$0")"
-# Build-time version for Settings (and versions.json). Label is v1.0; sha is short HEAD.
+# Build-time version for Settings (and versions.json). Label is v0.9; sha is short HEAD.
 # Override with HOP_BUILD_LABEL / HOP_BUILD_SHA if needed. Not hardcoded in game source.
-BUILD_LABEL="${HOP_BUILD_LABEL:-v1.0}"
+BUILD_LABEL="${HOP_BUILD_LABEL:-v0.9}"
 BUILD_SHA="${HOP_BUILD_SHA:-$(git -C .. rev-parse --short HEAD 2>/dev/null || true)}"
 export BUILD_LABEL BUILD_SHA
 BUILD_DEFS=""
@@ -81,13 +81,13 @@ if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
   HTML_SRC="index.html"
   if [ -n "${HOP_API:-}" ]; then DEFS="${DEFS} --define:HOP_API=\"${HOP_API}\""; fi
   # tg-boot.js loads telegram.org only inside Telegram. HOP_STAGING is the alpha toggle, not login.
-  # The visible label is v0.6 on the prod page and v0.6rc on staging. Room admission
-  # stays NET_GEN ("0.6") and NET_PROTO (1); this label is not that check.
-  VER_LABEL="v0.6"
+  # The visible label is v0.9. Room admission stays NET_GEN and NET_PROTO;
+  # this label is not that check. Path stays /stage/.
+  VER_LABEL="${HOP_VER_LABEL:-v0.9}"
   if [ "${1:-}" = "staging" ]; then
     DEFS="${DEFS} --define:HOP_STAGING=true"
     HTML_SRC="index.staging.html"
-    VER_LABEL="${HOP_VER_LABEL:-v0.6rc}"
+    VER_LABEL="${HOP_VER_LABEL:-v0.9}"
   fi
   $ESB /tmp/hoppak.game.ts --loader:.ts=ts --format=iife --target=es2017 \
     ${DEFS} ${BUILD_DEFS} \
@@ -97,7 +97,7 @@ if [ "${1:-}" = "site" ] || [ "${1:-}" = "staging" ]; then
 from pathlib import Path
 html = Path("${HTML_SRC}").read_text()
 label = "Хоппак ${VER_LABEL}"
-html = html.replace("Хоппак v0.6rc", "Хоппак __VER__").replace("Хоппак v0.59", "Хоппак __VER__").replace("Хоппак v0.58", "Хоппак __VER__").replace("Хоппак v0.6", "Хоппак __VER__")
+html = html.replace("Хоппак v1.0-w19", "Хоппак __VER__").replace("Хоппак v1.0", "Хоппак __VER__").replace("Хоппак v0.6rc", "Хоппак __VER__").replace("Хоппак v0.59", "Хоппак __VER__").replace("Хоппак v0.58", "Хоппак __VER__").replace("Хоппак v0.6", "Хоппак __VER__")
 html = html.replace("Хоппак __VER__", label)
 Path("site/index.html").write_text(html)
 print("site html", "${HTML_SRC}", label)
