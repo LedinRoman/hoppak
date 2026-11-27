@@ -2446,7 +2446,29 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
     phase: "play", players: [], finishWait: 0, runCoins: 0, bonusCoins: 0, paid: false, freezeMobT: 0, toast: "", toastT: 0, nextBonusM: 0, fallWarn: 0, liftWarn: 0, warnSfxT: 0
   };
   w.nextBonusM = randInt(w.rng, 160, 240);
-  w.platforms.push(stampPlat(w, mkPlat(8, 0, LW - 16, "normal", 0)));
+  /* Opening row: a few normal-width platforms (early-game size), not one nearly full-width floor.
+     Fixed positions (no extra RNG), ~10 px gaps so they do not read as one bar.
+     Cover every solo / squad / net spawn X (22, 48, 74, 124) and mid-field solo at LW=180 (x=84). */
+  var startSpecs = [
+    { x: 16, w: 48 }, /* 16-64 covers 22-34 and 48-60 */
+    { x: 74, w: 40 }, /* 74-114 covers 74-86 and solo 84 */
+    { x: 124, w: 44 } /* 124-168 covers 124-136 */
+  ];
+  var startRow: any[] = [];
+  for (var si = 0; si < startSpecs.length; si++) {
+    var sx = startSpecs[si].x;
+    var startW = startSpecs[si].w;
+    if (sx < 2) sx = 2;
+    if (sx + startW > LW - 2) startW = (LW - 2) - sx;
+    if (startW < 24) {
+      startW = Math.min(44, LW - 4);
+      sx = Math.max(2, LW - 2 - startW);
+    }
+    var sp = stampPlat(w, mkPlat(sx, 0, startW, "normal", 0));
+    w.platforms.push(sp);
+    startRow.push(sp);
+  }
+  w.reachFrom = startRow.map(function (pl: any) { return { x: pl.x, w: pl.w }; });
   var xs = mode === "squad" ? [74, 22, 124, 48] : [Math.round(LW / 2) - 6];
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
   if (mode === "squad") {
@@ -3573,15 +3595,10 @@ function drawBg(ctx: Ctx, camY: number, tick: number, skin: string, menu?: boole
     var b64f = bg64(map);
     if (b64f) {
       var floorTop = roofY + 3 - b64f.floorRow;
+      /* Menu/lobby: lift the whole floor (one grass line) into the hero–start gap.
+         Do not tile the grass cap upward — that stacked a second strip on the real floor. */
+      if (menu && b64f.floor) floorTop -= 20;
       drawBgStrip64(ctx, b64f, "floor", floorTop);
-      /* Menu/lobby: on tall phones the gap between mid-screen buttons and the start floor
-         showed the mid-trunk band of the near layer as dark vertical streaks. Tile the
-         floor's top bush rows upward at native size (no stretch) so that gap stays foliage. */
-      if (menu && b64f.floor) {
-        var bushH = Math.min(14, b64f.floorH || 14);
-        var cover = 20;
-        tileBgStripBand64(ctx, b64f, "floor", floorTop - cover, cover, 0, bushH);
-      }
     } else if (map === "jungle") {
       rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#2a4e36"); rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#62d458");
       for (var tx = 6; tx < LW; tx += 22) { rect(ctx, tx, roofY + 8, 12, 8, "#3a6848"); rect(ctx, tx + 2, roofY + 10, 4, 2, "#80e870"); }
@@ -8547,7 +8564,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     encyArtCache[key] = out;
     return out;
   }
-  function encyArtAlign(kind: string) {
+  function encyArtAlign(kind: string, typ?: string) {
+    /* Mobs are centred so short/wide sprites (slime, frog) are not stuck at the bottom of a tall card. Heroes stay footed. */
+    if (typ === "mob") return "center";
     if (kind === "parrot" || kind === "bat" || kind === "ufo") return "center";
     return "bottom";
   }
@@ -8626,7 +8645,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     dh = Math.max(1, Math.min(maxH, sh));
     return { dw: dw, dh: dh };
   }
-  /* 1× only — never upscale encyclopedia art. Integer downsample only if the sprite cannot fit. */
+  /* Largest integer scale that fits (never fractional). Uses the opaque bbox so leftover
+     mobs (32×32) and Advisor sprites (e.g. 55×23 slime) read at a similar visual size. */
   function encyDrawArt(cv: any, x: number, y: number, w: number, h: number, pad?: number, align?: string) {
     if (!cv) return;
     if (pad == null) pad = 0;
@@ -8635,23 +8655,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.save();
     ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
     encyNoSmooth(ctx);
-    var sw = cv.width, sh = cv.height;
-    var dw = sw, dh = sh;
-    if (sw > innerW || sh > innerH) {
-      var div = 2;
-      dw = 0; dh = 0;
-      while (div <= 8) {
-        if (sw % div === 0 && sh % div === 0) {
-          var tw = sw / div, th = sh / div;
-          if (tw >= 1 && th >= 1 && tw <= innerW && th <= innerH) { dw = tw; dh = th; break; }
-        }
-        div++;
-      }
-      if (!dw) { dw = Math.min(innerW, sw); dh = Math.min(innerH, sh); }
-    }
-    var dx = x + pad + Math.floor((innerW - dw) / 2);
-    var dy = align === "bottom" ? (y + pad + (innerH - dh)) : (y + pad + Math.floor((innerH - dh) / 2));
-    ctx.drawImage(cv, 0, 0, sw, sh, dx, dy, dw, dh);
+    var bb = encyBBox(cv, 0);
+    var sx = bb ? bb.x : 0, sy = bb ? bb.y : 0;
+    var sw = bb ? bb.w : cv.width, sh = bb ? bb.h : cv.height;
+    var fit = encyIntegerFit(sw, sh, innerW, innerH);
+    var dx = x + pad + Math.floor((innerW - fit.dw) / 2);
+    var dy = align === "bottom" ? (y + pad + (innerH - fit.dh)) : (y + pad + Math.floor((innerH - fit.dh) / 2));
+    ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, fit.dw, fit.dh);
     ctx.restore();
   }
   function encyBtn(id: string, x: number, y: number, w: number, h: number, label: string) {
@@ -8667,7 +8677,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (i = 0; i < items.length; i++) if (items[i].open) n++;
     return n;
   }
-  var ENCY_COLS = 2, ENCY_PAD = 6;
+  var ENCY_COLS = 2, ENCY_PAD = 3;
   function encyHintMode() {
     try {
       var m = (window as any).__encyScrollHint;
@@ -8732,13 +8742,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     } else {
       var scale = 1;
       var cv = it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
-      var slotW = 58, slotH = it.type === "hero" ? 44 : 37;
-      var slotX = innerX + Math.max(0, Math.floor((innerW - slotW) / 2));
-      var slotY = innerY + Math.max(0, Math.floor((innerArt - slotH) / 2));
-      if (slotW > innerW) { slotW = innerW; slotX = innerX; }
-      if (slotH > innerArt) { slotH = innerArt; slotY = innerY; }
       var kind = it.type === "hero" ? (CHARS[it.i] || CHARS[0]).id : it.kind;
-      encyDrawArt(cv, slotX, slotY, slotW, slotH, 0, encyArtAlign(kind));
+      encyDrawArt(cv, innerX, innerY, innerW, innerArt, 0, encyArtAlign(kind, it.type));
     }
     var name = open ? (it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name) : t('map.locked');
     var lines = hudLines(name, "S", w - ENCY_PAD * 2);
@@ -8767,7 +8772,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       else if (hint === "D") peek = 16;
       else peek = 16;
     }
+    /* Heroes/mobs: prefer a card tall enough for a 2× 30×38 hero (art 76 px) so grid sprites fill the card.
+       If 3 rows would force 1×, show 2 rows and let the rest scroll (with a short peek).
+       Maps stay on the 3-row layout (Roman already liked that tab). */
     var ch = Math.floor((viewH - peek - 2 * gap) / 3);
+    if (encyTab !== "maps") {
+      var minArt = 76;
+      var minCh = nameBand + minArt;
+      if (ch < minCh) {
+        peek = Math.min(18, Math.max(peek, 12));
+        ch = Math.floor((viewH - peek - gap) / 2);
+      }
+    }
     if (ch < nameBand + 20) ch = nameBand + 20;
     var contentH = totalRows * ch + Math.max(0, totalRows - 1) * gap;
     encyScrollMax = Math.max(0, contentH - viewH);
@@ -8878,8 +8894,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       drawMapDetailThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
     } else {
       var artCv = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
-      var kind = it.type === "hero" ? (CHARS[it.i] || CHARS[0]).id : it.kind;
-      encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, encyArtAlign(kind));
+      /* Integer upscale, vertically centred in the free space above the name (not stuck at the bottom). */
+      encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, "center");
     }
     var ty = artY + artBoxH + gap, li;
     for (li = 0; li < nameLines.length; li++) {
@@ -8952,9 +8968,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var botSafe = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
     var botPad = sidePad + botSafe;
     var barY = LH - botPad - barH;
-    var bot = barY;
+    /* Clip and layout above the Back bar, with a 4 px gap, so the last row never overlaps the button. */
+    var bot = barY - 4;
     if (encyCard >= 0) drawEncyDetail(x, top, bot);
-    else drawEncyGrid(x, top, bot, barY + barH);
+    else drawEncyGrid(x, top, bot, bot);
     /* The full-width bar is the Back button: one frame, centred label, press on the whole bar.
        The peeking row is clipped under this bar (drawn after the grid). */
     encyBtn("back", x, barY, 152, barH, t('common.back'));
@@ -10157,7 +10174,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     sfxStats: function () { return sfxStat; },
     sfxReady: function (k: string) { return !!sfxBuf[k]; },
     screen: function (s: string) { phase = s; },
-    start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) save.bg = mapId; startRun(seed); },
+    start: function (m: string, seed?: number, mapId?: string) { mode = m || "solo"; if (mapId) { save.bg = mapId; lobbyMap = mapId; } startRun(seed, mapId); },
     classifyRunMode: classifyRunMode,
     getRunMode: function () { return world && world.runMode; },
     setDir: function (d: number) { held.kl = d < 0; held.kr = d > 0; },

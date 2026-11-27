@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("655decb") return String("655decb");
+      if ("8a3d0ce") return String("8a3d0ce");
     } catch (_e) {
     }
     return "";
@@ -3054,7 +3054,31 @@
       warnSfxT: 0
     };
     w.nextBonusM = randInt(w.rng, 160, 240);
-    w.platforms.push(stampPlat(w, mkPlat(8, 0, LW - 16, "normal", 0)));
+    var startSpecs = [
+      { x: 16, w: 48 },
+      /* 16-64 covers 22-34 and 48-60 */
+      { x: 74, w: 40 },
+      /* 74-114 covers 74-86 and solo 84 */
+      { x: 124, w: 44 }
+      /* 124-168 covers 124-136 */
+    ];
+    var startRow = [];
+    for (var si = 0; si < startSpecs.length; si++) {
+      var sx = startSpecs[si].x;
+      var startW = startSpecs[si].w;
+      if (sx < 2) sx = 2;
+      if (sx + startW > LW - 2) startW = LW - 2 - sx;
+      if (startW < 24) {
+        startW = Math.min(44, LW - 4);
+        sx = Math.max(2, LW - 2 - startW);
+      }
+      var sp = stampPlat(w, mkPlat(sx, 0, startW, "normal", 0));
+      w.platforms.push(sp);
+      startRow.push(sp);
+    }
+    w.reachFrom = startRow.map(function(pl) {
+      return { x: pl.x, w: pl.w };
+    });
     var xs = mode === "squad" ? [74, 22, 124, 48] : [Math.round(LW / 2) - 6];
     w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
     if (mode === "squad") {
@@ -4435,12 +4459,8 @@
       var b64f = bg64(map);
       if (b64f) {
         var floorTop = roofY + 3 - b64f.floorRow;
+        if (menu && b64f.floor) floorTop -= 20;
         drawBgStrip64(ctx, b64f, "floor", floorTop);
-        if (menu && b64f.floor) {
-          var bushH = Math.min(14, b64f.floorH || 14);
-          var cover = 20;
-          tileBgStripBand64(ctx, b64f, "floor", floorTop - cover, cover, 0, bushH);
-        }
       } else if (map === "jungle") {
         rect(ctx, viewX0(), roofY + 3, viewW(), LH, "#2a4e36");
         rect(ctx, viewX0(), roofY + 3, viewW(), 2, "#62d458");
@@ -10622,7 +10642,8 @@
       encyArtCache[key] = out;
       return out;
     }
-    function encyArtAlign(kind) {
+    function encyArtAlign(kind, typ) {
+      if (typ === "mob") return "center";
       if (kind === "parrot" || kind === "bat" || kind === "ufo") return "center";
       return "bottom";
     }
@@ -10708,31 +10729,13 @@
       ctx.rect(x, y, w, h);
       ctx.clip();
       encyNoSmooth(ctx);
-      var sw = cv.width, sh = cv.height;
-      var dw = sw, dh = sh;
-      if (sw > innerW || sh > innerH) {
-        var div = 2;
-        dw = 0;
-        dh = 0;
-        while (div <= 8) {
-          if (sw % div === 0 && sh % div === 0) {
-            var tw = sw / div, th = sh / div;
-            if (tw >= 1 && th >= 1 && tw <= innerW && th <= innerH) {
-              dw = tw;
-              dh = th;
-              break;
-            }
-          }
-          div++;
-        }
-        if (!dw) {
-          dw = Math.min(innerW, sw);
-          dh = Math.min(innerH, sh);
-        }
-      }
-      var dx = x + pad + Math.floor((innerW - dw) / 2);
-      var dy = align === "bottom" ? y + pad + (innerH - dh) : y + pad + Math.floor((innerH - dh) / 2);
-      ctx.drawImage(cv, 0, 0, sw, sh, dx, dy, dw, dh);
+      var bb = encyBBox(cv, 0);
+      var sx = bb ? bb.x : 0, sy = bb ? bb.y : 0;
+      var sw = bb ? bb.w : cv.width, sh = bb ? bb.h : cv.height;
+      var fit = encyIntegerFit(sw, sh, innerW, innerH);
+      var dx = x + pad + Math.floor((innerW - fit.dw) / 2);
+      var dy = align === "bottom" ? y + pad + (innerH - fit.dh) : y + pad + Math.floor((innerH - fit.dh) / 2);
+      ctx.drawImage(cv, sx, sy, sw, sh, dx, dy, fit.dw, fit.dh);
       ctx.restore();
     }
     function encyBtn(id, x, y, w, h, label) {
@@ -10748,7 +10751,7 @@
       for (i = 0; i < items.length; i++) if (items[i].open) n++;
       return n;
     }
-    var ENCY_COLS = 2, ENCY_PAD = 6;
+    var ENCY_COLS = 2, ENCY_PAD = 3;
     function encyHintMode() {
       try {
         var m = window.__encyScrollHint;
@@ -10815,19 +10818,8 @@
       } else {
         var scale = 1;
         var cv = it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
-        var slotW = 58, slotH = it.type === "hero" ? 44 : 37;
-        var slotX = innerX + Math.max(0, Math.floor((innerW - slotW) / 2));
-        var slotY = innerY + Math.max(0, Math.floor((innerArt - slotH) / 2));
-        if (slotW > innerW) {
-          slotW = innerW;
-          slotX = innerX;
-        }
-        if (slotH > innerArt) {
-          slotH = innerArt;
-          slotY = innerY;
-        }
         var kind = it.type === "hero" ? (CHARS[it.i] || CHARS[0]).id : it.kind;
-        encyDrawArt(cv, slotX, slotY, slotW, slotH, 0, encyArtAlign(kind));
+        encyDrawArt(cv, innerX, innerY, innerW, innerArt, 0, encyArtAlign(kind, it.type));
       }
       var name = open ? it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name : t("map.locked");
       var lines = hudLines(name, "S", w - ENCY_PAD * 2);
@@ -10859,6 +10851,14 @@
         else peek = 16;
       }
       var ch = Math.floor((viewH - peek - 2 * gap) / 3);
+      if (encyTab !== "maps") {
+        var minArt = 76;
+        var minCh = nameBand + minArt;
+        if (ch < minCh) {
+          peek = Math.min(18, Math.max(peek, 12));
+          ch = Math.floor((viewH - peek - gap) / 2);
+        }
+      }
       if (ch < nameBand + 20) ch = nameBand + 20;
       var contentH = totalRows * ch + Math.max(0, totalRows - 1) * gap;
       encyScrollMax = Math.max(0, contentH - viewH);
@@ -10974,8 +10974,7 @@
         drawMapDetailThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
       } else {
         var artCv = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
-        var kind = it.type === "hero" ? (CHARS[it.i] || CHARS[0]).id : it.kind;
-        encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, encyArtAlign(kind));
+        encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, "center");
       }
       var ty = artY + artBoxH + gap, li;
       for (li = 0; li < nameLines.length; li++) {
@@ -11049,9 +11048,9 @@
       var botSafe = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
       var botPad = sidePad + botSafe;
       var barY = LH - botPad - barH;
-      var bot = barY;
+      var bot = barY - 4;
       if (encyCard >= 0) drawEncyDetail(x, top, bot);
-      else drawEncyGrid(x, top, bot, barY + barH);
+      else drawEncyGrid(x, top, bot, bot);
       encyBtn("back", x, barY, 152, barH, t("common.back"));
       drawFlash();
     }
@@ -12524,8 +12523,11 @@
       },
       start: function(m, seed, mapId) {
         mode = m || "solo";
-        if (mapId) save.bg = mapId;
-        startRun(seed);
+        if (mapId) {
+          save.bg = mapId;
+          lobbyMap = mapId;
+        }
+        startRun(seed, mapId);
       },
       classifyRunMode,
       getRunMode: function() {
