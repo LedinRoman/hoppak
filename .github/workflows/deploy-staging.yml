@@ -33,6 +33,7 @@ jobs:
         env:
           HOP_SERVER: https://staging.76-13-250-251.sslip.io
           HOP_VER_LABEL: v0.9
+          HOP_BUILD_LABEL: v0.9
         run: |
           export ESB=/tmp/esb/node_modules/.bin/esbuild
           bash game/build.sh staging

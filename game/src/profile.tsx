@@ -11,13 +11,14 @@ var PROFILE: any = (function () {
   var QUEUE_KEY = "hoppak_profile_queue";
   var BUYS_KEY = "hoppak_profile_buys";
   var CACHE_KEY = "hoppak_profile_cache";
+  var LOCK_KEY = "hoppak_profile_locked";
   var REQ_MS = 5000;
   var RUN_HEIGHT_MAX = 20000;
   var RUN_COINS_MAX = 15801;
   var RUN_BONUS_MAX = 2500;
   var HEIGHT_AWARD_MIN = 100;
   var P: any = {
-    st: "idle", /* idle | syncing | ready | offline | unavailable */
+    st: "idle", /* idle | syncing | ready | offline | unavailable | locked */
     profile: null as any,
     api: null as any,
     queue: null as any,
@@ -151,6 +152,7 @@ var PROFILE: any = (function () {
   }
 
   function tryTelegramAuth(token: string): Promise<any> {
+    if (isLocked()) return Promise.resolve(null);
     if (P.tgPending) return P.tgPending;
     if (P.tgTried) return Promise.resolve(null);
     var run = function () { return tryTelegramAuthNow(token); };
@@ -159,13 +161,18 @@ var PROFILE: any = (function () {
   }
 
   function tryTelegramAuthNow(token: string): Promise<any> {
-    if (P.tgTried) return Promise.resolve(null);
+    if (P.tgTried || isLocked()) return Promise.resolve(null);
     var initData = readInitData();
     if (!initData || !token) return Promise.resolve(null);
     P.tgTried = true;
+    return telegramAuth(initData, token);
+  }
+
+  function telegramAuth(initData: string, token: string) {
     return req("POST", "/api/auth/telegram", { initData: initData }, token).then(function (res: any) {
-      if (!res || !res.ok || !res.data || !res.data.ok || !res.data.profile) return null;
-      if (res.data.token) setToken(res.data.token);
+      if (!res.ok || !res.data || !res.data.ok || !res.data.profile || !res.data.token) return null;
+      setToken(res.data.token);
+      lsSet(LOCK_KEY, "");
       P.st = "ready";
       applyProfile(res.data.profile);
       if (P.api && P.api.sessionOk) P.api.sessionOk();
@@ -258,7 +265,10 @@ var PROFILE: any = (function () {
     return fetch(base + path, opts).then(function (r: any) {
       clearTimeout(to);
       return r.json().catch(function () { return null; }).then(function (data: any) {
-        if (r.status === 401 && data && data.error === "SESSION_REPLACED") noteReplaced(token || "");
+        if (replaced(r.status, data) || (r.status === 401 && data && data.error === "UNAUTHORIZED"
+          && token && P.profile && P.profile.telegramId)) {
+          noteReplaced(token || "", data.profile);
+        }
         return { status: r.status, ok: !!r.ok, data: data };
       });
     }).catch(function () {
@@ -267,33 +277,53 @@ var PROFILE: any = (function () {
     });
   }
 
-  /* SESSION_REPLACED = this token was rotated by a login somewhere else.
-     - The stored token is newer than the one used: another tab of this same browser already logged in again.
-       Same client, not a second device: no banner, the next request just uses the stored token.
-     - The page has not established a session yet (the app was just opened with an old token): opening it is an
-       explicit take-over, so log in again quietly (ensureProfile does) and show nothing.
-     - Only a session that was running and then got replaced shows the banner. */
-  function noteReplaced(usedTok: string) {
-    var cur = getToken();
-    if (usedTok && cur && cur !== usedTok) return;
-    if (!P.live) return;
-    if (P.replaced) return;
-    P.replaced = true;
-    var tok = getToken();
-    if (P.api && P.api.sessionReplaced) P.api.sessionReplaced();
-    var done = tok ? flushRunsStep(tok, true) : Promise.resolve(null);
-    Promise.resolve(done).then(function () { dropToken(tok); return ensureProfile(); }).then(function () { P.replaced = false; }, function () { P.replaced = false; });
+  function isLocked(): boolean { return P.st === "locked"; }
+
+  function replaced(status: number, data: any): boolean {
+    return !!data && ((status === 409 && data.error === "DEVICE_REPLACED")
+      || (status === 401 && data.error === "SESSION_REPLACED"));
   }
-  /* The game server refused a socket because its login was replaced (another device took the account). */
+
+  function noteReplaced(usedTok: string, profile?: any) {
+    if (usedTok && usedTok !== getToken()) return;
+    var wasLocked = isLocked();
+    P.st = "locked";
+    lsSet(LOCK_KEY, "1");
+    if (P.retryTimer) { clearTimeout(P.retryTimer); P.retryTimer = 0; }
+    var preserved = profile || P.profile || readJson(CACHE_KEY, null);
+    if (preserved) applyProfile(preserved);
+    if (!wasLocked && P.api && P.api.sessionReplaced) P.api.sessionReplaced();
+  }
+
   P.serverSaysReplaced = function () {
-    if (!P.live || P.replaced) return false;
     noteReplaced(getToken());
     return true;
   };
+
+  P.takeOver = function () {
+    if (!isLocked() || P.takingOver) return Promise.resolve(null);
+    P.takingOver = true;
+    return enqueue(function () {
+      return waitTelegramSdk().then(function () {
+        var initData = readInitData();
+        if (!initData) {
+          if (P.api && P.api.say) P.api.say(t('kick.open_telegram'));
+          return null;
+        }
+        return telegramAuth(initData, getToken()).then(function (auth: any) {
+          if (!auth) {
+            if (P.api && P.api.say) P.api.say(t('kick.retry'));
+            return null;
+          }
+          return flushAll(false);
+        });
+      });
+    }).finally(function () { P.takingOver = false; });
+  };
   /* Coming back to the app (a suspended phone Mini App): ask the server once whether this login is still the active one.
-     A replaced login answers SESSION_REPLACED and shows the banner, instead of staying silent until the next request. */
+     A replaced login returns a replacement error and shows the banner, instead of staying silent until the next request. */
   P.recheck = function () {
-    if (!P.live || P.replaced) return;
+    if (!P.live || isLocked()) return;
     var tok = getToken();
     var nowMs = Date.now();
     if (!tok || nowMs - (P.lastCheck || 0) < 3000) return;
@@ -301,21 +331,21 @@ var PROFILE: any = (function () {
     req("GET", "/api/profile", undefined, tok);
   };
   /* Presence: while a session is live and the page is visible, a heartbeat every 25 s keeps last_seen_at / "online" fresh on the server.
-     A replaced login answers SESSION_REPLACED, so the first device also finds out here (banner through req). Hiding or closing the page
+     A replaced login returns a replacement error, so the first device also finds out here (banner through req). Hiding or closing the page
      sends an exit beacon (fetch keepalive); the next heartbeat makes the player online again. */
   var BEAT_MS = 25000;
   function tgPlatform() {
     try { var w: any = window; return w.Telegram && w.Telegram.WebApp && w.Telegram.WebApp.platform ? String(w.Telegram.WebApp.platform).slice(0, 16) : "web"; } catch (_e) { return "web"; }
   }
   P.beat = function () {
-    if (!P.live || P.replaced) return;
+    if (!P.live || isLocked()) return;
     var tok = getToken();
     if (!tok) return;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     req("POST", "/api/profile/seen", { v: "0.6rc", p: tgPlatform() }, tok);
   };
   P.exit = function () {
-    if (!P.live || P.replaced) return;
+    if (!P.live || isLocked()) return;
     var tok = getToken();
     var base = apiOrigin();
     if (!tok || !base || typeof fetch === "undefined") return;
@@ -349,6 +379,7 @@ var PROFILE: any = (function () {
   }
 
   function handleStatus(res: any): boolean {
+    if (isLocked() && (!res.ok || !res.data || !res.data.ok)) return false;
     if (res.status === 503 || (res.data && res.data.error === "PROFILE_UNAVAILABLE")) {
       P.st = "unavailable";
       return false;
@@ -361,7 +392,7 @@ var PROFILE: any = (function () {
   }
 
   function scheduleRetry(delayMs: number) {
-    if (typeof setTimeout === "undefined") return;
+    if (isLocked() || typeof setTimeout === "undefined") return;
     if (P.retryTimer) { clearTimeout(P.retryTimer); P.retryTimer = 0; }
     var d = Math.max(250, delayMs);
     P.retryTimer = setTimeout(function () {
@@ -381,6 +412,7 @@ var PROFILE: any = (function () {
   function syncCampaign(token: string, fallback: any, bodySnap?: any) {
     var body = bodySnap || localCampaign();
     return req("POST", "/api/profile/campaign", body, token).then(function (res: any) {
+      if (isLocked()) return null;
       if (!handleStatus(res) || !res.data || !res.data.profile) {
         if (fallback) { P.st = "ready"; applyProfile(fallback); }
         return fallback;
@@ -391,6 +423,7 @@ var PROFILE: any = (function () {
     });
   }
   function syncMigrate(token: string, prof: any, coinSnap?: number) {
+    if (isLocked()) return Promise.resolve(null);
     var s = P.api && P.api.save ? P.api.save() : null;
     var rawCoins = typeof coinSnap === "number"
       ? coinSnap
@@ -406,7 +439,7 @@ var PROFILE: any = (function () {
         return res.data.profile;
       });
     return step.then(function (ready: any) {
-      if (!ready) return null;
+      if (!ready || isLocked()) return null;
       return syncCampaign(token, ready);
     });
   }
@@ -423,6 +456,7 @@ var PROFILE: any = (function () {
     });
   }
   function ensureProfile(deferCoins: boolean) {
+    if (isLocked()) return Promise.resolve(null);
     var base = apiOrigin();
     if (!base || typeof fetch === "undefined") {
       P.st = "offline";
@@ -435,12 +469,19 @@ var PROFILE: any = (function () {
     };
     if (tok) {
       return req("GET", "/api/profile", undefined, tok).then(function (res: any) {
-        if (res.status === 401) {
+        if (isLocked()) return null;
+        if (replaced(res.status, res.data) || res.status === 401) {
           var newer = getToken();
           if (newer && newer !== tok && !P.adopted) {
             /* Another tab of this browser logged in again meanwhile: use its token, don't make a second guest. */
             P.adopted = true;
             return ensureProfile(deferCoins);
+          }
+          if (replaced(res.status, res.data)) return null;
+          var cached = P.profile || readJson(CACHE_KEY, null);
+          if (cached && cached.telegramId) {
+            noteReplaced(tok, cached);
+            return null;
           }
           dropToken(tok);
           return createGuest().then(function (made: any) {
@@ -459,19 +500,21 @@ var PROFILE: any = (function () {
   }
 
   function syncRecords(tok: string): Promise<void> {
-    if (!tok) return Promise.resolve();
+    if (!tok || isLocked()) return Promise.resolve();
     return req("POST", "/api/profile/campaign", localCampaign(), tok).then(function (res: any) {
+      if (isLocked()) return;
       if (res.status === 404 || res.status === 405 || res.status === 501) return;
       if (!handleStatus(res) || !res.data || !res.data.profile) return;
       applyProfile(res.data.profile);
     }, function () { return; });
   }
   function flushBuysOnce(tok: string): Promise<void> {
-    if (P.buySupported === false) return Promise.resolve();
+    if (isLocked() || P.buySupported === false) return Promise.resolve();
     var buys = getPendingBuys();
     if (!buys.length || !tok) return Promise.resolve();
     var item = buys[0];
     return req("POST", "/api/profile/buy", { key: item.key }, tok).then(function (res: any) {
+      if (isLocked() || replaced(res.status, res.data)) return;
       if (res.status === 404 || res.status === 405 || res.status === 501) {
         P.buySupported = false;
         return;
@@ -528,6 +571,7 @@ var PROFILE: any = (function () {
       if (startDone[head.runId]) { markStarted(head.runId); return "ok"; }
       if (res && (res.status === 404 || res.status === 405 || res.status === 501)) return "skip";
       if (res && res.status === 401) return "auth";
+      if (isLocked()) return "locked";
       if (!tok) return "later";
       return postStart(head.runId, head.map || "", head.hero, tok).then(function (again: any) {
         if (startDone[head.runId]) { markStarted(head.runId); return "ok"; }
@@ -563,10 +607,12 @@ var PROFILE: any = (function () {
     if (head.mode) body.mode = head.mode;
     if (head.map) body.map = head.map;
     if (head.ver) body.ver = head.ver;
+    if (head.cause) body.cause = head.cause;
     if (head.hero != null) body.hero = head.hero;
 
-    return ensureStart(head, tok).then(function (started: string) {
-      if (started === "later") {
+    var start = isLocked() ? Promise.resolve("locked") : ensureStart(head, tok);
+    return start.then(function (started: string) {
+      if (started === "later" && !isLocked()) {
         markRun(head, "OFFLINE");
         var waitS = P.backoffMs;
         P.backoffMs = Math.min(60000, P.backoffMs * 2);
@@ -575,8 +621,9 @@ var PROFILE: any = (function () {
       }
       return req("POST", "/api/run/finish", body, tok);
     }).then(function (res: any) {
-      if (!res) return null;
+      if (!res || replaced(res.status, res.data)) return null;
       if (res.status === 401) {
+        if (isLocked()) return null;
         dropToken(tok);
         if (!authRetried) {
           return ensureProfile().then(function () {
@@ -599,6 +646,7 @@ var PROFILE: any = (function () {
         if (head && head.runId) delete runRefs[head.runId];
         return dropped.length ? flushRunsStep(tok, authRetried) : null;
       }
+      if (isLocked() && (!res.ok || !res.data || !res.data.ok)) return null;
       if (!handleStatus(res)) {
         markRun(head, "OFFLINE");
         var wait = P.backoffMs;
@@ -611,7 +659,7 @@ var PROFILE: any = (function () {
       if (curQ.length && curQ[0].runId === head.runId) curQ.shift();
       else curQ = curQ.filter(function (x: any) { return x && x.runId !== head.runId; });
       setRunQueue(curQ);
-      P.st = "ready";
+      if (!isLocked()) P.st = "ready";
       var done = worldOf(head);
       if (head && head.runId) delete runRefs[head.runId];
       applyProfile(res.data.profile, done, res.data.awarded, res.data.limited || "");
@@ -621,6 +669,7 @@ var PROFILE: any = (function () {
   }
 
   function flushAll(allowInit: boolean) {
+    if (isLocked()) return getToken() ? flushRunsStep(getToken(), true) : Promise.resolve(null);
     var base = apiOrigin();
     if (!base || typeof fetch === "undefined") {
       P.st = "offline";
@@ -657,15 +706,30 @@ var PROFILE: any = (function () {
   P.init = function (api: any) {
     P.api = api;
     /* Visible before the queued ensureProfile runs, so a waiter does not treat "idle" as ready. */
-    if (apiOrigin()) P.st = "syncing";
+    if (apiOrigin() && !isLocked()) P.st = "syncing";
     if (!P.onlineBound && typeof window !== "undefined" && window.addEventListener) {
       P.onlineBound = true;
       window.addEventListener("online", function () {
         P.backoffMs = 5000;
         P.flush();
       });
+      window.addEventListener("storage", function (event) {
+        if (event.key !== TOKEN_KEY || !event.newValue || !isLocked() || lsGet(LOCK_KEY)) return;
+        enqueue(function () {
+          if (!isLocked() || lsGet(LOCK_KEY)) return;
+          var token = getToken();
+          return req("GET", "/api/profile", undefined, token).then(function (res: any) {
+            if (!res.ok || !res.data || !res.data.profile || getToken() !== token) return;
+            P.st = "ready";
+            applyProfile(res.data.profile);
+            if (P.api && P.api.sessionOk) P.api.sessionOk();
+          });
+        });
+      });
     }
     return enqueue(function () {
+      if (getToken() && lsGet(LOCK_KEY)) noteReplaced(getToken());
+      if (isLocked()) return flushAll(false);
       var deferCoins = !!readInitData();
       var coinSnap = 0;
       var campSnap: any = null;
@@ -675,6 +739,7 @@ var PROFILE: any = (function () {
         campSnap = localCampaign();
       } catch (_eSnap) {}
       return ensureProfile(deferCoins).then(function (prof: any) {
+        if (isLocked()) return flushAll(false);
         if (!prof) {
           var cached = readJson(CACHE_KEY, null);
           if (cached) P.profile = cached;
@@ -684,6 +749,8 @@ var PROFILE: any = (function () {
           return null;
         }
         return flushAll(false).then(function () {
+          if (isLocked()) return null;
+          if (prof.telegramId) return syncMigrate(getToken(), P.profile || prof, coinSnap);
           return tryTelegramAuth(getToken()).then(function (auth: any) {
             /* A merge already moved the guest server wallet. Do not also add the local coin cache. */
             if (auth && auth.merged) return syncCampaign(getToken(), auth.profile || P.profile, campSnap);
@@ -695,6 +762,7 @@ var PROFILE: any = (function () {
   };
 
   P.beginRun = function (map: string, hero: number) {
+    if (isLocked()) return "";
     var id = makeRunId();
     var tok = getToken();
     if (tok) startInflight[id] = postStart(id, map || "", hero, tok);
@@ -714,7 +782,8 @@ var PROFILE: any = (function () {
       bonusCoins: b,
       mode: (meta && meta.mode) || "solo",
       map: (meta && meta.map) || "",
-      ver: (meta && meta.ver) || "0.6",
+      ver: (meta && meta.ver) || "",
+      cause: (meta && meta.cause) || "",
       estAward: pre,
       createdAt: Date.now()
     };
@@ -729,7 +798,7 @@ var PROFILE: any = (function () {
   };
 
   P.buy = function (key: string, price: number) {
-    if (!key) return Promise.resolve(null);
+    if (!key || isLocked()) return Promise.resolve(null);
     var buys = getPendingBuys();
     var found = false;
     for (var i = 0; i < buys.length; i++) if (buys[i] && buys[i].key === key) { found = true; break; }

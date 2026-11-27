@@ -20,6 +20,7 @@ ENV NODE_ENV=production PORT=8787
 COPY --from=server /app/package.json ./
 COPY --from=server /app/node_modules ./node_modules
 COPY --from=server /app/dist ./dist
+COPY server/admin ./admin
 COPY --from=client /repo/game/index.html /repo/game/hoppak.js ./public/
 # Migrations (needs DATABASE_URL): npm run migration:run
 #   or: node ./node_modules/typeorm/cli.js -d dist/db/data-source.js migration:run
