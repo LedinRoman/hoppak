@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 import { Player } from './player.entity';
 import { PlayerRun } from './player-run.entity';
-import { PlayerTelegram } from './player-telegram.entity';
 import { PlayerGeo } from './player-geo.entity';
 import { RunStart } from './run-start.entity';
 import { RulesPlausibility } from './rules-plausibility.entity';
@@ -31,6 +30,7 @@ export type PublicProfile = {
   migratedAt: string | null;
   createdAt: string;
   telegramId: string | null;
+  displayName: string;
 };
 
 @Injectable()
@@ -41,7 +41,6 @@ export class ProfileService {
   constructor(
     @Optional() @InjectRepository(Player) private readonly players?: Repository<Player>,
     @Optional() @InjectRepository(PlayerRun) private readonly runs?: Repository<PlayerRun>,
-    @Optional() @InjectRepository(PlayerTelegram) private readonly telegrams?: Repository<PlayerTelegram>,
     @Optional() @InjectRepository(PlayerGeo) private readonly geos?: Repository<PlayerGeo>,
     @Optional() @InjectRepository(RunStart) private readonly starts?: Repository<RunStart>,
     @Optional() @InjectRepository(RulesPlausibility) private readonly rules?: Repository<RulesPlausibility>,
@@ -69,6 +68,7 @@ export class ProfileService {
       migratedAt: p.migratedAt ? p.migratedAt.toISOString() : null,
       createdAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
       telegramId: p.telegramId ? String(p.telegramId) : null,
+      displayName: displayName(p.tg?.firstName ?? null, p.tg?.username ?? null, p.id),
     };
   }
 
@@ -93,7 +93,12 @@ export class ProfileService {
     if (cur) return cur;
     const prev = await repo.findOne({ where: { auth: { previousTokenHash: hash } } });
     if (prev && opts?.allowPrevious) return prev;
-    if (prev) throw new HttpException({ ok: false, error: 'SESSION_REPLACED' }, HttpStatus.UNAUTHORIZED);
+    if (prev) {
+      throw new HttpException(
+        { ok: false, error: 'DEVICE_REPLACED', profile: this.toPublic(prev) },
+        HttpStatus.CONFLICT,
+      );
+    }
     throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
   }
 
@@ -178,6 +183,8 @@ export class ProfileService {
     rawMap?: unknown,
     rawHero?: unknown,
     rawVer?: unknown,
+    rawCause?: unknown,
+    rawMode?: unknown,
   ): Promise<{ awarded: number; profile: PublicProfile; limited?: string; duplicate?: boolean }> {
     const repo = this.requireDb();
     const runId = sanitizeRunId(rawRunId);
@@ -204,10 +211,11 @@ export class ProfileService {
       const claimedC = Math.max(0, Math.floor(Number(runCoins) || 0));
       const claimedB = Math.max(0, Math.floor(Number(bonusCoins) || 0));
       const mapIdEarly = typeof rawMap === 'string' && (MAP_IDS as readonly string[]).indexOf(rawMap) >= 0 ? rawMap : 'city';
-      const over = await this.plausibilityBreach(
-        susRepo, startRepo, fresh.id, runId || '', mapIdEarly, claimedH, claimedC, claimedB, rawHero, rawVer,
+      const finishedAt = new Date();
+      const elapsed = await this.checkRunPlausibility(
+        susRepo, startRepo, fresh.id, runId || '', mapIdEarly, claimedH, claimedC, claimedB, rawHero, rawVer, finishedAt,
       );
-      if (over) {
+      if (elapsed === null) {
         if (runId && runRepo) {
           try { await runRepo.insert(runRepo.create({ playerId: fresh.id, runId, awarded: 0 })); }
           catch (err: any) {
@@ -225,7 +233,20 @@ export class ProfileService {
       const h = clamp(claimedH, 0, RUN_HEIGHT_MAX);
 
       if (runId && runRepo) {
-        const rec = runRepo.create({ playerId: fresh.id, runId, awarded });
+        const rec = runRepo.create({
+          playerId: fresh.id,
+          runId,
+          awarded,
+          heightM: h,
+          cause: typeof rawCause === 'string' && /^(?:fall|shot|hole|left|exit|mob:[a-z0-9_-]{1,28})$/.test(rawCause)
+            ? rawCause : null,
+          map: mapIdEarly,
+          hero: clamp(Math.floor(Number(rawHero) || 0), 0, 5),
+          mode: rawMode === 'solo' || rawMode === 'squad' || rawMode === 'online' ? rawMode : null,
+          durationS: Math.floor(elapsed),
+          clientVersion: typeof rawVer === 'string' ? Array.from(rawVer.replace(/\0/g, '')).slice(0, 16).join('') : null,
+          finishedAt,
+        });
         try {
           await runRepo.insert(rec);
         } catch (err: any) {
@@ -330,17 +351,15 @@ export class ProfileService {
     return next;
   }
 
-  private async saveTelegram(playerId: string, tg: VerifiedTelegramInitData) {
-    if (!this.telegrams || !playerId) return;
-    const row = await this.telegrams.findOne({ where: { playerId } });
-    if (!row) return; /* the row is created with the link inside the auth transaction */
-    row.username = tg.username;
-    row.firstName = tg.firstName;
-    row.lastName = tg.lastName;
-    row.language = tg.languageCode;
-    row.isPremium = tg.isPremium;
-    row.updatedAt = new Date();
-    await this.telegrams.save(row);
+  private updateTelegram(player: Player, tg: VerifiedTelegramInitData) {
+    Object.assign(player.tg!, {
+      username: tg.username,
+      firstName: tg.firstName,
+      lastName: tg.lastName,
+      language: tg.languageCode,
+      isPremium: tg.isPremium,
+      updatedAt: new Date(),
+    });
   }
 
   async authTelegram(
@@ -354,27 +373,30 @@ export class ProfileService {
     }
     const verified = parseAndVerifyInitData(initData, botToken);
     const { telegramId } = verified;
+    const tokenHash = guestToken ? hashToken(guestToken) : null;
 
     const execute = async (playerRepo: Repository<Player>) => {
       const foundTg = await playerRepo.findOne({ where: { tg: { telegramId } } });
-      const foundGuest = guestToken
-        ? await playerRepo.findOne({ where: { auth: { tokenHash: hashToken(guestToken) } } })
+      const foundGuest = tokenHash
+        ? await playerRepo.findOne({ where: { auth: { tokenHash } } })
         : null;
       const locked = await this.lockByIds(
         playerRepo,
         [foundTg && foundTg.id, foundGuest && foundGuest.id].filter(Boolean) as string[],
       );
       const existingByTg = (foundTg && locked.get(foundTg.id)) || foundTg || null;
-      const guest = (foundGuest && locked.get(foundGuest.id)) || foundGuest || null;
+      const candidate = foundGuest && locked.get(foundGuest.id);
+      const guest = candidate?.guestTokenHash === tokenHash ? candidate : null;
 
       if (guest && guest.telegramId && String(guest.telegramId) !== String(telegramId)) {
         throw new HttpException({ ok: false, error: 'GUEST_ALREADY_LINKED' }, HttpStatus.CONFLICT);
       }
 
       if (existingByTg) {
+        this.updateTelegram(existingByTg, verified);
         if (guest && guest.id === existingByTg.id && guestToken) {
           await playerRepo.save(existingByTg);
-          return { token: guestToken, profile: this.toPublic(existingByTg), linked: false, playerId: existingByTg.id, kicked: false };
+          return { token: guestToken, profile: this.toPublic(existingByTg), linked: false, playerId: existingByTg.id, replacedSession: null };
         }
         if (guest && guest.id !== existingByTg.id && !guest.telegramId && !guest.mergedInto) {
           const mergedCoins = this.applyMerge(existingByTg, guest);
@@ -389,12 +411,12 @@ export class ProfileService {
             merged: true,
             mergedCoins,
             playerId: existingByTg.id,
-            kicked: true,
+            replacedSession: existingByTg.previousTokenHash,
           };
         }
         const nextToken = this.rotateSession(existingByTg);
         await playerRepo.save(existingByTg);
-        return { token: nextToken, profile: this.toPublic(existingByTg), linked: false, playerId: existingByTg.id, kicked: true };
+        return { token: nextToken, profile: this.toPublic(existingByTg), linked: false, playerId: existingByTg.id, replacedSession: existingByTg.previousTokenHash };
       }
 
       if (guest) {
@@ -403,14 +425,16 @@ export class ProfileService {
         }
         guest.telegramId = telegramId;
         guest.telegramLinkedAt = new Date();
+        this.updateTelegram(guest, verified);
         await playerRepo.save(guest);
-        return { token: guestToken!, profile: this.toPublic(guest), linked: true, playerId: guest.id, kicked: false };
+        return { token: guestToken!, profile: this.toPublic(guest), linked: true, playerId: guest.id, replacedSession: null };
       }
 
       const token = newGuestToken();
       const created = Player.make({ guestTokenHash: hashToken(token), telegramId });
+      this.updateTelegram(created, verified);
       await playerRepo.save(created);
-      return { token, profile: this.toPublic(created), linked: true, playerId: created.id, kicked: false };
+      return { token, profile: this.toPublic(created), linked: true, playerId: created.id, replacedSession: null };
     };
 
     const run = async () => {
@@ -420,15 +444,14 @@ export class ProfileService {
       return execute(repo);
     };
     const result = await run();
-    try { await this.saveTelegram(result.playerId, verified); } catch (err) { console.error('telegram profile write failed'); }
-    if (result.kicked) {
+    if (result.replacedSession) {
       /* Visible in the logs: which account's older tokens were just invalidated (ids shortened, no tokens). */
-      console.log(`tg login: account ${String(result.playerId).slice(0, 8)} took over by a new session${result.merged ? ' (guest merged)' : ''}; older tokens now SESSION_REPLACED`);
+      console.log(`tg login: account ${String(result.playerId).slice(0, 8)} took over by a new session${result.merged ? ' (guest merged)' : ''}; prior session replaced`);
       const sessionId = hashToken(result.token);
-      kickAccount(result.playerId, sessionId);
-      publishAccountKick(result.playerId, sessionId);
+      kickAccount(result.playerId, sessionId, result.replacedSession);
+      publishAccountKick(result.playerId, sessionId, result.replacedSession);
     }
-    const { playerId: _id, kicked: _k, ...rest } = result;
+    const { playerId: _id, replacedSession: _old, ...rest } = result;
     return rest;
   }
 
@@ -489,13 +512,9 @@ export class ProfileService {
     if (!runId || !this.starts) return;
     const map = typeof rawMap === 'string' && (MAP_IDS as readonly string[]).indexOf(rawMap) >= 0 ? rawMap : 'city';
     const hero = Math.max(0, Math.min(5, Math.floor(Number(rawHero) || 0)));
-    try {
-      const existing = await this.starts.findOne({ where: { playerId: p.id, runId } });
-      if (existing) return;
-      await this.starts.save(this.starts.create({ playerId: p.id, runId, map, hero, startedAt: new Date() }));
-    } catch (err) {
-      console.error('run start write failed');
-    }
+    await this.starts.createQueryBuilder().insert().values({
+      playerId: p.id, runId, map, hero, startedAt: new Date(),
+    }).orIgnore().execute();
   }
 
   private async loadRules(): Promise<PlausRule[]> {
@@ -530,16 +549,16 @@ export class ProfileService {
   }
 
   /**
-   * True when the finish must not be paid. Missing runId or server start is a reject,
+   * Return server elapsed seconds for a payable run, or null for a rejected finish. Missing runId or server start is a reject,
    * same as a claim over the ceiling. The suspicious row is written on `susRepo`,
    * which is the finish transaction when one is open.
    */
-  private async plausibilityBreach(
+  private async checkRunPlausibility(
     susRepo: Repository<SuspiciousRun> | undefined,
     startRepo: Repository<RunStart> | undefined,
     playerId: string, runId: string, map: string,
-    height: number, coins: number, bonusCoins: number, rawHero: unknown, rawVer: unknown,
-  ): Promise<boolean> {
+    height: number, coins: number, bonusCoins: number, rawHero: unknown, rawVer: unknown, finishedAt: Date,
+  ): Promise<number | null> {
     const treasures = Math.ceil(Math.max(0, bonusCoins) / 25);
     const hero = Math.max(0, Math.min(5, Math.floor(Number(rawHero) || 0)));
     const ver = String(rawVer || '').slice(0, 16);
@@ -570,7 +589,7 @@ export class ProfileService {
           console.error('suspicious_runs write failed');
         }
       }
-      return true;
+      return null;
     };
 
     if (!runId) return reject('NO_RUN_ID', 0);
@@ -584,7 +603,7 @@ export class ProfileService {
       return reject('NO_RUN_START', 0);
     }
     if (!started) return reject('NO_RUN_START', 0);
-    const duration = Math.max(0, (Date.now() - new Date(started).getTime()) / 1000);
+    const duration = Math.max(0, (finishedAt.getTime() - new Date(started).getTime()) / 1000);
     const rows = await this.loadRules();
     const rule = bucketFor(rows, map, duration) || bucketFor(plausBuckets(), map, duration);
     if (!rule) return reject('NO_RUN_START', duration);
@@ -592,7 +611,7 @@ export class ProfileService {
     if (height > rule.maxHeightM) reasons.push('height');
     if (coins > rule.maxCoins) reasons.push('coins');
     if (treasures > rule.maxTreasures || bonusCoins > rule.maxTreasures * 25) reasons.push('treasures');
-    if (!reasons.length) return false;
+    if (!reasons.length) return duration;
     return reject(reasons.join(','), duration, rule);
   }
 }

@@ -9,5 +9,6 @@ services:
       PORT: "8787"
       # Optional. When unset, rooms and /api/health work as before and the DB module is not loaded.
       DATABASE_URL: ${DATABASE_URL:-}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     ports:
       - "127.0.0.1:8787:8787"   # nginx in front terminates TLS (see DEPLOY.md)

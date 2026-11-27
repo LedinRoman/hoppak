@@ -55,9 +55,9 @@ const login = (bearer) => call('POST', '/api/auth/telegram', { initData: initDat
   check('D got a new token', d.s === 201 && TD !== TP);
   await sleep(2500);
   const oldProf = await call('GET', '/api/profile', null, TP);
-  check('P menu: old token gets SESSION_REPLACED over HTTP', oldProf.s === 401 && oldProf.d.error === 'SESSION_REPLACED', { s: oldProf.s, e: oldProf.d && oldProf.d.error });
+  check('P menu: old token gets DEVICE_REPLACED and keeps its nickname', oldProf.s === 409 && oldProf.d.error === 'DEVICE_REPLACED' && oldProf.d.profile.displayName === 'KICK', { s: oldProf.s, e: oldProf.d && oldProf.d.error });
   const oldBeat = await call('POST', '/api/profile/seen', { v: 'x' }, TP);
-  check('P heartbeat with the replaced token gets SESSION_REPLACED (first device learns within one beat)', oldBeat.s === 401 && oldBeat.d.error === 'SESSION_REPLACED', { s: oldBeat.s });
+  check('P heartbeat with the replaced token gets DEVICE_REPLACED (first device learns within one beat)', oldBeat.s === 409 && oldBeat.d.error === 'DEVICE_REPLACED', { s: oldBeat.s });
   check('P room: socket told "replaced" and closed 4001', (sp2.events.includes('replaced')) && sp2.closed === 4001, { closed: sp2.closed });
   // P (stale token, e.g. a suspended phone app) tries to enter multiplayer anyway: refused, no seat
   const stale = await sock('create', TP);
@@ -70,12 +70,13 @@ const login = (bearer) => call('POST', '/api/auth/telegram', { initData: initDat
   const sd2 = await sock('create', TD); // same device, another room attempt on same token: allowed (another tab)
   await sleep(500);
   check('D is not kicked by its own second tab', !sd.events.includes('replaced') && sd.closed === null);
-  // a third device kicks D from the room
-  const e = await login(); const TE = e.d.token;
+  // P explicitly switches back using its replaced token.
+  const e = await login(TP); const TE = e.d.token;
+  check('P can explicitly switch back with the same profile', e.s === 201 && TE !== TP && e.d.profile.id === p.d.profile.id);
   await sleep(2500);
-  check('D (in a room) is kicked when a third device logs in', sd.events.includes('replaced') && sd.closed === 4001, { closed: sd.closed });
+  check('D (in a room) is kicked when P switches back', sd.events.includes('replaced') && sd.closed === 4001, { closed: sd.closed });
   const se = await sock('create', TE);
-  check('E enters and is not kicked', !!se.room && !se.events.includes('replaced'));
+  check('P enters with the new token and is not kicked', !!se.room && !se.events.includes('replaced'));
   [sp, sp2, stale, stale2, sd, sd2, se].forEach((s) => { try { s.ws.send(JSON.stringify({ event: 'leave', data: {} })); s.ws.close(); } catch (er) {} });
   console.log(fails ? 'KICK E2E FAIL (' + fails + ')' : 'KICK E2E OK');
   setTimeout(() => process.exit(fails ? 1 : 0), 300);

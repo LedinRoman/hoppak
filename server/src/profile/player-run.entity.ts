@@ -13,4 +13,28 @@ export class PlayerRun {
 
   @Column({ name: 'created_at', type: 'timestamptz', default: () => 'now()', comment: 'timestamptz создания записи, по умолчанию now().' })
   createdAt: Date;
+
+  @Column({ name: 'height_m', type: 'int', nullable: true })
+  heightM: number | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  cause: string | null;
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  map: string | null;
+
+  @Column({ type: 'smallint', nullable: true })
+  hero: number | null;
+
+  @Column({ type: 'varchar', length: 8, nullable: true })
+  mode: string | null;
+
+  @Column({ name: 'duration_s', type: 'int', nullable: true })
+  durationS: number | null;
+
+  @Column({ name: 'client_version', type: 'varchar', length: 16, nullable: true })
+  clientVersion: string | null;
+
+  @Column({ name: 'finished_at', type: 'timestamptz', nullable: true })
+  finishedAt: Date | null;
 }

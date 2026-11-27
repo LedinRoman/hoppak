@@ -6,11 +6,11 @@ import { kickAccount } from './session-kick';
  * Profile and the game sockets run in different processes. A new login NOTIFYs
  * `account_kick`; every game process LISTENs and closes that account's old sockets.
  */
-let publishFn: (playerId: string, sessionId: string) => Promise<void> = async () => {};
+let publishFn: (playerId: string, sessionId: string, replacedSession: string) => Promise<void> = async () => {};
 
-export function publishAccountKick(playerId: string, sessionId: string) {
+export function publishAccountKick(playerId: string, sessionId: string, replacedSession: string) {
   if (!playerId || !sessionId) return;
-  publishFn(playerId, sessionId).catch(() => console.error('account_kick notify failed'));
+  publishFn(playerId, sessionId, replacedSession).catch(() => console.error('account_kick notify failed'));
 }
 
 @Injectable()
@@ -22,7 +22,7 @@ export class AccountKickBus implements OnModuleInit, OnModuleDestroy {
   private connecting = false;
 
   onModuleInit() {
-    publishFn = (playerId, sessionId) => this.notify(playerId, sessionId);
+    publishFn = (playerId, sessionId, replacedSession) => this.notify(playerId, sessionId, replacedSession);
     void this.connect();
   }
 
@@ -59,7 +59,11 @@ export class AccountKickBus implements OnModuleInit, OnModuleDestroy {
       try {
         const body = JSON.parse(msg.payload);
         if (body && body.playerId) {
-          kickAccount(String(body.playerId), body.sessionId ? String(body.sessionId) : undefined);
+          kickAccount(
+            String(body.playerId),
+            body.sessionId ? String(body.sessionId) : undefined,
+            body.replacedSession ? String(body.replacedSession) : undefined,
+          );
         }
       } catch {
         console.error('account_kick payload');
@@ -91,12 +95,12 @@ export class AccountKickBus implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async notify(playerId: string, sessionId: string) {
+  private async notify(playerId: string, sessionId: string, replacedSession: string) {
     if (!process.env.DATABASE_URL) return;
     const c = new Client({ connectionString: process.env.DATABASE_URL });
     await c.connect();
     try {
-      await c.query('SELECT pg_notify($1, $2)', ['account_kick', JSON.stringify({ playerId, sessionId })]);
+      await c.query('SELECT pg_notify($1, $2)', ['account_kick', JSON.stringify({ playerId, sessionId, replacedSession })]);
     } finally {
       await c.end().catch(() => {});
     }
