@@ -1140,9 +1140,49 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (spr && typeof HERO64 !== "undefined" && HERO64[id]) return (spr.naturalHeight || spr.height) * 0.5 * sc;
     return SPR_CH * sc;
   }
+  function heroCellH() {
+    var sprH = 0;
+    try {
+      var spr = heroSprite((CHARS[save.char] || CHARS[0]).id);
+      if (spr) sprH = spr.naturalHeight || spr.height || 0;
+    } catch (_e) {}
+    if (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.h) return Math.max(ART64.cell.h, sprH);
+    return sprH || 68;
+  }
+  /* Canvas scale in device px per game px (drawJumper's fine path uses getTransform().a). */
+  function menuScaleA() {
+    var mt: any = ctx.getTransform ? ctx.getTransform() : null;
+    if (mt && mt.a > 0) return mt.a;
+    return pScale || ((cssScale || 1) * Math.max(1, (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1));
+  }
+  /* Pick the largest whole device-px-per-art-px size that still leaves a visible jump (minHop)
+     inside budget. Prefer a readable hero (do not spend the whole budget on hop and leave a speck)
+     and cap hop at 26, the start-screen amplitude. Same k rounding as drawJumper(..., fine). */
+  function heroFitHop(budget: number) {
+    var a = menuScaleA(), fh = heroCellH();
+    var kCap = Math.max(1, Math.round(a * 0.5 * 2));
+    function hh(k: number) { return fh * k / a; }
+    var minHop = 16, targetHop = 26;
+    var k = kCap;
+    while (k > 1 && hh(k) + minHop > budget) k--;
+    /* Prefer a readable hero: k=2 with a 12 px hop beats a 10 px speck with a 26 px hop. */
+    if (k === 1 && kCap >= 2 && hh(2) + 10 <= budget) k = 2;
+    var hop = Math.min(targetHop, Math.max(0, budget - hh(k)));
+    if (hop < 8) hop = Math.max(8, budget - hh(k));
+    return { sc: (2 * k) / a, k: k, h: hh(k), hop: hop };
+  }
+  function heroFit(budget: number, roomHop: number) {
+    var r = heroFitHop(Math.max(0, budget));
+    if (roomHop > r.hop && r.k > 1) {
+      var r2 = heroFitHop(budget); /* already prefers minHop=16 */
+      return r2;
+    }
+    return r;
+  }
+  var lastHop: any = { where: "", hop: 0, room: 0, sc: 2, k: 1, h: 0, platY: 0, budget: 0 };
   function menuFrame() {
     var top = menuTop();
-    var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
+    var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
     /* ИГРАТЬ keeps the prod 34px button and at least 10px of air. Squeeze the logo and the grid, not these gaps. */
     var playGap = 10, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
     var logoSc = 3;
@@ -1155,17 +1195,24 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var tagY = logoY + 7 * logoSc + 4;
       var tagBot = tagY + 9;
       var platY = pickY - 8;
-      var heroVis = heroArtH((CHARS[save.char] || CHARS[0]).id, 2);
-      var heroTop = platY - heroVis - 10;
-      return { tabY: tabY, gridY: gridY, playY: playY, pickY: pickY, logoY: logoY, tagY: tagY, tagBot: tagBot, platY: platY, heroTop: heroTop };
+      return { tabY: tabY, gridY: gridY, playY: playY, pickY: pickY, logoY: logoY, tagY: tagY, tagBot: tagBot, platY: platY };
     }
     var L = stack();
-    if (L.heroTop < L.tagBot + 4) { logoSc = 2; L = stack(); }
-    if (L.heroTop < L.tagBot + 4) { gridGap = 2; pickH = 16; L = stack(); }
-    if (L.heroTop < L.tagBot + 2) L.heroTop = L.tagBot + 2;
+    /* Need a real jump (the hero must leave the ground), not just pose frames in place.
+       Telegram safe-area + content-safe-area insets on a phone used to leave platY - cellH
+       <= tagBot, so demoHop's room was clamped to 0. Squeeze the logo/grid first, then
+       shrink the hero to a smaller whole device-px size rather than killing the hop. */
+    function gap() { return L.platY - (L.tagBot + 2); }
+    function need() { var f = heroFitHop(1000); return f.h + 26; }
+    if (gap() < need()) { logoSc = 2; L = stack(); }
+    if (gap() < need()) { gridGap = 2; pickH = 16; L = stack(); }
+    var g = Math.max(16, gap());
+    var fit = heroFitHop(g);
+    var hopRoom = fit.hop;
     return {
       top: top, bot: bot, logoY: L.logoY, logoSc: logoSc, tagY: L.tagY, tagBot: L.tagBot,
-      platY: L.platY, heroTop: L.heroTop, pickY: L.pickY, pickH: pickH, playY: L.playY, playH: playH,
+      platY: L.platY, heroTop: L.platY - fit.h - hopRoom, heroSc: fit.sc, heroK: fit.k, heroH: fit.h, hopRoom: hopRoom,
+      pickY: L.pickY, pickH: pickH, playY: L.playY, playH: playH,
       gridY: L.gridY, gridH: gridH, gridGap: gridGap, tabY: L.tabY, tabH: tabH, playGap: playGap
     };
   }
@@ -1191,11 +1238,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var platY = L.platY;
     rect(ctx, LW / 2 - 28, platY, 56, 5, C.wood); rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD); rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
     var heroId = (CHARS[save.char] || CHARS[0]).id;
-    var heroVis = heroArtH(heroId, 2);
-    var mh = demoHop(lookNow(), Math.min(26, Math.max(0, platY - heroVis - (L.tagBot + 2)))), hop = mh.hop, pose = mh.pose;
-    var heroY = platY - 32 - hop;
-    drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, 2), heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2, true);
-    markBox("hero", LW / 2 - 18, platY - hop - heroVis, 36, heroVis);
+    var mh = demoHop(lookNow(), L.hopRoom), hop = mh.hop, pose = mh.pose;
+    var heroY = platY - 16 * L.heroSc - hop;
+    drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, L.heroSc), heroY, lookNow(), 1, pose, ui % 170 < 6, true, L.heroSc, true);
+    lastHop = { where: "menu", hop: hop, room: L.hopRoom, sc: L.heroSc, k: L.heroK, h: L.heroH, platY: platY, budget: platY - (L.tagBot + 2) };
+    markBox("hero", LW / 2 - 18, platY - hop - L.heroH, 36, L.heroH);
     markBox("plat", LW / 2 - 28, platY, 56, 7);
     var pickW = 120;
     btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", "ВЫБРАТЬ ГЕРОЯ", C.cream, 1, C.gold);
@@ -1280,8 +1327,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBg(ctx, MENU_CAM(), ui, save.bg, true);
     dimView(ctx, "rgba(18,14,44,0.32)");
     var x = colX();
-    var hdShop = header("МАГАЗИН", 2);
-    var pw = 34, gap = 4, cols = 3, rows = 2;
+    /* If the card would be too short for a readable jumping hero, tighten the title and grid first. */
+    var shopBotPeek = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
+    var backPeek = LH - 34 - shopBotPeek;
+    var y0est = belowBand() + (7 * 2 + 10) + 4 + (34 * 2 + 4) + 4;
+    var tightShop = backPeek - 6 - y0est < 140;
+    var hdShop = header("МАГАЗИН", tightShop ? 1 : 2);
+    var pw = 34, gap = tightShop ? 2 : 4, cols = 3, rows = 2;
     var sx = Math.round(LW / 2 - (cols * pw + (cols - 1) * gap) / 2);
     var heroY = hdShop.bottom + 4;
     markBox("heroes", sx, heroY, cols * pw + (cols - 1) * gap, rows * pw + (rows - 1) * gap);
@@ -1301,40 +1353,56 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
     }
     var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
-    var y0 = heroY + rows * pw + (rows - 1) * gap + 4, ch = LH - y0 - 38;
+    var shopBot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
+    var backY = LH - 34 - shopBot;
+    var y0 = heroY + rows * pw + (rows - 1) * gap + 4, ch = Math.max(90, backY - 6 - y0);
     markBox("card", x, y0, 152, ch);
     box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
-    /* Text block (name → charge line) is mid+16 … mid+85; the act button needs 22 px + 4 px air above it.
-       If the card is short (TG safe-area, 360 wide), drop the bouncing hero first: the portrait above shows it. */
-    var btnH = 22, btnPad = 6;
-    var textBot = 85;
-    var shopVis = heroArtH(H2.id, 2);
-    var reserved = textBot + 4 + btnH + btnPad;
-    var heroRoom = ch - reserved;
-    var showHero = heroRoom >= 48;
-    var mid = showHero ? y0 + heroRoom - 8 : y0 - 10;
-    if (showHero) {
-      rect(ctx, x + 40, mid + 8, 72, 4, C.wood); rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
-      var mh = demoHop(makeLook(i, save.color, save.hat), Math.min(14, Math.max(0, mid + 8 - shopVis - (y0 + 1)))), pose = mh.pose, hop = mh.hop;
-      if ((menuNow() % 4300) > 3440) { pose = "ability"; hop = 6; }
-      var hopMax = Math.max(0, mid + 8 - shopVis - (y0 + 1));
-      if (hop > hopMax) hop = hopMax;
-      drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2, true);
+    /* Always show the jumping hero (same demoHop as the start screen). Reserve a real hop first,
+       then pick the largest whole device-px size that stays inside the card, including tall sprites
+       (robot dome, mage staff) after drawJumper's rounded k. Never drop the hero or clamp hop to 0
+       the way the old "if the card is short, hide it" / shopVis=cell path did on Telegram phones. */
+    var btnH = 22, btnPad = 6, platH = 8;
+    var textH = 69; /* name → charge; shrink only if the card would leave no jump room */
+    var chrome = 4 + btnH + btnPad + platH + 2;
+    var minBand = 16 + heroFitHop(40).h + 2;
+    if (ch - textH - chrome < minBand) textH = Math.max(52, ch - chrome - minBand);
+    var byb = y0 + ch - btnH - btnPad;
+    var textTop = byb - 4 - textH;
+    var platTop = textTop - platH;
+    var budget = platTop - (y0 + 1);
+    if (budget < 24) {
+      /* last resort: pull the text block down into the button pad and shrink textH */
+      textH = Math.max(52, textH - (24 - Math.max(0, budget)));
+      textTop = byb - 4 - textH;
+      platTop = textTop - platH;
+      budget = platTop - (y0 + 1);
     }
-    drawText(ctx, H2.name, LW / 2, mid + 16, C.cream, 2, "center");
+    var fit = heroFitHop(Math.max(16, budget));
+    var hopRoom = fit.hop;
+    if (fit.h + hopRoom > budget && budget > 0) hopRoom = Math.max(8, budget - fit.h);
+    rect(ctx, x + 40, platTop, 72, 4, C.wood); rect(ctx, x + 40, platTop, 72, 1, C.edge);
+    var mh = demoHop(makeLook(i, save.color, save.hat), hopRoom), pose = mh.pose, hop = mh.hop;
+    if (hop > hopRoom) hop = hopRoom;
+    drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, fit.sc), platTop - 16 * fit.sc - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, fit.sc, true);
+    lastHop = { where: "shop", hop: hop, room: hopRoom, sc: fit.sc, k: fit.k, h: fit.h, platY: platTop, budget: budget };
+    var mid = textTop - 16;
+    var nameSc = textH < 62 ? 1 : 2;
+    var ny = textTop + (nameSc === 2 ? 0 : 2);
+    drawText(ctx, H2.name, LW / 2, ny, C.cream, nameSc, "center");
     var tw = textWidth(H2.abName, 1) + 10;
-    box(ctx, Math.round(LW / 2 - tw / 2), mid + 34, tw, 12, "#3a4ac8", C.cream);
-    drawText(ctx, H2.abName, LW / 2, mid + 37, C.cream, 1, "center");
-    drawText(ctx, H2.abDesc[0], LW / 2, mid + 52, C.cream, 1, "center");
-    drawText(ctx, H2.abDesc[1], LW / 2, mid + 62, C.cream, 1, "center");
-    drawChargeLine(LW / 2, mid + 76, H2, "#9a8ab8");
-    markBox("cardText", x + 4, mid + 16, 144, textBot - 16);
-    var byb = Math.max(y0 + ch - btnH - btnPad, mid + textBot + 4);
+    var by0 = ny + (nameSc === 2 ? 18 : 12);
+    box(ctx, Math.round(LW / 2 - tw / 2), by0, tw, 12, "#3a4ac8", C.cream);
+    drawText(ctx, H2.abName, LW / 2, by0 + 3, C.cream, 1, "center");
+    drawText(ctx, H2.abDesc[0], LW / 2, by0 + 16, C.cream, 1, "center");
+    drawText(ctx, H2.abDesc[1], LW / 2, by0 + 26, C.cream, 1, "center");
+    drawChargeLine(LW / 2, by0 + 40, H2, "#9a8ab8");
+    markBox("cardText", x + 4, textTop, 144, textH);
     markBox("cardBtn", x + 10, byb, 132, btnH);
     if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "ВЫБРАН", C.gold, 1, C.gold);
     else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "ВЫБРАТЬ", INK);
     else drawBuy("hero:act", x + 10, byb, 132, 22, H2.price);
-    btn("back", x + 26, LH - 34, 100, 22, C.navy, "НАЗАД");
+    btn("back", x + 26, backY, 100, 22, C.navy, "НАЗАД");
     drawFlash();
   }
   function bar(x: number, y: number, w: number, h: number, f: number, col: string) {
@@ -2009,7 +2077,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawBg(ctx, world.cameraY, ui, world.map);
     dimView(ctx, "rgba(18,14,44,0.36)");
     var x = colX();
-    var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
+    var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
     var hdRes = header("ИТОГИ", 2);
     var list = world.players.slice().sort(function (a: any, b: any) { return a.place - b.place; });
     var squad = world.mode === "squad";
@@ -2305,6 +2373,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       } else applyMaster();
     }
     if (document.hidden && phase === "play") paused = true;
+    if (!document.hidden) lockTgSwipes();
   }
   var envSide: any = {};
   var testInsetTop = 0;
@@ -2341,11 +2410,45 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     return envSide[side];
   }
   function insetTopCss() { return insetSideCss("top"); }
+  /* Bottom UI (tab bar, НАЗАД): only the system home-indicator inset.
+     contentSafeAreaInset.bottom is the Telegram pull-bar, which we disable;
+     counting it too left a huge empty band and crushed the shop hero. */
+  function insetBottomUiCss() {
+    var tov = (window as any).__hopTestInset;
+    if (tov && tov.bottomUi != null) return Number(tov.bottomUi) || 0;
+    if (tov && tov.bottom != null && tov.safeBottom == null) {
+      /* tests that pass a single bottom value: treat as the system bar if small, else cap */
+      var b = Number(tov.bottom) || 0;
+      return Math.min(b, 40);
+    }
+    try {
+      var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
+      if (tg && tg.safeAreaInset && tg.safeAreaInset.bottom != null) {
+        var sys = Number(tg.safeAreaInset.bottom) || 0;
+        if (sys > 0) return sys;
+      }
+    } catch (_e) {}
+    return insetSideCss("bottom");
+  }
   function edgePad(side: string) {
     return 5 + Math.round(insetSideCss(side) / Math.max(0.01, cssScale || 1));
   }
   function pauseBox() {
     return { x: LW - edgePad("right") - 22, y: hudY(0), w: 22, h: 22 };
+  }
+  /* Expand the Mini App and turn off Telegram's own swipe-to-collapse (the white bottom pull bar).
+     Version-guarded; does not touch the in-game upward swipe that fires the hero ability (onPtrMove).
+     Never logs initData or the token. */
+  function lockTgSwipes() {
+    try {
+      var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
+      if (!tg) return;
+      try { if (tg.expand) tg.expand(); } catch (_e1) {}
+      try {
+        var ok = !(tg.isVersionAtLeast) || tg.isVersionAtLeast("7.7");
+        if (ok && tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+      } catch (_e2) {}
+    } catch (_e3) {}
   }
   function bindTgInsets() {
     if (tgInsetBound) return;
@@ -2354,17 +2457,20 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (!tg) {
       if (w.__tgReady && w.__tgReady.then && !w.__hopInsetWait) {
         w.__hopInsetWait = true;
-        w.__tgReady.then(function () { bindTgInsets(); });
+        w.__tgReady.then(function () { bindTgInsets(); lockTgSwipes(); });
       }
       return;
     }
     tgInsetBound = true;
-    var bump = function () { resize(); };
+    lockTgSwipes();
+    var bump = function () { lockTgSwipes(); resize(); };
     try {
       if (tg.onEvent) {
         tg.onEvent("safeAreaChanged", bump);
         tg.onEvent("contentSafeAreaChanged", bump);
         tg.onEvent("fullscreenChanged", bump);
+        tg.onEvent("viewportChanged", bump);
+        tg.onEvent("activated", bump);
       }
     } catch (_e) {}
     try {
@@ -2439,6 +2545,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     getSave: function () { return save; },
     getFlash: function () { return flash; },
     getSize: function () { return { lw: LW, lh: LH, scale: SCALE, pScale: pScale, pScaleY: pScaleY, cssScale: cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide: isWide, isPhone: isPhone, phoneLand: phoneLand, paused: paused, landPause: landPause, manualPause: manualPause, resumeCd: resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, viewTopPad: VIEW_TOPPAD, hudInset: HUD_INSET, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H }; },
+    hopInfo: function () { return lastHop; },
     tap: function (id: string) { activate(id); },
     audioUnlock: function () { audioUnlock(); },
     sfxPlay: function (k: string) { hopSfx(k); },

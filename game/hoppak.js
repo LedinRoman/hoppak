@@ -7946,9 +7946,47 @@
       if (spr && typeof HERO64 !== "undefined" && HERO64[id]) return (spr.naturalHeight || spr.height) * 0.5 * sc;
       return SPR_CH * sc;
     }
+    function heroCellH() {
+      var sprH = 0;
+      try {
+        var spr = heroSprite((CHARS[save.char] || CHARS[0]).id);
+        if (spr) sprH = spr.naturalHeight || spr.height || 0;
+      } catch (_e) {
+      }
+      if (typeof ART64 !== "undefined" && ART64.cell && ART64.cell.h) return Math.max(ART64.cell.h, sprH);
+      return sprH || 68;
+    }
+    function menuScaleA() {
+      var mt = ctx.getTransform ? ctx.getTransform() : null;
+      if (mt && mt.a > 0) return mt.a;
+      return pScale || (cssScale || 1) * Math.max(1, (typeof window !== "undefined" ? window.devicePixelRatio : 1) || 1);
+    }
+    function heroFitHop(budget) {
+      var a2 = menuScaleA(), fh = heroCellH();
+      var kCap = Math.max(1, Math.round(a2 * 0.5 * 2));
+      function hh(k2) {
+        return fh * k2 / a2;
+      }
+      var minHop = 16, targetHop = 26;
+      var k = kCap;
+      while (k > 1 && hh(k) + minHop > budget) k--;
+      if (k === 1 && kCap >= 2 && hh(2) + 10 <= budget) k = 2;
+      var hop = Math.min(targetHop, Math.max(0, budget - hh(k)));
+      if (hop < 8) hop = Math.max(8, budget - hh(k));
+      return { sc: 2 * k / a2, k, h: hh(k), hop };
+    }
+    function heroFit(budget, roomHop) {
+      var r = heroFitHop(Math.max(0, budget));
+      if (roomHop > r.hop && r.k > 1) {
+        var r2 = heroFitHop(budget);
+        return r2;
+      }
+      return r;
+    }
+    var lastHop = { where: "", hop: 0, room: 0, sc: 2, k: 1, h: 0, platY: 0, budget: 0 };
     function menuFrame() {
       var top = menuTop();
-      var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
+      var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
       var playGap = 10, playH = 34, pickH = 18, gridH = 26, tabH = 36, gridGap = 4;
       var logoSc = 3;
       function stack() {
@@ -7960,21 +7998,28 @@
         var tagY = logoY + 7 * logoSc + 4;
         var tagBot = tagY + 9;
         var platY = pickY - 8;
-        var heroVis = heroArtH((CHARS[save.char] || CHARS[0]).id, 2);
-        var heroTop = platY - heroVis - 10;
-        return { tabY, gridY, playY, pickY, logoY, tagY, tagBot, platY, heroTop };
+        return { tabY, gridY, playY, pickY, logoY, tagY, tagBot, platY };
       }
       var L = stack();
-      if (L.heroTop < L.tagBot + 4) {
+      function gap() {
+        return L.platY - (L.tagBot + 2);
+      }
+      function need() {
+        var f = heroFitHop(1e3);
+        return f.h + 26;
+      }
+      if (gap() < need()) {
         logoSc = 2;
         L = stack();
       }
-      if (L.heroTop < L.tagBot + 4) {
+      if (gap() < need()) {
         gridGap = 2;
         pickH = 16;
         L = stack();
       }
-      if (L.heroTop < L.tagBot + 2) L.heroTop = L.tagBot + 2;
+      var g = Math.max(16, gap());
+      var fit = heroFitHop(g);
+      var hopRoom = fit.hop;
       return {
         top,
         bot,
@@ -7983,7 +8028,11 @@
         tagY: L.tagY,
         tagBot: L.tagBot,
         platY: L.platY,
-        heroTop: L.heroTop,
+        heroTop: L.platY - fit.h - hopRoom,
+        heroSc: fit.sc,
+        heroK: fit.k,
+        heroH: fit.h,
+        hopRoom,
         pickY: L.pickY,
         pickH,
         playY: L.playY,
@@ -8020,11 +8069,11 @@
       rect(ctx, LW / 2 - 28, platY + 4, 56, 2, C.woodD);
       rect(ctx, LW / 2 - 28, platY, 56, 1, C.edge);
       var heroId = (CHARS[save.char] || CHARS[0]).id;
-      var heroVis = heroArtH(heroId, 2);
-      var mh = demoHop(lookNow(), Math.min(26, Math.max(0, platY - heroVis - (L.tagBot + 2)))), hop = mh.hop, pose = mh.pose;
-      var heroY = platY - 32 - hop;
-      drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, 2), heroY, lookNow(), 1, pose, ui % 170 < 6, true, 2, true);
-      markBox("hero", LW / 2 - 18, platY - hop - heroVis, 36, heroVis);
+      var mh = demoHop(lookNow(), L.hopRoom), hop = mh.hop, pose = mh.pose;
+      var heroY = platY - 16 * L.heroSc - hop;
+      drawJumper(ctx, jumperXForCenter(LW / 2, heroId, pose, L.heroSc), heroY, lookNow(), 1, pose, ui % 170 < 6, true, L.heroSc, true);
+      lastHop = { where: "menu", hop, room: L.hopRoom, sc: L.heroSc, k: L.heroK, h: L.heroH, platY, budget: platY - (L.tagBot + 2) };
+      markBox("hero", LW / 2 - 18, platY - hop - L.heroH, 36, L.heroH);
       markBox("plat", LW / 2 - 28, platY, 56, 7);
       var pickW = 120;
       btn("hero:menu", x + Math.round((152 - pickW) / 2), L.pickY, pickW, L.pickH, "#1a1430", "\u0412\u042B\u0411\u0420\u0410\u0422\u042C \u0413\u0415\u0420\u041E\u042F", C.cream, 1, C.gold);
@@ -8114,8 +8163,12 @@
       drawBg(ctx, MENU_CAM(), ui, save.bg, true);
       dimView(ctx, "rgba(18,14,44,0.32)");
       var x = colX();
-      var hdShop = header("\u041C\u0410\u0413\u0410\u0417\u0418\u041D", 2);
-      var pw = 34, gap = 4, cols = 3, rows = 2;
+      var shopBotPeek = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
+      var backPeek = LH - 34 - shopBotPeek;
+      var y0est = belowBand() + (7 * 2 + 10) + 4 + (34 * 2 + 4) + 4;
+      var tightShop = backPeek - 6 - y0est < 140;
+      var hdShop = header("\u041C\u0410\u0413\u0410\u0417\u0418\u041D", tightShop ? 1 : 2);
+      var pw = 34, gap = tightShop ? 2 : 4, cols = 3, rows = 2;
       var sx = Math.round(LW / 2 - (cols * pw + (cols - 1) * gap) / 2);
       var heroY = hdShop.bottom + 4;
       markBox("heroes", sx, heroY, cols * pw + (cols - 1) * gap, rows * pw + (rows - 1) * gap);
@@ -8137,42 +8190,52 @@
         }
       }
       var i = shopHero, H2 = CHARS[i], own2 = heroOwned(i), on2 = save.char === i;
-      var y0 = heroY + rows * pw + (rows - 1) * gap + 4, ch = LH - y0 - 38;
+      var shopBot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
+      var backY = LH - 34 - shopBot;
+      var y0 = heroY + rows * pw + (rows - 1) * gap + 4, ch = Math.max(90, backY - 6 - y0);
       markBox("card", x, y0, 152, ch);
       box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
-      var btnH = 22, btnPad = 6;
-      var textBot = 85;
-      var shopVis = heroArtH(H2.id, 2);
-      var reserved = textBot + 4 + btnH + btnPad;
-      var heroRoom = ch - reserved;
-      var showHero = heroRoom >= 48;
-      var mid = showHero ? y0 + heroRoom - 8 : y0 - 10;
-      if (showHero) {
-        rect(ctx, x + 40, mid + 8, 72, 4, C.wood);
-        rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
-        var mh = demoHop(makeLook(i, save.color, save.hat), Math.min(14, Math.max(0, mid + 8 - shopVis - (y0 + 1)))), pose = mh.pose, hop = mh.hop;
-        if (menuNow() % 4300 > 3440) {
-          pose = "ability";
-          hop = 6;
-        }
-        var hopMax = Math.max(0, mid + 8 - shopVis - (y0 + 1));
-        if (hop > hopMax) hop = hopMax;
-        drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2, true);
+      var btnH = 22, btnPad = 6, platH = 8;
+      var textH = 69;
+      var chrome = 4 + btnH + btnPad + platH + 2;
+      var minBand = 16 + heroFitHop(40).h + 2;
+      if (ch - textH - chrome < minBand) textH = Math.max(52, ch - chrome - minBand);
+      var byb = y0 + ch - btnH - btnPad;
+      var textTop = byb - 4 - textH;
+      var platTop = textTop - platH;
+      var budget = platTop - (y0 + 1);
+      if (budget < 24) {
+        textH = Math.max(52, textH - (24 - Math.max(0, budget)));
+        textTop = byb - 4 - textH;
+        platTop = textTop - platH;
+        budget = platTop - (y0 + 1);
       }
-      drawText(ctx, H2.name, LW / 2, mid + 16, C.cream, 2, "center");
+      var fit = heroFitHop(Math.max(16, budget));
+      var hopRoom = fit.hop;
+      if (fit.h + hopRoom > budget && budget > 0) hopRoom = Math.max(8, budget - fit.h);
+      rect(ctx, x + 40, platTop, 72, 4, C.wood);
+      rect(ctx, x + 40, platTop, 72, 1, C.edge);
+      var mh = demoHop(makeLook(i, save.color, save.hat), hopRoom), pose = mh.pose, hop = mh.hop;
+      if (hop > hopRoom) hop = hopRoom;
+      drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, fit.sc), platTop - 16 * fit.sc - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, fit.sc, true);
+      lastHop = { where: "shop", hop, room: hopRoom, sc: fit.sc, k: fit.k, h: fit.h, platY: platTop, budget };
+      var mid = textTop - 16;
+      var nameSc = textH < 62 ? 1 : 2;
+      var ny = textTop + (nameSc === 2 ? 0 : 2);
+      drawText(ctx, H2.name, LW / 2, ny, C.cream, nameSc, "center");
       var tw = textWidth(H2.abName, 1) + 10;
-      box(ctx, Math.round(LW / 2 - tw / 2), mid + 34, tw, 12, "#3a4ac8", C.cream);
-      drawText(ctx, H2.abName, LW / 2, mid + 37, C.cream, 1, "center");
-      drawText(ctx, H2.abDesc[0], LW / 2, mid + 52, C.cream, 1, "center");
-      drawText(ctx, H2.abDesc[1], LW / 2, mid + 62, C.cream, 1, "center");
-      drawChargeLine(LW / 2, mid + 76, H2, "#9a8ab8");
-      markBox("cardText", x + 4, mid + 16, 144, textBot - 16);
-      var byb = Math.max(y0 + ch - btnH - btnPad, mid + textBot + 4);
+      var by0 = ny + (nameSc === 2 ? 18 : 12);
+      box(ctx, Math.round(LW / 2 - tw / 2), by0, tw, 12, "#3a4ac8", C.cream);
+      drawText(ctx, H2.abName, LW / 2, by0 + 3, C.cream, 1, "center");
+      drawText(ctx, H2.abDesc[0], LW / 2, by0 + 16, C.cream, 1, "center");
+      drawText(ctx, H2.abDesc[1], LW / 2, by0 + 26, C.cream, 1, "center");
+      drawChargeLine(LW / 2, by0 + 40, H2, "#9a8ab8");
+      markBox("cardText", x + 4, textTop, 144, textH);
       markBox("cardBtn", x + 10, byb, 132, btnH);
       if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "\u0412\u042B\u0411\u0420\u0410\u041D", C.gold, 1, C.gold);
       else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "\u0412\u042B\u0411\u0420\u0410\u0422\u042C", INK);
       else drawBuy("hero:act", x + 10, byb, 132, 22, H2.price);
-      btn("back", x + 26, LH - 34, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
+      btn("back", x + 26, backY, 100, 22, C.navy, "\u041D\u0410\u0417\u0410\u0414");
       drawFlash();
     }
     function bar(x, y, w, h, f, col) {
@@ -8985,7 +9048,7 @@
       drawBg(ctx, world.cameraY, ui, world.map);
       dimView(ctx, "rgba(18,14,44,0.36)");
       var x = colX();
-      var bot = Math.round(insetSideCss("bottom") / Math.max(0.01, cssScale || 1));
+      var bot = Math.round(insetBottomUiCss() / Math.max(0.01, cssScale || 1));
       var hdRes = header("\u0418\u0422\u041E\u0413\u0418", 2);
       var list = world.players.slice().sort(function(a2, b2) {
         return a2.place - b2.place;
@@ -9365,6 +9428,7 @@
         } else applyMaster();
       }
       if (document.hidden && phase === "play") paused = true;
+      if (!document.hidden) lockTgSwipes();
     }
     var envSide = {};
     var testInsetTop = 0;
@@ -9406,11 +9470,44 @@
     function insetTopCss() {
       return insetSideCss("top");
     }
+    function insetBottomUiCss() {
+      var tov = window.__hopTestInset;
+      if (tov && tov.bottomUi != null) return Number(tov.bottomUi) || 0;
+      if (tov && tov.bottom != null && tov.safeBottom == null) {
+        var b = Number(tov.bottom) || 0;
+        return Math.min(b, 40);
+      }
+      try {
+        var tg = window.Telegram && window.Telegram.WebApp;
+        if (tg && tg.safeAreaInset && tg.safeAreaInset.bottom != null) {
+          var sys = Number(tg.safeAreaInset.bottom) || 0;
+          if (sys > 0) return sys;
+        }
+      } catch (_e) {
+      }
+      return insetSideCss("bottom");
+    }
     function edgePad(side) {
       return 5 + Math.round(insetSideCss(side) / Math.max(0.01, cssScale || 1));
     }
     function pauseBox() {
       return { x: LW - edgePad("right") - 22, y: hudY(0), w: 22, h: 22 };
+    }
+    function lockTgSwipes() {
+      try {
+        var tg = window.Telegram && window.Telegram.WebApp;
+        if (!tg) return;
+        try {
+          if (tg.expand) tg.expand();
+        } catch (_e1) {
+        }
+        try {
+          var ok = !tg.isVersionAtLeast || tg.isVersionAtLeast("7.7");
+          if (ok && tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+        } catch (_e2) {
+        }
+      } catch (_e3) {
+      }
     }
     function bindTgInsets() {
       if (tgInsetBound) return;
@@ -9421,12 +9518,15 @@
           w.__hopInsetWait = true;
           w.__tgReady.then(function() {
             bindTgInsets();
+            lockTgSwipes();
           });
         }
         return;
       }
       tgInsetBound = true;
+      lockTgSwipes();
       var bump = function() {
+        lockTgSwipes();
         resize();
       };
       try {
@@ -9434,6 +9534,8 @@
           tg.onEvent("safeAreaChanged", bump);
           tg.onEvent("contentSafeAreaChanged", bump);
           tg.onEvent("fullscreenChanged", bump);
+          tg.onEvent("viewportChanged", bump);
+          tg.onEvent("activated", bump);
         }
       } catch (_e) {
       }
@@ -9551,6 +9653,9 @@
       },
       getSize: function() {
         return { lw: LW, lh: LH, scale: SCALE, pScale, pScaleY, cssScale, dpr: Math.max(1, window.devicePixelRatio || 1), isWide, isPhone, phoneLand, paused, landPause, manualPause, resumeCd, cw: canvas.width, ch: canvas.height, viewPad: VIEW_PAD, viewCrop: VIEW_CROP, viewBot: VIEW_BOT, viewShift: VIEW_SHIFT, fieldOx: FIELD_OX, fieldOy: FIELD_OY, viewTopPad: VIEW_TOPPAD, hudInset: HUD_INSET, phoneInt: PHONE_INT, devW: DEV_W, devH: DEV_H };
+      },
+      hopInfo: function() {
+        return lastHop;
       },
       tap: function(id) {
         activate(id);
