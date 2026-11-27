@@ -63,10 +63,10 @@ export class ProfileController {
   @Post('profile/migrate')
   async migrate(
     @Headers('authorization') auth?: string,
-    @Body() body?: { coins?: number; purchases?: Record<string, number>; best?: number },
+    @Body() body?: { purchases?: Record<string, number>; best?: number },
   ) {
     const p = await this.profiles.requireByToken(bearerToken(auth));
-    const profile = await this.profiles.migrate(p, body?.coins, body?.purchases, body?.best);
+    const profile = await this.profiles.migrate(p, body?.purchases, body?.best);
     return { ok: true, profile };
   }
 

@@ -62,11 +62,11 @@ One-time, idempotent import of an existing browser `localStorage` save into a fr
 - **Auth:** Required `Authorization: Bearer <token>`.
 - **Request body:**
   ```json
-  { "coins": 120, "purchases": { "char:1": 1, "map:jungle": 1 } }
+  { "purchases": { "char:1": 1, "map:jungle": 1 } }
   ```
 - **Server rules (`server/src/profile/limits.ts`):**
   - If `profile.migratedAt !== null`, returns current `profile` unchanged (idempotent).
-  - `MIGRATE_COINS_MAX = 8000`: incoming `coins` is clamped to `[0, 8000]`, and resulting `player.coins` is clamped to `[0, 8000]`.
+  - Legacy `coins` in the request body is ignored. The wallet balance comes from the server database.
   - `purchases`: keeps only keys matching `/^(hero|char|map):[a-z0-9_-]+$/i` with truthy/positive values normalized to `1`; merges into existing `purchases`.
   - Sets `migrated_at = now()`.
 - **Response (`201`):**
@@ -104,7 +104,7 @@ Credit coins after a completed run (note path: `/api/run/finish`, not `/api/prof
   - Bad / missing / future `initData` → `401` `INVALID_INIT_DATA`; older than 24 h → `401` `EXPIRED_INIT_DATA`.
   - If this `telegramId` already has a player and the Bearer guest is that same player: return it (`linked: false`, same token).
   - If this `telegramId` already has a *different* player and the Bearer guest is not linked yet: **merge** inside one transaction with `SELECT … FOR UPDATE` on both rows (locked in id order).
-    - Guest coins added to the Telegram player, but only `min(guest.coins, 8000)` (`MIGRATE_COINS_MAX`). The Telegram balance is not reduced and is not capped again.
+    - The guest server balance is added to the Telegram server balance up to the PostgreSQL integer maximum (2,147,483,647).
     - Purchases are the union (`hero:` / `char:` / `map:` keys only). `best` is the max.
     - The guest row gets `merged_into` / `merged_at`, its coins are zeroed, and its token hash is replaced so the old Bearer is `401`.
     - Response adds `merged: true` and `mergedCoins` (the amount actually added). A repeat with the old token does not add again.

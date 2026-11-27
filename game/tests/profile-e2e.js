@@ -64,7 +64,20 @@ function waitCoins(pg, coins, label, telegramId = '', best = 0) {
   }, coins, telegramId, best);
 }
 
-async function seedSave(pg, origin, { coins, best = 0, owned = {}, char = 0 }) {
+async function seedServerWallet(pg, origin, balance) {
+  const response = await fetch(origin + '/api/profile/guest', { method: 'POST' });
+  assert.ok(response.ok);
+  const { token } = await response.json();
+  await admin(origin, { token, setCoins: balance });
+  await pg.evaluateOnNewDocument((expectedOrigin, value) => {
+    if (location.origin === expectedOrigin && !localStorage.getItem('hoppak_guest_token')) {
+      localStorage.setItem('hoppak_guest_token', value);
+    }
+  }, origin, token);
+}
+
+async function seedSave(pg, origin, { coins, best = 0, owned = {}, char = 0, serverCoins }) {
+  if (serverCoins !== undefined) await seedServerWallet(pg, origin, serverCoins);
   await pg.evaluateOnNewDocument((expectedOrigin, save) => {
     if (location.origin === expectedOrigin && !localStorage.getItem('hoppak_save')) {
       localStorage.setItem('hoppak_save', save);
@@ -203,9 +216,16 @@ async function admin(base, body) {
       pg.on('pageerror', (e) => errs.push('v058 pageerror: ' + e.message));
 
       // Pre-seed an existing local save before visiting /v/0.58/
-      await seedSave(pg, base, { coins: 120, best: 240, owned: { 'char:1': 1 }, char: 1 });
+      await seedSave(pg, base, { coins: 99999, serverCoins: 120, best: 240, owned: { 'char:1': 1 }, char: 1 });
+      const migrationBodies = [];
+      pg.on('request', request => {
+        if (request.url() === base + '/api/profile/migrate') migrationBodies.push(JSON.parse(request.postData()));
+      });
       await pg.goto(base + '/v/0.58/index.html');
-      await waitCoins(pg, 120, '2 legacy save migrates before the first run');
+      await waitCoins(pg, 120, '2 server wallet survives legacy save migration');
+      assert.equal(migrationBodies.length, 1);
+      assert.ok(!Object.hasOwn(migrationBodies[0], 'coins'));
+      assert.equal(await pg.evaluate(() => JSON.parse(localStorage.getItem('hoppak_save')).coins), undefined);
 
       const st1 = await pg.evaluate(async () => {
         await window.__hoppak.profile.flush();
@@ -352,7 +372,7 @@ async function admin(base, body) {
       const ctx = await browser.createBrowserContext();
       const pg = await newRussianPage(ctx);
       pg.on('pageerror', (e) => errs.push('v06-fresh pageerror: ' + e.message));
-      await seedSave(pg, base2, { coins: 250, best: 240 });
+      await seedSave(pg, base2, { coins: 99999, serverCoins: 250, best: 240 });
       await pg.goto(base2 + '/v/0.6/index.html');
       await waitCoins(pg, 250, '2b seed migrates with the original record', '', 240);
       await pg.evaluate(() => {
@@ -546,7 +566,7 @@ async function admin(base, body) {
       const ctx = await browser.createBrowserContext();
       const pg = await newRussianPage(ctx);
       pg.on('pageerror', (e) => errs.push('buy400 pageerror: ' + e.message));
-      await seedSave(pg, base, { coins: 50 });
+      await seedSave(pg, base, { coins: 99999, serverCoins: 50 });
       await pg.goto(base + '/v/0.6/index.html');
       await waitCoins(pg, 50, '7 seed migrates before attempting the purchase');
       const [rejection] = await Promise.all([
@@ -584,7 +604,7 @@ async function admin(base, body) {
         const ctx = await browser.createBrowserContext();
         const pg = await newRussianPage(ctx);
         pg.on('pageerror', (e) => errs.push(label + ' pageerror: ' + e.message));
-        await seedSave(pg, origin, { coins: 100 });
+        await seedSave(pg, origin, { coins: 99999, serverCoins: 100 });
         if (tg) {
           const initData = 'user=' + encodeURIComponent(JSON.stringify({ id: 7771, first_name: 'Roman' })) + '&auth_date=1&hash=00';
           await pg.evaluateOnNewDocument((d) => {
@@ -886,6 +906,7 @@ async function admin(base, body) {
       const a = await newRussianPage(ctxA);
       a.on('pageerror', (e) => errs.push('devA pageerror: ' + e.message));
       await a.evaluateOnNewDocument(seedDoc, saveA);
+      await seedServerWallet(a, base2, 50);
       await a.goto(base2 + '/index.html');
       await settle(a);
       await a.evaluate(async () => { await window.__hoppak.profile.flush(); });

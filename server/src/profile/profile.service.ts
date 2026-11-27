@@ -16,7 +16,7 @@ import { kickAccount } from '../session-kick';
 import { publishAccountKick } from '../account-kick-bus';
 import { randomUUID } from 'crypto';
 import {
-  ITEM_PRICES, MAP_IDS, MIGRATE_COINS_MAX, RUN_HEIGHT_MAX,
+  ITEM_PRICES, MAP_IDS, RUN_HEIGHT_MAX, WALLET_COINS_MAX,
   awardForRun, clamp, emptyCampaign, mapPurchaseBlock, mergeCampaign, mergePurchases,
   purchasesWithoutMaps, sanitizeMapBest, sanitizePurchases, sanitizeRunId, Campaign,
 } from './limits';
@@ -102,18 +102,23 @@ export class ProfileService {
     throw new HttpException({ ok: false, error: 'UNAUTHORIZED' }, HttpStatus.UNAUTHORIZED);
   }
 
-  async migrate(p: Player, coins: unknown, purchases: unknown, best?: unknown): Promise<PublicProfile> {
+  async migrate(p: Player, purchases: unknown, best?: unknown): Promise<PublicProfile> {
     const repo = this.requireDb();
-    if (p.migratedAt) return this.toPublic(p); /* idempotent */
-    const incoming = clamp(Math.floor(Number(coins) || 0), 0, MIGRATE_COINS_MAX);
-    const incomingBest = clamp(Math.floor(Number(best) || 0), 0, RUN_HEIGHT_MAX);
-    p.coins = clamp(p.coins + incoming, 0, MIGRATE_COINS_MAX);
-    p.best = Math.max(p.best || 0, incomingBest);
-    /* Map opens arrive only through buy(). A localStorage blob cannot grant them. */
-    p.purchases = mergePurchases(p.purchases || {}, purchasesWithoutMaps(sanitizePurchases(purchases)));
-    p.migratedAt = new Date();
-    await repo.save(p);
-    return this.toPublic(p);
+    const execute = async (playerRepo: Repository<Player>): Promise<PublicProfile> => {
+      const fresh = (await this.loadLocked(playerRepo, p.id)) || p;
+      if (fresh.migratedAt || fresh.mergedAt) return this.toPublic(fresh);
+      const incomingBest = clamp(Math.floor(Number(best) || 0), 0, RUN_HEIGHT_MAX);
+      fresh.best = Math.max(fresh.best || 0, incomingBest);
+      /* Map opens arrive only through buy(). A localStorage blob cannot grant them. */
+      fresh.purchases = mergePurchases(fresh.purchases || {}, purchasesWithoutMaps(sanitizePurchases(purchases)));
+      fresh.migratedAt = new Date();
+      await playerRepo.save(fresh);
+      return this.toPublic(fresh);
+    };
+    if (repo.manager && typeof repo.manager.transaction === 'function') {
+      return repo.manager.transaction(async (em) => execute(em.getRepository(Player)));
+    }
+    return execute(repo);
   }
 
   async buy(p: Player, rawKey: unknown): Promise<{ profile: PublicProfile; alreadyOwned?: boolean }> {
@@ -229,7 +234,7 @@ export class ProfileService {
       }
 
       const grant = awardForRun(claimedH, claimedC, claimedB);
-      const awarded = grant.awarded;
+      const awarded = Math.min(grant.awarded, Math.max(0, WALLET_COINS_MAX - (fresh.coins || 0)));
       const h = clamp(claimedH, 0, RUN_HEIGHT_MAX);
 
       if (runId && runRepo) {
@@ -304,14 +309,10 @@ export class ProfileService {
     }
   }
 
-  /** Guest server wallet folded into an existing Telegram player. Local caches are not part of this number. */
-  private guestCoinPart(guest: Player): number {
-    return clamp(Math.floor(Number(guest.coins) || 0), 0, MIGRATE_COINS_MAX);
-  }
-
   private applyMerge(target: Player, guest: Player): number {
-    const incoming = this.guestCoinPart(guest);
-    target.coins = (target.coins || 0) + incoming;
+    const balance = target.coins || 0;
+    const incoming = Math.min(Math.max(0, guest.coins || 0), Math.max(0, WALLET_COINS_MAX - balance));
+    target.coins = balance + incoming;
     target.best = Math.max(target.best || 0, clamp(Math.floor(Number(guest.best) || 0), 0, RUN_HEIGHT_MAX));
     target.purchases = mergePurchases(target.purchases || {}, sanitizePurchases(guest.purchases));
     target.campaign = mergeCampaign(target.campaign, guest.campaign);
