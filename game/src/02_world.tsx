@@ -26,6 +26,11 @@ function edgeGap(ax: number, aw: number, bx: number, bw: number) {
 }
 /* After the row is placed: every previous stable platform must reach a stable one here. No extra RNG. */
 function ensureReach(w: any, row: any[], y: number) {
+  /* A moving platform sweeps the whole row (wall to wall), so it is reachable from anywhere and it is
+     where the next row starts from. Never add a static safety platform into its path (prod b683155 behaviour). */
+  for (var mv = 0; mv < row.length; mv++) {
+    if (row[mv].type === "move") { w.reachFrom = [{ x: 2, w: LW - 4 }]; return; }
+  }
   var prev = w.reachFrom && w.reachFrom.length ? w.reachFrom : [{ x: 8, w: LW - 16 }];
   var gap = w.reachGap > 0 ? w.reachGap : ROW_SEP;
   var reach = horizReachPx(gap);
@@ -399,7 +404,11 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
   if (mode === "squad") {
     var bk = botKinds(humanKind);
-    for (var i = 1; i < 4; i++) w.players.push(newPlayer(i, bk[i - 1], makeLook(bk[i - 1], "base", "none"), xs[i], true));
+    for (var i = 1; i < 4; i++) {
+      var bp = newPlayer(i, bk[i - 1], makeLook(bk[i - 1], "base", "none"), xs[i], true);
+      bp.name = "БОТ " + i; /* label only: «БОТ 1..3» in game, results and spectator */
+      w.players.push(bp);
+    }
   }
   generateUntil(w, w.cameraY - 80);
   return w;
@@ -730,6 +739,21 @@ function tickWorld(w: any, inputs: any) {
     if (pl.respawnT > 0 && --pl.respawnT === 0) { pl.broken = false; spawnParts(w, pl.x + pl.w / 2, pl.y, 4, "#88f8ff", 1.2, -0.02, 1); }
     if (pl.springT > 0) pl.springT--;
     if (pl.lifeT > 0 && --pl.lifeT === 0) { pl.broken = true; pl.breakT = 0; }
+  }
+  /* Spectating (own hero is down): other runners — bots and remote players — visibly pick up coins they touch.
+     Visual only: no runCoins, no charge, no netTell, so the player's award and the economy are unchanged. */
+  if (w.players[0] && !w.players[0].alive) {
+    for (var sp = 1; sp < w.players.length; sp++) {
+      var sq = w.players[sp];
+      if (!sq.alive) continue;
+      for (var sc = 0; sc < w.coins.length; sc++) {
+        var scn = w.coins[sc];
+        if (!scn.taken && overlapsX(sq.x - 2, PW + 4, scn.x, 6) && scn.y + 6 > sq.y - 2 && scn.y < sq.y + PH + 2) {
+          scn.taken = true;
+          spawnParts(w, scn.x + 3, scn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
+        }
+      }
+    }
   }
   function nearPlayer(mo: any) {
     for (var q = 0; q < w.players.length; q++) if (w.players[q].alive && Math.abs(w.players[q].y - mo.y) < LH * 0.8) return true;

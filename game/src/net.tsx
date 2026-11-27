@@ -88,6 +88,26 @@ var NET: any = (function () {
     return out.trim();
   }
   function cleanNick(s: string) { return cleanText(s, 10); }
+  /* Default = the player's own nickname (Telegram first name / @username, else the guest HOP-xxxx), never the hero. */
+  function defaultNick() {
+    var s = "";
+    try { if (N.api && N.api.accountName) s = cleanNick(N.api.accountName(false)); } catch (_e) {}
+    return s || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase();
+  }
+  function typedNick() { return cleanNick(nick()); }
+  function shownNick() { return typedNick() || defaultNick(); }
+  N.shownNick = shownNick;
+  /* Timers that survive a blocked JS thread (iOS window.prompt, app in background): if the callback runs far later than
+     scheduled, the socket/fetch events that queued meanwhile get one more full window before we call it a failure. */
+  function lateSafe(fn: any, ms: number) {
+    var due = now() + ms, rearmed = false, h: any = 0;
+    function tick() {
+      if (!rearmed && now() - due > 1500) { rearmed = true; due = now() + ms; h = setTimeout(tick, ms); return; }
+      fn();
+    }
+    h = setTimeout(tick, ms);
+    return { cancel: function () { clearTimeout(h); } };
+  }
   function send(event: string, data: any) {
     if (!N.ws || N.ws.readyState !== 1) return false;
     N.ws.send(JSON.stringify({ event: event, data: data || {} }));
@@ -105,11 +125,11 @@ var NET: any = (function () {
   function probeHealth(hu: string, cb: any) {
     if (!hu || typeof fetch === "undefined") { cb(false); return; }
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    var to = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, 5000);
+    var to = lateSafe(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, 5000);
     var done = false;
     function finish(ok: boolean) {
       if (done) return;
-      done = true; clearTimeout(to); cb(!!ok);
+      done = true; to.cancel(); cb(!!ok);
     }
     var opts: any = { method: "GET", cache: "no-store", mode: "cors" };
     if (ctrl) opts.signal = ctrl.signal;
@@ -120,21 +140,21 @@ var NET: any = (function () {
     try { ws = new WebSocket(u); } catch (_e) { failLink(); return; }
     N.ws = ws;
     var opened = false;
-    var to = setTimeout(function () { if (!opened) { try { ws.close(); } catch (_e) {} } }, 5000);
+    var to = lateSafe(function () { if (!opened) { try { ws.close(); } catch (_e) {} } }, 5000);
     ws.onopen = function () {
-      opened = true; clearTimeout(to);
+      opened = true; to.cancel();
       /* Stay in connecting until hello confirms the protocol version.
          Old site builds at /v/<ver>/ share the same /ws; a mismatch must not crash. */
-      if (N.helloTimer) clearTimeout(N.helloTimer);
-      N.helloTimer = setTimeout(function () {
+      if (N.helloTimer) N.helloTimer.cancel();
+      N.helloTimer = lateSafe(function () {
         N.helloTimer = 0;
         if (N.ws === ws && N.st !== "online" && N.st !== "unsupported") rejectVersion();
       }, 2000);
     };
     ws.onmessage = function (e: any) { N.stats.recv++; var m: any; try { m = JSON.parse(e.data); } catch (_e2) { return; } onMsg(m.event, m.data || {}); };
     ws.onclose = function () {
-      clearTimeout(to);
-      if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+      to.cancel();
+      if (N.helloTimer) { N.helloTimer.cancel(); N.helloTimer = 0; }
       if (N.ws !== ws) return;
       N.ws = null;
       if (N.st === "unsupported") return;
@@ -171,7 +191,7 @@ var NET: any = (function () {
     }, 800);
   }
   function rejectVersion() {
-    if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+    if (N.helloTimer) { N.helloTimer.cancel(); N.helloTimer = 0; }
     N.st = "unsupported";
     N.err = "МУЛЬТИПЛЕЕР НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ";
     N.room = null;
@@ -200,7 +220,7 @@ var NET: any = (function () {
       if (!N.rtt || rtt < N.rtt * 1.5) N.off = N.rtt ? N.off * 0.7 + off * 0.3 : off;
       N.rtt = N.rtt ? N.rtt * 0.8 + rtt * 0.2 : rtt;
     } else if (ev === "hello") {
-      if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+      if (N.helloTimer) { N.helloTimer.cancel(); N.helloTimer = 0; }
       if (d.v !== NET_PROTO) { rejectVersion(); return; }
       ping();
       var tok = N.token || load("hoppak.net.token");
@@ -281,7 +301,7 @@ var NET: any = (function () {
       var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
       if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
     } catch (_e2) {}
-    return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
+    return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
   }
   function screenNow() {
     var w = N.api && N.api.world && N.api.world();
@@ -367,7 +387,9 @@ var NET: any = (function () {
     N.eveningState = { round: roundNo, title: "РАУНД " + roundNo, total: pids.length, fit: fit, off: off };
     box(ctx, x, y, 152, h, C.navy, C.gold);
     if (N.api && N.api.markBox) N.api.markBox("evening", x, y, 152, h);
-    drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
+    /* With the ↑ scroll button the header moves left and shortens so the button never covers it. */
+    if (maxOff > 0) drawText(ctx, "СЧЁТ · РАУНД " + roundNo, x + 6, y + 2, C.gold, 1, "left");
+    else drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
     for (var i2 = 0; i2 < fit; i2++) {
       var pid = pids[off + i2], nm = drawableChars(String(S.names[pid] || "ИГРОК")).slice(0, 10);
       var lineY = y + 12 + i2 * 9;
@@ -508,7 +530,7 @@ var NET: any = (function () {
     /* After death, follow the watched player: their camera, and the events above (coins, mobs, platforms). */
     if (!me0.alive) {
       var tgt = watchOf(w);
-      if (tgt) { w.cameraY = tgt.camY; w.watchName = tgt.name || ""; generateUntil(w, w.cameraY - 80); }
+      if (tgt) { w.cameraY = tgt.camY; w.watchName = tgt.name || ""; w.watchM = metersOf(tgt); generateUntil(w, w.cameraY - 80); }
     }
     if (N.results && N.results.round === w.netRound && w.phase === "play") {
       var R = N.results.ranking;
@@ -558,9 +580,17 @@ var NET: any = (function () {
       box(ctx, LW / 2 - 60, 24, 120, 13, "#4a1020", C.red);
       drawText(ctx, "ПЕРЕПОДКЛЮЧАЕМСЯ...", LW / 2, 27, C.cream, 1, "center");
     } else if (!w.players[0].alive && w.phase === "play") {
-      box(ctx, LW / 2 - 64, 24, 128, 13, C.navy, C.cream);
       var wn = w.watchName ? drawableChars(String(w.watchName)).slice(0, 10) : "";
-      drawText(ctx, wn ? "СМОТРИМ " + wn : "ЖДЁМ ОСТАЛЬНЫХ", LW / 2, 27, C.cream, 1, "center");
+      if (wn) {
+        /* Who we watch and how high they are right now. */
+        box(ctx, LW / 2 - 64, 24, 128, 22, C.navy, C.cream);
+        if (N.api && N.api.markBox) N.api.markBox("watch", LW / 2 - 64, 24, 128, 22);
+        drawText(ctx, "СМОТРИМ " + wn, LW / 2, 27, C.cream, 1, "center");
+        drawText(ctx, (w.watchM || 0) + " М", LW / 2, 36, C.gold, 1, "center");
+      } else {
+        box(ctx, LW / 2 - 64, 24, 128, 13, C.navy, C.cream);
+        drawText(ctx, "ЖДЁМ ОСТАЛЬНЫХ", LW / 2, 27, C.cream, 1, "center");
+      }
     }
   };
 
@@ -589,7 +619,7 @@ var NET: any = (function () {
     if (N.sub === "code") return drawCode(api, x);
     var hd = api.header("МУЛЬТИПЛЕЕР", 1);
     var subY = hd.bottom + 4;
-    drawText(ctx, "ДО 4 ИГРОКОВ НА ОДНОЙ КАРТЕ", LW / 2, subY, C.cream, 1, "center");
+    drawText(ctx, "ДО 4 ИГРОКОВ НА КАРТЕ", LW / 2, subY, C.cream, 1, "center");
     if (sl.two) {
       box(ctx, x, subY + 14, 152, 24, C.navy, sl.c);
       if (api.markBox) api.markBox("status", x, subY + 14, 152, 24);
@@ -601,7 +631,7 @@ var NET: any = (function () {
       drawText(ctx, sl.t, LW / 2, subY + 17, sl.c, 1, "center");
     }
     var y = subY + (sl.two ? 48 : 38);
-    api.btn("net:name", x, y, 152, 20, "#1a1430", "ИМЯ: " + (cleanNick(nick()) || CHARS[api.save().char].name.toUpperCase()), C.cream, 1, C.gold);
+    api.btn("net:name", x, y, 152, 20, "#1a1430", "ИМЯ: " + shownNick(), C.cream, 1, C.gold);
     y += 28;
     var ok = N.st === "online";
     api.btn("net:create", x, y, 152, 30, ok ? C.mint : "#3a3450", "СОЗДАТЬ КОМНАТУ", INK, 1);
@@ -659,7 +689,7 @@ var NET: any = (function () {
       if (api.markBox) api.markBox("slot" + i, x, y, 152, 23);
       drawPortraitCrop(ctx, p.kind, x + 1, y + 1, 21);
       var heroNm = (CHARS[p.kind] && CHARS[p.kind].name || "").toUpperCase();
-      var slotLab = p.bot ? "БОТ" : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
+      var slotLab = p.bot ? slotLabel(p.name || "БОТ", heroNm, host ? 84 : 104) : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
       drawText(ctx, slotLab, x + 26, y + 8, C.cream, 1, "left");
       if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
     }
@@ -720,9 +750,17 @@ var NET: any = (function () {
     if (id === "net:addbot") { send("bot", {}); return; }
     if (id.indexOf("net:kick") === 0) { send("kick", { pid: parseInt(id.slice(8), 10) }); return; }
     if (id === "net:name") {
-      var cur = cleanNick(nick());
-      var v = typeof window !== "undefined" && window.prompt ? window.prompt("Имя для друзей (по-русски, до 10 букв)", cur) : null;
-      if (v != null) { var c = cleanNick(v); try { localStorage.setItem("hoppak.nick", c); } catch (_e) {} if (!c && v) api.say("ТОЛЬКО РУССКИЕ БУКВЫ"); }
+      var cur = shownNick();
+      var v = typeof window !== "undefined" && window.prompt ? window.prompt("Имя для друзей (до 10 букв)", cur) : null;
+      if (v != null) {
+        var c = cleanNick(v);
+        /* Saving the default back unchanged keeps following the Telegram name; anything else is the player's own. */
+        var keep = c && c !== defaultNick() ? c : "";
+        try { localStorage.setItem("hoppak.nick", keep); } catch (_e) {}
+        if (!c && v) api.say("ТАКИЕ БУКВЫ НЕ ПОДХОДЯТ");
+      }
+      /* The keyboard may have resized the webview: settle the layout once it is gone. */
+      if (api.relayout) { setTimeout(api.relayout, 300); setTimeout(api.relayout, 1300); }
       return;
     }
     if (id === "net:create") { if (N.st !== "online") { N.connect(); return; } N.create(); return; }
@@ -732,7 +770,12 @@ var NET: any = (function () {
     if (id === "net:del") { N.code = N.code.slice(0, -1); return; }
     if (id === "net:ok") { if (N.code.length === 4) N.join(N.code); return; }
     if (id === "net:ready") { var m = N.mePlayer(); send("ready", { ready: !(m && m.ready) }); return; }
-    if (id === "net:start") { send("start", {}); return; }
+    if (id === "net:start") {
+      /* The button already says ЖДЁМ ГОТОВНОСТИ; don't fire a start the server will refuse (its toast covered the lobby). */
+      var R0 = N.room, notReady = R0 && R0.players.some(function (q: any) { return q.pid !== R0.host && q.on && !q.bot && !q.ready; });
+      if (notReady) return;
+      send("start", {}); return;
+    }
     if (id === "net:mprev" || id === "net:mnext") {
       var om = api.openMaps(), li = Math.max(0, om.indexOf(N.room.map));
       if (om.indexOf(N.room.map) < 0) om = om.concat([N.room.map]);

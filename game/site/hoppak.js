@@ -1349,6 +1349,12 @@
     );
   }
   function ensureReach(w, row, y) {
+    for (var mv = 0; mv < row.length; mv++) {
+      if (row[mv].type === "move") {
+        w.reachFrom = [{ x: 2, w: LW - 4 }];
+        return;
+      }
+    }
     var prev = w.reachFrom && w.reachFrom.length ? w.reachFrom : [{ x: 8, w: LW - 16 }];
     var gap = w.reachGap > 0 ? w.reachGap : ROW_SEP;
     var reach = horizReachPx(gap);
@@ -1897,7 +1903,11 @@
     w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
     if (mode === "squad") {
       var bk = botKinds(humanKind);
-      for (var i = 1; i < 4; i++) w.players.push(newPlayer(i, bk[i - 1], makeLook(bk[i - 1], "base", "none"), xs[i], true));
+      for (var i = 1; i < 4; i++) {
+        var bp = newPlayer(i, bk[i - 1], makeLook(bk[i - 1], "base", "none"), xs[i], true);
+        bp.name = "\u0411\u041E\u0422 " + i;
+        w.players.push(bp);
+      }
     }
     generateUntil(w, w.cameraY - 80);
     return w;
@@ -2324,6 +2334,19 @@
       if (pl.lifeT > 0 && --pl.lifeT === 0) {
         pl.broken = true;
         pl.breakT = 0;
+      }
+    }
+    if (w.players[0] && !w.players[0].alive) {
+      for (var sp = 1; sp < w.players.length; sp++) {
+        var sq = w.players[sp];
+        if (!sq.alive) continue;
+        for (var sc = 0; sc < w.coins.length; sc++) {
+          var scn = w.coins[sc];
+          if (!scn.taken && overlapsX(sq.x - 2, PW + 4, scn.x, 6) && scn.y + 6 > sq.y - 2 && scn.y < sq.y + PH + 2) {
+            scn.taken = true;
+            spawnParts(w, scn.x + 3, scn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
+          }
+        }
       }
     }
     function nearPlayer(mo2) {
@@ -4072,6 +4095,37 @@
     function cleanNick(s) {
       return cleanText(s, 10);
     }
+    function defaultNick() {
+      var s = "";
+      try {
+        if (N.api && N.api.accountName) s = cleanNick(N.api.accountName(false));
+      } catch (_e) {
+      }
+      return s || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase();
+    }
+    function typedNick() {
+      return cleanNick(nick());
+    }
+    function shownNick() {
+      return typedNick() || defaultNick();
+    }
+    N.shownNick = shownNick;
+    function lateSafe(fn, ms) {
+      var due = now() + ms, rearmed = false, h = 0;
+      function tick() {
+        if (!rearmed && now() - due > 1500) {
+          rearmed = true;
+          due = now() + ms;
+          h = setTimeout(tick, ms);
+          return;
+        }
+        fn();
+      }
+      h = setTimeout(tick, ms);
+      return { cancel: function() {
+        clearTimeout(h);
+      } };
+    }
     function send(event, data) {
       if (!N.ws || N.ws.readyState !== 1) return false;
       N.ws.send(JSON.stringify({ event, data: data || {} }));
@@ -4093,7 +4147,7 @@
         return;
       }
       var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-      var to = setTimeout(function() {
+      var to = lateSafe(function() {
         try {
           if (ctrl) ctrl.abort();
         } catch (_e) {
@@ -4103,7 +4157,7 @@
       function finish2(ok) {
         if (done) return;
         done = true;
-        clearTimeout(to);
+        to.cancel();
         cb(!!ok);
       }
       var opts = { method: "GET", cache: "no-store", mode: "cors" };
@@ -4124,7 +4178,7 @@
       }
       N.ws = ws;
       var opened = false;
-      var to = setTimeout(function() {
+      var to = lateSafe(function() {
         if (!opened) {
           try {
             ws.close();
@@ -4134,9 +4188,9 @@
       }, 5e3);
       ws.onopen = function() {
         opened = true;
-        clearTimeout(to);
-        if (N.helloTimer) clearTimeout(N.helloTimer);
-        N.helloTimer = setTimeout(function() {
+        to.cancel();
+        if (N.helloTimer) N.helloTimer.cancel();
+        N.helloTimer = lateSafe(function() {
           N.helloTimer = 0;
           if (N.ws === ws && N.st !== "online" && N.st !== "unsupported") rejectVersion();
         }, 2e3);
@@ -4152,9 +4206,9 @@
         onMsg(m.event, m.data || {});
       };
       ws.onclose = function() {
-        clearTimeout(to);
+        to.cancel();
         if (N.helloTimer) {
-          clearTimeout(N.helloTimer);
+          N.helloTimer.cancel();
           N.helloTimer = 0;
         }
         if (N.ws !== ws) return;
@@ -4222,7 +4276,7 @@
     }
     function rejectVersion() {
       if (N.helloTimer) {
-        clearTimeout(N.helloTimer);
+        N.helloTimer.cancel();
         N.helloTimer = 0;
       }
       N.st = "unsupported";
@@ -4271,7 +4325,7 @@
         N.rtt = N.rtt ? N.rtt * 0.8 + rtt * 0.2 : rtt;
       } else if (ev === "hello") {
         if (N.helloTimer) {
-          clearTimeout(N.helloTimer);
+          N.helloTimer.cancel();
           N.helloTimer = 0;
         }
         if (d.v !== NET_PROTO) {
@@ -4392,7 +4446,7 @@
         if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
       } catch (_e2) {
       }
-      return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
+      return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
     }
     function screenNow() {
       var w = N.api && N.api.world && N.api.world();
@@ -4518,7 +4572,8 @@
       N.eveningState = { round: roundNo, title: "\u0420\u0410\u0423\u041D\u0414 " + roundNo, total: pids.length, fit, off };
       box(ctx, x, y, 152, h, C.navy, C.gold);
       if (N.api && N.api.markBox) N.api.markBox("evening", x, y, 152, h);
-      drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 \u0420\u0410\u0423\u041D\u0414 " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
+      if (maxOff > 0) drawText(ctx, "\u0421\u0427\u0401\u0422 \xB7 \u0420\u0410\u0423\u041D\u0414 " + roundNo, x + 6, y + 2, C.gold, 1, "left");
+      else drawText(ctx, "\u0421\u0427\u0401\u0422 \u0412\u0415\u0427\u0415\u0420\u0410 \xB7 \u0420\u0410\u0423\u041D\u0414 " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
       for (var i2 = 0; i2 < fit; i2++) {
         var pid = pids[off + i2], nm = drawableChars(String(S.names[pid] || "\u0418\u0413\u0420\u041E\u041A")).slice(0, 10);
         var lineY = y + 12 + i2 * 9;
@@ -4744,6 +4799,7 @@
         if (tgt) {
           w.cameraY = tgt.camY;
           w.watchName = tgt.name || "";
+          w.watchM = metersOf(tgt);
           generateUntil(w, w.cameraY - 80);
         }
       }
@@ -4803,9 +4859,16 @@
         box(ctx, LW / 2 - 60, 24, 120, 13, "#4a1020", C.red);
         drawText(ctx, "\u041F\u0415\u0420\u0415\u041F\u041E\u0414\u041A\u041B\u042E\u0427\u0410\u0415\u041C\u0421\u042F...", LW / 2, 27, C.cream, 1, "center");
       } else if (!w.players[0].alive && w.phase === "play") {
-        box(ctx, LW / 2 - 64, 24, 128, 13, C.navy, C.cream);
         var wn = w.watchName ? drawableChars(String(w.watchName)).slice(0, 10) : "";
-        drawText(ctx, wn ? "\u0421\u041C\u041E\u0422\u0420\u0418\u041C " + wn : "\u0416\u0414\u0401\u041C \u041E\u0421\u0422\u0410\u041B\u042C\u041D\u042B\u0425", LW / 2, 27, C.cream, 1, "center");
+        if (wn) {
+          box(ctx, LW / 2 - 64, 24, 128, 22, C.navy, C.cream);
+          if (N.api && N.api.markBox) N.api.markBox("watch", LW / 2 - 64, 24, 128, 22);
+          drawText(ctx, "\u0421\u041C\u041E\u0422\u0420\u0418\u041C " + wn, LW / 2, 27, C.cream, 1, "center");
+          drawText(ctx, (w.watchM || 0) + " \u041C", LW / 2, 36, C.gold, 1, "center");
+        } else {
+          box(ctx, LW / 2 - 64, 24, 128, 13, C.navy, C.cream);
+          drawText(ctx, "\u0416\u0414\u0401\u041C \u041E\u0421\u0422\u0410\u041B\u042C\u041D\u042B\u0425", LW / 2, 27, C.cream, 1, "center");
+        }
       }
     };
     N.open = function(api) {
@@ -4840,7 +4903,7 @@
       if (N.sub === "code") return drawCode(api, x);
       var hd = api.header("\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420", 1);
       var subY = hd.bottom + 4;
-      drawText(ctx, "\u0414\u041E 4 \u0418\u0413\u0420\u041E\u041A\u041E\u0412 \u041D\u0410 \u041E\u0414\u041D\u041E\u0419 \u041A\u0410\u0420\u0422\u0415", LW / 2, subY, C.cream, 1, "center");
+      drawText(ctx, "\u0414\u041E 4 \u0418\u0413\u0420\u041E\u041A\u041E\u0412 \u041D\u0410 \u041A\u0410\u0420\u0422\u0415", LW / 2, subY, C.cream, 1, "center");
       if (sl.two) {
         box(ctx, x, subY + 14, 152, 24, C.navy, sl.c);
         if (api.markBox) api.markBox("status", x, subY + 14, 152, 24);
@@ -4852,7 +4915,7 @@
         drawText(ctx, sl.t, LW / 2, subY + 17, sl.c, 1, "center");
       }
       var y = subY + (sl.two ? 48 : 38);
-      api.btn("net:name", x, y, 152, 20, "#1a1430", "\u0418\u041C\u042F: " + (cleanNick(nick()) || CHARS[api.save().char].name.toUpperCase()), C.cream, 1, C.gold);
+      api.btn("net:name", x, y, 152, 20, "#1a1430", "\u0418\u041C\u042F: " + shownNick(), C.cream, 1, C.gold);
       y += 28;
       var ok = N.st === "online";
       api.btn("net:create", x, y, 152, 30, ok ? C.mint : "#3a3450", "\u0421\u041E\u0417\u0414\u0410\u0422\u042C \u041A\u041E\u041C\u041D\u0410\u0422\u0423", INK, 1);
@@ -4914,7 +4977,7 @@
         if (api.markBox) api.markBox("slot" + i, x, y, 152, 23);
         drawPortraitCrop(ctx, p.kind, x + 1, y + 1, 21);
         var heroNm = (CHARS[p.kind] && CHARS[p.kind].name || "").toUpperCase();
-        var slotLab = p.bot ? "\u0411\u041E\u0422" : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
+        var slotLab = p.bot ? slotLabel(p.name || "\u0411\u041E\u0422", heroNm, host ? 84 : 104) : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
         drawText(ctx, slotLab, x + 26, y + 8, C.cream, 1, "left");
         if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
       }
@@ -4999,15 +5062,20 @@
         return;
       }
       if (id === "net:name") {
-        var cur = cleanNick(nick());
-        var v = typeof window !== "undefined" && window.prompt ? window.prompt("\u0418\u043C\u044F \u0434\u043B\u044F \u0434\u0440\u0443\u0437\u0435\u0439 (\u043F\u043E-\u0440\u0443\u0441\u0441\u043A\u0438, \u0434\u043E 10 \u0431\u0443\u043A\u0432)", cur) : null;
+        var cur = shownNick();
+        var v = typeof window !== "undefined" && window.prompt ? window.prompt("\u0418\u043C\u044F \u0434\u043B\u044F \u0434\u0440\u0443\u0437\u0435\u0439 (\u0434\u043E 10 \u0431\u0443\u043A\u0432)", cur) : null;
         if (v != null) {
           var c = cleanNick(v);
+          var keep = c && c !== defaultNick() ? c : "";
           try {
-            localStorage.setItem("hoppak.nick", c);
+            localStorage.setItem("hoppak.nick", keep);
           } catch (_e) {
           }
-          if (!c && v) api.say("\u0422\u041E\u041B\u042C\u041A\u041E \u0420\u0423\u0421\u0421\u041A\u0418\u0415 \u0411\u0423\u041A\u0412\u042B");
+          if (!c && v) api.say("\u0422\u0410\u041A\u0418\u0415 \u0411\u0423\u041A\u0412\u042B \u041D\u0415 \u041F\u041E\u0414\u0425\u041E\u0414\u042F\u0422");
+        }
+        if (api.relayout) {
+          setTimeout(api.relayout, 300);
+          setTimeout(api.relayout, 1300);
         }
         return;
       }
@@ -5053,6 +5121,10 @@
         return;
       }
       if (id === "net:start") {
+        var R0 = N.room, notReady = R0 && R0.players.some(function(q) {
+          return q.pid !== R0.host && q.on && !q.bot && !q.ready;
+        });
+        if (notReady) return;
         send("start", {});
         return;
       }
@@ -5919,11 +5991,33 @@
       if (phase === "net" && typeof NET !== "undefined" && NET && NET.room && NET.room.map) return NET.room.map;
       return save.bg;
     }
-    function viewSize() {
+    var stableView = null, shrinkSince = 0, shrinkTimer = 0;
+    function rawViewSize() {
+      if (wrap) {
+        var r = wrap.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) return { w: r.width, h: r.height, x: 0, y: 0 };
+      }
       var vv = window.visualViewport;
       if (vv && vv.width > 0 && vv.height > 0) return { w: vv.width, h: vv.height, x: vv.offsetLeft || 0, y: vv.offsetTop || 0 };
-      var r = (wrap || canvas).getBoundingClientRect();
-      return { w: Math.max(1, r.width), h: Math.max(1, r.height), x: 0, y: 0 };
+      var r2 = canvas.getBoundingClientRect();
+      return { w: Math.max(1, r2.width), h: Math.max(1, r2.height), x: 0, y: 0 };
+    }
+    function viewSize() {
+      var v = rawViewSize();
+      if (stableView && isCoarsePointer() && Math.abs(v.w - stableView.w) < 2 && v.h < stableView.h * 0.85) {
+        var t = Date.now();
+        if (!shrinkSince) shrinkSince = t;
+        if (t - shrinkSince < 1200) {
+          if (!shrinkTimer) shrinkTimer = setTimeout(function() {
+            shrinkTimer = 0;
+            resize();
+          }, 1250);
+          return stableView;
+        }
+      }
+      shrinkSince = 0;
+      stableView = v;
+      return v;
     }
     function isCoarsePointer() {
       try {
@@ -6101,6 +6195,14 @@
           }
           cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
           cssHpx = (lh - VIEW_CROP - VIEW_BOT) * cssScale;
+        } else if (!fieldLocked && phase !== "play" && availH * lw > availW * lh) {
+          cssScale = availW / lw;
+          lh = Math.max(lh, Math.floor(availH / cssScale));
+          VIEW_PAD = 0;
+          VIEW_CROP = 0;
+          VIEW_BOT = 0;
+          cssWpx = availW;
+          cssHpx = availH;
         } else {
           cssScale = Math.min(availW / lw, availH / lh);
           VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
@@ -6654,6 +6756,9 @@
       NET.attachWorld(world, info);
     }
     function startRun(seed, mapId) {
+      phase = "play";
+      fieldLocked = false;
+      resize();
       var s = seed != null ? seed : (Date.now() ^ Math.floor(Math.random() * 2147483647)) >>> 0;
       world = createWorld(s, mode, save.char, lookNow(), mapId || (mode === "squad" ? lobbyMap : save.bg));
       var mi = mapIdx(world.map);
@@ -7324,11 +7429,11 @@
       markBox(id, x, y, w, h);
       var fill = dim ? "#12101c" : C.navy;
       box(ctx, x, y, w, h, fill, dim ? "#5a4a72" : C.cream);
-      var ix = x + 2, iy = y + Math.round((h - 24) / 2);
+      var ix = x + 1, iy = y + Math.round((h - 24) / 2);
       if (dim) ctx.globalAlpha = 0.45;
       drawUiPx(ctx, icon, ix, iy, 1);
       if (dim) ctx.globalAlpha = 1;
-      var tx = ix + 24 + 2, tw = x + w - 3 - tx;
+      var tx = ix + 24 + 1, tw = x + w - 1 - tx;
       var col = dim ? "#9a8ab8" : C.cream;
       var lines = tinyLines(label, tw);
       var block = lines.length * 6 - 1;
@@ -7424,12 +7529,13 @@
       btn("start", x, L.playY, 152, L.playH, C.mint, "", INK, 2);
       drawBig(ctx, "\u0418\u0413\u0420\u0410\u0422\u042C \u25B6", LW / 2, L.playY + 4, INK, 2, "center");
       drawText(ctx, sub, LW / 2, L.playY + 23, INK, 1, "center");
-      var gw = Math.floor((152 - L.gridGap) / 2);
-      var gx2 = x + gw + L.gridGap;
+      var hgap = 2;
+      var gw = Math.floor((152 - hgap) / 2);
+      var gx2 = x + gw + hgap;
       var gy2 = L.gridY + L.gridH + L.gridGap;
       drawGridCell("camp", x, L.gridY, gw, L.gridH, "grid_maps", "\u041A\u0410\u0420\u0422\u042B");
-      drawGridCell("net:menu", gx2, L.gridY, gw, L.gridH, "grid_multiplayer", "\u041C\u0423\u041B\u042C\u0422\u0418 \u041F\u041B\u0415\u0415\u0420");
-      drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", "\u042D\u041D\u0426\u0418\u041A\u041B\u041E \u041F\u0415\u0414\u0418\u042F");
+      drawGridCell("net:menu", gx2, L.gridY, gw, L.gridH, "grid_multiplayer", "\u041C\u0423\u041B\u042C\u0422\u0418\u041F\u041B\u0415\u0415\u0420");
+      drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", "\u042D\u041D\u0426\u0418\u041A\u041B\u041E\u041F\u0415\u0414\u0418\u042F");
       drawGridCell("soon", gx2, gy2, gw, L.gridH, "grid_quests", "\u0417\u0410\u0414\u0410\u041D\u0418\u042F \xB7 \u0421\u041A\u041E\u0420\u041E", true);
       var tabs = [
         { id: "tab:shop", key: "shop", label: "\u041C\u0410\u0413\u0410\u0417\u0418\u041D", lock: true },
@@ -7446,10 +7552,10 @@
         var on = tb.id === "tab:home" && homeOn || tb.id === "set" && showSet;
         addHit(tb.id, tx, L.tabY, tw, L.tabH);
         markBox(tb.id === "set" ? "tab:settings" : tb.id, tx, L.tabY, tw, L.tabH);
-        rect(ctx, tx, L.tabY, tw, L.tabH, on ? "#24356a" : tb.lock ? "#0c0a14" : "#100c22");
+        rect(ctx, tx, L.tabY, tw, LH - L.tabY, on ? "#24356a" : tb.lock ? "#0c0a14" : "#100c22");
         if (on) rect(ctx, tx, L.tabY, tw, 2, C.cream);
         rect(ctx, tx, L.tabY, tw, 1, INK);
-        if (ti > 0) rect(ctx, tx, L.tabY, 1, L.tabH, INK);
+        if (ti > 0) rect(ctx, tx, L.tabY, 1, LH - L.tabY, INK);
         var ix = tx + Math.floor((tw - 16) / 2);
         var iy = L.tabY + 3;
         drawTabIcon(tb.key, ix, iy, !!tb.lock);
@@ -7457,7 +7563,7 @@
         drawTiny(ctx, tb.label, tx + tw / 2, L.tabY + 22, tc, "center");
         if (tb.lock) drawTabLock(ix + 11, iy - 1);
       }
-      rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
+      if (LH - L.tabY <= L.tabH) rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
       if (showSet) {
         hits = [];
         screenLay = [];
@@ -7532,12 +7638,16 @@
       var y0 = heroY + rows * pw + (rows - 1) * gap + 6, ch = LH - y0 - 42;
       markBox("card", x, y0, 152, ch);
       box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
-      var mid = y0 + 52;
-      rect(ctx, x + 40, mid + 8, 72, 4, C.wood);
-      rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
-      var ph = ui % 70 / 70, pose = ui % 280 > 230 ? "ability" : ph < 0.08 ? "squash" : ph < 0.5 ? "up" : "fall";
-      var hop = pose === "ability" ? 6 : Math.round(Math.sin(ph * Math.PI) * 10);
-      drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2);
+      var btnH = 22, btnPad = 6;
+      var textBot = 85, roomFull = 52 + textBot + 4 + btnH + btnPad, showHero = ch >= roomFull;
+      var mid = showHero ? y0 + 52 : y0 - 10;
+      if (showHero) {
+        rect(ctx, x + 40, mid + 8, 72, 4, C.wood);
+        rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
+        var ph = ui % 70 / 70, pose = ui % 280 > 230 ? "ability" : ph < 0.08 ? "squash" : ph < 0.5 ? "up" : "fall";
+        var hop = pose === "ability" ? 6 : Math.round(Math.sin(ph * Math.PI) * 10);
+        drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2);
+      }
       drawText(ctx, H2.name, LW / 2, mid + 16, C.cream, 2, "center");
       var tw = textWidth(H2.abName, 1) + 10;
       box(ctx, Math.round(LW / 2 - tw / 2), mid + 34, tw, 12, "#3a4ac8", C.cream);
@@ -7545,7 +7655,9 @@
       drawText(ctx, H2.abDesc[0], LW / 2, mid + 52, C.cream, 1, "center");
       drawText(ctx, H2.abDesc[1], LW / 2, mid + 62, C.cream, 1, "center");
       drawChargeLine(LW / 2, mid + 76, H2, "#9a8ab8");
-      var byb = y0 + ch - 28;
+      markBox("cardText", x + 4, mid + 16, 144, textBot - 16);
+      var byb = Math.max(y0 + ch - btnH - btnPad, mid + textBot + 4);
+      markBox("cardBtn", x + 10, byb, 132, btnH);
       if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "\u0412\u042B\u0411\u0420\u0410\u041D", C.gold, 1, C.gold);
       else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "\u0412\u042B\u0411\u0420\u0410\u0422\u042C", INK);
       else drawBuy("hero:act", x + 10, byb, 132, 22, H2.price);
@@ -7626,7 +7738,7 @@
     function lobbyNames() {
       var out = [{ kind: save.char, look: lookNow(), name: CHARS[save.char].name, tag: "\u0422\u042B" }];
       var bk = botKinds(save.char);
-      for (var k = 0; k < bk.length; k++) out.push({ kind: bk[k], look: makeLook(bk[k], "base", "none"), name: CHARS[bk[k]].name, tag: "\u0411\u041E\u0422" });
+      for (var k = 0; k < bk.length; k++) out.push({ kind: bk[k], look: makeLook(bk[k], "base", "none"), name: "\u0411\u041E\u0422 " + (k + 1), tag: CHARS[bk[k]].name.toUpperCase() });
       return out;
     }
     function poseOf(p) {
@@ -7844,7 +7956,8 @@
       for (i = 0; i < tags.length; i++) {
         var tg = tags[i];
         var isMe = tg.p.id === 0;
-        var label = !tg.p.alive ? "\u0412\u042B\u0411\u042B\u041B" : isMe ? "\u25BC" : (tg.p.name || "\u0411\u041E\u0422").slice(0, 3);
+        var tgNm = String(tg.p.name || "\u0411\u041E\u0422");
+        var label = !tg.p.alive ? "\u0412\u042B\u0411\u042B\u041B" : isMe ? "\u25BC" : /^БОТ \d$/.test(tgNm) ? tgNm : tgNm.slice(0, 3);
         tg.w = textWidth(label, 1) + 4;
         for (var j = 0; j < i; j++) {
           var o = tags[j];
@@ -8219,10 +8332,11 @@
       var me = world.players[0], mtr = metersOf(me), why = whyText(me);
       var note = limitLabel(world.limited);
       var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
-      var hasGoal = !!(M2.goal && mi2 + 1 < MAPS.length);
+      var hasGoal = !!(M2.goal && mi2 + 1 < MAPS.length && !mapOpen(mi2 + 1));
       var met = hasGoal && mapBest(mi2) >= M2.goal;
+      if (met && save.coins < (MAPS[mi2 + 1].price || 0)) hasGoal = false;
       var evN = eveningCount();
-      var nh = nextHeroNeed();
+      var nh = null;
       var y0 = hdRes.bottom + 4;
       var btnY = LH - 64 - bot;
       var full = list.length * (squad ? 28 : 36) + (why ? 18 : 0) + (hasGoal ? met ? 26 : 32 : 0) + (note ? 72 : 60) + (evN ? 13 + evN * 11 + 6 : 0) + 16 + (nh ? 26 : 0);
@@ -8475,6 +8589,10 @@
       say,
       openMaps,
       heroOwned,
+      accountName,
+      relayout: function() {
+        resize();
+      },
       sessionReplaced: function() {
         sessionNote = true;
         goMenu();
@@ -8969,12 +9087,14 @@
         var fails = 0, example = null;
         for (var r = 1; r < ys.length; r++) {
           var gap = ys[r - 1] - ys[r];
-          var prevS = byY[String(ys[r - 1])].filter(function(p) {
-            return isStableType(p.type);
-          });
-          var curS = byY[String(ys[r])].filter(function(p) {
-            return isStableType(p.type);
-          });
+          var sweep = function(list) {
+            for (var q = 0; q < list.length; q++) if (list[q].type === "move") return [{ x: 2, w: (lw || prev) - 4, type: "move" }];
+            return list.filter(function(p) {
+              return isStableType(p.type);
+            });
+          };
+          var prevS = sweep(byY[String(ys[r - 1])]);
+          var curS = sweep(byY[String(ys[r])]);
           if (!prevS.length || !curS.length) {
             fails++;
             if (!example) example = { y: ys[r], gap, why: "empty" };
@@ -8992,6 +9112,25 @@
         }
         LW = prev;
         return { fails, example, rows: ys.length };
+      },
+      /* Rows that hold a moving platform must hold nothing else (no static platform in its sweep). */
+      auditMoveRows: function(seed, toM, mapId) {
+        var w = createWorld(seed >>> 0, "solo", 4, makeLook(4, "base", "none"), mapId || "city");
+        generateUntil(w, -toM * PX_PER_M);
+        var rows = {}, bad = 0, moves = 0;
+        for (var i = 0; i < w.platforms.length; i++) {
+          var pl = w.platforms[i];
+          (rows[pl.y] = rows[pl.y] || []).push(pl);
+        }
+        for (var k in rows) {
+          var list = rows[k], hasMove = false;
+          for (var j = 0; j < list.length; j++) if (list[j].type === "move") hasMove = true;
+          if (hasMove) {
+            moves++;
+            if (list.length > 1) bad++;
+          }
+        }
+        return { moves, bad };
       },
       mageProbe: function() {
         mode = "solo";

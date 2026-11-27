@@ -43,6 +43,12 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (this.presenceTimer) { clearInterval(this.presenceTimer); this.presenceTimer = null; }
   }
 
+  /** A name the player typed (cn=1) wins; the Telegram/profile name is only the default. Typed names are cleaned. */
+  private roomName(idn: { name: string } | null, d: any): string {
+    const typed = d && d.cn ? String(d.name ?? '').replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, 10) : '';
+    if (typed) return typed;
+    return idn ? idn.name : d?.name;
+  }
   private async identity(token: unknown) {
     if (!this.profiles || typeof token !== 'string' || !token) return null;
     try { return await this.profiles.identityForToken(token); } catch { return null; }
@@ -150,7 +156,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const idn = await this.identity(d?.pt);
     this.guard(ws, () => {
       if (idn) { ws.sess.accountId = idn.id; ws.sess.sessionId = idn.sessionId; }
-      const hit = this.rooms.create(ws, idn ? idn.name : d?.name, d?.kind, d?.g, idn?.id);
+      const hit = this.rooms.create(ws, this.roomName(idn, d), d?.kind, d?.g, idn?.id);
       if (idn && hit.player) hit.player.sessionId = idn.sessionId;
       this.attach(ws, hit);
       this.rooms.pushRoom(hit.room);
@@ -162,7 +168,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const idn = await this.identity(d?.pt);
     this.guard(ws, () => {
       if (idn) { ws.sess.accountId = idn.id; ws.sess.sessionId = idn.sessionId; }
-      const hit = this.rooms.join(ws, d?.code, idn ? idn.name : d?.name, d?.kind, d?.g, idn?.id);
+      const hit = this.rooms.join(ws, d?.code, this.roomName(idn, d), d?.kind, d?.g, idn?.id);
       if (idn && hit.player) hit.player.sessionId = idn.sessionId;
       this.attach(ws, hit);
       this.rooms.pushRoom(hit.room);

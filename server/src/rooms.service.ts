@@ -207,7 +207,11 @@ export class RoomsService implements OnModuleDestroy {
     const used = new Set(r.players.map((q) => q.kind));
     let kind = 0;
     for (let k = 0; k < HERO_COUNT; k++) if (!used.has(k)) { kind = k; break; }
-    const bot = this.addPlayer(r, null as unknown as WebSocket, 'БОТ', kind);
+    /* Bots are numbered «БОТ 1..3» (lowest free number) so lobby, game and the evening score can tell them apart. */
+    const usedNo = new Set(r.players.filter((q) => q.bot).map((q) => Number(String(q.name).replace(/\D+/g, '')) || 0));
+    let no = 1;
+    while (usedNo.has(no)) no++;
+    const bot = this.addPlayer(r, null as unknown as WebSocket, 'БОТ ' + no, kind);
     bot.bot = true;
     bot.ready = true;
     bot.ws = null;
@@ -245,7 +249,7 @@ export class RoomsService implements OnModuleDestroy {
   start(r: Room, p: Player) {
     if (p.pid !== r.host) throw new RoomError('NOT_HOST', 'Только хост');
     if (r.phase === 'play') throw new RoomError('IN_GAME', 'Забег уже идёт');
-    const others = r.players.filter((q) => q.pid !== r.host && !q.offSince);
+    const others = r.players.filter((q) => q.pid !== r.host && !q.offSince && !q.bot);
     if (others.some((q) => !q.ready)) throw new RoomError('NOT_READY', 'Не все готовы');
     r.phase = 'play';
     r.round++;
@@ -362,7 +366,8 @@ export class RoomsService implements OnModuleDestroy {
     this.log.log(`room ${r.code}: round ${r.round} results ${ranking.map((x) => x.name + ':' + x.m).join(', ')}`);
     // back to lobby for the rematch
     r.phase = 'lobby';
-    for (const p of r.players) p.ready = false;
+    /* Bots are always ready; only people re-confirm for the rematch. */
+    for (const p of r.players) p.ready = !!p.bot;
     this.pushRoom(r);
   }
 

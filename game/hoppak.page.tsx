@@ -1072,6 +1072,11 @@ function edgeGap(ax: number, aw: number, bx: number, bw: number) {
 }
 /* After the row is placed: every previous stable platform must reach a stable one here. No extra RNG. */
 function ensureReach(w: any, row: any[], y: number) {
+  /* A moving platform sweeps the whole row (wall to wall), so it is reachable from anywhere and it is
+     where the next row starts from. Never add a static safety platform into its path (prod b683155 behaviour). */
+  for (var mv = 0; mv < row.length; mv++) {
+    if (row[mv].type === "move") { w.reachFrom = [{ x: 2, w: LW - 4 }]; return; }
+  }
   var prev = w.reachFrom && w.reachFrom.length ? w.reachFrom : [{ x: 8, w: LW - 16 }];
   var gap = w.reachGap > 0 ? w.reachGap : ROW_SEP;
   var reach = horizReachPx(gap);
@@ -1445,7 +1450,11 @@ function createWorld(seed: number, mode: string, humanKind: number, humanLook: a
   w.players.push(newPlayer(0, humanKind, humanLook, xs[0], false));
   if (mode === "squad") {
     var bk = botKinds(humanKind);
-    for (var i = 1; i < 4; i++) w.players.push(newPlayer(i, bk[i - 1], makeLook(bk[i - 1], "base", "none"), xs[i], true));
+    for (var i = 1; i < 4; i++) {
+      var bp = newPlayer(i, bk[i - 1], makeLook(bk[i - 1], "base", "none"), xs[i], true);
+      bp.name = "БОТ " + i; /* label only: «БОТ 1..3» in game, results and spectator */
+      w.players.push(bp);
+    }
   }
   generateUntil(w, w.cameraY - 80);
   return w;
@@ -1776,6 +1785,21 @@ function tickWorld(w: any, inputs: any) {
     if (pl.respawnT > 0 && --pl.respawnT === 0) { pl.broken = false; spawnParts(w, pl.x + pl.w / 2, pl.y, 4, "#88f8ff", 1.2, -0.02, 1); }
     if (pl.springT > 0) pl.springT--;
     if (pl.lifeT > 0 && --pl.lifeT === 0) { pl.broken = true; pl.breakT = 0; }
+  }
+  /* Spectating (own hero is down): other runners — bots and remote players — visibly pick up coins they touch.
+     Visual only: no runCoins, no charge, no netTell, so the player's award and the economy are unchanged. */
+  if (w.players[0] && !w.players[0].alive) {
+    for (var sp = 1; sp < w.players.length; sp++) {
+      var sq = w.players[sp];
+      if (!sq.alive) continue;
+      for (var sc = 0; sc < w.coins.length; sc++) {
+        var scn = w.coins[sc];
+        if (!scn.taken && overlapsX(sq.x - 2, PW + 4, scn.x, 6) && scn.y + 6 > sq.y - 2 && scn.y < sq.y + PH + 2) {
+          scn.taken = true;
+          spawnParts(w, scn.x + 3, scn.y + 3, 6, "#ffe07a", 1.8, 0, 1);
+        }
+      }
+    }
   }
   function nearPlayer(mo: any) {
     for (var q = 0; q < w.players.length; q++) if (w.players[q].alive && Math.abs(w.players[q].y - mo.y) < LH * 0.8) return true;
@@ -3046,6 +3070,26 @@ var NET: any = (function () {
     return out.trim();
   }
   function cleanNick(s: string) { return cleanText(s, 10); }
+  /* Default = the player's own nickname (Telegram first name / @username, else the guest HOP-xxxx), never the hero. */
+  function defaultNick() {
+    var s = "";
+    try { if (N.api && N.api.accountName) s = cleanNick(N.api.accountName(false)); } catch (_e) {}
+    return s || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase();
+  }
+  function typedNick() { return cleanNick(nick()); }
+  function shownNick() { return typedNick() || defaultNick(); }
+  N.shownNick = shownNick;
+  /* Timers that survive a blocked JS thread (iOS window.prompt, app in background): if the callback runs far later than
+     scheduled, the socket/fetch events that queued meanwhile get one more full window before we call it a failure. */
+  function lateSafe(fn: any, ms: number) {
+    var due = now() + ms, rearmed = false, h: any = 0;
+    function tick() {
+      if (!rearmed && now() - due > 1500) { rearmed = true; due = now() + ms; h = setTimeout(tick, ms); return; }
+      fn();
+    }
+    h = setTimeout(tick, ms);
+    return { cancel: function () { clearTimeout(h); } };
+  }
   function send(event: string, data: any) {
     if (!N.ws || N.ws.readyState !== 1) return false;
     N.ws.send(JSON.stringify({ event: event, data: data || {} }));
@@ -3063,11 +3107,11 @@ var NET: any = (function () {
   function probeHealth(hu: string, cb: any) {
     if (!hu || typeof fetch === "undefined") { cb(false); return; }
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    var to = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, 5000);
+    var to = lateSafe(function () { try { if (ctrl) ctrl.abort(); } catch (_e) {} }, 5000);
     var done = false;
     function finish(ok: boolean) {
       if (done) return;
-      done = true; clearTimeout(to); cb(!!ok);
+      done = true; to.cancel(); cb(!!ok);
     }
     var opts: any = { method: "GET", cache: "no-store", mode: "cors" };
     if (ctrl) opts.signal = ctrl.signal;
@@ -3078,21 +3122,21 @@ var NET: any = (function () {
     try { ws = new WebSocket(u); } catch (_e) { failLink(); return; }
     N.ws = ws;
     var opened = false;
-    var to = setTimeout(function () { if (!opened) { try { ws.close(); } catch (_e) {} } }, 5000);
+    var to = lateSafe(function () { if (!opened) { try { ws.close(); } catch (_e) {} } }, 5000);
     ws.onopen = function () {
-      opened = true; clearTimeout(to);
+      opened = true; to.cancel();
       /* Stay in connecting until hello confirms the protocol version.
          Old site builds at /v/<ver>/ share the same /ws; a mismatch must not crash. */
-      if (N.helloTimer) clearTimeout(N.helloTimer);
-      N.helloTimer = setTimeout(function () {
+      if (N.helloTimer) N.helloTimer.cancel();
+      N.helloTimer = lateSafe(function () {
         N.helloTimer = 0;
         if (N.ws === ws && N.st !== "online" && N.st !== "unsupported") rejectVersion();
       }, 2000);
     };
     ws.onmessage = function (e: any) { N.stats.recv++; var m: any; try { m = JSON.parse(e.data); } catch (_e2) { return; } onMsg(m.event, m.data || {}); };
     ws.onclose = function () {
-      clearTimeout(to);
-      if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+      to.cancel();
+      if (N.helloTimer) { N.helloTimer.cancel(); N.helloTimer = 0; }
       if (N.ws !== ws) return;
       N.ws = null;
       if (N.st === "unsupported") return;
@@ -3129,7 +3173,7 @@ var NET: any = (function () {
     }, 800);
   }
   function rejectVersion() {
-    if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+    if (N.helloTimer) { N.helloTimer.cancel(); N.helloTimer = 0; }
     N.st = "unsupported";
     N.err = "МУЛЬТИПЛЕЕР НЕДОСТУПЕН В ЭТОЙ ВЕРСИИ";
     N.room = null;
@@ -3158,7 +3202,7 @@ var NET: any = (function () {
       if (!N.rtt || rtt < N.rtt * 1.5) N.off = N.rtt ? N.off * 0.7 + off * 0.3 : off;
       N.rtt = N.rtt ? N.rtt * 0.8 + rtt * 0.2 : rtt;
     } else if (ev === "hello") {
-      if (N.helloTimer) { clearTimeout(N.helloTimer); N.helloTimer = 0; }
+      if (N.helloTimer) { N.helloTimer.cancel(); N.helloTimer = 0; }
       if (d.v !== NET_PROTO) { rejectVersion(); return; }
       ping();
       var tok = N.token || load("hoppak.net.token");
@@ -3239,7 +3283,7 @@ var NET: any = (function () {
       var tg = (window as any).Telegram && (window as any).Telegram.WebApp;
       if (tg && tg.platform) plat = String(tg.platform).slice(0, 16);
     } catch (_e2) {}
-    return { name: cleanNick(nick()) || CHARS[N.api ? N.api.save().char : 0].name.toUpperCase(), kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
+    return { name: shownNick(), cn: typedNick() ? 1 : 0, kind: N.api ? N.api.save().char : 0, g: NET_GEN, pt: tok, v: "0.6rc", p: plat };
   }
   function screenNow() {
     var w = N.api && N.api.world && N.api.world();
@@ -3325,7 +3369,9 @@ var NET: any = (function () {
     N.eveningState = { round: roundNo, title: "РАУНД " + roundNo, total: pids.length, fit: fit, off: off };
     box(ctx, x, y, 152, h, C.navy, C.gold);
     if (N.api && N.api.markBox) N.api.markBox("evening", x, y, 152, h);
-    drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
+    /* With the ↑ scroll button the header moves left and shortens so the button never covers it. */
+    if (maxOff > 0) drawText(ctx, "СЧЁТ · РАУНД " + roundNo, x + 6, y + 2, C.gold, 1, "left");
+    else drawText(ctx, "СЧЁТ ВЕЧЕРА · РАУНД " + roundNo, LW / 2, y + 2, C.gold, 1, "center");
     for (var i2 = 0; i2 < fit; i2++) {
       var pid = pids[off + i2], nm = drawableChars(String(S.names[pid] || "ИГРОК")).slice(0, 10);
       var lineY = y + 12 + i2 * 9;
@@ -3466,7 +3512,7 @@ var NET: any = (function () {
     /* After death, follow the watched player: their camera, and the events above (coins, mobs, platforms). */
     if (!me0.alive) {
       var tgt = watchOf(w);
-      if (tgt) { w.cameraY = tgt.camY; w.watchName = tgt.name || ""; generateUntil(w, w.cameraY - 80); }
+      if (tgt) { w.cameraY = tgt.camY; w.watchName = tgt.name || ""; w.watchM = metersOf(tgt); generateUntil(w, w.cameraY - 80); }
     }
     if (N.results && N.results.round === w.netRound && w.phase === "play") {
       var R = N.results.ranking;
@@ -3516,9 +3562,17 @@ var NET: any = (function () {
       box(ctx, LW / 2 - 60, 24, 120, 13, "#4a1020", C.red);
       drawText(ctx, "ПЕРЕПОДКЛЮЧАЕМСЯ...", LW / 2, 27, C.cream, 1, "center");
     } else if (!w.players[0].alive && w.phase === "play") {
-      box(ctx, LW / 2 - 64, 24, 128, 13, C.navy, C.cream);
       var wn = w.watchName ? drawableChars(String(w.watchName)).slice(0, 10) : "";
-      drawText(ctx, wn ? "СМОТРИМ " + wn : "ЖДЁМ ОСТАЛЬНЫХ", LW / 2, 27, C.cream, 1, "center");
+      if (wn) {
+        /* Who we watch and how high they are right now. */
+        box(ctx, LW / 2 - 64, 24, 128, 22, C.navy, C.cream);
+        if (N.api && N.api.markBox) N.api.markBox("watch", LW / 2 - 64, 24, 128, 22);
+        drawText(ctx, "СМОТРИМ " + wn, LW / 2, 27, C.cream, 1, "center");
+        drawText(ctx, (w.watchM || 0) + " М", LW / 2, 36, C.gold, 1, "center");
+      } else {
+        box(ctx, LW / 2 - 64, 24, 128, 13, C.navy, C.cream);
+        drawText(ctx, "ЖДЁМ ОСТАЛЬНЫХ", LW / 2, 27, C.cream, 1, "center");
+      }
     }
   };
 
@@ -3547,7 +3601,7 @@ var NET: any = (function () {
     if (N.sub === "code") return drawCode(api, x);
     var hd = api.header("МУЛЬТИПЛЕЕР", 1);
     var subY = hd.bottom + 4;
-    drawText(ctx, "ДО 4 ИГРОКОВ НА ОДНОЙ КАРТЕ", LW / 2, subY, C.cream, 1, "center");
+    drawText(ctx, "ДО 4 ИГРОКОВ НА КАРТЕ", LW / 2, subY, C.cream, 1, "center");
     if (sl.two) {
       box(ctx, x, subY + 14, 152, 24, C.navy, sl.c);
       if (api.markBox) api.markBox("status", x, subY + 14, 152, 24);
@@ -3559,7 +3613,7 @@ var NET: any = (function () {
       drawText(ctx, sl.t, LW / 2, subY + 17, sl.c, 1, "center");
     }
     var y = subY + (sl.two ? 48 : 38);
-    api.btn("net:name", x, y, 152, 20, "#1a1430", "ИМЯ: " + (cleanNick(nick()) || CHARS[api.save().char].name.toUpperCase()), C.cream, 1, C.gold);
+    api.btn("net:name", x, y, 152, 20, "#1a1430", "ИМЯ: " + shownNick(), C.cream, 1, C.gold);
     y += 28;
     var ok = N.st === "online";
     api.btn("net:create", x, y, 152, 30, ok ? C.mint : "#3a3450", "СОЗДАТЬ КОМНАТУ", INK, 1);
@@ -3617,7 +3671,7 @@ var NET: any = (function () {
       if (api.markBox) api.markBox("slot" + i, x, y, 152, 23);
       drawPortraitCrop(ctx, p.kind, x + 1, y + 1, 21);
       var heroNm = (CHARS[p.kind] && CHARS[p.kind].name || "").toUpperCase();
-      var slotLab = p.bot ? "БОТ" : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
+      var slotLab = p.bot ? slotLabel(p.name || "БОТ", heroNm, host ? 84 : 104) : slotLabel(p.name, heroNm, host && !isMe ? 84 : 104);
       drawText(ctx, slotLab, x + 26, y + 8, C.cream, 1, "left");
       if (host && !isMe) api.btn("net:kick" + p.pid, x + 128, y + 4, 18, 15, "#1a1430", "X", C.cream);
     }
@@ -3678,9 +3732,17 @@ var NET: any = (function () {
     if (id === "net:addbot") { send("bot", {}); return; }
     if (id.indexOf("net:kick") === 0) { send("kick", { pid: parseInt(id.slice(8), 10) }); return; }
     if (id === "net:name") {
-      var cur = cleanNick(nick());
-      var v = typeof window !== "undefined" && window.prompt ? window.prompt("Имя для друзей (по-русски, до 10 букв)", cur) : null;
-      if (v != null) { var c = cleanNick(v); try { localStorage.setItem("hoppak.nick", c); } catch (_e) {} if (!c && v) api.say("ТОЛЬКО РУССКИЕ БУКВЫ"); }
+      var cur = shownNick();
+      var v = typeof window !== "undefined" && window.prompt ? window.prompt("Имя для друзей (до 10 букв)", cur) : null;
+      if (v != null) {
+        var c = cleanNick(v);
+        /* Saving the default back unchanged keeps following the Telegram name; anything else is the player's own. */
+        var keep = c && c !== defaultNick() ? c : "";
+        try { localStorage.setItem("hoppak.nick", keep); } catch (_e) {}
+        if (!c && v) api.say("ТАКИЕ БУКВЫ НЕ ПОДХОДЯТ");
+      }
+      /* The keyboard may have resized the webview: settle the layout once it is gone. */
+      if (api.relayout) { setTimeout(api.relayout, 300); setTimeout(api.relayout, 1300); }
       return;
     }
     if (id === "net:create") { if (N.st !== "online") { N.connect(); return; } N.create(); return; }
@@ -3690,7 +3752,12 @@ var NET: any = (function () {
     if (id === "net:del") { N.code = N.code.slice(0, -1); return; }
     if (id === "net:ok") { if (N.code.length === 4) N.join(N.code); return; }
     if (id === "net:ready") { var m = N.mePlayer(); send("ready", { ready: !(m && m.ready) }); return; }
-    if (id === "net:start") { send("start", {}); return; }
+    if (id === "net:start") {
+      /* The button already says ЖДЁМ ГОТОВНОСТИ; don't fire a start the server will refuse (its toast covered the lobby). */
+      var R0 = N.room, notReady = R0 && R0.players.some(function (q: any) { return q.pid !== R0.host && q.on && !q.bot && !q.ready; });
+      if (notReady) return;
+      send("start", {}); return;
+    }
     if (id === "net:mprev" || id === "net:mnext") {
       var om = api.openMaps(), li = Math.max(0, om.indexOf(N.room.map));
       if (om.indexOf(N.room.map) < 0) om = om.concat([N.room.map]);
@@ -4487,11 +4554,34 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (phase === "net" && typeof NET !== "undefined" && NET && NET.room && NET.room.map) return NET.room.map;
     return save.bg;
   }
-  function viewSize() {
+  /* Layout viewport (the fixed #wrap), not visualViewport: in Telegram iOS the visual viewport can be shorter
+     than the webview (stripes above/below) and it shrinks while the keyboard is up. */
+  var stableView: any = null, shrinkSince = 0, shrinkTimer: any = 0;
+  function rawViewSize() {
+    if (wrap) {
+      var r = wrap.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return { w: r.width, h: r.height, x: 0, y: 0 };
+    }
     var vv = window.visualViewport;
     if (vv && vv.width > 0 && vv.height > 0) return { w: vv.width, h: vv.height, x: vv.offsetLeft || 0, y: vv.offsetTop || 0 };
-    var r = (wrap || canvas).getBoundingClientRect();
-    return { w: Math.max(1, r.width), h: Math.max(1, r.height), x: 0, y: 0 };
+    var r2 = canvas.getBoundingClientRect();
+    return { w: Math.max(1, r2.width), h: Math.max(1, r2.height), x: 0, y: 0 };
+  }
+  function viewSize() {
+    var v = rawViewSize();
+    /* A phone keyboard (name prompt) shrinks the height for a moment with the width unchanged.
+       Keep the last stable size; accept the new one only if it is still there 1.2 s later. */
+    if (stableView && isCoarsePointer() && Math.abs(v.w - stableView.w) < 2 && v.h < stableView.h * 0.85) {
+      var t = Date.now();
+      if (!shrinkSince) shrinkSince = t;
+      if (t - shrinkSince < 1200) {
+        if (!shrinkTimer) shrinkTimer = setTimeout(function () { shrinkTimer = 0; resize(); }, 1250);
+        return stableView;
+      }
+    }
+    shrinkSince = 0;
+    stableView = v;
+    return v;
   }
   function isCoarsePointer() {
     try {
@@ -4652,6 +4742,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         }
         cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
         cssHpx = (lh - VIEW_CROP - VIEW_BOT) * cssScale;
+      } else if (!fieldLocked && phase !== "play" && availH * lw > availW * lh) {
+        /* Menus on a tall phone: fill the whole screen (no stripes under the TG header or below the tab bar).
+           Width sets the scale, the menu just gets taller. Runs always go back to 346 (startRun). */
+        cssScale = availW / lw;
+        lh = Math.max(lh, Math.floor(availH / cssScale));
+        VIEW_PAD = 0;
+        VIEW_CROP = 0; VIEW_BOT = 0;
+        cssWpx = availW;
+        cssHpx = availH;
       } else {
         cssScale = Math.min(availW / lw, availH / lh);
         VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2);
@@ -5070,6 +5169,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     NET.attachWorld(world, info);
   }
   function startRun(seed?: number, mapId?: string) {
+    /* Menus may be taller than 346 on tall phones; the field is always 160×346 before the world exists. */
+    phase = "play"; fieldLocked = false; resize();
     var s = seed != null ? seed : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0);
     world = createWorld(s, mode, save.char, lookNow(), mapId || (mode === "squad" ? lobbyMap : save.bg));
     var mi = mapIdx(world.map);
@@ -5499,11 +5600,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     markBox(id, x, y, w, h);
     var fill = dim ? "#12101c" : C.navy;
     box(ctx, x, y, w, h, fill, dim ? "#5a4a72" : C.cream);
-    var ix = x + 2, iy = y + Math.round((h - 24) / 2);
+    var ix = x + 1, iy = y + Math.round((h - 24) / 2);
     if (dim) ctx.globalAlpha = 0.45;
     drawUiPx(ctx, icon, ix, iy, 1);
     if (dim) ctx.globalAlpha = 1;
-    var tx = ix + 24 + 2, tw = x + w - 3 - tx;
+    /* Text runs from 1 px after the icon to the inner edge of the frame: ЭНЦИКЛОПЕДИЯ (47 px) fits one line. */
+    var tx = ix + 24 + 1, tw = x + w - 1 - tx;
     var col = dim ? "#9a8ab8" : C.cream;
     var lines = tinyLines(label, tw);
     var block = lines.length * 6 - 1;
@@ -5574,13 +5676,14 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     /* Same face as prod b683155: BIGF scale 2, ink, no outline, 4px under the button top. */
     drawBig(ctx, "ИГРАТЬ ▶", LW / 2, L.playY + 4, INK, 2, "center");
     drawText(ctx, sub, LW / 2, L.playY + 23, INK, 1, "center");
-    var gw = Math.floor((152 - L.gridGap) / 2);
-    var gx2 = x + gw + L.gridGap;
+    var hgap = 2;
+    var gw = Math.floor((152 - hgap) / 2);
+    var gx2 = x + gw + hgap;
     var gy2 = L.gridY + L.gridH + L.gridGap;
     /* Grid cells are ~26px tall; 24px icons leave 1px padding. Labels sit to the right, tiny 3×5. */
     drawGridCell("camp", x, L.gridY, gw, L.gridH, "grid_maps", "КАРТЫ");
-    drawGridCell("net:menu", gx2, L.gridY, gw, L.gridH, "grid_multiplayer", "МУЛЬТИ ПЛЕЕР");
-    drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", "ЭНЦИКЛО ПЕДИЯ");
+    drawGridCell("net:menu", gx2, L.gridY, gw, L.gridH, "grid_multiplayer", "МУЛЬТИПЛЕЕР");
+    drawGridCell("ency", x, gy2, gw, L.gridH, "grid_encyclopedia", "ЭНЦИКЛОПЕДИЯ");
     drawGridCell("soon", gx2, gy2, gw, L.gridH, "grid_quests", "ЗАДАНИЯ · СКОРО", true);
     var tabs = [
       { id: "tab:shop", key: "shop", label: "МАГАЗИН", lock: true },
@@ -5597,10 +5700,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var on = (tb.id === "tab:home" && homeOn) || (tb.id === "set" && showSet);
       addHit(tb.id, tx, L.tabY, tw, L.tabH);
       markBox(tb.id === "set" ? "tab:settings" : tb.id, tx, L.tabY, tw, L.tabH);
-      rect(ctx, tx, L.tabY, tw, L.tabH, on ? "#24356a" : (tb.lock ? "#0c0a14" : "#100c22"));
+      /* Fill down to the screen edge (home-indicator area) so no map background shows under the bar. */
+      rect(ctx, tx, L.tabY, tw, LH - L.tabY, on ? "#24356a" : (tb.lock ? "#0c0a14" : "#100c22"));
       if (on) rect(ctx, tx, L.tabY, tw, 2, C.cream);
       rect(ctx, tx, L.tabY, tw, 1, INK);
-      if (ti > 0) rect(ctx, tx, L.tabY, 1, L.tabH, INK);
+      if (ti > 0) rect(ctx, tx, L.tabY, 1, LH - L.tabY, INK);
       var ix = tx + Math.floor((tw - 16) / 2);
       var iy = L.tabY + 3;
       drawTabIcon(tb.key, ix, iy, !!tb.lock);
@@ -5608,7 +5712,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       drawTiny(ctx, tb.label, tx + tw / 2, L.tabY + 22, tc, "center");
       if (tb.lock) drawTabLock(ix + 11, iy - 1);
     }
-    rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
+    if (LH - L.tabY <= L.tabH) rect(ctx, 0, L.tabY + L.tabH - 1, LW, 1, INK);
     if (showSet) {
       hits = [];
       screenLay = [];
@@ -5673,11 +5777,17 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var y0 = heroY + rows * pw + (rows - 1) * gap + 6, ch = LH - y0 - 42;
     markBox("card", x, y0, 152, ch);
     box(ctx, x, y0, 152, ch, on2 ? "#2a2050" : C.navy, on2 ? C.gold : own2 ? C.cream : "#6a5a8a");
-    var mid = y0 + 52;
-    rect(ctx, x + 40, mid + 8, 72, 4, C.wood); rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
-    var ph = (ui % 70) / 70, pose = ui % 280 > 230 ? "ability" : ph < 0.08 ? "squash" : ph < 0.5 ? "up" : "fall";
-    var hop = pose === "ability" ? 6 : Math.round(Math.sin(ph * Math.PI) * 10);
-    drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2);
+    /* Text block (name → charge line) is mid+16 … mid+85; the act button needs 22 px + 4 px air above it.
+       If the card is short (TG safe-area, 360 wide), drop the bouncing hero first: the portrait above shows it. */
+    var btnH = 22, btnPad = 6;
+    var textBot = 85, roomFull = 52 + textBot + 4 + btnH + btnPad, showHero = ch >= roomFull;
+    var mid = showHero ? y0 + 52 : y0 - 10;
+    if (showHero) {
+      rect(ctx, x + 40, mid + 8, 72, 4, C.wood); rect(ctx, x + 40, mid + 8, 72, 1, C.edge);
+      var ph = (ui % 70) / 70, pose = ui % 280 > 230 ? "ability" : ph < 0.08 ? "squash" : ph < 0.5 ? "up" : "fall";
+      var hop = pose === "ability" ? 6 : Math.round(Math.sin(ph * Math.PI) * 10);
+      drawJumper(ctx, jumperXForCenter(LW / 2, H2.id, pose, 2), mid + 8 - 32 - hop, makeLook(i, save.color, save.hat), 1, pose, ui % 170 < 6, true, 2);
+    }
     drawText(ctx, H2.name, LW / 2, mid + 16, C.cream, 2, "center");
     var tw = textWidth(H2.abName, 1) + 10;
     box(ctx, Math.round(LW / 2 - tw / 2), mid + 34, tw, 12, "#3a4ac8", C.cream);
@@ -5685,7 +5795,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     drawText(ctx, H2.abDesc[0], LW / 2, mid + 52, C.cream, 1, "center");
     drawText(ctx, H2.abDesc[1], LW / 2, mid + 62, C.cream, 1, "center");
     drawChargeLine(LW / 2, mid + 76, H2, "#9a8ab8");
-    var byb = y0 + ch - 28;
+    markBox("cardText", x + 4, mid + 16, 144, textBot - 16);
+    var byb = Math.max(y0 + ch - btnH - btnPad, mid + textBot + 4);
+    markBox("cardBtn", x + 10, byb, 132, btnH);
     if (on2) btn("hero:act", x + 10, byb, 132, 22, "#2a2050", "ВЫБРАН", C.gold, 1, C.gold);
     else if (own2) btn("hero:act", x + 10, byb, 132, 22, C.mint, "ВЫБРАТЬ", INK);
     else drawBuy("hero:act", x + 10, byb, 132, 22, H2.price);
@@ -5762,7 +5874,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
   function lobbyNames() {
     var out: any[] = [{ kind: save.char, look: lookNow(), name: CHARS[save.char].name, tag: "ТЫ" }];
     var bk = botKinds(save.char);
-    for (var k = 0; k < bk.length; k++) out.push({ kind: bk[k], look: makeLook(bk[k], "base", "none"), name: CHARS[bk[k]].name, tag: "БОТ" });
+    for (var k = 0; k < bk.length; k++) out.push({ kind: bk[k], look: makeLook(bk[k], "base", "none"), name: "БОТ " + (k + 1), tag: CHARS[bk[k]].name.toUpperCase() });
     return out;
   }
 
@@ -5949,7 +6061,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     for (i = 0; i < tags.length; i++) {
       var tg = tags[i];
       var isMe = tg.p.id === 0;
-      var label = !tg.p.alive ? "ВЫБЫЛ" : isMe ? "▼" : (tg.p.name || "БОТ").slice(0, 3);
+      var tgNm = String(tg.p.name || "БОТ");
+      var label = !tg.p.alive ? "ВЫБЫЛ" : isMe ? "▼" : /^БОТ \d$/.test(tgNm) ? tgNm : tgNm.slice(0, 3);
       tg.w = textWidth(label, 1) + 4;
       for (var j = 0; j < i; j++) {
         var o = tags[j];
@@ -6262,10 +6375,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var me = world.players[0], mtr = metersOf(me), why = whyText(me);
     var note = limitLabel(world.limited);
     var mi2 = mapIdx(world.map), M2 = MAPS[mi2];
-    var hasGoal = !!(M2.goal && mi2 + 1 < MAPS.length);
+    /* Only talk about the next map while it is still locked. «МОЖНО ОТКРЫТЬ» only when the goal is met AND coins suffice. */
+    var hasGoal = !!(M2.goal && mi2 + 1 < MAPS.length && !mapOpen(mi2 + 1));
     var met = hasGoal && mapBest(mi2) >= M2.goal;
+    if (met && save.coins < (MAPS[mi2 + 1].price || 0)) hasGoal = false;
     var evN = eveningCount();
-    var nh = nextHeroNeed();
+    /* Roman: no permanent «ДО ПИРАТА ● N» line on the results screen. */
+    var nh: any = null;
     var y0 = hdRes.bottom + 4;
     var btnY = LH - 64 - bot;
     var full = list.length * (squad ? 28 : 36) + (why ? 18 : 0) + (hasGoal ? (met ? 26 : 32) : 0) + (note ? 72 : 60) + (evN ? (13 + evN * 11 + 6) : 0) + 16 + (nh ? 26 : 0);
@@ -6483,7 +6599,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
 
   /* net: what the online module may use from the shell */
   var netApi: any = {
-    ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned,
+    ctx: ctx, btn: btn, header: header, belowBand: belowBand, markBox: markBox, colX: colX, say: say, openMaps: openMaps, heroOwned: heroOwned, accountName: accountName, relayout: function () { resize(); },
     sessionReplaced: function () { sessionNote = true; goMenu(); },
     bg: function () { drawBg(ctx, MENU_CAM(), ui, menuMap(), true); dimView(ctx, "rgba(18,14,44,0.32)"); },
     ui: function () { return ui; }, save: function () { return save; }, saveNow: function () { writeSave(save); },
@@ -6796,8 +6912,13 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       var fails = 0, example: any = null;
       for (var r = 1; r < ys.length; r++) {
         var gap = ys[r - 1] - ys[r];
-        var prevS = byY[String(ys[r - 1])].filter(function (p: any) { return isStableType(p.type); });
-        var curS = byY[String(ys[r])].filter(function (p: any) { return isStableType(p.type); });
+        /* A moving row counts as a wall-to-wall stable span: it sweeps the whole width. */
+        var sweep = function (list: any[]) {
+          for (var q = 0; q < list.length; q++) if (list[q].type === "move") return [{ x: 2, w: (lw || prev) - 4, type: "move" }];
+          return list.filter(function (p: any) { return isStableType(p.type); });
+        };
+        var prevS = sweep(byY[String(ys[r - 1])]);
+        var curS = sweep(byY[String(ys[r])]);
         if (!prevS.length || !curS.length) { fails++; if (!example) example = { y: ys[r], gap: gap, why: "empty" }; continue; }
         var reach = horizReachPx(gap);
         for (var a = 0; a < prevS.length; a++) {
@@ -6808,6 +6929,19 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       }
       LW = prev;
       return { fails: fails, example: example, rows: ys.length };
+    },
+    /* Rows that hold a moving platform must hold nothing else (no static platform in its sweep). */
+    auditMoveRows: function (seed: number, toM: number, mapId?: string) {
+      var w = createWorld(seed >>> 0, "solo", 4, makeLook(4, "base", "none"), mapId || "city");
+      generateUntil(w, -toM * PX_PER_M);
+      var rows: any = {}, bad = 0, moves = 0;
+      for (var i = 0; i < w.platforms.length; i++) { var pl = w.platforms[i]; (rows[pl.y] = rows[pl.y] || []).push(pl); }
+      for (var k in rows) {
+        var list = rows[k], hasMove = false;
+        for (var j = 0; j < list.length; j++) if (list[j].type === "move") hasMove = true;
+        if (hasMove) { moves++; if (list.length > 1) bad++; }
+      }
+      return { moves: moves, bad: bad };
     },
     mageProbe: function () {
       mode = "solo";
