@@ -1835,6 +1835,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       return hs;
     }
     if (encyTab === "maps") return encyMapItems();
+    if (encyTab === "bonuses") return BONUSES.map(function (B) { return { type: "bonus", B: B, open: true }; });
     var ms: any[] = [];
     for (var j = 0; j < ENCY_MOBS.length; j++) ms.push({ type: "mob", kind: ENCY_MOBS[j], i: j, open: encyMobUnlocked(ENCY_MOBS[j]) });
     return ms;
@@ -1908,6 +1909,31 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (typ === "mob") return "center";
     if (kind === "parrot" || kind === "bat" || kind === "ufo") return "center";
     return "bottom";
+  }
+  function encyItemName(it: any) {
+    if (!it.open) return t('map.locked');
+    if (it.type === "hero") return CHARS[it.i].name;
+    if (it.type === "mob") return MOBS[it.kind].name;
+    if (it.type === "bonus") return it.B.name || t('ency.bonus.bigcoin');
+    return it.M.name;
+  }
+  function encyBonusCanvas(kind: string) {
+    var key = "bonus:" + kind;
+    if (encyArtCache[key]) return encyArtCache[key];
+    var out = document.createElement("canvas");
+    out.width = out.height = ENCY_ART;
+    var g = out.getContext("2d");
+    if (!g) return null;
+    encyNoSmooth(g);
+    g.scale(2, 2);
+    if (!drawBonusSprite(g, kind, ENCY_ART / 4, ENCY_ART / 4)) return null;
+    encyArtCache[key] = out;
+    return out;
+  }
+  function encyItemArt(it: any) {
+    if (it.type === "hero") return encyHeroCanvas(it.i, 1, !it.open);
+    if (it.type === "bonus") return encyBonusCanvas(it.B.id);
+    return encyMobCanvas(it.kind, 1, !it.open);
   }
   function encyMobCanvas(kind: string, _scale: number, locked: boolean) {
     /* In-game mob art, native frame (64×64). Drawn at 0.5 in the grid and 1.0 (2× grid) in the detail card. */
@@ -2083,12 +2109,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       if (ty < y + 2) ty = y + 2;
       drawMapThumb(tx, ty, tw, th, it.M.id, !open);
     } else {
-      var scale = 1;
-      var cv = it.type === "hero" ? encyHeroCanvas(it.i, scale, !open) : encyMobCanvas(it.kind, scale, !open);
       var kind = it.type === "hero" ? (CHARS[it.i] || CHARS[0]).id : it.kind;
-      encyDrawArt(cv, innerX, innerY, innerW, innerArt, 0, encyArtAlign(kind, it.type));
+      encyDrawArt(encyItemArt(it), innerX, innerY, innerW, innerArt, 0, encyArtAlign(kind, it.type));
     }
-    var name = open ? (it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name) : t('map.locked');
+    var name = encyItemName(it);
     var lines = hudLines(name, "S", w - ENCY_PAD * 2);
     var ny = y + artH + 1;
     var li, col = open ? HUDCOL.main : HUDCOL.secondary;
@@ -2192,7 +2216,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     ctx.save();
     ctx.beginPath(); ctx.rect(x, top, 152, h); ctx.clip();
     var pad = ENCY_PAD, gap = 4;
-    var name = !open ? t('map.locked') : (it.type === "hero" ? CHARS[it.i].name : it.type === "mob" ? MOBS[it.kind].name : it.M.name);
+    var name = encyItemName(it);
     var nameLines = hudLines(name, "M", 152 - pad * 2);
     var body: string[] = [], extra: string[] = [], bi;
     if (!open) {
@@ -2213,6 +2237,9 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       body = hudLines(encyDesc("mob", it.kind), "S", 152 - pad * 2);
       var apps = encyAppearances(it.kind);
       for (bi = 0; bi < apps.length; bi++) extra.push(t('ency.appears', { name: apps[bi].name, n: apps[bi].h }));
+    } else if (it.type === "bonus") {
+      body = hudLines(t('ency.bonus.' + it.B.id + '_effect', { n: BIGCOIN }), "S", 152 - pad * 2);
+      if (it.B.t) extra.push(t('ency.bonus.duration', { n: (it.B.t * STEP).toLocaleString(gameLanguage()) }));
     } else {
       var md = encyDesc("map", it.M.id);
       if (md) body = hudLines(md, "S", 152 - pad * 2);
@@ -2226,9 +2253,8 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     if (it.type === "map") {
       drawMapDetailThumb(x + pad, artY, artBoxW, artBoxH, it.M.id, !open);
     } else {
-      var artCv = it.type === "hero" ? encyHeroCanvas(it.i, 1, !open) : encyMobCanvas(it.kind, 1, !open);
       /* Detail: exactly 2× the grid (native 64-px art), centred, text still fits below. */
-      encyDrawArt(artCv, x + pad, artY, artBoxW, artBoxH, 0, "center", 2);
+      encyDrawArt(encyItemArt(it), x + pad, artY, artBoxW, artBoxH, 0, "center", 2);
     }
     var ty = artY + artBoxH + gap, li;
     for (li = 0; li < nameLines.length; li++) {
@@ -2259,10 +2285,11 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var tabs = [
       { id: "heroes", label: t('ency.heroes') },
       { id: "mobs", label: t('ency.mobs') },
-      { id: "maps", label: t('ency.maps') }
+      { id: "maps", label: t('ency.maps') },
+      { id: "bonuses", label: t('ency.bonuses') }
     ];
     var gap = 4, tabY = ty + th + 4, tabH = HUD_S.height + 4;
-    var tabW = Math.floor((152 - gap * 2) / 3);
+    var tabW = Math.floor((152 - gap * (tabs.length - 1)) / tabs.length);
     for (var ti = 0; ti < tabs.length; ti++) {
       var tb = tabs[ti];
       var tx = x + ti * (tabW + gap);
@@ -2271,12 +2298,12 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       addHit(hid, tx, tabY, tabW, tabH);
       markBox(hid, tx, tabY, tabW, tabH);
       box(ctx, tx, tabY, tabW, tabH, on ? "#2a2050" : "#1a1430", on ? C.gold : C.cream);
-      hudText(ctx, tb.label, tx + tabW / 2, tabY + Math.round((tabH - HUD_S.height) / 2), on ? HUDCOL.accent : HUDCOL.main, "S", "center");
+      drawTiny(ctx, tb.label, tx + tabW / 2, tabY + Math.floor((tabH - 5) / 2), on ? HUDCOL.accent : HUDCOL.main, "center");
     }
     var items = encyItems();
     var top = tabY + tabH + 4;
     var hint = encyHintMode();
-    if (encyCard < 0) {
+    if (encyCard < 0 && encyTab !== "bonuses") {
       if (hint === "G") {
         var vis = (window as any).__encyVis;
         var ga = (vis && vis.a >= 0) ? vis.a + 1 : 1;
