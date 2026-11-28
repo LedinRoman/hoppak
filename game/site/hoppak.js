@@ -122,7 +122,7 @@
   var PH = 16;
   var LAND_PAD_X = 0;
   var HURT_PAD_X = 1;
-  var HURT_H = 22;
+  var HURT_H = 24;
   var GRAVITY = 0.19;
   var JUMP_V = -5.55;
   var JUMP_H = JUMP_V * JUMP_V / (2 * GRAVITY);
@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("4429f4b") return String("4429f4b");
+      if ("ca7b4dc") return String("ca7b4dc");
     } catch (_e) {
     }
     return "";

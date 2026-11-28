@@ -31,11 +31,11 @@ var PX_PER_M = 8;
 var REMOTE_ALPHA = 0.84;
 var PW = 12;
 var PH = 16;
-/* Contact with mobs and their projectiles uses a 10×22 box anchored to the feet.
+/* Contact with mobs and their projectiles uses a 10×24 box anchored to the feet.
    PW×PH still controls wrapping, landing, and the sprite anchor. */
 var LAND_PAD_X = 0; /* was 1: land with PW-2 */
 var HURT_PAD_X = 1;
-var HURT_H = 22;
+var HURT_H = 24;
 var GRAVITY = 0.19;
 var JUMP_V = -5.55;
 var JUMP_H = (JUMP_V * JUMP_V) / (2 * GRAVITY); /* ~81 px */
