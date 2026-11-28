@@ -1145,6 +1145,8 @@ function cmInstall(ctx: any): any {
   return st;
 }
 function applyContrast(ctx: Ctx, pct: number, fn: any) {
+  // Apply the same two-point lift to the built-in palette and the server palette.
+  pct += 2;
   if (pct === 100) { fn(); return; }
   var st = cmInstall(ctx);
   if (st.broken) {

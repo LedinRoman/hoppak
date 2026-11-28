@@ -224,7 +224,10 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     var availH = Math.max(240, cssH - frameY * 2);
     var lw = netFixedLW() || (phase === "play" ? FIELD_W : 160);
     var lh = 346;
-    if (fieldLocked) { lw = LW; lh = LH; }
+    if (fieldLocked) {
+      lw = LW;
+      if (phase === "play") lh = LH;
+    }
     var sx: number, sy: number, cssWpx: number, cssHpx: number;
     if (isWide) {
       if (cinemaOn) {
@@ -281,17 +284,15 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         }
         cssWpx = (lw + 2 * VIEW_PAD) * cssScale;
         cssHpx = (lh - VIEW_CROP - VIEW_BOT + VIEW_TOPPAD) * cssScale;
-      } else if (!fieldLocked && phase !== "play" && availH * lw > availW * lh) {
-        /* Menus on a tall phone: fill the whole screen (no stripes under the TG header or below the tab bar).
-           Width sets the scale, the menu just gets taller. Runs always go back to 346 (startRun). */
+      } else if (phase !== "play" && availH * lw > availW * lh) {
+        /* Fill the viewport with the UI background, including after a run.
+           Safe-area padding is applied to controls in the canvas. */
         cssScale = availW / lw;
-        lh = Math.max(lh, Math.floor(availH / cssScale));
+        lh = Math.round(availH / cssScale);
         VIEW_PAD = 0; VIEW_TOPPAD = 0;
         VIEW_CROP = 0; VIEW_BOT = 0;
         cssWpx = availW;
-        /* Keep a uniform scale (pScale === pScaleY). Leftover CSS pixels below 1 game px stay letterboxed
-           instead of stretching the 346-tall art into the extra height. */
-        cssHpx = lh * cssScale;
+        cssHpx = availH;
       } else {
         cssScale = Math.min(availW / lw, availH / lh);
         VIEW_PAD = Math.max(0, (availW / cssScale - lw) / 2); VIEW_TOPPAD = 0;
@@ -3056,7 +3057,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       y += compact ? 13 : 18;
     }
     if (hasGoal && y + (compact ? 16 : (met ? 26 : 32)) <= limitY) {
-      var nxt = MAPS[mi2 + 1], b = mapBest(mi2);
+      var b = mapBest(mi2);
       if (met) {
         var gh = compact ? 14 : 22;
         addHit("camp", x, y, 152, gh);
@@ -3064,18 +3065,21 @@ function startHoppak(canvas: HTMLCanvasElement): any {
         pushRes("goal", x, y, 152, gh);
         drawText(ctx, t('results.map_available'), LW / 2, y + (compact ? 4 : 7), TYPECOL.mint, TYPE.M, "center");
         y += compact ? 16 : 26;
-      } else if (!compact) {
-        box(ctx, x, y, 152, 28, C.navy, C.gold);
-        pushRes("goal", x, y, 152, 28);
-        drawText(ctx, t('results.next_map'), x + 6, y + 3, TYPECOL.primary, TYPE.M, "left");
-        drawText(ctx, t('unit.meter_progress', { n: b, goal: M2.goal }), x + 146, y + 3, TYPECOL.primary, TYPE.M, "right");
-        bar(x + 6, y + 16, 140, 6, b / M2.goal, C.gold);
-        y += 32;
       } else {
-        box(ctx, x, y, 152, 14, C.navy, C.gold);
-        pushRes("goal", x, y, 152, 14);
-        drawText(ctx, t('results.map_progress', { n: b, goal: M2.goal }), LW / 2, y + 4, TYPECOL.primary, TYPE.M, "center");
-        y += 16;
+        var label = t('results.to_next_map');
+        var progress = t('unit.meter_progress', { n: b, goal: M2.goal });
+        var progressH = compact ? 14 : 28;
+        box(ctx, x, y, 152, progressH, C.navy, C.gold);
+        pushRes("goal", x, y, 152, progressH);
+        if (compact) {
+          drawTiny(ctx, label, x + 6, y + 4, TYPECOL.primary, "left");
+          drawTiny(ctx, progress, x + 146, y + 4, TYPECOL.primary, "right");
+        } else {
+          drawText(ctx, label, LW / 2, y + 3, TYPECOL.primary, TYPE.M, "center");
+          drawText(ctx, progress, LW / 2, y + 12, TYPECOL.primary, TYPE.M, "center");
+          bar(x + 6, y + 21, 140, 4, b / M2.goal, C.gold);
+        }
+        y += compact ? 16 : 32;
       }
     }
     var rec = save.mapBest[world.map] || world.best || 0;
