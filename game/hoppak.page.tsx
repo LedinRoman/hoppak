@@ -1102,13 +1102,153 @@ function placeSnakeHead(mo: any) {
   mo.x = b[0]; mo.y = b[1]; mo.w = b[2]; mo.h = b[3];
 }
 
+/* Contrast = saturate(p%) then contrast(p%). It used to be ctx.filter, which makes the browser run a
+   separate filter pass for EVERY draw call; on Android (software raster / render-target switch per op)
+   that was 10-15 fps. Now the same maths is applied once to CSS colours (fillStyle, strokeStyle, gradient
+   stops) and once per source image (baked copy, cached), so drawing stays plain. */
+var CM_COLOR: any = {};
+var CM_PROBE: any = null;
+var CM_BAKE: any = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+function cmPx(pct: number, r: number, g: number, b: number) {
+  var s = pct / 100, c = pct / 100, o = 127.5 * (1 - c);
+  var r1 = (0.213 + 0.787 * s) * r + (0.715 - 0.715 * s) * g + (0.072 - 0.072 * s) * b;
+  var g1 = (0.213 - 0.213 * s) * r + (0.715 + 0.285 * s) * g + (0.072 - 0.072 * s) * b;
+  var b1 = (0.213 - 0.213 * s) * r + (0.715 - 0.715 * s) * g + (0.072 + 0.928 * s) * b;
+  r1 = r1 < 0 ? 0 : r1 > 255 ? 255 : r1;
+  g1 = g1 < 0 ? 0 : g1 > 255 ? 255 : g1;
+  b1 = b1 < 0 ? 0 : b1 > 255 ? 255 : b1;
+  return [Math.round(r1 * c + o), Math.round(g1 * c + o), Math.round(b1 * c + o)];
+}
+function cmParse(css: string): any {
+  var m = /^#([0-9a-f]{3,8})$/i.exec(css);
+  if (m) {
+    var h = m[1];
+    if (h.length === 3 || h.length === 4) h = h.replace(/./g, function (ch: string) { return ch + ch; });
+    if (h.length === 6 || h.length === 8) return [parseInt(h.substr(0, 2), 16), parseInt(h.substr(2, 2), 16), parseInt(h.substr(4, 2), 16), h.length === 8 ? parseInt(h.substr(6, 2), 16) / 255 : 1];
+  }
+  m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i.exec(css);
+  if (m) return [+m[1], +m[2], +m[3], m[4] != null ? +m[4] : 1];
+  try {
+    if (!CM_PROBE) {
+      var pc = document.createElement("canvas"); pc.width = 1; pc.height = 1;
+      CM_PROBE = pc.getContext("2d", { willReadFrequently: true });
+    }
+    CM_PROBE.clearRect(0, 0, 1, 1);
+    CM_PROBE.fillStyle = "#000";
+    CM_PROBE.fillStyle = css;
+    CM_PROBE.fillRect(0, 0, 1, 1);
+    var d = CM_PROBE.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2], d[3] / 255];
+  } catch (_e) { return null; }
+}
+function cmColor(pct: number, css: string): string {
+  var key = pct + "|" + css, hit = CM_COLOR[key];
+  if (hit !== undefined) return hit;
+  var rgba = cmParse(css), out = css;
+  if (rgba) {
+    var t = cmPx(pct, rgba[0], rgba[1], rgba[2]);
+    out = rgba[3] >= 1 ? "rgb(" + t[0] + "," + t[1] + "," + t[2] + ")" : "rgba(" + t[0] + "," + t[1] + "," + t[2] + "," + rgba[3] + ")";
+  }
+  CM_COLOR[key] = out;
+  return out;
+}
+function cmBake(st: any, pct: number, src: any): any {
+  if (!CM_BAKE || !src || src === st.canvas) return null;
+  var w = src.naturalWidth || src.width, h = src.naturalHeight || src.height;
+  if (!(w > 0 && h > 0)) return null;
+  if (typeof HTMLImageElement !== "undefined" && src instanceof HTMLImageElement && !src.complete) return null;
+  var tag = Object.prototype.toString.call(src);
+  if (tag !== "[object HTMLImageElement]" && tag !== "[object HTMLCanvasElement]" && tag !== "[object ImageBitmap]") return null;
+  var m = CM_BAKE.get(src);
+  if (!m) { m = {}; CM_BAKE.set(src, m); }
+  var e = m[pct];
+  if (e && e.w === w && e.h === h) return e.cv;
+  try {
+    var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    var g = cv.getContext("2d", { willReadFrequently: true });
+    g.imageSmoothingEnabled = false;
+    g.drawImage(src, 0, 0);
+    var id = g.getImageData(0, 0, w, h), d = id.data, lut: any = {}, i: number, k: number, t: any;
+    for (i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+      t = lut[k];
+      if (!t) { t = cmPx(pct, d[i], d[i + 1], d[i + 2]); lut[k] = t; }
+      d[i] = t[0]; d[i + 1] = t[1]; d[i + 2] = t[2];
+    }
+    g.putImageData(id, 0, 0);
+    m[pct] = { w: w, h: h, cv: cv };
+    return cv;
+  } catch (_e) {
+    st.broken = true;
+    return null;
+  }
+}
+function cmInstall(ctx: any): any {
+  if (ctx.__cm) return ctx.__cm;
+  var st: any = { pct: 0, broken: false, canvas: ctx.canvas };
+  var P = Object.getPrototypeOf(ctx);
+  var names = ["fillStyle", "strokeStyle"];
+  for (var ni = 0; ni < names.length; ni++) {
+    (function (name: string) {
+      var d: any = null, o: any = P;
+      while (o && !d) { d = Object.getOwnPropertyDescriptor(o, name); o = Object.getPrototypeOf(o); }
+      if (!d || !d.get || !d.set) { st.broken = true; return; }
+      Object.defineProperty(ctx, name, {
+        configurable: true, enumerable: true,
+        get: function () { return d.get.call(ctx); },
+        set: function (v: any) { d.set.call(ctx, st.pct && typeof v === "string" ? cmColor(st.pct, v) : v); }
+      });
+    })(names[ni]);
+  }
+  var odi = ctx.drawImage;
+  ctx.drawImage = function () {
+    var a: any = arguments;
+    if (st.pct) {
+      var b = cmBake(st, st.pct, a[0]);
+      if (b) { a = Array.prototype.slice.call(a); a[0] = b; }
+    }
+    return odi.apply(ctx, a);
+  };
+  var gradNames = ["createLinearGradient", "createRadialGradient"];
+  for (var gi = 0; gi < gradNames.length; gi++) {
+    (function (gname: string) {
+      var og = ctx[gname];
+      if (!og) return;
+      ctx[gname] = function () {
+        var gr = og.apply(ctx, arguments), pct = st.pct;
+        if (pct) {
+          var oa = gr.addColorStop;
+          gr.addColorStop = function (off: number, col: string) { return oa.call(gr, off, typeof col === "string" ? cmColor(pct, col) : col); };
+        }
+        return gr;
+      };
+    })(gradNames[gi]);
+  }
+  var opat = ctx.createPattern;
+  if (opat) ctx.createPattern = function (src: any, rep: any) {
+    var b = st.pct ? cmBake(st, st.pct, src) : null;
+    return opat.call(ctx, b || src, rep);
+  };
+  ctx.__cm = st;
+  return st;
+}
 function applyContrast(ctx: Ctx, pct: number, fn: any) {
   if (pct === 100) { fn(); return; }
+  var st = cmInstall(ctx);
+  if (st.broken) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.filter = "saturate(" + pct + "%) contrast(" + pct + "%)";
+    fn();
+    ctx.restore();
+    return;
+  }
+  var prev = st.pct;
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.filter = "saturate(" + pct + "%) contrast(" + pct + "%)";
-  fn();
-  ctx.restore();
+  st.pct = pct;
+  try { fn(); } finally { st.pct = prev; ctx.restore(); }
 }
 function applyBgContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.bg, fn); }
 function applyPlatContrast(ctx: Ctx, fn: any) { applyContrast(ctx, VISUAL_CONTRAST.platforms, fn); }
