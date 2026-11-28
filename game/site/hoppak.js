@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("3354c2c") return String("3354c2c");
+      if ("5d18efb") return String("5d18efb");
     } catch (_e) {
     }
     return "";
@@ -651,10 +651,10 @@
     }, price: 0, goal: 2e3, special: "", mobs: [["blob", 120], ["trash", 400], ["bat", 800], ["hole", 1500], ["ufo", 2200]] },
     { id: "jungle", get name() {
       return t("map.jungle.name");
-    }, price: 80, goal: 2e3, special: "bounce", mobs: [["frog", 120], ["parrot", 300], ["snake", 550], ["monkey", 900], ["bat", 1400]] },
+    }, price: 80, goal: 2e3, special: "bounce", mobs: [["frog", 120], ["parrot", 300], ["snake", 550], ["bat", 900], ["monkey", 1400]] },
     { id: "ice", get name() {
       return t("map.ice.name");
-    }, price: 100, goal: 2e3, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200], ["blob", 1700]] },
+    }, price: 100, goal: 2e3, special: "ice", mobs: [["penguin", 120], ["owl", 400], ["frost", 750], ["wind", 1200]] },
     { id: "lava", get name() {
       return t("map.lava.name");
     }, price: 120, goal: 2e3, special: "lava", mobs: [["magma", 120], ["spitter", 380], ["firebat", 700], ["ember", 1100]] },
