@@ -909,7 +909,7 @@ function startHoppak(canvas: HTMLCanvasElement): any {
     flashT = 0;
     /* A tap only highlights an open map. ИГРАТЬ on the menu starts that map. */
     if (mapOpen(i)) { if (save.bg !== M.id) { save.bg = M.id; writeSave(save); } return; }
-    if (!mapOpen(i - 1)) { say(t('map.unlock_first')); return; }
+    if (!mapOpen(i - 1)) { say(t('map.unlock_previous')); return; }
     if (!mapGoalMet(i)) { say(t('map.goal_prev', { n: MAPS[i - 1].goal })); return; }
   }
   function nextClosable() {
