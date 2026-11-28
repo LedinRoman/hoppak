@@ -69,6 +69,13 @@ function serve() {
     const stomp = { alive: !!mo.alive, squish: mo.squish, kills: p.kills, playerAlive: !!p.alive, parts: (trash.w.particles || []).length };
 
     reset(p, mo);
+    p.x = mo.x + mo.w / 2 - PW / 2;
+    p.y = mo.y + mo.h / 2 - 2 - PH;
+    p.vy = 2.5;
+    h.simTicks(1);
+    const acrossMid = { canAlive: !!mo.alive, playerAlive: !!p.alive, why: p.why };
+
+    reset(p, mo);
     p.x = mo.x - PW + 3;
     p.y = mo.y + mo.h / 2; // feet below centre
     p.prevY = p.y;
@@ -101,7 +108,7 @@ function serve() {
       slimeBox.stompFromAboveTop = { alive: !!slime.mo.alive, kills: slime.p.kills };
     }
 
-    return { seed: trash.seed, stomp, side, below, slimeBox, trashSize: { w: mo.w, h: mo.h } };
+    return { seed: trash.seed, stomp, acrossMid, side, below, slimeBox, trashSize: { w: mo.w, h: mo.h } };
   });
 
   console.log(JSON.stringify(out, null, 2));
@@ -111,6 +118,8 @@ function serve() {
   assert.ok(out.stomp.kills >= 1, 'stomp counts a kill');
   assert.strictEqual(out.stomp.playerAlive, true, 'stomper lives');
   assert.ok(out.stomp.parts >= 8, 'stomp should spawn debris, got ' + out.stomp.parts);
+  assert.strictEqual(out.acrossMid.playerAlive, true, 'crossing the can midpoint from above must not hurt the player');
+  assert.strictEqual(out.acrossMid.canAlive, false, 'crossing the can midpoint from above counts as a stomp');
 
   assert.strictEqual(out.side.alive, true, 'side bump must not kill the can');
   assert.strictEqual(out.side.kills, 0, 'side bump is not a kill');

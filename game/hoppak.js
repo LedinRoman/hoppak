@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("826b4a8") return String("826b4a8");
+      if ("63b26d8") return String("63b26d8");
     } catch (_e) {
     }
     return "";
@@ -4139,6 +4139,8 @@
           if (stompable && p.vy > 0) {
             if (m2.b === "snake") {
               stomped = p.y + PH <= mid || p.prevY + PH <= mid;
+            } else if (m2.kind === "trash") {
+              stomped = fromAbove;
             } else {
               stomped = p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5;
             }

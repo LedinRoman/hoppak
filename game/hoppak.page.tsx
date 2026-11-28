@@ -3282,6 +3282,9 @@ function tickWorld(w: any, inputs: any) {
           if (m2.b === "snake") {
             /* Falling, feet at or above the head centre: stomp. Side or below: existing grab. */
             stomped = (p.y + PH <= mid) || (p.prevY + PH <= mid);
+          } else if (m2.kind === "trash") {
+            /* Use the same boundary as the bounce check so contact never hurts the player. */
+            stomped = fromAbove;
           } else {
             stomped = (p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5);
           }
