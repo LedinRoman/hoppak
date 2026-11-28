@@ -2415,13 +2415,18 @@ function startHoppak(canvas: HTMLCanvasElement): any {
      every non-forced change waits ANIM_HOLD ms; landing and abilities switch at once. */
   var ANIM_HOLD = 70, ANIM_SQ = 35, ANIM_CR = 35, ANIM_FS = 80;
   var animSt: any = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+  function hookCastTicks(p: any) { return Math.min(5, Math.ceil(p.hookN * 0.3)); }
   /* v1.0 ability phases (render-only, frames ability/ab2/ab3/ab4 of the 64-px sheet):
      pirate hook: throw -> grab -> pull -> hit (by hookT/hookN); mage tele: cast -> out -> in (teleT) -> land (teleFx);
      knight pound: ram_up (first ticks) -> ram_dive; on impact ram_hit ~110 ms -> ram_jump while rising (~330 ms). */
   function abSub(p: any, a: any, now: number) {
     var id = p.look && p.look.id;
     if (id === "pirate") {
-      if (p.hookN > 0) { var u = p.hookT / p.hookN; return u < 0.22 ? "ability" : u < 0.45 ? "ab2" : u < 0.85 ? "ab3" : "ab4"; }
+      if (p.hookN > 0) {
+        var cast = hookCastTicks(p);
+        return p.hookT < cast ? "ability" : p.hookT < cast + 2 ? "ab2" : "ab3";
+      }
+      if (p.hookFx > 0) return "ab4";
       return "none";
     }
     if (id === "mage") {
@@ -2734,32 +2739,33 @@ function startHoppak(canvas: HTMLCanvasElement): any {
       });
     }
   }
+  function drawHookLine(rx: number, ry: number, hx: number, hy: number) {
+    var dx = hx - rx, dy = hy - ry;
+    var n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
+    for (var k = 0; k <= n; k++) {
+      rect(ctx, rx + dx * k / n, ry + dy * k / n, 1, 1, (k >> 1) % 2 ? "#dfb785" : "#916139");
+    }
+    rect(ctx, hx - 2, hy - 2, 5, 4, INK);
+    rect(ctx, hx - 1, hy, 3, 1, "#b8c4d0");
+    rect(ctx, hx - 1, hy - 2, 1, 2, "#e5e9ed");
+    rect(ctx, hx + 1, hy - 2, 1, 2, "#b8c4d0");
+  }
+  function drawPirateHook(p: any, sy: number, cam: number, pose?: string, faceDraw?: number) {
+    var art = PIRATE_HOOK_ART[pose || ""] || PIRATE_HOOK_ART.ability;
+    var cx = Math.round(p.x) + PW / 2;
+    var rx = cx + (faceDraw || 1) * (art.hand[0] * 0.5 - SPR_AX);
+    var ry = Math.round(sy) + PH - ART64.cell.h * 0.5 + art.hand[1] * 0.5;
+    var tx = cx + wrapDx(p.htx + PW / 2 - cx);
+    var ty = p.hty - cam + PH + (p.hookMob ? p.hookMob.h / 2 : 0);
+    var cast = Math.min(1, p.hookT / hookCastTicks(p));
+    var hx = lerp(rx, tx, cast), hy = lerp(ry, ty, cast) - 12 * cast * (1 - cast);
+    drawHookLine(rx, ry, hx, hy);
+    if (Math.min(rx, hx) < 0) drawHookLine(rx + LW, ry, hx + LW, hy);
+    if (Math.max(rx, hx) >= LW) drawHookLine(rx - LW, ry, hx - LW, hy);
+  }
   function drawFxBack(p: any, sy: number, cam: number, pose?: string, faceDraw?: number, tick?: number) {
     var cx = Math.round(p.x + 6), cy = Math.round(sy + 8), k;
-    if (p.hookN > 0) {
-      var hx = Math.round(p.htx + 6), hy = Math.round(p.hty - cam);
-      /* Rope start: the 64-px pirate's own rope end (grab / pull: the sprite rope runs to the frame edge, the code
-         rope continues from that exact art pixel, so it is neither doubled nor broken). Throw: the hook is still in
-         the hand in the art, no code rope. Hit (no rope in the art): from the hand. Other sprites: from the body. */
-      var anc = typeof ART64 !== "undefined" && ART64.anchor && ART64.anchor[p.look && p.look.id];
-      var rx = cx, ry = sy + 2, drawRope = true;
-      if (anc && pose === "ability") drawRope = false;
-      else if (anc && (pose === "ab2" || pose === "ab3") && anc[pose]) {
-        var px0 = Math.round(p.x), cell = ART64.cell, fh2 = cell.h * 0.5;
-        var ax2 = anc[pose][0] * 0.5 + 0.25, ay2 = anc[pose][1] * 0.5 + 0.25;
-        rx = (faceDraw || 1) < 0 ? px0 + 6 + SPR_AX - ax2 : px0 + 6 - SPR_AX + ax2;
-        ry = Math.round(sy) + 16 - fh2 + ay2;
-      } else if (anc && pose === "ab4") { rx = cx + (faceDraw || 1) * 3; ry = sy + 5; }
-      if (drawRope) {
-        var ddx = hx + 0.5 - rx, ddy = hy - ry, n = Math.max(2, Math.ceil(Math.max(Math.abs(ddx), Math.abs(ddy)) * 2));
-        for (k = 0; k <= n; k++) {
-          ctx.fillStyle = (k >> 2) % 2 ? "#c8a070" : "#7a5030";
-          ctx.fillRect(Math.floor((rx + ddx * k / n) * 2) / 2 - 0.25, Math.floor((ry + ddy * k / n) * 2) / 2 - 0.25, 1, 1);
-        }
-        rect(ctx, hx - 2, hy - 1, 5, 2, "#b8c4d0"); rect(ctx, hx - 2, hy - 3, 1, 2, "#b8c4d0"); rect(ctx, hx + 2, hy - 3, 1, 2, "#b8c4d0");
-        rect(ctx, hx - 2, hy + 1, 5, 1, INK);
-      }
-    }
+    if (p.hookN > 0) drawPirateHook(p, sy, cam, pose, faceDraw);
     if (p.grabT > 0 && p.grabMob) { for (k = 0; k < 4; k++) rect(ctx, cx - 5 + k * 3, cy - 2 + (k % 2) * 3, 3, 2, "#3a9a2a"); }
     if (p.magnetT > 0) drawMagnetCloud(ctx, p, sy, pose || "idle", faceDraw || 1, tick || 0);
     if (p.teleFx > 0) { ctx.globalAlpha = p.teleFx / 18; for (k = 0; k < 10; k++) { var a2 = k * 0.63 + ui * 0.2, r2 = 18 - p.teleFx * 0.6; rect(ctx, cx + Math.cos(a2) * r2, cy + Math.sin(a2) * r2, 2, 2, k % 2 ? "#e8c8ff" : "#a060ff"); } ctx.globalAlpha = 1; }

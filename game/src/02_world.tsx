@@ -506,7 +506,7 @@ function newPlayer(i: number, kind: number, look: any, x: number, isBot: boolean
     x: x, y: -PH, vx: 0, vy: 0, prevY: -PH, alive: true, maxH: 0, isBot: isBot,
     face: 1, squash: 0, iceT: 0, gravT: 0, camY: -LH + 70, place: 0, why: "",
     bias: [0, -14, 14, 6][i], react: [1, 3, 4, 5][i], tgt: null, botDir: 0,
-    abCharge: CHARS[kind].need, abFx: 0, hookT: 0, hookN: 0, hx0: 0, hy0: 0, htx: 0, hty: 0, hookPl: null, hookCoin: null,
+    abCharge: CHARS[kind].need, abFx: 0, hookT: 0, hookN: 0, hookFx: 0, hx0: 0, hy0: 0, htx: 0, hty: 0, hookPl: null, hookMob: null,
     teleT: 0, teleN: 0, tx0: 0, ty0: 0, ttx: 0, tty: 0,
     domeT: 0, domeSave: false, kills: 0, shieldT: 0, magnetT: 0, rocketT: 0, invT: 0, freezeT: 0, grabT: 0, grabMob: null, dashT: 0, poundT: 0, wallT: 0, wall: 0, teleFx: 0, ramFx: 0, stallT: 0, stallH: 0
   };
@@ -837,25 +837,32 @@ function addCharge(p: any, kind: string, n: number) {
   var H = CHARS[p.kind];
   if (H.charge === kind) p.abCharge = Math.min(abChargeCap(H), p.abCharge + n);
 }
-/* pirate hook: nearest platform (above feet) or coin in reach, any direction */
+/* Pirate hook: a visible mob takes priority over the highest visible platform. */
 function hookTarget(w: any, p: any) {
-  var cx = p.x + PW / 2, cy = p.y + PH / 2, best: any = null, bd = 1e9, i;
+  var cx = p.x + PW / 2, cy = p.y + PH / 2;
+  var top = p.camY + (p.isBot ? 0 : VIEW_SHIFT + viewY0());
+  var bot = p.camY + (p.isBot ? LH : VIEW_SHIFT + viewY1());
+  var best: any = null, bd = Infinity, i;
+  for (i = 0; i < w.monsters.length; i++) {
+    var mo = w.monsters[i];
+    if (!mo.alive || mo.y + mo.h <= top || mo.y >= bot) continue;
+    var dx = wrapDx(mo.x + mo.w / 2 - cx), dy = mo.y + mo.h / 2 - cy;
+    var d2 = dx * dx + dy * dy;
+    if (d2 < bd) { bd = d2; best = mo; }
+  }
+  if (best) return { mob: best, pl: null };
   for (i = 0; i < w.platforms.length; i++) {
     var pl = w.platforms[i];
-    if (pl.broken || pl.y > p.y + PH - 6 || pl.y < cy - 125) continue;
-    var dx = wrapDx(pl.x + pl.w / 2 - cx), dy = pl.y - PH / 2 - cy, d = Math.sqrt(dx * dx + dy * dy);
-    if (d < 16 || d > 120) continue;
-    var sc = d - Math.min(40, -dy) * 0.5;
-    if (sc < bd) { bd = sc; best = { x: cx + dx, y: pl.y - PH, pl: pl, coin: null }; }
+    if (pl.broken || pl.y < top || pl.y >= bot) continue;
+    var dist = Math.abs(wrapDx(pl.x + pl.w / 2 - cx));
+    if (!best || pl.y < best.y || (pl.y === best.y && dist < bd)) { bd = dist; best = pl; }
   }
-  for (i = 0; i < w.coins.length; i++) {
-    var cn = w.coins[i];
-    if (cn.taken) continue;
-    var cdx = wrapDx(cn.x + 3 - cx), cdy = cn.y + 3 - cy, cd = Math.sqrt(cdx * cdx + cdy * cdy);
-    if (cd < 10 || cd > 100) continue;
-    if (cd - 8 < bd) { bd = cd - 8; best = { x: cx + cdx, y: cn.y + 3 - PH / 2, pl: null, coin: cn }; }
-  }
-  return best;
+  return best ? { mob: null, pl: best } : null;
+}
+function updateHookDestination(p: any) {
+  var target = p.hookMob || p.hookPl;
+  p.htx += wrapDx(target.x + (target.w - PW) / 2 - p.htx);
+  p.hty = target.y - PH;
 }
 function useAbility(w: any, p: any) {
   if (!p.alive || !abReady(p)) return false;
@@ -864,8 +871,9 @@ function useAbility(w: any, p: any) {
   if (H.ab === "hook") {
     var tg = hookTarget(w, p);
     if (!tg) { if (p.id === 0) toast(w, t('play.no_target')); return false; }
-    p.hookT = 0; p.hx0 = p.x; p.hy0 = p.y; p.htx = tg.x - PW / 2; p.hty = tg.y; p.hookPl = tg.pl; p.hookCoin = tg.coin;
-    var hd = Math.sqrt(Math.pow(p.htx - p.x, 2) + Math.pow(p.hty - p.y, 2));
+    p.hookT = 0; p.hookFx = 0; p.hx0 = p.x; p.hy0 = p.y; p.htx = p.x; p.hookPl = tg.pl; p.hookMob = tg.mob;
+    updateHookDestination(p);
+    var hd = Math.hypot(p.htx - p.x, p.hty - p.y);
     p.hookN = Math.round(clamp(hd / 5, 10, 22));
     p.grabT = 0; p.poundT = 0;
   }
@@ -1079,6 +1087,7 @@ function tickWorld(w: any, inputs: any) {
     var inp = inputs[p.id] || { dir: 0, ax: 0 };
     if (p.teleFx > 0) p.teleFx--;
     if (p.ramFx > 0) p.ramFx--;
+    if (p.hookFx > 0) p.hookFx--;
     if (p.wallT > 0) { p.wallT--; if (p.wallT === 0) p.wall = 0; }
     /* ninja on a wall: tap the ability button or press away from the wall -> kick up and away */
     if (p.wall && (inp.ab || (inp.dir || 0) === -p.wall || (inp.ax && Math.sign(inp.ax) === -p.wall && Math.abs(inp.ax) > 0.3))) {
@@ -1105,25 +1114,24 @@ function tickWorld(w: any, inputs: any) {
       continue;
     }
     if (p.hookN > 0) {
+      var hookMob = p.hookMob, hookPl = p.hookPl;
+      if (hookMob ? !hookMob.alive : !hookPl || hookPl.broken) {
+        p.hookN = 0; p.hookMob = p.hookPl = null;
+        p.vy = -3.2;
+        continue;
+      }
+      updateHookDestination(p);
       p.hookT++;
       var u = p.hookT / p.hookN, hdx = p.htx - p.hx0, hdy = p.hty - p.hy0;
       var arc = Math.min(26, Math.sqrt(hdx * hdx + hdy * hdy) * 0.3) * Math.sin(Math.PI * u);
       var nx = p.hx0 + hdx * u, ny = p.hy0 + hdy * u - arc;
-      p.vx = nx - p.x; p.vy = ny - p.y;
-      p.x = nx; p.y = ny;
-      if (p.x < -PW) p.x += LW; if (p.x > LW) p.x -= LW;
+      p.vx = wrapDx(nx - p.x); p.vy = ny - p.y;
+      p.x = mod(nx + PW / 2, LW) - PW / 2; p.y = ny;
       if (hdx) p.face = hdx > 0 ? 1 : -1;
-      for (k = 0; k < w.monsters.length; k++) {
-        var hm = w.monsters[k];
-        if (!hm.alive || hm.b === "wind") continue;
-        var hb = mobBox(hm);
-        if (overlapsMobBox(p.x - 2, p.y - 2, PW + 4, PH + 4, hb, 0)
-          || (hm.kind === "blob" && overlapsMobBox(p.x - 2, p.y - 2, PW + 4, PH + 4, blobTopBox(hm), 0))) killMob(w, hm, p, true);
-      }
       if (p.hookT >= p.hookN) {
-        p.hookN = 0;
-        if (p.hookPl && !p.hookPl.broken) { p.x = p.htx; landOn(w, p, p.hookPl); }
-        else p.vy = -3.2;
+        p.hookN = 0; p.hookMob = p.hookPl = null;
+        if (hookMob) { killMob(w, hookMob, p); p.hookFx = 5; }
+        else landOn(w, p, hookPl);
         p.vx *= 0.3;
       }
       var hmh = Math.max(0, -(p.y + PH));

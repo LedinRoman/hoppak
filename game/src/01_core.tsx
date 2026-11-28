@@ -111,7 +111,7 @@ var ROBOT_OLD_DOME = false;
    charge: time (ticks, 50/s) | coins (coins picked) | height (metres climbed) | kills (mobs stomped) */
 var CHARS: any[] = [
   { id: "pilot", get name() { return t('hero.pilot.name'); }, hood: "#2c3a5c", price: 0, ab: "dash", get abName() { return t('hero.pilot.ability'); }, get type() { return t('hero.pilot.type'); }, get abDesc() { return [t('hero.pilot.description1'), t('hero.pilot.description2')]; }, charge: "time", need: 400 },
-  { id: "pirate", get name() { return t('hero.pirate.name'); }, hood: "#a8282c", price: 150, ab: "hook", get abName() { return t('hero.pirate.ability'); }, get type() { return t('hero.pirate.type'); }, get abDesc() { return [t('hero.pirate.description1'), t('hero.pirate.description2')]; }, charge: "time", need: 400 },
+  { id: "pirate", get name() { return t('hero.pirate.name'); }, hood: "#a8282c", price: 150, ab: "hook", get abName() { return t('hero.pirate.ability'); }, get type() { return t('hero.pirate.type'); }, get abDesc() { return [t('hero.pirate.hook_mob'), t('hero.pirate.hook_platform')]; }, charge: "time", need: 500 },
   { id: "ninja", get name() { return t('hero.ninja.name'); }, hood: "#26305a", price: 200, ab: "wall", get abName() { return t('hero.ninja.ability'); }, get type() { return t('hero.ninja.type'); }, get abDesc() { return [t('hero.ninja.description1'), t('hero.ninja.description2')]; }, charge: "time", need: 500 },
   { id: "robot", get name() { return t('hero.robot.name'); }, hood: "#d8dce8", price: 240, ab: ROBOT_OLD_DOME ? "dome" : "shield", get abName() { return t('hero.robot.shield_name'); }, get type() { return t('hero.robot.type'); }, get abDesc() { return [t('hero.robot.shield_hit'), t('hero.robot.shield_fall')]; }, charge: "height", need: 200 },
   { id: "mage", get name() { return t('hero.mage.name'); }, hood: "#7a3ac8", price: 280, ab: "tele", get abName() { return t('hero.mage.ability'); }, get type() { return t('hero.mage.type'); }, get abDesc() { return [t('hero.mage.description1'), t('hero.mage.description2')]; }, charge: "coins", need: 5 },
@@ -274,11 +274,24 @@ function pngToCanvas(b64: string) {
     return cv;
   } catch (_e) { return null; }
 }
+/* Hand anchors and the parts of the stock PNG frames replaced by the moving rope. */
+var PIRATE_HOOK_ART: any = {
+  ability: { hand: [49, 29], cut: [47, 28] },
+  ab2: { hand: [50, 23], cut: [50, 21] },
+  ab3: { hand: [47, 21], cut: [49, 19] }
+};
 function heroSprite(id: string) {
   if (spriteCache[id]) return spriteCache[id];
   var src = HERO_SPRITES[id];
   if (!src) return null;
   var cv = pngToCanvas(src);
+  if (cv && id === "pirate" && HERO64[id]) {
+    var g = cv.getContext("2d"), cellW = ART64.cell.w;
+    if (g) for (var pose in PIRATE_HOOK_ART) {
+      var cut = PIRATE_HOOK_ART[pose].cut;
+      g.clearRect(HERO64_POSES.indexOf(pose) * cellW + cut[0], 0, cellW - cut[0], cut[1]);
+    }
+  }
   if (cv) spriteCache[id] = cv;
   return cv;
 }
