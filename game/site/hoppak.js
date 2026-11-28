@@ -122,7 +122,7 @@
   var PH = 16;
   var LAND_PAD_X = 0;
   var HURT_PAD_X = 1;
-  var HURT_PAD_Y = 4;
+  var HURT_H = 22;
   var GRAVITY = 0.19;
   var JUMP_V = -5.55;
   var JUMP_H = JUMP_V * JUMP_V / (2 * GRAVITY);
@@ -191,7 +191,7 @@
   }
   function buildSha() {
     try {
-      if ("63b26d8") return String("63b26d8");
+      if ("4429f4b") return String("4429f4b");
     } catch (_e) {
     }
     return "";
@@ -3519,7 +3519,7 @@
       hopSfx("hit");
     }
   }
-  function bumpOffTrash(w, p, mo) {
+  function bumpOffMob(w, p, mo) {
     if (mo.cool > 0) return;
     var s = wrapDx(p.x + PW / 2 - (mo.x + mo.w / 2)) >= 0 ? 1 : -1;
     p.vx = s * 2.4;
@@ -3531,9 +3531,19 @@
   function mobBox(mo) {
     if (mo.b === "snake") return snakeHeadBox(mo);
     if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
-    if (mo.kind === "blob") return [mo.x + 2, mo.y - 3, mo.w - 4, mo.h + 2];
+    if (mo.kind === "blob") return [mo.x - 1, mo.y + 1, mo.w + 2, mo.h - 2];
     if (mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
+    if (mo.kind === "bat" || mo.kind === "ufo" || mo.kind === "frog" || mo.kind === "parrot") {
+      return [mo.x - 2, mo.y, mo.w + 4, mo.h];
+    }
+    if (mo.kind === "monkey") return [mo.x, mo.y - 6, mo.w, mo.h + 6];
     return [mo.x, mo.y, mo.w, mo.h];
+  }
+  function blobTopBox(mo) {
+    return [mo.x + (mo.vx < 0 ? 0 : 2), mo.y - 3, mo.w - 2, 4];
+  }
+  function overlapsMobBox(x, y, w, h, box2, padX) {
+    return y < box2[1] + box2[3] && y + h > box2[1] && overlapsX(x, w, box2[0] + padX, box2[2] - padX * 2);
   }
   function abCharges(H) {
     return H && H.charges > 1 ? H.charges | 0 : 1;
@@ -3957,7 +3967,7 @@
           var hm = w.monsters[k];
           if (!hm.alive || hm.b === "wind") continue;
           var hb = mobBox(hm);
-          if (overlapsX(p.x - 2, PW + 4, hb[0], hb[2]) && p.y - 2 < hb[1] + hb[3] && p.y + PH + 2 > hb[1]) killMob(w, hm, p, true);
+          if (overlapsMobBox(p.x - 2, p.y - 2, PW + 4, PH + 4, hb, 0) || hm.kind === "blob" && overlapsMobBox(p.x - 2, p.y - 2, PW + 4, PH + 4, blobTopBox(hm), 0)) killMob(w, hm, p, true);
         }
         if (p.hookT >= p.hookN) {
           p.hookN = 0;
@@ -4118,12 +4128,18 @@
           }
           if (threat) m2.warnT = 18;
         }
-        var bb = mobBox(m2);
-        if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bb[0] + 1, bb[2] - 2) && p.y + HURT_PAD_Y < bb[1] + bb[3] && p.y + PH > bb[1]) {
+        var hurtX = p.x + HURT_PAD_X, hurtY = p.y + PH - HURT_H, hurtW = PW - HURT_PAD_X * 2;
+        var bb = m2.kind === "blob" ? blobTopBox(m2) : mobBox(m2);
+        var contact = overlapsMobBox(hurtX, hurtY, hurtW, HURT_H, bb, 1);
+        if (!contact && m2.kind === "blob") {
+          bb = mobBox(m2);
+          contact = overlapsMobBox(hurtX, hurtY, hurtW, HURT_H, bb, 1);
+        }
+        if (contact) {
           var mid = bb[1] + bb[3] / 2;
           var fromAbove = p.vy > 0 && (p.y + PH <= mid || p.prevY + PH <= mid || p.y + PH - bb[1] < 9 || p.prevY + PH <= bb[1] + 5);
           if (m2.kind === "trash" && !fromAbove) {
-            bumpOffTrash(w, p, m2);
+            bumpOffMob(w, p, m2);
             continue;
           }
           if (p.rocketT > 0 || p.dashT > 0 || p.poundT > 0 || p.domeT > 0) {
@@ -4146,6 +4162,7 @@
             }
           }
           if (stomped) killMob(w, m2, p);
+          else if (m2.kind === "monkey") bumpOffMob(w, p, m2);
           else if (m2.b === "snake") {
             grabPlayer(w, p, m2);
             if (p.grabT > 0) break;
@@ -4159,7 +4176,7 @@
       for (k = 0; k < w.bullets.length; k++) {
         var bl = w.bullets[k];
         if (bl.life <= 0) continue;
-        if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bl.x - 1, 3) && bl.y + 4 > p.y + 2 && bl.y < p.y + PH) {
+        if (overlapsX(p.x + HURT_PAD_X, PW - HURT_PAD_X * 2, bl.x - 1, 3) && bl.y + 4 > p.y + PH - HURT_H && bl.y < p.y + PH) {
           if (invuln(p)) {
             bl.life = 0;
             continue;
