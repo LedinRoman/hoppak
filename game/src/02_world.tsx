@@ -798,7 +798,7 @@ function bumpOffMob(w: any, p: any, mo: any) {
 function mobBox(mo: any) {
   if (mo.b === "snake") return snakeHeadBox(mo);
   if (mo.b === "puff" && mo.big) return [mo.x - 3, mo.y - 3, mo.w + 6, mo.h + 6];
-  if (mo.kind === "blob") return [mo.x - 1, mo.y + 1, mo.w + 2, mo.h - 2];
+  if (mo.kind === "blob") return [mo.x - 3, mo.y + 1, mo.w + 6, mo.h - 2];
   if (mo.kind === "magma") return [mo.x + 2, mo.y + 1, mo.w - 4, mo.h - 2];
   if (mo.kind === "bat" || mo.kind === "ufo" || mo.kind === "frog" || mo.kind === "parrot") {
     return [mo.x - 2, mo.y, mo.w + 4, mo.h];
